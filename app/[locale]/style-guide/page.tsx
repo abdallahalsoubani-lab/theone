@@ -1,6 +1,7 @@
-import type { Metadata } from 'next';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { Logo } from '@/components/brand/Logo';
+import { LanguageToggle } from '@/components/shell/LanguageToggle';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,21 +12,28 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { DirectionalIcon } from '@/components/ui/DirectionalIcon';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
+import type { AppLocale } from '@/lib/format/locale';
+
+import { BilingualPreview } from './_sections/BilingualPreview';
+import { FormattingSamples } from './_sections/FormattingSamples';
 
 /**
  * Internal style guide.
  *
- * Exempt from the i18n rule (Prompt 1 §4.11) — copy is in English only.
- * This page is the visual smoke test for the design system and grows with
- * the system: Prompt 3 adds the RTL toggle preview, Prompt 7 adds the
- * calendar widget preview, etc.
+ * Mixed-language by design: shell + section titles flow through next-intl
+ * (Prompt 3 §4.12); the demo content inside each section stays in English
+ * because the page documents the design system, not the localized app.
+ * Grows with the system — Prompt 7 will add a calendar widget preview, etc.
  */
-export const metadata: Metadata = {
-  title: 'Style guide',
-};
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: 'styleGuide' });
+  return { title: t('title') };
+}
 
 const BRAND_TOKENS: ReadonlyArray<{
   name: string;
@@ -104,26 +112,55 @@ const SPACING_STEPS: ReadonlyArray<{ step: number; px: number; tw: string }> = [
   { step: 16, px: 64, tw: 'w-16' },
 ];
 
-export default function StyleGuidePage() {
+export default async function StyleGuidePage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  const sg = await getTranslations('styleGuide');
+  const dir = locale === 'ar' ? 'rtl' : 'ltr';
+
   return (
-    <main className="mx-auto max-w-6xl space-y-16 px-6 py-12">
+    <div className="mx-auto max-w-6xl space-y-16 px-6 py-12">
       <header className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <Logo size={56} />
           <div>
-            <h1 className="text-3xl font-medium text-brand-navy">Theone.pt — style guide</h1>
-            <p className="text-sm text-brand-textMuted">
-              Phase 0 visual baseline. Brand tokens, typography, components.
-            </p>
+            <h1 className="text-3xl font-medium text-brand-navy">{sg('title')}</h1>
+            <p className="text-sm text-brand-textMuted">{sg('subtitle')}</p>
           </div>
         </div>
         <Badge variant="teal">Phase 0 · Foundation</Badge>
       </header>
 
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
+          <div className="flex items-center gap-3">
+            <DirectionalIcon name="chevron-end" className="size-4 text-brand-cyan" />
+            <p className="text-sm text-brand-textMuted">
+              {sg('directionLabel', { dir })} — <code>{locale}</code>
+            </p>
+          </div>
+          <LanguageToggle />
+        </CardContent>
+      </Card>
+
+      <Section
+        title={sg('bilingualPreview')}
+        description="Same content side by side in en (LTR) and ar (RTL) for visual QA."
+      >
+        <BilingualPreview />
+      </Section>
+
+      <Section
+        title={sg('formatting')}
+        description="Outputs from lib/format/* in the active locale."
+      >
+        <FormattingSamples locale={locale as AppLocale} />
+      </Section>
+
       <Separator />
 
       <Section
-        title="Colors"
+        title={sg('colors')}
         description="Eleven locked tokens. Both Tailwind classes and CSS variables resolve to these values."
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -150,7 +187,7 @@ export default function StyleGuidePage() {
       </Section>
 
       <Section
-        title="CTA gradient"
+        title={sg('ctaGradient')}
         description="Primary call-to-action surface — locked gradient direction."
       >
         <div className="flex h-24 items-center justify-center rounded-lg bg-gradient-cta text-lg font-medium text-white shadow-sm">
@@ -159,7 +196,7 @@ export default function StyleGuidePage() {
       </Section>
 
       <Section
-        title="Typography"
+        title={sg('typography')}
         description="Inter for Latin, IBM Plex Sans Arabic for Arabic. Weights 400 and 500 only."
       >
         <Card>
@@ -190,7 +227,7 @@ export default function StyleGuidePage() {
         </Card>
       </Section>
 
-      <Section title="Buttons" description="All shadcn variants plus the brand CTA gradient.">
+      <Section title={sg('buttons')} description="All shadcn variants plus the brand CTA gradient.">
         <Card>
           <CardContent className="flex flex-wrap items-center gap-3 p-6">
             <Button>Default</Button>
@@ -210,7 +247,7 @@ export default function StyleGuidePage() {
         </Card>
       </Section>
 
-      <Section title="Form inputs" description="Input + Label, plus disabled and error states.">
+      <Section title={sg('forms')} description="Input + Label, plus disabled and error states.">
         <Card>
           <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
             <div className="space-y-2">
@@ -238,7 +275,7 @@ export default function StyleGuidePage() {
       </Section>
 
       <Section
-        title="Cards"
+        title={sg('cards')}
         description="Three reference layouts: basic, header + footer, elevated."
       >
         <div className="grid gap-4 md:grid-cols-3">
@@ -279,7 +316,7 @@ export default function StyleGuidePage() {
         </div>
       </Section>
 
-      <Section title="Badges" description="Status, category, and counter chips.">
+      <Section title={sg('badges')} description="Status, category, and counter chips.">
         <Card>
           <CardContent className="flex flex-wrap items-center gap-2 p-6">
             <Badge>Default · navy</Badge>
@@ -294,7 +331,7 @@ export default function StyleGuidePage() {
       </Section>
 
       <Section
-        title="Spacing scale"
+        title={sg('spacing')}
         description="Tailwind spacing tokens used in the system (multiples of 4px)."
       >
         <Card>
@@ -311,7 +348,7 @@ export default function StyleGuidePage() {
           </CardContent>
         </Card>
       </Section>
-    </main>
+    </div>
   );
 }
 

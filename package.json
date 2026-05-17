@@ -28,6 +28,7 @@
     "db:reset": "dotenv -e .env.local -- prisma migrate reset --force",
     "db:seed": "dotenv -e .env.local -- tsx prisma/seed.ts",
     "db:studio": "dotenv -e .env.local -- prisma studio",
+    "i18n:check": "tsx scripts/check-i18n-sync.ts",
     "prepare": "husky"
   },
   "prisma": {

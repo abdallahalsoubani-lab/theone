@@ -7,26 +7,32 @@ on:
   pull_request:
     branches: [main]
 
-# Placeholder — Prompt 3 (Internationalization) populates this workflow with the
-# actual key-parity check between `messages/en.json` and `messages/ar.json`.
-# Until then the job runs but performs no assertion, so the workflow exists in
-# GitHub Actions and PR branch protection can require it from day one.
+# Verifies that messages/en.json and messages/ar.json have the same set of
+# dotted key paths. Fails the build on divergence so a missing translation
+# can never land on main. Backed by scripts/check-i18n-sync.ts.
 
 jobs:
   i18n-sync:
     name: messages/{en,ar}.json key parity
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Placeholder check
-        run: |
-          if [ ! -d messages ]; then
-            echo "messages/ directory missing"; exit 1
-          fi
-          if [ -f messages/en.json ] && [ -f messages/ar.json ]; then
-            echo "Both catalogs present — full diff check lands in Prompt 3."
-          else
-            echo "Catalogs not yet created (owned by Prompt 3). Skipping."
-          fi
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run i18n:check
+        run: pnpm i18n:check

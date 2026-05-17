@@ -49,6 +49,9 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
+      - name: i18n key parity (en ↔ ar)
+        run: pnpm i18n:check
+
       - name: Test
         run: pnpm test
 
