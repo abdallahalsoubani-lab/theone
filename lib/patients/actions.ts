@@ -9,6 +9,7 @@ import { requirePermission } from '@/lib/rbac/guards';
 import {
   createPatient,
   patientToLocalized,
+  resetPatientPassword,
   updateOwnPatientProfile,
   updatePatient,
 } from './services';
@@ -56,6 +57,19 @@ export async function updatePatientAction(
   if (!parsed.success) return fail(patientToLocalized(parsed.error));
   try {
     const data = await updatePatient(parsed.data);
+    revalidate();
+    return ok(data);
+  } catch (err) {
+    return fail(patientToLocalized(err));
+  }
+}
+
+export async function resetPatientPasswordAction(
+  id: string,
+): Promise<Result<{ patientId: string; tempPassword: string; whatsappStatus: 'SENT' | 'FAILED' }>> {
+  await requirePermission('patients.reset_password');
+  try {
+    const data = await resetPatientPassword(id);
     revalidate();
     return ok(data);
   } catch (err) {

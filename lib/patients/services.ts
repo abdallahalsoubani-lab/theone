@@ -234,6 +234,63 @@ export const updateOwnPatientProfile = withAudit<
   },
 );
 
+interface ResetPasswordResult {
+  patientId: string;
+  tempPassword: string;
+  whatsappStatus: 'SENT' | 'FAILED';
+}
+
+export const resetPatientPassword = withAudit<[string], ResetPasswordResult>(
+  {
+    entityType: 'User',
+    action: AuditAction.UPDATE,
+    extractEntityId: (args) => args[0],
+    extractAfter: (result) => ({
+      event: 'PATIENT_PASSWORD_RESET',
+      whatsappStatus: result.whatsappStatus,
+    }),
+  },
+  async function resetPatientPasswordInner(id): Promise<ResetPasswordResult> {
+    const patient = await db.user.findFirst({
+      where: { id, role: UserRole.PATIENT, deletedAt: null },
+      select: { id: true, phone: true, fullNameEn: true, fullNameAr: true, languagePref: true },
+    });
+    if (!patient) throw new PatientAdminError(notFound);
+
+    const tempPassword = generateTempPassword();
+    const passwordHash = await hashPassword(tempPassword);
+    await db.user.update({
+      where: { id },
+      data: {
+        passwordHash,
+        mustChangePassword: true,
+        passwordChangedAt: new Date(),
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
+    });
+
+    let whatsappStatus: 'SENT' | 'FAILED' = 'SENT';
+    try {
+      const result = await sendPatientCredentials({
+        recipientUserId: patient.id,
+        recipientPhone: patient.phone,
+        recipientName: patient.languagePref === 'AR' ? patient.fullNameAr : patient.fullNameEn,
+        username: patient.phone,
+        tempPassword,
+        portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/${patient.languagePref === 'AR' ? 'ar' : 'en'}/login`,
+        language: patient.languagePref,
+      });
+      if (result.status === 'FAILED') whatsappStatus = 'FAILED';
+    } catch (err) {
+      whatsappStatus = 'FAILED';
+      console.error('[patients] WhatsApp reset-credentials delivery failed', err);
+    }
+
+    return { patientId: id, tempPassword, whatsappStatus };
+  },
+);
+
 export function patientToLocalized(err: unknown): LocalizedError {
   if (err instanceof PatientAdminError) return err.error;
   return toLocalizedError(err);

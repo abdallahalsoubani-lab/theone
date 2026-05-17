@@ -144,6 +144,60 @@ export async function getPatientById(id: string) {
   });
 }
 
+/** Flattened shape for the file UI — caller-friendly subset. */
+export interface PatientFileData {
+  id: string;
+  fullNameEn: string;
+  fullNameAr: string;
+  phone: string;
+  email: string | null;
+  dateOfBirth: Date;
+  gender: 'MALE' | 'FEMALE';
+  nationalId: string | null;
+  address: string | null;
+  occupation: string | null;
+  emergencyContactName: string | null;
+  emergencyContactPhone: string | null;
+  hijriCalendarPref: boolean;
+  medicalHistorySummary: string | null;
+  allergies: string | null;
+  currentMedications: string | null;
+  languagePref: 'EN' | 'AR';
+  archived: boolean;
+  mustChangePassword: boolean;
+  assignedTherapist: { id: string; fullNameEn: string; fullNameAr: string } | null;
+  responsibleDoctor: { id: string; fullNameEn: string; fullNameAr: string } | null;
+}
+
+export async function getPatientFile(id: string): Promise<PatientFileData | null> {
+  const u = await getPatientById(id);
+  if (!u || !u.patientProfile) return null;
+  const p = u.patientProfile;
+  return {
+    id: u.id,
+    fullNameEn: u.fullNameEn,
+    fullNameAr: u.fullNameAr,
+    phone: u.phone,
+    email: u.email,
+    dateOfBirth: p.dateOfBirth,
+    gender: p.gender,
+    nationalId: p.nationalId,
+    address: p.address,
+    occupation: p.occupation,
+    emergencyContactName: p.emergencyContactName,
+    emergencyContactPhone: p.emergencyContactPhone,
+    hijriCalendarPref: p.hijriCalendarPref,
+    medicalHistorySummary: p.medicalHistorySummary,
+    allergies: p.allergies,
+    currentMedications: p.currentMedications,
+    languagePref: u.languagePref,
+    archived: u.deletedAt !== null,
+    mustChangePassword: u.mustChangePassword,
+    assignedTherapist: p.assignedTherapist,
+    responsibleDoctor: p.responsibleDoctor,
+  };
+}
+
 /**
  * For Doctor / Therapist scope: returns true when the actor is assigned to
  * the patient (as primary therapist or responsible doctor) — used by the
