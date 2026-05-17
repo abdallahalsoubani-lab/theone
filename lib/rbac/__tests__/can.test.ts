@@ -1,0 +1,210 @@
+import { UserRole } from '@prisma/client';
+import { describe, expect, it } from 'vitest';
+
+import { can, canAny, type PermissionUser } from '../can';
+import { PERMISSIONS, ROLE_PERMISSIONS, listPermissions } from '../permissions';
+
+const u = (role: UserRole, id = 'u-self'): PermissionUser => ({ id, role });
+
+const OTHER = 'u-someone-else';
+
+// ─────────────────────────────────────────────────────────────────────────
+// Exhaustive grant table — every (role, code) pair from spec §4.1.
+// Cells: 'yes' for unscoped grants; 'own'/'assigned'/'limited' for scoped.
+// Any cell not listed defaults to false.
+// ─────────────────────────────────────────────────────────────────────────
+type Grant = true | 'own' | 'assigned' | 'limited' | 'broad';
+const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
+  PATIENT: {
+    [PERMISSIONS.OWN_PROFILE_READ]: true,
+    [PERMISSIONS.OWN_PROFILE_UPDATE]: true,
+    [PERMISSIONS.APPOINTMENTS_READ_OWN]: 'own',
+    [PERMISSIONS.TREATMENT_PLANS_READ_OWN]: 'own',
+    [PERMISSIONS.PATIENT_TIMELINE_READ_LIMITED]: 'limited',
+    [PERMISSIONS.HOME_PROGRAM_READ_OWN]: 'own',
+    [PERMISSIONS.EXERCISE_MEDIA_READ_OWN]: 'own',
+  },
+  SECRETARY: {
+    [PERMISSIONS.OWN_PROFILE_READ]: true,
+    [PERMISSIONS.OWN_PROFILE_UPDATE]: true,
+    [PERMISSIONS.USERS_READ_PATIENTS]: 'broad',
+    [PERMISSIONS.USERS_READ_THERAPISTS]: 'broad',
+    [PERMISSIONS.APPOINTMENTS_CREATE]: true,
+    [PERMISSIONS.APPOINTMENTS_READ]: true,
+    [PERMISSIONS.APPOINTMENTS_UPDATE]: true,
+    [PERMISSIONS.APPOINTMENTS_DELETE]: true,
+    [PERMISSIONS.TREATMENT_PLANS_READ]: true,
+    [PERMISSIONS.SESSION_NOTES_READ]: true,
+    [PERMISSIONS.PATIENT_TIMELINE_READ]: true,
+    [PERMISSIONS.HOME_PROGRAM_READ]: true,
+    [PERMISSIONS.LEAVES_CREATE_OWN]: 'own',
+    [PERMISSIONS.LEAVES_READ_OWN]: 'own',
+    [PERMISSIONS.LEAVES_READ]: true,
+    [PERMISSIONS.REPORTS_READ]: true,
+  },
+  DOCTOR: {
+    [PERMISSIONS.OWN_PROFILE_READ]: true,
+    [PERMISSIONS.OWN_PROFILE_UPDATE]: true,
+    [PERMISSIONS.USERS_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.APPOINTMENTS_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.TREATMENT_PLANS_CREATE]: true,
+    [PERMISSIONS.TREATMENT_PLANS_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.TREATMENT_PLANS_UPDATE_OWN]: 'own',
+    [PERMISSIONS.SESSION_NOTES_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.PATIENT_TIMELINE_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.HOME_PROGRAM_READ]: true,
+    [PERMISSIONS.LEAVES_CREATE_OWN]: 'own',
+    [PERMISSIONS.LEAVES_READ_OWN]: 'own',
+    [PERMISSIONS.REPORTS_READ]: true,
+  },
+  THERAPIST: {
+    [PERMISSIONS.OWN_PROFILE_READ]: true,
+    [PERMISSIONS.OWN_PROFILE_UPDATE]: true,
+    [PERMISSIONS.USERS_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.APPOINTMENTS_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.TREATMENT_PLANS_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.TREATMENT_PLANS_UPDATE_ASSIGNED]: 'assigned',
+    [PERMISSIONS.SESSION_NOTES_CREATE_OWN]: 'own',
+    [PERMISSIONS.SESSION_NOTES_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.SESSION_NOTES_UPDATE_OWN]: 'own',
+    [PERMISSIONS.PATIENT_TIMELINE_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.HOME_PROGRAM_READ]: true,
+    [PERMISSIONS.HOME_PROGRAM_CREATE_ASSIGNED]: 'assigned',
+    [PERMISSIONS.HOME_PROGRAM_UPDATE_ASSIGNED]: 'assigned',
+    [PERMISSIONS.EXERCISE_MEDIA_CREATE_OWN]: 'own',
+    [PERMISSIONS.EXERCISE_MEDIA_UPDATE_OWN]: 'own',
+    [PERMISSIONS.EXERCISE_MEDIA_DELETE_OWN]: 'own',
+    [PERMISSIONS.LEAVES_CREATE_OWN]: 'own',
+    [PERMISSIONS.LEAVES_READ_OWN]: 'own',
+    [PERMISSIONS.REPORTS_READ_OWN]: 'own',
+  },
+  ADMIN: {
+    [PERMISSIONS.OWN_PROFILE_READ]: true,
+    [PERMISSIONS.OWN_PROFILE_UPDATE]: true,
+    [PERMISSIONS.USERS_CREATE]: true,
+    [PERMISSIONS.USERS_READ]: true,
+    [PERMISSIONS.USERS_UPDATE]: true,
+    [PERMISSIONS.USERS_DELETE]: true,
+    [PERMISSIONS.APPOINTMENTS_CREATE]: true,
+    [PERMISSIONS.APPOINTMENTS_READ]: true,
+    [PERMISSIONS.APPOINTMENTS_UPDATE]: true,
+    [PERMISSIONS.APPOINTMENTS_DELETE]: true,
+    [PERMISSIONS.TREATMENT_PLANS_READ]: true,
+    [PERMISSIONS.SESSION_NOTES_READ]: true,
+    [PERMISSIONS.PATIENT_TIMELINE_READ]: true,
+    [PERMISSIONS.HOME_PROGRAM_READ]: true,
+    [PERMISSIONS.EXERCISE_MEDIA_CREATE]: true,
+    [PERMISSIONS.EXERCISE_MEDIA_READ]: true,
+    [PERMISSIONS.EXERCISE_MEDIA_UPDATE]: true,
+    [PERMISSIONS.EXERCISE_MEDIA_DELETE]: true,
+    [PERMISSIONS.LEAVES_CREATE_OWN]: 'own',
+    [PERMISSIONS.LEAVES_READ_OWN]: 'own',
+    [PERMISSIONS.LEAVES_READ]: true,
+    [PERMISSIONS.LEAVES_UPDATE]: true,
+    [PERMISSIONS.LEAVES_DELETE]: true,
+    [PERMISSIONS.REPORTS_READ]: true,
+    [PERMISSIONS.WHATSAPP_TEMPLATES_CREATE]: true,
+    [PERMISSIONS.WHATSAPP_TEMPLATES_READ]: true,
+    [PERMISSIONS.WHATSAPP_TEMPLATES_UPDATE]: true,
+    [PERMISSIONS.WHATSAPP_TEMPLATES_DELETE]: true,
+    [PERMISSIONS.SYSTEM_SETTINGS_CREATE]: true,
+    [PERMISSIONS.SYSTEM_SETTINGS_READ]: true,
+    [PERMISSIONS.SYSTEM_SETTINGS_UPDATE]: true,
+    [PERMISSIONS.SYSTEM_SETTINGS_DELETE]: true,
+    [PERMISSIONS.AUDIT_LOG_READ]: true,
+  },
+};
+
+const ALL_CODES = listPermissions();
+const ROLES = Object.values(UserRole);
+
+function contextFor(grant: Grant, userId: string) {
+  switch (grant) {
+    case 'own':
+    case 'limited':
+      return { ownerId: userId };
+    case 'assigned':
+      return { assignedClinicianIds: [userId] };
+    default:
+      return {};
+  }
+}
+
+describe('RBAC matrix — every (role × permission) pair', () => {
+  for (const role of ROLES) {
+    for (const code of ALL_CODES) {
+      const grant = MATRIX[role][code];
+      const expected = Boolean(grant);
+      const label = `${role}: ${code} ${expected ? 'allowed' : 'denied'}`;
+      it(label, () => {
+        const user = u(role);
+        const ctx = grant ? contextFor(grant, user.id) : {};
+        expect(can(user, code, ctx)).toBe(expected);
+      });
+    }
+  }
+});
+
+describe('scope edge cases', () => {
+  it('.own denies when ownerId is missing', () => {
+    expect(can(u('PATIENT'), PERMISSIONS.APPOINTMENTS_READ_OWN, {})).toBe(false);
+  });
+
+  it('.own denies when ownerId belongs to someone else', () => {
+    expect(can(u('PATIENT', 'u-self'), PERMISSIONS.APPOINTMENTS_READ_OWN, { ownerId: OTHER })).toBe(
+      false,
+    );
+  });
+
+  it('.assigned denies when the actor is not in the list', () => {
+    expect(
+      can(u('THERAPIST', 'u-self'), PERMISSIONS.SESSION_NOTES_READ_ASSIGNED, {
+        assignedClinicianIds: [OTHER],
+      }),
+    ).toBe(false);
+  });
+
+  it('.assigned passes only when the actor IS in the list', () => {
+    expect(
+      can(u('THERAPIST', 'u-self'), PERMISSIONS.SESSION_NOTES_READ_ASSIGNED, {
+        assignedClinicianIds: ['u-self', OTHER],
+      }),
+    ).toBe(true);
+  });
+
+  it('.limited (patient timeline) is owner-scoped', () => {
+    expect(
+      can(u('PATIENT', 'u-self'), PERMISSIONS.PATIENT_TIMELINE_READ_LIMITED, {
+        ownerId: 'u-self',
+      }),
+    ).toBe(true);
+    expect(
+      can(u('PATIENT', 'u-self'), PERMISSIONS.PATIENT_TIMELINE_READ_LIMITED, { ownerId: OTHER }),
+    ).toBe(false);
+  });
+
+  it('rejects unknown permission codes regardless of role', () => {
+    for (const role of ROLES) {
+      expect(can(u(role), 'totally.fake.permission')).toBe(false);
+    }
+  });
+});
+
+describe('canAny', () => {
+  it('returns true when at least one code is granted', () => {
+    expect(canAny(u('ADMIN'), ['users.create', 'totally.fake'])).toBe(true);
+  });
+  it('returns false when no code is granted', () => {
+    expect(canAny(u('PATIENT'), [PERMISSIONS.USERS_CREATE, PERMISSIONS.USERS_DELETE])).toBe(false);
+  });
+});
+
+describe('catalog invariants', () => {
+  it('every code in ROLE_PERMISSIONS is in the public catalog', () => {
+    for (const set of Object.values(ROLE_PERMISSIONS)) {
+      for (const code of set) {
+        expect(ALL_CODES).toContain(code);
+      }
+    }
+  });
+});
