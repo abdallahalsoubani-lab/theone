@@ -1,16 +1,17 @@
 import { PatientActivityTab } from '@/components/patients/PatientActivityTab';
 import { PatientFileTabs } from '@/components/patients/PatientFileTabs';
 import { PatientHeader } from '@/components/patients/PatientHeader';
+import { PatientIntakeTab } from '@/components/patients/PatientIntakeTab';
 import { PatientProfileTab } from '@/components/patients/PatientProfileTab';
 import { ResetPasswordButton } from '@/components/patients/PatientFileShell';
+import type { IntakeListRow } from '@/lib/intake/queries';
 import type { PatientFileData } from '@/lib/patients/queries';
 import type { PatientActivityRow } from '@/lib/patients/queries-audit';
-
-import { IntakeTabPlaceholder } from './IntakeTabPlaceholder';
 
 interface Props {
   patient: PatientFileData;
   activity: PatientActivityRow[];
+  intakes: IntakeListRow[];
   basePath: string;
   canEdit: boolean;
   canResetPassword: boolean;
@@ -19,12 +20,13 @@ interface Props {
 
 /**
  * Shared patient-file renderer. Each role's route mounts this with the
- * appropriate basePath ('/secretary/patients' etc.) and the canEdit /
- * canResetPassword flags computed from the session role.
+ * appropriate basePath and the canEdit / canResetPassword flags computed
+ * from the session role.
  */
 export function PatientFilePage({
   patient,
   activity,
+  intakes,
   basePath,
   canEdit,
   canResetPassword,
@@ -45,7 +47,12 @@ export function PatientFilePage({
           />
         }
         intake={
-          <IntakeTabPlaceholder patientId={patient.id} basePath={basePath} canCreate={canEdit} />
+          <PatientIntakeTab
+            patientId={patient.id}
+            rows={intakes}
+            basePath={basePath}
+            canCreate={canEdit}
+          />
         }
         activity={<PatientActivityTab rows={activity} />}
       />
