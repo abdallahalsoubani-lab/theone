@@ -1,0 +1,96 @@
+{
+  "common": {
+    "appName": "Theone.pt",
+    "loading": "Loading…",
+    "save": "Save",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "search": "Search",
+    "languageToggle": "العربية",
+    "languageToggleAriaLabel": "Switch language to Arabic",
+    "back": "Back",
+    "next": "Next",
+    "yes": "Yes",
+    "no": "No",
+    "close": "Close"
+  },
+  "navigation": {
+    "primary": "Primary navigation",
+    "home": "Home",
+    "appointments": "Appointments",
+    "patients": "Patients",
+    "treatmentPlans": "Treatment plans",
+    "homeProgram": "Home program",
+    "settings": "Settings",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "skipToContent": "Skip to main content",
+    "empty": "No navigation items configured for your role."
+  },
+  "shell": {
+    "userMenu": "Account",
+    "profile": "Profile",
+    "signIn": "Sign in",
+    "signOut": "Sign out",
+    "notifications": "Notifications",
+    "notificationsEmpty": "No new notifications.",
+    "headerLandmark": "Site header",
+    "footerLandmark": "Site footer"
+  },
+  "footer": {
+    "clinicNameEn": "The One for Physiotherapy",
+    "clinicNameAr": "المركز الأول للعلاج الطبيعي",
+    "tagline": "Physiotherapy clinic in Amman, since 2021.",
+    "rightsReserved": "All rights reserved.",
+    "copyright": "© {year} {name}. {rights}",
+    "linksHeading": "Links",
+    "localeHeading": "Language",
+    "privacy": "Privacy policy",
+    "terms": "Terms of service",
+    "contact": "Contact us"
+  },
+  "errors": {
+    "notFound": {
+      "title": "Page not found",
+      "description": "The page you’re looking for doesn’t exist or has been moved.",
+      "cta": "Return home"
+    },
+    "generic": {
+      "title": "Something went wrong",
+      "description": "An unexpected error occurred. We’ve been notified and are looking into it.",
+      "cta": "Try again",
+      "digest": "Reference"
+    }
+  },
+  "landing": {
+    "title": "Theone.pt",
+    "subtitle": "Physiotherapy clinic management — foundation build (Phase 0).",
+    "viewStyleGuide": "View style guide",
+    "currentLocale": "Current locale segment: {locale}"
+  },
+  "styleGuide": {
+    "title": "Style guide",
+    "subtitle": "Phase 0 visual baseline. Brand tokens, typography, components.",
+    "colors": "Colors",
+    "ctaGradient": "CTA gradient",
+    "typography": "Typography",
+    "buttons": "Buttons",
+    "forms": "Form inputs",
+    "cards": "Cards",
+    "badges": "Badges",
+    "spacing": "Spacing scale",
+    "formatting": "Date and number formatting",
+    "bilingualPreview": "Bilingual preview",
+    "directionLabel": "Direction: {dir}",
+    "samples": {
+      "longDate": "Long date",
+      "shortDate": "Short date",
+      "time": "Time",
+      "relative": "Relative time",
+      "number": "Formatted number",
+      "phone": "Phone number"
+    }
+  }
+}

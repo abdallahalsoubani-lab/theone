@@ -1,0 +1,96 @@
+{
+  "common": {
+    "appName": "Theone.pt",
+    "loading": "جارٍ التحميل…",
+    "save": "حفظ",
+    "cancel": "إلغاء",
+    "confirm": "تأكيد",
+    "delete": "حذف",
+    "edit": "تعديل",
+    "search": "بحث",
+    "languageToggle": "English",
+    "languageToggleAriaLabel": "تبديل اللغة إلى الإنجليزية",
+    "back": "رجوع",
+    "next": "التالي",
+    "yes": "نعم",
+    "no": "لا",
+    "close": "إغلاق"
+  },
+  "navigation": {
+    "primary": "القائمة الرئيسية",
+    "home": "الرئيسية",
+    "appointments": "المواعيد",
+    "patients": "المراجعون",
+    "treatmentPlans": "الخطط العلاجية",
+    "homeProgram": "البرنامج المنزلي",
+    "settings": "الإعدادات",
+    "openMenu": "فتح القائمة",
+    "closeMenu": "إغلاق القائمة",
+    "skipToContent": "تجاوز إلى المحتوى الرئيسي",
+    "empty": "لا توجد عناصر تنقل مرتبطة بدورك."
+  },
+  "shell": {
+    "userMenu": "الحساب",
+    "profile": "الملف الشخصي",
+    "signIn": "تسجيل الدخول",
+    "signOut": "تسجيل الخروج",
+    "notifications": "الإشعارات",
+    "notificationsEmpty": "لا توجد إشعارات جديدة.",
+    "headerLandmark": "رأس الموقع",
+    "footerLandmark": "تذييل الموقع"
+  },
+  "footer": {
+    "clinicNameEn": "The One for Physiotherapy",
+    "clinicNameAr": "المركز الأول للعلاج الطبيعي",
+    "tagline": "عيادة علاج طبيعي في عمّان منذ عام 2021.",
+    "rightsReserved": "جميع الحقوق محفوظة.",
+    "copyright": "© {year} {name}. {rights}",
+    "linksHeading": "روابط",
+    "localeHeading": "اللغة",
+    "privacy": "سياسة الخصوصية",
+    "terms": "شروط الخدمة",
+    "contact": "تواصلوا معنا"
+  },
+  "errors": {
+    "notFound": {
+      "title": "الصفحة غير موجودة",
+      "description": "الصفحة التي تبحث عنها غير موجودة أو تم نقلها.",
+      "cta": "العودة للرئيسية"
+    },
+    "generic": {
+      "title": "حدث خطأ ما",
+      "description": "حصل خطأ غير متوقع. لقد تم إشعار الفريق ونعمل على معالجته.",
+      "cta": "إعادة المحاولة",
+      "digest": "المرجع"
+    }
+  },
+  "landing": {
+    "title": "Theone.pt",
+    "subtitle": "نظام إدارة عيادة العلاج الطبيعي — البناء التأسيسي (المرحلة 0).",
+    "viewStyleGuide": "استعراض دليل التصميم",
+    "currentLocale": "اللغة الحالية: {locale}"
+  },
+  "styleGuide": {
+    "title": "دليل التصميم",
+    "subtitle": "الأساس البصري للمرحلة 0. الألوان والخطوط والمكوّنات.",
+    "colors": "الألوان",
+    "ctaGradient": "تدرّج الإجراء الرئيسي",
+    "typography": "الخطوط",
+    "buttons": "الأزرار",
+    "forms": "حقول الإدخال",
+    "cards": "البطاقات",
+    "badges": "الشارات",
+    "spacing": "مقياس التباعد",
+    "formatting": "تنسيق التاريخ والأرقام",
+    "bilingualPreview": "معاينة ثنائية اللغة",
+    "directionLabel": "الاتجاه: {dir}",
+    "samples": {
+      "longDate": "تاريخ مفصّل",
+      "shortDate": "تاريخ مختصر",
+      "time": "الوقت",
+      "relative": "وقت نسبي",
+      "number": "رقم منسّق",
+      "phone": "رقم الهاتف"
+    }
+  }
+}
