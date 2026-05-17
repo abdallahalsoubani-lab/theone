@@ -24,6 +24,7 @@ git clone <repo-url> theone-pt
 cd theone-pt
 cp .env.example .env.local
 pnpm install && pnpm infra:up
+pnpm db:reset      # apply schema + seed reference and dev data
 pnpm dev
 ```
 
@@ -38,22 +39,28 @@ Visit:
 
 ## Available scripts
 
-| Command             | Purpose                                                                    |
-| ------------------- | -------------------------------------------------------------------------- |
-| `pnpm dev`          | Start the Next.js dev server on port 3000                                  |
-| `pnpm build`        | Production build                                                           |
-| `pnpm start`        | Run the production build                                                   |
-| `pnpm typecheck`    | Strict TypeScript check (no emit)                                          |
-| `pnpm lint`         | ESLint — zero warnings tolerated                                           |
-| `pnpm lint:fix`     | ESLint with autofix                                                        |
-| `pnpm format`       | Prettier — write changes                                                   |
-| `pnpm format:check` | Prettier — fail on drift (used in CI)                                      |
-| `pnpm test`         | Vitest one-shot                                                            |
-| `pnpm test:watch`   | Vitest in watch mode                                                       |
-| `pnpm infra:up`     | Start docker-compose services (postgres, redis, minio) + init MinIO bucket |
-| `pnpm infra:down`   | Stop docker-compose services (keeps volumes)                               |
-| `pnpm infra:reset`  | Wipe volumes and restart fresh                                             |
-| `pnpm infra:logs`   | Tail logs from all services                                                |
+| Command                  | Purpose                                                                    |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `pnpm dev`               | Start the Next.js dev server on port 3000                                  |
+| `pnpm build`             | Production build                                                           |
+| `pnpm start`             | Run the production build                                                   |
+| `pnpm typecheck`         | Strict TypeScript check (no emit)                                          |
+| `pnpm lint`              | ESLint — zero warnings tolerated                                           |
+| `pnpm lint:fix`          | ESLint with autofix                                                        |
+| `pnpm format`            | Prettier — write changes                                                   |
+| `pnpm format:check`      | Prettier — fail on drift (used in CI)                                      |
+| `pnpm test`              | Vitest one-shot                                                            |
+| `pnpm test:watch`        | Vitest in watch mode                                                       |
+| `pnpm infra:up`          | Start docker-compose services (postgres, redis, minio) + init MinIO bucket |
+| `pnpm infra:down`        | Stop docker-compose services (keeps volumes)                               |
+| `pnpm infra:reset`       | Wipe volumes and restart fresh                                             |
+| `pnpm infra:logs`        | Tail logs from all services                                                |
+| `pnpm db:generate`       | Regenerate the Prisma client (after editing `schema.prisma`)               |
+| `pnpm db:migrate`        | Create a new migration and apply it to the dev database                    |
+| `pnpm db:migrate:deploy` | Apply pending migrations (used in production and CI)                       |
+| `pnpm db:reset`          | Drop + recreate the dev database, replay all migrations, run the seed      |
+| `pnpm db:seed`           | Run the seed against the current database without resetting                |
+| `pnpm db:studio`         | Open Prisma Studio for visual table inspection                             |
 
 ---
 
@@ -107,12 +114,29 @@ for the swap procedure when the production logo is supplied.
 
 ---
 
+## Dev credentials (seed data — never use in production)
+
+`pnpm db:reset` creates the following accounts. Passwords are hashed with bcrypt and
+land in the database; they exist purely to unblock UI development.
+
+| Role               | Email                                                  | Password                                         |
+| ------------------ | ------------------------------------------------------ | ------------------------------------------------ |
+| Admin              | `admin@theone.pt`                                      | `Admin@123`                                      |
+| Doctor             | `dr.sara@theone.pt`                                    | `Doctor@123`                                     |
+| Therapist          | `ahmad@theone.pt`, `layan@theone.pt`, `omar@theone.pt` | `Therapist@123`                                  |
+| Secretary          | `reception@theone.pt`                                  | `Reception@123`                                  |
+| Patient (8 seeded) | phone-only or email                                    | `Patient@123` (with `mustChangePassword = true`) |
+
+> Real authentication flow lands in **Prompt 4**. Until then these are seed-only.
+
 ## Reference documents
 
 - [`docs/Theone-pt-Technical-Spec.md`](docs/Theone-pt-Technical-Spec.md) — full functional
   and technical specification (source of truth for behavior)
 - [`docs/Prompt-0-Master-Context.md`](docs/Prompt-0-Master-Context.md) — project briefing,
   coding standards, working protocol
+- [`docs/db/schema.md`](docs/db/schema.md) — entity-relationship diagram and design
+  decisions for the data model
 - [`docs/prompts/`](docs/prompts/) — sequential build prompts (Prompt 1 onward)
 
 ---

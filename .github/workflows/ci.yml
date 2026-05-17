@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   quality:
-    name: lint · typecheck · format · build
+    name: lint · typecheck · format · build · test
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -35,6 +35,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Generate Prisma client
+        run: pnpm exec prisma generate
+        env:
+          DATABASE_URL: postgresql://placeholder:placeholder@localhost:5432/placeholder
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -44,5 +49,57 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
+      - name: Test
+        run: pnpm test
+
       - name: Build
         run: pnpm build
+
+  migrations:
+    name: migrations apply against fresh Postgres
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: theone
+          POSTGRES_PASSWORD: ci_password
+          POSTGRES_DB: theone_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U theone -d theone_ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 6
+
+    env:
+      DATABASE_URL: postgresql://theone:ci_password@localhost:5432/theone_ci
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations (deploy)
+        run: pnpm exec prisma migrate deploy
+
+      - name: Run reference seed only
+        env:
+          NODE_ENV: production
+        run: pnpm exec tsx prisma/seed.ts
