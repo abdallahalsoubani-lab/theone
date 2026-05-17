@@ -41,6 +41,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.LEAVES_READ_OWN]: 'own',
     [PERMISSIONS.LEAVES_READ]: true,
     [PERMISSIONS.REPORTS_READ]: true,
+    [PERMISSIONS.ROOMS_READ]: true,
   },
   DOCTOR: {
     [PERMISSIONS.OWN_PROFILE_READ]: true,
@@ -56,6 +57,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.LEAVES_CREATE_OWN]: 'own',
     [PERMISSIONS.LEAVES_READ_OWN]: 'own',
     [PERMISSIONS.REPORTS_READ]: true,
+    [PERMISSIONS.ROOMS_READ]: true,
   },
   THERAPIST: {
     [PERMISSIONS.OWN_PROFILE_READ]: true,
@@ -77,6 +79,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.LEAVES_CREATE_OWN]: 'own',
     [PERMISSIONS.LEAVES_READ_OWN]: 'own',
     [PERMISSIONS.REPORTS_READ_OWN]: 'own',
+    [PERMISSIONS.ROOMS_READ]: true,
   },
   ADMIN: {
     [PERMISSIONS.OWN_PROFILE_READ]: true,
@@ -112,6 +115,11 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.SYSTEM_SETTINGS_UPDATE]: true,
     [PERMISSIONS.SYSTEM_SETTINGS_DELETE]: true,
     [PERMISSIONS.AUDIT_LOG_READ]: true,
+    [PERMISSIONS.ROOMS_READ]: true,
+    [PERMISSIONS.ROOMS_CREATE]: true,
+    [PERMISSIONS.ROOMS_UPDATE]: true,
+    [PERMISSIONS.ROOMS_ARCHIVE]: true,
+    [PERMISSIONS.ROOMS_DELETE]: true,
   },
 };
 

@@ -84,6 +84,15 @@ export const PERMISSIONS = {
   REPORTS_READ: 'reports.read',
   REPORTS_READ_OWN: 'reports.read.own', // therapist — own end-of-day
 
+  // ── Rooms (read for all staff, mutations admin-only — Prompt 5 §4.7) ─
+  // rooms.read is shared with the calendar so the appointment form (Prompt 7)
+  // can populate the room selector for every staff role.
+  ROOMS_READ: 'rooms.read',
+  ROOMS_CREATE: 'rooms.create',
+  ROOMS_UPDATE: 'rooms.update',
+  ROOMS_ARCHIVE: 'rooms.archive',
+  ROOMS_DELETE: 'rooms.delete',
+
   // ── WhatsApp templates (admin only) ──────────────────────────────────
   WHATSAPP_TEMPLATES_CREATE: 'whatsapp_templates.create',
   WHATSAPP_TEMPLATES_READ: 'whatsapp_templates.read',
@@ -131,6 +140,7 @@ const SECRETARY_PERMS = new Set<PermissionCode>([
   PERMISSIONS.LEAVES_READ_OWN,
   PERMISSIONS.LEAVES_READ,
   PERMISSIONS.REPORTS_READ,
+  PERMISSIONS.ROOMS_READ,
 ]);
 
 const DOCTOR_PERMS = new Set<PermissionCode>([
@@ -147,6 +157,7 @@ const DOCTOR_PERMS = new Set<PermissionCode>([
   PERMISSIONS.LEAVES_CREATE_OWN,
   PERMISSIONS.LEAVES_READ_OWN,
   PERMISSIONS.REPORTS_READ,
+  PERMISSIONS.ROOMS_READ,
 ]);
 
 const THERAPIST_PERMS = new Set<PermissionCode>([
@@ -169,6 +180,7 @@ const THERAPIST_PERMS = new Set<PermissionCode>([
   PERMISSIONS.LEAVES_CREATE_OWN,
   PERMISSIONS.LEAVES_READ_OWN,
   PERMISSIONS.REPORTS_READ_OWN,
+  PERMISSIONS.ROOMS_READ,
 ]);
 
 const ADMIN_PERMS = new Set<PermissionCode>([
@@ -205,6 +217,11 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.SYSTEM_SETTINGS_UPDATE,
   PERMISSIONS.SYSTEM_SETTINGS_DELETE,
   PERMISSIONS.AUDIT_LOG_READ,
+  PERMISSIONS.ROOMS_READ,
+  PERMISSIONS.ROOMS_CREATE,
+  PERMISSIONS.ROOMS_UPDATE,
+  PERMISSIONS.ROOMS_ARCHIVE,
+  PERMISSIONS.ROOMS_DELETE,
 ]);
 
 export const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<PermissionCode>> = {
