@@ -5,6 +5,7 @@ import { Inter, IBM_Plex_Sans_Arabic } from 'next/font/google';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 
+import { SessionProvider } from '@/components/providers/SessionProvider';
 import { Footer } from '@/components/shell/Footer';
 import { Header } from '@/components/shell/Header';
 import { routing } from '@/i18n/routing';
@@ -66,17 +67,19 @@ export default async function LocaleLayout({
     <html lang={locale} dir={dir} className={`${inter.variable} ${arabic.variable}`}>
       <body className={cn('flex min-h-screen flex-col', bodyFont)}>
         <NextIntlClientProvider messages={messages} locale={locale}>
-          <a
-            href="#main-content"
-            className="sr-only z-50 rounded-md bg-brand-navy px-3 py-2 text-sm text-white focus:not-sr-only focus:absolute focus:start-4 focus:top-4"
-          >
-            {t('skipToContent')}
-          </a>
-          <Header />
-          <main id="main-content" className="flex-1">
-            {children}
-          </main>
-          <Footer />
+          <SessionProvider>
+            <a
+              href="#main-content"
+              className="sr-only z-50 rounded-md bg-brand-navy px-3 py-2 text-sm text-white focus:not-sr-only focus:absolute focus:start-4 focus:top-4"
+            >
+              {t('skipToContent')}
+            </a>
+            <Header />
+            <main id="main-content" className="flex-1">
+              {children}
+            </main>
+            <Footer />
+          </SessionProvider>
         </NextIntlClientProvider>
       </body>
     </html>

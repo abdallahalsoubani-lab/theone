@@ -18,8 +18,11 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import type { AppLocale } from '@/lib/format/locale';
 
+import { AuthStates } from './_sections/AuthStates';
 import { BilingualPreview } from './_sections/BilingualPreview';
+import { ErrorStates } from './_sections/ErrorStates';
 import { FormattingSamples } from './_sections/FormattingSamples';
+import { PermissionCodes } from './_sections/PermissionCodes';
 
 /**
  * Internal style guide.
@@ -155,6 +158,27 @@ export default async function StyleGuidePage({ params }: { params: Promise<{ loc
         description="Outputs from lib/format/* in the active locale."
       >
         <FormattingSamples locale={locale as AppLocale} />
+      </Section>
+
+      <Section
+        title="Auth states"
+        description="Header shapes for anonymous and authenticated users, plus the two auth-flow banners."
+      >
+        <AuthStates />
+      </Section>
+
+      <Section
+        title="Permission codes"
+        description="Generated from lib/rbac/permissions.ts — adding a code updates this table automatically."
+      >
+        <PermissionCodes />
+      </Section>
+
+      <Section
+        title="Error states"
+        description="Every code in AUTH_ERRORS rendered with its localized English and Arabic message."
+      >
+        <ErrorStates />
       </Section>
 
       <Separator />

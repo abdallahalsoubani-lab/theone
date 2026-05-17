@@ -1,26 +1,35 @@
 import { Bell } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 
+import { auth } from '@/auth';
 import { Logo } from '@/components/brand/Logo';
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 
 import { LanguageToggle } from './LanguageToggle';
 import { MobileNav } from './MobileNav';
+import { UserMenu } from './UserMenu';
 
 /**
- * Site header (Prompt 3 §4.4).
+ * Site header (Prompt 3 §4.4, extended in Prompt 4 §4.12).
  *
- * Sticky 64px bar; structure mirrors automatically under RTL because every
- * spacing class is logical (ms-/me-/start-/end-). The user-menu spot is a
- * placeholder "Sign in" until Prompt 4 lands the real authenticated dropdown.
+ * Sticky 64px bar. Hosts the locale toggle, notifications icon (placeholder
+ * until Prompt 8 hooks WhatsApp delivery events), and the authenticated user
+ * dropdown — falls back to a "Sign in" CTA when no session.
  *
- * Sidebar is not rendered here — pages that need it (secretary calendar, etc.)
- * mount it inside their own layout. The header / footer pair from this prompt
- * is the only universal chrome.
+ * Sidebar is not rendered here — pages that need it mount it inside their
+ * own layout.
  */
 export async function Header() {
   const t = await getTranslations();
+  const session = await auth();
+  const user = session?.user
+    ? {
+        fullNameEn: session.user.fullNameEn,
+        fullNameAr: session.user.fullNameAr,
+        role: session.user.role,
+      }
+    : null;
 
   return (
     <header
@@ -41,24 +50,23 @@ export async function Header() {
       </Link>
 
       <nav aria-label={t('navigation.primary')} className="hidden flex-1 items-center md:flex">
-        {/* Role-specific links are injected by later prompts. */}
+        {/* Role-specific links injected by later prompts. */}
       </nav>
 
       <div className="ms-auto flex items-center gap-1">
         <LanguageToggle />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label={t('shell.notifications')}
-          className="hidden sm:inline-flex"
-        >
-          <Bell className="size-4" />
-        </Button>
-        <Button asChild variant="default" size="sm">
-          {/* Prompt 4 swaps this for an authenticated user menu. */}
-          <Link href="/login">{t('shell.signIn')}</Link>
-        </Button>
+        {user ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={t('shell.notifications')}
+            className="hidden sm:inline-flex"
+          >
+            <Bell className="size-4" />
+          </Button>
+        ) : null}
+        <UserMenu user={user} />
       </div>
     </header>
   );

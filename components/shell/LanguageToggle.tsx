@@ -2,11 +2,13 @@
 
 import { Globe } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
+import { useSession } from 'next-auth/react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { routing } from '@/i18n/routing';
+import { updateLanguagePref } from '@/lib/auth/actions/language';
 import { cn } from '@/lib/utils';
 
 /**
@@ -27,6 +29,7 @@ export function LanguageToggle({ className }: { className?: string }) {
   const pathname = usePathname();
   const currentLocale = useLocale();
   const t = useTranslations('common');
+  const { data: session, update } = useSession();
   const [isPending, startTransition] = useTransition();
 
   const otherLocale = routing.locales.find((l) => l !== currentLocale) ?? routing.defaultLocale;
@@ -46,7 +49,15 @@ export function LanguageToggle({ className }: { className?: string }) {
     const url = `${newPath}${suffix}`;
 
     document.cookie = `NEXT_LOCALE=${target}; Path=/; Max-Age=${60 * 60 * 24 * 365}; SameSite=Lax`;
-    startTransition(() => {
+    startTransition(async () => {
+      // Authenticated users get their User.languagePref mirrored to the DB so
+      // a fresh device (no cookie) still respects their choice. The server
+      // action is rate-limited and silently no-ops when not signed in.
+      if (session?.user) {
+        const target2 = target === 'ar' ? 'ar' : 'en';
+        await updateLanguagePref({ locale: target2 });
+        await update?.({ languagePref: target2.toUpperCase() });
+      }
       router.replace(url);
       router.refresh();
     });
