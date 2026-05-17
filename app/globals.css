@@ -1,0 +1,106 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Theone.pt — brand tokens
+ *
+ * Two parallel surfaces:
+ *   1. Named --brand-* CSS variables (for inline styles, SVGs, dynamic content)
+ *   2. shadcn/ui semantic HSL tokens (for component variants)
+ *
+ * Both resolve to the locked palette in Prompt 0 §4.1 — do not edit values without approval.
+ */
+
+@layer base {
+  :root {
+    /* ── Brand tokens (raw hex) ───────────────────────────── */
+    --brand-navy: #0b1e47;
+    --brand-navy-deep: #091638;
+    --brand-blue: #1b4982;
+    --brand-teal: #1e5f58;
+    --brand-cyan: #3dc0d9;
+    --brand-cyan-light: #7ddbe9;
+    --brand-bg: #f2f4f8;
+    --brand-surface: #ffffff;
+    --brand-text: #0b1e47;
+    --brand-text-muted: #5a6580;
+    --brand-border: #d8dee8;
+
+    /* ── shadcn/ui semantic tokens (HSL triples) ──────────── */
+    /* background / foreground = surface / text */
+    --background: 0 0% 100%;
+    --foreground: 222 71% 16%;
+
+    /* card / popover share the surface treatment */
+    --card: 0 0% 100%;
+    --card-foreground: 222 71% 16%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 71% 16%;
+
+    /* primary = brand navy */
+    --primary: 222 71% 16%;
+    --primary-foreground: 0 0% 100%;
+
+    /* secondary = brand blue surface */
+    --secondary: 216 65% 95%;
+    --secondary-foreground: 222 71% 16%;
+
+    /* muted = bg / textMuted */
+    --muted: 220 24% 96%;
+    --muted-foreground: 224 16% 43%;
+
+    /* accent = brand cyan */
+    --accent: 188 67% 55%;
+    --accent-foreground: 222 71% 16%;
+
+    /* destructive — clinical red, never sole signal */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* borders, inputs, focus rings */
+    --border: 220 22% 88%;
+    --input: 220 22% 88%;
+    --ring: 188 67% 55%;
+
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--brand-bg);
+    color: var(--brand-text);
+    font-family: var(--font-inter), system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.6;
+    font-weight: 400;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html[lang='ar'] body {
+    font-family: var(--font-arabic), system-ui, sans-serif;
+  }
+
+  /* Focus rings — visible, always */
+  :focus-visible {
+    outline: 2px solid var(--brand-cyan);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  /* CTA gradient — brand blue → brand cyan, locked direction */
+  .bg-gradient-cta {
+    background-image: linear-gradient(90deg, #1b4982 0%, #3dc0d9 100%);
+  }
+}

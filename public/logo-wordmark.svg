@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 60" role="img" aria-label="Theone.pt wordmark">
+  <title>Theone.pt</title>
+  <circle cx="30" cy="30" r="26" fill="#0B1E47" />
+  <path d="M11 41 Q30 23 49 41" stroke="#3DC0D9" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.85" />
+  <text x="30" y="35" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-size="18" font-weight="500" fill="#FFFFFF" letter-spacing="-0.3">T1</text>
+  <text x="70" y="38" font-family="Inter, system-ui, sans-serif" font-size="24" font-weight="500" fill="#0B1E47" letter-spacing="-0.5">Theone</text>
+  <text x="178" y="38" font-family="Inter, system-ui, sans-serif" font-size="24" font-weight="400" fill="#3DC0D9" letter-spacing="-0.5">.pt</text>
+</svg>
