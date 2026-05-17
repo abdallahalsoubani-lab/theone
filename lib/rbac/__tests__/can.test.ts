@@ -23,6 +23,9 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.PATIENT_TIMELINE_READ_LIMITED]: 'limited',
     [PERMISSIONS.HOME_PROGRAM_READ_OWN]: 'own',
     [PERMISSIONS.EXERCISE_MEDIA_READ_OWN]: 'own',
+    [PERMISSIONS.PATIENTS_READ_OWN]: 'own',
+    [PERMISSIONS.PATIENTS_UPDATE_OWN]: 'own',
+    [PERMISSIONS.INTAKE_READ_OWN]: 'own',
   },
   SECRETARY: {
     [PERMISSIONS.OWN_PROFILE_READ]: true,
@@ -42,6 +45,13 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.LEAVES_READ]: true,
     [PERMISSIONS.REPORTS_READ]: true,
     [PERMISSIONS.ROOMS_READ]: true,
+    [PERMISSIONS.PATIENTS_CREATE]: true,
+    [PERMISSIONS.PATIENTS_READ]: true,
+    [PERMISSIONS.PATIENTS_UPDATE]: true,
+    [PERMISSIONS.PATIENTS_RESET_PASSWORD]: true,
+    [PERMISSIONS.INTAKE_CREATE]: true,
+    [PERMISSIONS.INTAKE_READ]: true,
+    [PERMISSIONS.INTAKE_UPDATE]: true,
   },
   DOCTOR: {
     [PERMISSIONS.OWN_PROFILE_READ]: true,
@@ -58,6 +68,8 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.LEAVES_READ_OWN]: 'own',
     [PERMISSIONS.REPORTS_READ]: true,
     [PERMISSIONS.ROOMS_READ]: true,
+    [PERMISSIONS.PATIENTS_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.INTAKE_READ_ASSIGNED]: 'assigned',
   },
   THERAPIST: {
     [PERMISSIONS.OWN_PROFILE_READ]: true,
@@ -80,6 +92,8 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.LEAVES_READ_OWN]: 'own',
     [PERMISSIONS.REPORTS_READ_OWN]: 'own',
     [PERMISSIONS.ROOMS_READ]: true,
+    [PERMISSIONS.PATIENTS_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.INTAKE_READ_ASSIGNED]: 'assigned',
   },
   ADMIN: {
     [PERMISSIONS.OWN_PROFILE_READ]: true,
@@ -120,6 +134,14 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.ROOMS_UPDATE]: true,
     [PERMISSIONS.ROOMS_ARCHIVE]: true,
     [PERMISSIONS.ROOMS_DELETE]: true,
+    [PERMISSIONS.PATIENTS_CREATE]: true,
+    [PERMISSIONS.PATIENTS_READ]: true,
+    [PERMISSIONS.PATIENTS_UPDATE]: true,
+    [PERMISSIONS.PATIENTS_ARCHIVE]: true,
+    [PERMISSIONS.PATIENTS_RESET_PASSWORD]: true,
+    [PERMISSIONS.INTAKE_CREATE]: true,
+    [PERMISSIONS.INTAKE_READ]: true,
+    [PERMISSIONS.INTAKE_UPDATE]: true,
   },
 };
 

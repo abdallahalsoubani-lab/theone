@@ -93,6 +93,23 @@ export const PERMISSIONS = {
   ROOMS_ARCHIVE: 'rooms.archive',
   ROOMS_DELETE: 'rooms.delete',
 
+  // ── Patients (Prompt 6) ──────────────────────────────────────────────
+  PATIENTS_CREATE: 'patients.create',
+  PATIENTS_READ: 'patients.read',
+  PATIENTS_READ_ASSIGNED: 'patients.read.assigned',
+  PATIENTS_READ_OWN: 'patients.read.own',
+  PATIENTS_UPDATE: 'patients.update',
+  PATIENTS_UPDATE_OWN: 'patients.update.own',
+  PATIENTS_ARCHIVE: 'patients.archive',
+  PATIENTS_RESET_PASSWORD: 'patients.reset_password',
+
+  // ── Intake assessments (Prompt 6) ─────────────────────────────────────
+  INTAKE_CREATE: 'intake.create',
+  INTAKE_READ: 'intake.read',
+  INTAKE_READ_ASSIGNED: 'intake.read.assigned',
+  INTAKE_READ_OWN: 'intake.read.own',
+  INTAKE_UPDATE: 'intake.update',
+
   // ── WhatsApp templates (admin only) ──────────────────────────────────
   WHATSAPP_TEMPLATES_CREATE: 'whatsapp_templates.create',
   WHATSAPP_TEMPLATES_READ: 'whatsapp_templates.read',
@@ -121,6 +138,9 @@ const PATIENT_PERMS = new Set<PermissionCode>([
   PERMISSIONS.PATIENT_TIMELINE_READ_LIMITED,
   PERMISSIONS.HOME_PROGRAM_READ_OWN,
   PERMISSIONS.EXERCISE_MEDIA_READ_OWN,
+  PERMISSIONS.PATIENTS_READ_OWN,
+  PERMISSIONS.PATIENTS_UPDATE_OWN,
+  PERMISSIONS.INTAKE_READ_OWN,
 ]);
 
 const SECRETARY_PERMS = new Set<PermissionCode>([
@@ -141,6 +161,13 @@ const SECRETARY_PERMS = new Set<PermissionCode>([
   PERMISSIONS.LEAVES_READ,
   PERMISSIONS.REPORTS_READ,
   PERMISSIONS.ROOMS_READ,
+  PERMISSIONS.PATIENTS_CREATE,
+  PERMISSIONS.PATIENTS_READ,
+  PERMISSIONS.PATIENTS_UPDATE,
+  PERMISSIONS.PATIENTS_RESET_PASSWORD,
+  PERMISSIONS.INTAKE_CREATE,
+  PERMISSIONS.INTAKE_READ,
+  PERMISSIONS.INTAKE_UPDATE,
 ]);
 
 const DOCTOR_PERMS = new Set<PermissionCode>([
@@ -158,6 +185,8 @@ const DOCTOR_PERMS = new Set<PermissionCode>([
   PERMISSIONS.LEAVES_READ_OWN,
   PERMISSIONS.REPORTS_READ,
   PERMISSIONS.ROOMS_READ,
+  PERMISSIONS.PATIENTS_READ_ASSIGNED,
+  PERMISSIONS.INTAKE_READ_ASSIGNED,
 ]);
 
 const THERAPIST_PERMS = new Set<PermissionCode>([
@@ -181,6 +210,8 @@ const THERAPIST_PERMS = new Set<PermissionCode>([
   PERMISSIONS.LEAVES_READ_OWN,
   PERMISSIONS.REPORTS_READ_OWN,
   PERMISSIONS.ROOMS_READ,
+  PERMISSIONS.PATIENTS_READ_ASSIGNED,
+  PERMISSIONS.INTAKE_READ_ASSIGNED,
 ]);
 
 const ADMIN_PERMS = new Set<PermissionCode>([
@@ -222,6 +253,14 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.ROOMS_UPDATE,
   PERMISSIONS.ROOMS_ARCHIVE,
   PERMISSIONS.ROOMS_DELETE,
+  PERMISSIONS.PATIENTS_CREATE,
+  PERMISSIONS.PATIENTS_READ,
+  PERMISSIONS.PATIENTS_UPDATE,
+  PERMISSIONS.PATIENTS_ARCHIVE,
+  PERMISSIONS.PATIENTS_RESET_PASSWORD,
+  PERMISSIONS.INTAKE_CREATE,
+  PERMISSIONS.INTAKE_READ,
+  PERMISSIONS.INTAKE_UPDATE,
 ]);
 
 export const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<PermissionCode>> = {
