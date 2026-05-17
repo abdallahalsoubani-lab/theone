@@ -21,6 +21,16 @@ const config = [
         'warn',
         { prefer: 'type-imports', fixStyle: 'separate-type-imports' },
       ],
+      // Allow underscore-prefixed args and vars to mean "intentionally unused".
+      // Convention is widely used for stub functions and signature parity.
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
     },
   }),
   {

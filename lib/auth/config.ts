@@ -3,6 +3,7 @@ import type { NextAuthConfig } from 'next-auth';
 
 import { db } from '@/lib/db';
 
+import { providers } from './providers';
 import { asAppJwt, writeAppJwt, type AppJwtFields } from './types';
 
 /**
@@ -29,7 +30,7 @@ export const authConfig: NextAuthConfig = {
     error: '/login',
   },
   trustHost: process.env.AUTH_TRUST_HOST === 'true' || process.env.NODE_ENV !== 'production',
-  providers: [],
+  providers,
   callbacks: {
     async jwt({ token, user, trigger, session: triggerSession }) {
       // Initial sign-in — copy our custom fields from the User row.
