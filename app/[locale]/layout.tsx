@@ -8,6 +8,7 @@ import type { ReactNode } from 'react';
 import { SessionProvider } from '@/components/providers/SessionProvider';
 import { Footer } from '@/components/shell/Footer';
 import { Header } from '@/components/shell/Header';
+import { Toaster } from '@/components/ui/sonner';
 import { routing } from '@/i18n/routing';
 import { cn } from '@/lib/utils';
 
@@ -79,6 +80,7 @@ export default async function LocaleLayout({
               {children}
             </main>
             <Footer />
+            <Toaster />
           </SessionProvider>
         </NextIntlClientProvider>
       </body>
