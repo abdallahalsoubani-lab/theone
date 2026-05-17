@@ -1,0 +1,703 @@
+// Theone.pt — Prisma schema
+//
+// Owned by Prompt 2 (Database Schema). Subsequent prompts MAY add fields/models, but
+// MUST NOT silently re-shape existing entities — any change goes through a reviewed
+// migration. See docs/db/schema.md for the ERD and decisions log.
+//
+// Conventions baked in here:
+//   - id: String @id @default(cuid())
+//   - timestamps: createdAt @default(now()), updatedAt @updatedAt
+//   - soft delete: deletedAt DateTime? on User; clinical rows never soft-delete
+//   - foreign keys: onDelete: Restrict by default for clinical data (no accidental
+//     cascades destroying patient history). Cascade is reserved for tightly-coupled
+//     1:1 detail rows (AdultIntakeData, PediatricIntakeData, IntakeCustomAnswer).
+//   - times of day: stored as "HH:MM" strings; an exercise at 7pm is a recurring
+//     local-time concept, not a single moment.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = []
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Enums
+// ═════════════════════════════════════════════════════════════════════════════
+
+enum UserRole {
+  PATIENT
+  SECRETARY
+  DOCTOR
+  THERAPIST
+  ADMIN
+}
+
+enum LanguagePref {
+  EN
+  AR
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum CancellationCategory {
+  PATIENT_REQUEST
+  THERAPIST_UNAVAILABLE
+  CLINIC_CLOSURE
+  OTHER
+}
+
+enum PlanStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  DISCONTINUED
+}
+
+enum LeaveType {
+  SICK
+  VACATION
+  PERSONAL
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum WaTemplateCategory {
+  APPOINTMENT
+  HOME_PROGRAM
+  OTP
+  CREDENTIALS
+  GENERAL
+}
+
+enum WaMessageDirection {
+  OUTBOUND
+  INBOUND
+}
+
+enum WaMessageStatus {
+  QUEUED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  READ_SENSITIVE
+}
+
+enum IntakeType {
+  ADULT
+  PEDIATRIC
+}
+
+enum IntakeStatus {
+  IN_PROGRESS
+  COMPLETED
+  REVIEWED
+}
+
+enum PhysicalActivityLevel {
+  VERY_ACTIVE
+  ACTIVE
+  MODERATE
+  LOW
+  INACTIVE
+}
+
+enum PainTiming {
+  DAY
+  NIGHT
+  ALL_TIME
+  DURING_SLEEP
+}
+
+enum SymptomDuration {
+  LTE_1_WEEK
+  WEEKS_2_3
+  MONTHS_1_3
+  MONTHS_3_6
+  GT_6_MONTHS
+}
+
+enum PainSeverity {
+  ZERO
+  ONE_TWO
+  THREE_FOUR
+  FIVE
+  SIX_SEVEN
+  EIGHT_NINE
+  TEN
+}
+
+enum PainStability {
+  WORSENING
+  CONSTANT
+  IMPROVING
+  VARIABLE
+}
+
+enum Comorbidity {
+  HYPERTENSION
+  DIABETES
+  THYROID
+  OSTEOPOROSIS
+  ARTHRITIS
+  CANCER
+  CEREBRAL_CLOT
+  CARDIO_PULMONARY_CLOT
+  LIMB_CLOT
+  NONE
+  OTHER
+}
+
+enum ReferralSource {
+  FRIEND_FAMILY
+  SOCIAL_MEDIA
+  DOCTOR_REFERRAL
+  GOOGLE_SEARCH
+  WALK_BY
+  EVENT
+  OTHER
+}
+
+enum CustomQuestionType {
+  TEXT
+  TEXTAREA
+  SINGLE_SELECT
+  MULTI_SELECT
+  NUMBER
+  DATE
+}
+
+enum CustomQuestionAppliesTo {
+  ADULT
+  PEDIATRIC
+  BOTH
+}
+
+enum HomeProgramFrequency {
+  DAILY
+  WEEKLY_N
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Core: users, profile, specialties
+// ═════════════════════════════════════════════════════════════════════════════
+
+model User {
+  id           String       @id @default(cuid())
+  email        String?
+  phone        String
+  role         UserRole
+  fullNameEn   String
+  fullNameAr   String
+  languagePref LanguagePref @default(EN)
+
+  // Auth fields — populated by Prompt 4. Kept on User (not a sibling table) so a
+  // single SELECT during login fetches everything the auth layer needs.
+  passwordHash        String?
+  mustChangePassword  Boolean   @default(false)
+  passwordChangedAt   DateTime?
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  patientProfile PatientProfile?
+  specialties    UserSpecialty[]
+
+  // Relations as actor across the domain. Names are explicit because several
+  // tables reference User multiple times (e.g. Appointment has patientId, therapistId,
+  // createdById) and Prisma needs disambiguation.
+  appointmentsAsPatient    Appointment[]       @relation("AppointmentPatient")
+  appointmentsAsTherapist  Appointment[]       @relation("AppointmentTherapist")
+  appointmentsCreatedBy    Appointment[]       @relation("AppointmentCreatedBy")
+  treatmentPlansAsPatient  TreatmentPlan[]     @relation("PlanPatient")
+  treatmentPlansAsDoctor   TreatmentPlan[]     @relation("PlanDoctor")
+  treatmentPlansAsAssigned TreatmentPlan[]     @relation("PlanAssignedTherapist")
+  sessionNotesAsPatient    SessionNote[]       @relation("NotePatient")
+  sessionNotesAsTherapist  SessionNote[]       @relation("NoteTherapist")
+  homeProgramItems         HomeProgramItem[]   @relation("HomeProgramPatient")
+  exercisesCreated         Exercise[]          @relation("ExerciseCreatedBy")
+  leaves                   Leave[]             @relation("LeaveUser")
+  leavesApproved           Leave[]             @relation("LeaveApprovedBy")
+  patientsAsTherapist      PatientProfile[]    @relation("PatientAssignedTherapist")
+  patientsAsDoctor         PatientProfile[]    @relation("PatientResponsibleDoctor")
+  whatsappMessages         WhatsAppMessage[]   @relation("WhatsAppRecipient")
+  auditLogs                AuditLog[]          @relation("AuditActor")
+  intakesAsPatient         IntakeAssessment[]  @relation("IntakePatient")
+  intakesAsAssessor        IntakeAssessment[]  @relation("IntakeAssessor")
+  intakesAsReviewer        IntakeAssessment[]  @relation("IntakeReviewer")
+  customQuestionsCreated   IntakeCustomQuestion[] @relation("CustomQuestionCreatedBy")
+
+  // Note: real `phone` and `email` uniqueness scoped to non-deleted rows is enforced
+  // by partial unique indexes in the init migration (Prisma can't express them).
+  // These indexes are *also* useful for lookup performance.
+  @@index([phone])
+  @@index([email])
+  @@index([role])
+  @@index([deletedAt])
+}
+
+model PatientProfile {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  dateOfBirth             DateTime
+  gender                  Gender
+  // TODO(Prompt 11 hardening): encrypt at rest via pgcrypto symmetric encryption.
+  nationalId              String?
+  address                 String?
+  occupation              String?
+  emergencyContactName    String?
+  emergencyContactPhone   String?
+  medicalHistorySummary   String?
+  allergies               String?
+  currentMedications      String?
+  hijriCalendarPref       Boolean  @default(false)
+
+  assignedTherapistId String?
+  assignedTherapist   User?   @relation("PatientAssignedTherapist", fields: [assignedTherapistId], references: [id], onDelete: Restrict)
+
+  responsibleDoctorId String?
+  responsibleDoctor   User?   @relation("PatientResponsibleDoctor", fields: [responsibleDoctorId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([assignedTherapistId])
+  @@index([responsibleDoctorId])
+}
+
+model Specialty {
+  id          String  @id @default(cuid())
+  nameEn      String  @unique
+  nameAr      String  @unique
+  description String?
+  active      Boolean @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users UserSpecialty[]
+}
+
+model UserSpecialty {
+  userId      String
+  specialtyId String
+  assignedAt  DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialty Specialty @relation(fields: [specialtyId], references: [id], onDelete: Restrict)
+
+  @@id([userId, specialtyId])
+  @@index([specialtyId])
+}
+
+model Room {
+  id     String  @id @default(cuid())
+  name   String
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  appointments Appointment[]
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Scheduling
+// ═════════════════════════════════════════════════════════════════════════════
+
+model Appointment {
+  id                   String                @id @default(cuid())
+  patientId            String
+  therapistId          String
+  roomId               String?
+  startsAt             DateTime
+  durationMinutes      Int                   @default(30)
+  status               AppointmentStatus     @default(SCHEDULED)
+  notes                String?
+  cancellationReason   String?
+  cancellationCategory CancellationCategory?
+  createdById          String
+
+  patient     User  @relation("AppointmentPatient", fields: [patientId], references: [id], onDelete: Restrict)
+  therapist   User  @relation("AppointmentTherapist", fields: [therapistId], references: [id], onDelete: Restrict)
+  room        Room? @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  createdBy   User  @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  sessionNote SessionNote?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([therapistId, startsAt])
+  @@index([patientId, startsAt])
+  @@index([status])
+}
+
+model TreatmentPlan {
+  id                  String     @id @default(cuid())
+  patientId           String
+  doctorId            String
+  assignedTherapistId String
+  diagnosisPrimary    String
+  diagnosisSecondary  String?
+  goalsShortTerm      String
+  goalsLongTerm       String
+  frequencyPerWeek    Int
+  durationWeeks       Int
+  status              PlanStatus @default(ACTIVE)
+  version             Int        @default(1)
+  parentPlanId        String?
+
+  patient           User            @relation("PlanPatient", fields: [patientId], references: [id], onDelete: Restrict)
+  doctor            User            @relation("PlanDoctor", fields: [doctorId], references: [id], onDelete: Restrict)
+  assignedTherapist User            @relation("PlanAssignedTherapist", fields: [assignedTherapistId], references: [id], onDelete: Restrict)
+  parentPlan        TreatmentPlan?  @relation("PlanVersionChain", fields: [parentPlanId], references: [id], onDelete: Restrict)
+  revisions         TreatmentPlan[] @relation("PlanVersionChain")
+  exercises         PlanExercise[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Only one ACTIVE plan per patient — enforced by a partial unique index added in
+  // the init migration's raw SQL extension (Prisma can't express WHERE on indexes).
+  @@index([patientId, status])
+  @@index([assignedTherapistId])
+  @@index([doctorId])
+}
+
+model PlanExercise {
+  id              String  @id @default(cuid())
+  planId          String
+  exerciseId      String
+  sets            Int
+  reps            Int
+  durationSeconds Int
+  customNotes     String?
+  order           Int
+
+  plan     TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  exercise Exercise      @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  @@index([planId, order])
+}
+
+model Exercise {
+  id                String  @id @default(cuid())
+  nameEn            String
+  nameAr            String
+  descriptionEn     String
+  descriptionAr     String
+  category          String
+  anatomicalRegion  String
+  contraindications String?
+  videoUrl          String?
+  imageUrl          String?
+  version           Int     @default(1)
+  createdById       String
+
+  createdBy        User              @relation("ExerciseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  planExercises    PlanExercise[]
+  homeProgramItems HomeProgramItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([category])
+  @@index([anatomicalRegion])
+}
+
+model SessionNote {
+  id            String  @id @default(cuid())
+  appointmentId String  @unique
+  patientId     String
+  therapistId   String
+  subjective    String
+  objective     String
+  assessment    String
+  plan          String
+  painScore     Int?
+  measurements  Json?
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  patient     User        @relation("NotePatient", fields: [patientId], references: [id], onDelete: Restrict)
+  therapist   User        @relation("NoteTherapist", fields: [therapistId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patientId, createdAt])
+  @@index([therapistId, createdAt])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Home program
+// ═════════════════════════════════════════════════════════════════════════════
+
+model HomeProgramItem {
+  id              String               @id @default(cuid())
+  patientId       String
+  exerciseId      String
+  frequency       HomeProgramFrequency
+  timesPerWeek    Int?
+  // Time-of-day as "HH:MM" — see file header note. Recurring local-time concept.
+  scheduledTime   String
+  durationMinutes Int
+  therapistNote   String?
+  active          Boolean              @default(true)
+
+  patient     User                      @relation("HomeProgramPatient", fields: [patientId], references: [id], onDelete: Restrict)
+  exercise    Exercise                  @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  completions HomeProgramCompletion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patientId, active])
+  @@index([exerciseId])
+}
+
+model HomeProgramCompletion {
+  id            String    @id @default(cuid())
+  itemId        String
+  scheduledDate DateTime  @db.Date
+  completedAt   DateTime?
+  painScore     Int?
+
+  item HomeProgramItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([itemId, scheduledDate])
+  @@index([itemId, scheduledDate])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Leave
+// ═════════════════════════════════════════════════════════════════════════════
+
+model Leave {
+  id           String      @id @default(cuid())
+  userId       String
+  startDate    DateTime    @db.Date
+  endDate      DateTime    @db.Date
+  leaveType    LeaveType
+  status       LeaveStatus @default(PENDING)
+  reason       String?
+  approvedById String?
+
+  user       User  @relation("LeaveUser", fields: [userId], references: [id], onDelete: Restrict)
+  approvedBy User? @relation("LeaveApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, startDate])
+  @@index([status])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  WhatsApp
+// ═════════════════════════════════════════════════════════════════════════════
+
+model WhatsAppTemplate {
+  id               String             @id @default(cuid())
+  metaTemplateName String             @unique
+  language         LanguagePref
+  category         WaTemplateCategory
+  contentPreview   String
+  approvedAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages WhatsAppMessage[]
+}
+
+model WhatsAppMessage {
+  id             String             @id @default(cuid())
+  templateId     String?
+  recipientId    String?
+  recipientPhone String
+  parameters     Json               @default("{}")
+  direction      WaMessageDirection
+  status         WaMessageStatus    @default(QUEUED)
+  metaMessageId  String?
+  body           String
+  sentAt         DateTime           @default(now())
+  deliveredAt    DateTime?
+  readAt         DateTime?
+
+  template  WhatsAppTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  recipient User?             @relation("WhatsAppRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([recipientPhone, sentAt(sort: Desc)])
+  @@index([status])
+  @@index([metaMessageId])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Audit log
+// ═════════════════════════════════════════════════════════════════════════════
+
+model AuditLog {
+  id         String      @id @default(cuid())
+  actorId    String
+  entityType String
+  entityId   String
+  action     AuditAction
+  before     Json?
+  after      Json?
+
+  actor User @relation("AuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId, createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Intake assessment — parent + adult/pediatric detail tables + custom questions
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Why split into parent + detail tables rather than one JSONB blob?
+// See docs/db/schema.md Decisions log. Short version: pain severity distributions,
+// referral-source breakdowns, and symptom-duration analytics all rely on the
+// fields being typed columns. A JSONB blob loses every aggregation.
+
+model IntakeAssessment {
+  id                    String       @id @default(cuid())
+  patientId             String
+  type                  IntakeType
+  assessedAt            DateTime     @default(now())
+  assessedById          String
+  status                IntakeStatus @default(IN_PROGRESS)
+  reviewedByClinicianId String?
+  reviewedAt            DateTime?
+
+  patient            User                  @relation("IntakePatient", fields: [patientId], references: [id], onDelete: Restrict)
+  assessedBy         User                  @relation("IntakeAssessor", fields: [assessedById], references: [id], onDelete: Restrict)
+  reviewedByClinician User?                @relation("IntakeReviewer", fields: [reviewedByClinicianId], references: [id], onDelete: Restrict)
+  adultData          AdultIntakeData?
+  pediatricData      PediatricIntakeData?
+  customAnswers      IntakeCustomAnswer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // No unique on patientId — a patient may have multiple intakes over time
+  // (reassessment after a new injury, follow-up, etc.).
+  @@index([patientId, assessedAt(sort: Desc)])
+  @@index([status])
+  @@index([type])
+}
+
+model AdultIntakeData {
+  intakeId String           @id
+  intake   IntakeAssessment @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+
+  physicalActivityLevel       PhysicalActivityLevel
+  medicalDiagnosis            String?
+  primaryComplaint            String
+  painTiming                  PainTiming
+  symptomDuration             SymptomDuration
+  painSeverity                PainSeverity
+  painAggravatingFactors      String?
+  painRelievingFactors        String?
+  painStability               PainStability
+  currentMedicationsForProblem String?
+  otherMedications            String?
+  conditions                  Comorbidity[]
+  otherConditions             String?
+  previousFractures           String?
+  previousSurgeries           String?
+  previousPtExperience        String?
+  referralSource              ReferralSource
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model PediatricIntakeData {
+  intakeId String           @id
+  intake   IntakeAssessment @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+
+  numberOfSiblings Int
+  birthOrder       Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model IntakeCustomQuestion {
+  id           String                  @id @default(cuid())
+  nameEn       String
+  nameAr       String
+  type         CustomQuestionType
+  // options shape: [{ valueEn: string, valueAr: string }] — only used for
+  // SINGLE_SELECT and MULTI_SELECT. Null/empty for other types.
+  options      Json?
+  appliesTo    CustomQuestionAppliesTo
+  required     Boolean                 @default(false)
+  displayOrder Int                     @default(0)
+  active       Boolean                 @default(true)
+  createdById  String
+
+  createdBy User                 @relation("CustomQuestionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  answers   IntakeCustomAnswer[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([appliesTo, active, displayOrder])
+}
+
+model IntakeCustomAnswer {
+  id         String  @id @default(cuid())
+  intakeId   String
+  questionId String
+  // For TEXT / TEXTAREA / NUMBER / DATE.
+  value      String?
+  // For SINGLE_SELECT / MULTI_SELECT — array of selected option values.
+  // Stored as JSON so renaming an option later does not corrupt historical answers.
+  valueOptions Json?
+
+  intake   IntakeAssessment     @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  question IntakeCustomQuestion @relation(fields: [questionId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([intakeId, questionId])
+  @@index([questionId])
+}
