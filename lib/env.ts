@@ -37,6 +37,11 @@ const envSchema = z.object({
   // Auth (Prompt 4)
   AUTH_SECRET: z.string().min(32).optional(),
   AUTH_URL: z.string().url().optional(),
+  AUTH_TRUST_HOST: z
+    .union([z.literal('true'), z.literal('false')])
+    .optional()
+    .default('false'),
+  OTP_SENDER: z.enum(['console', 'whatsapp']).default('console'),
 });
 
 export type Env = z.infer<typeof envSchema>;
