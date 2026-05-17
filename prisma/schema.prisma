@@ -255,6 +255,7 @@ model User {
   intakesAsAssessor        IntakeAssessment[]  @relation("IntakeAssessor")
   intakesAsReviewer        IntakeAssessment[]  @relation("IntakeReviewer")
   customQuestionsCreated   IntakeCustomQuestion[] @relation("CustomQuestionCreatedBy")
+  clinicSettingsUpdates    ClinicSettings[]    @relation("ClinicSettingsUpdatedBy")
 
   // Note: real `phone` and `email` uniqueness scoped to non-deleted rows is enforced
   // by partial unique indexes in the init migration (Prisma can't express them).
@@ -700,4 +701,38 @@ model IntakeCustomAnswer {
 
   @@unique([intakeId, questionId])
   @@index([questionId])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Clinic settings — singleton (Prompt 5 §4.3 / spec FR-ADM-3)
+// ═════════════════════════════════════════════════════════════════════════════
+
+model ClinicSettings {
+  // Hardcoded singleton id. The seed upserts `id = "default"`; the UI
+  // never exposes this string.
+  id String @id @default("default")
+
+  nameEn    String
+  nameAr    String
+  phone     String
+  addressEn String
+  addressAr String
+  timezone  String @default("Asia/Amman")
+
+  defaultAppointmentDuration   Int @default(30)
+  defaultReminderOffsetMinutes Int @default(30)
+
+  // { sun: { open: "09:00", close: "18:00", closed: false }, mon: ..., fri: { closed: true } }
+  businessHours Json
+
+  defaultLanguage LanguagePref @default(AR)
+
+  // [{ id, nameEn, nameAr, defaultDurationMinutes }]
+  serviceTypes Json
+
+  hijriDefault Boolean @default(false)
+
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+  updatedBy   User?    @relation("ClinicSettingsUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
 }

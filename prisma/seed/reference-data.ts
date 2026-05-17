@@ -126,6 +126,55 @@ export async function seedReference(db: PrismaClient): Promise<void> {
     ),
   );
 
+  // ClinicSettings singleton — Prompt 5 §4.3. Sensible defaults aligned with
+  // a Jordan clinic (Sun-Thu open, Fri closed, Sat open; Asia/Amman; AR default).
+  await db.clinicSettings.upsert({
+    where: { id: 'default' },
+    update: {},
+    create: {
+      id: 'default',
+      nameEn: 'The One for Physiotherapy',
+      nameAr: 'المركز الأول للعلاج الطبيعي',
+      phone: '+962790000000',
+      addressEn: 'Amman, Jordan',
+      addressAr: 'عمّان، الأردن',
+      timezone: 'Asia/Amman',
+      defaultAppointmentDuration: 30,
+      defaultReminderOffsetMinutes: 30,
+      hijriDefault: false,
+      defaultLanguage: LanguagePref.AR,
+      businessHours: {
+        sun: { open: '09:00', close: '18:00', closed: false },
+        mon: { open: '09:00', close: '18:00', closed: false },
+        tue: { open: '09:00', close: '18:00', closed: false },
+        wed: { open: '09:00', close: '18:00', closed: false },
+        thu: { open: '09:00', close: '18:00', closed: false },
+        fri: { open: '09:00', close: '13:00', closed: true },
+        sat: { open: '10:00', close: '14:00', closed: false },
+      },
+      serviceTypes: [
+        {
+          id: 'initial',
+          nameEn: 'Initial assessment',
+          nameAr: 'تقييم أوّلي',
+          defaultDurationMinutes: 45,
+        },
+        {
+          id: 'followup',
+          nameEn: 'Follow-up session',
+          nameAr: 'جلسة متابعة',
+          defaultDurationMinutes: 30,
+        },
+        {
+          id: 'sports',
+          nameEn: 'Sports rehab session',
+          nameAr: 'جلسة تأهيل رياضي',
+          defaultDurationMinutes: 45,
+        },
+      ],
+    },
+  });
+
   // Custom intake questions are seeded by seedCustomQuestions() once a User with
   // ADMIN role exists. Calling it here would fail FK on a fresh DB.
 }
