@@ -8,11 +8,7 @@ import { Logo } from '@/components/brand/Logo';
  * Hardcoded English copy is intentional for Prompt 1 — next-intl wiring lands in Prompt 3.
  * Once translations exist, every string on this page moves into `messages/{en,ar}.json`.
  */
-export default async function LocaleHomePage({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}) {
+export default async function LocaleHomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
 
   return (

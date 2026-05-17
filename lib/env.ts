@@ -49,16 +49,11 @@ function loadEnv(): Env {
 
   const formatted = parsed.error.flatten().fieldErrors;
   if (process.env.NODE_ENV === 'production') {
-    // eslint-disable-next-line no-console
     console.error('[env] invalid environment configuration', formatted);
     throw new Error('Invalid environment configuration — refusing to start.');
   }
 
-  // eslint-disable-next-line no-console
-  console.warn(
-    '[env] environment validation warnings (development mode — continuing):',
-    formatted,
-  );
+  console.warn('[env] environment validation warnings (development mode — continuing):', formatted);
   return envSchema.parse({
     ...process.env,
     NODE_ENV: process.env.NODE_ENV ?? 'development',

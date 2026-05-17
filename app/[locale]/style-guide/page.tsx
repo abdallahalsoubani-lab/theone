@@ -33,17 +33,67 @@ const BRAND_TOKENS: ReadonlyArray<{
   cssVar: string;
   usage: string;
 }> = [
-  { name: 'brand.navy', hex: '#0B1E47', cssVar: '--brand-navy', usage: 'Primary actions, headers, hero backgrounds' },
-  { name: 'brand.navyDeep', hex: '#091638', cssVar: '--brand-navy-deep', usage: 'Hover state on navy buttons' },
-  { name: 'brand.blue', hex: '#1B4982', cssVar: '--brand-blue', usage: 'Secondary surfaces, gradient start' },
-  { name: 'brand.teal', hex: '#1E5F58', cssVar: '--brand-teal', usage: 'Success states, highlight cards' },
-  { name: 'brand.cyan', hex: '#3DC0D9', cssVar: '--brand-cyan', usage: 'Icons, gradient end, links, accents' },
-  { name: 'brand.cyanLight', hex: '#7DDBE9', cssVar: '--brand-cyan-light', usage: 'Hover state on cyan' },
+  {
+    name: 'brand.navy',
+    hex: '#0B1E47',
+    cssVar: '--brand-navy',
+    usage: 'Primary actions, headers, hero backgrounds',
+  },
+  {
+    name: 'brand.navyDeep',
+    hex: '#091638',
+    cssVar: '--brand-navy-deep',
+    usage: 'Hover state on navy buttons',
+  },
+  {
+    name: 'brand.blue',
+    hex: '#1B4982',
+    cssVar: '--brand-blue',
+    usage: 'Secondary surfaces, gradient start',
+  },
+  {
+    name: 'brand.teal',
+    hex: '#1E5F58',
+    cssVar: '--brand-teal',
+    usage: 'Success states, highlight cards',
+  },
+  {
+    name: 'brand.cyan',
+    hex: '#3DC0D9',
+    cssVar: '--brand-cyan',
+    usage: 'Icons, gradient end, links, accents',
+  },
+  {
+    name: 'brand.cyanLight',
+    hex: '#7DDBE9',
+    cssVar: '--brand-cyan-light',
+    usage: 'Hover state on cyan',
+  },
   { name: 'brand.bg', hex: '#F2F4F8', cssVar: '--brand-bg', usage: 'Page background' },
-  { name: 'brand.surface', hex: '#FFFFFF', cssVar: '--brand-surface', usage: 'Cards, modals, elevated surfaces' },
-  { name: 'brand.text', hex: '#0B1E47', cssVar: '--brand-text', usage: 'Body text on light surfaces' },
-  { name: 'brand.textMuted', hex: '#5A6580', cssVar: '--brand-text-muted', usage: 'Secondary text, captions' },
-  { name: 'brand.border', hex: '#D8DEE8', cssVar: '--brand-border', usage: 'Card borders, dividers' },
+  {
+    name: 'brand.surface',
+    hex: '#FFFFFF',
+    cssVar: '--brand-surface',
+    usage: 'Cards, modals, elevated surfaces',
+  },
+  {
+    name: 'brand.text',
+    hex: '#0B1E47',
+    cssVar: '--brand-text',
+    usage: 'Body text on light surfaces',
+  },
+  {
+    name: 'brand.textMuted',
+    hex: '#5A6580',
+    cssVar: '--brand-text-muted',
+    usage: 'Secondary text, captions',
+  },
+  {
+    name: 'brand.border',
+    hex: '#D8DEE8',
+    cssVar: '--brand-border',
+    usage: 'Card borders, dividers',
+  },
 ];
 
 const SPACING_STEPS: ReadonlyArray<{ step: number; px: number; tw: string }> = [
@@ -72,7 +122,10 @@ export default function StyleGuidePage() {
 
       <Separator />
 
-      <Section title="Colors" description="Eleven locked tokens. Both Tailwind classes and CSS variables resolve to these values.">
+      <Section
+        title="Colors"
+        description="Eleven locked tokens. Both Tailwind classes and CSS variables resolve to these values."
+      >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {BRAND_TOKENS.map((token) => (
             <Card key={token.name}>
@@ -96,13 +149,19 @@ export default function StyleGuidePage() {
         </div>
       </Section>
 
-      <Section title="CTA gradient" description="Primary call-to-action surface — locked gradient direction.">
+      <Section
+        title="CTA gradient"
+        description="Primary call-to-action surface — locked gradient direction."
+      >
         <div className="flex h-24 items-center justify-center rounded-lg bg-gradient-cta text-lg font-medium text-white shadow-sm">
           bg-gradient-cta
         </div>
       </Section>
 
-      <Section title="Typography" description="Inter for Latin, IBM Plex Sans Arabic for Arabic. Weights 400 and 500 only.">
+      <Section
+        title="Typography"
+        description="Inter for Latin, IBM Plex Sans Arabic for Arabic. Weights 400 and 500 only."
+      >
         <Card>
           <CardContent className="space-y-4 p-6">
             <h1 className="text-5xl font-medium">Heading 1 — quick brown fox</h1>
@@ -111,10 +170,14 @@ export default function StyleGuidePage() {
             <h4 className="text-2xl font-medium">Heading 4 — quick brown fox</h4>
             <h5 className="text-xl font-medium">Heading 5 — quick brown fox</h5>
             <h6 className="text-lg font-medium">Heading 6 — quick brown fox</h6>
-            <p className="text-lg">Body large — sentence-case copy used for high-emphasis paragraphs.</p>
+            <p className="text-lg">
+              Body large — sentence-case copy used for high-emphasis paragraphs.
+            </p>
             <p className="text-base">Body — default 16px, line-height 1.6, weight 400.</p>
             <p className="text-sm">Small — used for secondary details and labels.</p>
-            <p className="text-xs text-brand-textMuted">Caption — timestamps, helper text, footnotes.</p>
+            <p className="text-xs text-brand-textMuted">
+              Caption — timestamps, helper text, footnotes.
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -174,7 +237,10 @@ export default function StyleGuidePage() {
         </Card>
       </Section>
 
-      <Section title="Cards" description="Three reference layouts: basic, header + footer, elevated.">
+      <Section
+        title="Cards"
+        description="Three reference layouts: basic, header + footer, elevated."
+      >
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
             <CardContent className="p-6">
@@ -227,7 +293,10 @@ export default function StyleGuidePage() {
         </Card>
       </Section>
 
-      <Section title="Spacing scale" description="Tailwind spacing tokens used in the system (multiples of 4px).">
+      <Section
+        title="Spacing scale"
+        description="Tailwind spacing tokens used in the system (multiples of 4px)."
+      >
         <Card>
           <CardContent className="space-y-3 p-6">
             {SPACING_STEPS.map((step) => (
@@ -259,9 +328,7 @@ function Section({
     <section className="space-y-4">
       <div>
         <h2 className="text-xl font-medium text-brand-navy">{title}</h2>
-        {description ? (
-          <p className="text-sm text-brand-textMuted">{description}</p>
-        ) : null}
+        {description ? <p className="text-sm text-brand-textMuted">{description}</p> : null}
       </div>
       <div className="space-y-4">{children}</div>
     </section>

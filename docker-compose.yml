@@ -1,0 +1,66 @@
+# Local infrastructure for Theone.pt development.
+#
+# Usage:
+#   pnpm infra:up      Start all services (also runs scripts/init-minio.sh to create the bucket)
+#   pnpm infra:down    Stop all services (keeps volumes)
+#   pnpm infra:reset   Wipe volumes and restart from scratch
+#   pnpm infra:logs    Tail logs from all services
+#
+# Production uses managed Postgres (Neon), managed Redis (Upstash), and AWS S3 — see README.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: theone-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-theone}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dev_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-theone_dev}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-theone} -d ${POSTGRES_DB:-theone_dev}']
+      interval: 5s
+      timeout: 5s
+      retries: 6
+
+  redis:
+    image: redis:7-alpine
+    container_name: theone-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 6
+
+  minio:
+    image: minio/minio:latest
+    container_name: theone-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minio_admin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_admin_change_me}
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+      interval: 5s
+      timeout: 3s
+      retries: 6
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

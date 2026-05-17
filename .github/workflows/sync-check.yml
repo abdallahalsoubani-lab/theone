@@ -1,0 +1,32 @@
+name: i18n sync check
+
+on:
+  push:
+    branches-ignore:
+      - 'dependabot/**'
+  pull_request:
+    branches: [main]
+
+# Placeholder — Prompt 3 (Internationalization) populates this workflow with the
+# actual key-parity check between `messages/en.json` and `messages/ar.json`.
+# Until then the job runs but performs no assertion, so the workflow exists in
+# GitHub Actions and PR branch protection can require it from day one.
+
+jobs:
+  i18n-sync:
+    name: messages/{en,ar}.json key parity
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Placeholder check
+        run: |
+          if [ ! -d messages ]; then
+            echo "messages/ directory missing"; exit 1
+          fi
+          if [ -f messages/en.json ] && [ -f messages/ar.json ]; then
+            echo "Both catalogs present — full diff check lands in Prompt 3."
+          else
+            echo "Catalogs not yet created (owned by Prompt 3). Skipping."
+          fi

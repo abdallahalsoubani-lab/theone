@@ -1,13 +1,13 @@
 # Theone.pt — Technical Specification Document
 
-| Field | Value |
-|---|---|
-| **Project** | Theone.pt — Physical Therapy Clinic Management System |
-| **Version** | 1.0 (Draft) |
-| **Date** | May 2026 |
-| **Status** | Draft for review |
-| **Audience** | Engineering team, product owner, clinic stakeholders |
-| **Languages supported** | English + Arabic (RTL) |
+| Field                   | Value                                                 |
+| ----------------------- | ----------------------------------------------------- |
+| **Project**             | Theone.pt — Physical Therapy Clinic Management System |
+| **Version**             | 1.0 (Draft)                                           |
+| **Date**                | May 2026                                              |
+| **Status**              | Draft for review                                      |
+| **Audience**            | Engineering team, product owner, clinic stakeholders  |
+| **Languages supported** | English + Arabic (RTL)                                |
 
 ---
 
@@ -37,16 +37,16 @@ The product is bilingual from day one. All UI strings exist in English and Arabi
 
 ## 3. Glossary
 
-| Term (EN) | Term (AR) | Meaning |
-|---|---|---|
-| Appointment | موعد | A scheduled visit between a patient and a therapist |
-| Treatment plan | الخطة العلاجية | The doctor's prescription for a patient: goals, exercises, sessions |
-| Session note | تقرير الجلسة | The therapist's note after each session |
+| Term (EN)                  | Term (AR)            | Meaning                                                               |
+| -------------------------- | -------------------- | --------------------------------------------------------------------- |
+| Appointment                | موعد                 | A scheduled visit between a patient and a therapist                   |
+| Treatment plan             | الخطة العلاجية       | The doctor's prescription for a patient: goals, exercises, sessions   |
+| Session note               | تقرير الجلسة         | The therapist's note after each session                               |
 | Patient timeline / history | ملف المريض / التاريخ | The full chronological record of every clinical event for one patient |
-| Home program | برنامج بيتي | Exercises the patient performs at home, with optional video/image |
-| Template (WhatsApp) | قالب وتساب | A pre-approved Meta template message used for proactive sends |
-| RBAC | صلاحيات | Role-based access control |
-| RTL | من اليمين لليسار | Right-to-left UI mirroring for Arabic |
+| Home program               | برنامج بيتي          | Exercises the patient performs at home, with optional video/image     |
+| Template (WhatsApp)        | قالب وتساب           | A pre-approved Meta template message used for proactive sends         |
+| RBAC                       | صلاحيات              | Role-based access control                                             |
+| RTL                        | من اليمين لليسار     | Right-to-left UI mirroring for Arabic                                 |
 
 ---
 
@@ -56,21 +56,21 @@ The product is bilingual from day one. All UI strings exist in English and Arabi
 
 `C` = Create, `R` = Read, `U` = Update, `D` = Delete, `—` = No access, `R*` = Read own/assigned only
 
-| Resource | Patient | Secretary | Doctor | Therapist | Admin |
-|---|---|---|---|---|---|
-| Own profile | R, U | R, U | R, U | R, U | R, U |
-| Other users | — | R (patients/therapists) | R (assigned patients) | R (assigned patients) | C, R, U, D |
-| Appointments | R* | C, R, U, D | R* | R* | C, R, U, D |
-| Treatment plans | R* | R | C, R, U (own) | R, U (assigned) | R |
-| Session notes | — | R | R (assigned patients) | C, R, U (own); R (others) | R |
-| Patient timeline | R* (limited) | R | R (assigned) | R (assigned) | R |
-| Home program | R* | R | R | C, R, U (assigned) | R |
-| Exercise media (video/image) | R* | — | — | C, R, U, D (own uploads) | C, R, U, D |
-| Leaves (own) | — | C, R | C, R | C, R | C, R |
-| Leaves (others) | — | R | — | — | C, R, U, D |
-| Reports | — | R | R | R (own) | R |
-| WhatsApp templates | — | — | — | — | C, R, U, D |
-| System settings | — | — | — | — | C, R, U, D |
+| Resource                     | Patient       | Secretary               | Doctor                | Therapist                 | Admin      |
+| ---------------------------- | ------------- | ----------------------- | --------------------- | ------------------------- | ---------- |
+| Own profile                  | R, U          | R, U                    | R, U                  | R, U                      | R, U       |
+| Other users                  | —             | R (patients/therapists) | R (assigned patients) | R (assigned patients)     | C, R, U, D |
+| Appointments                 | R\*           | C, R, U, D              | R\*                   | R\*                       | C, R, U, D |
+| Treatment plans              | R\*           | R                       | C, R, U (own)         | R, U (assigned)           | R          |
+| Session notes                | —             | R                       | R (assigned patients) | C, R, U (own); R (others) | R          |
+| Patient timeline             | R\* (limited) | R                       | R (assigned)          | R (assigned)              | R          |
+| Home program                 | R\*           | R                       | R                     | C, R, U (assigned)        | R          |
+| Exercise media (video/image) | R\*           | —                       | —                     | C, R, U, D (own uploads)  | C, R, U, D |
+| Leaves (own)                 | —             | C, R                    | C, R                  | C, R                      | C, R       |
+| Leaves (others)              | —             | R                       | —                     | —                         | C, R, U, D |
+| Reports                      | —             | R                       | R                     | R (own)                   | R          |
+| WhatsApp templates           | —             | —                       | —                     | —                         | C, R, U, D |
+| System settings              | —             | —                       | —                     | —                         | C, R, U, D |
 
 ### 4.2 Notes on role rules
 
@@ -101,7 +101,7 @@ This section describes **what** the system does, module by module. Each requirem
 - **FR-PAT-3** — Each patient has a primary **assigned therapist** (set by Secretary) and a **responsible doctor** (set when a treatment plan is created).
 - **FR-PAT-4** — Soft-delete only. Patient records are never hard-deleted; they are archived. Restoration is possible by Admin.
 
-### 5.3 Appointment scheduling (FR-APP) — *Secretary's core workflow*
+### 5.3 Appointment scheduling (FR-APP) — _Secretary's core workflow_
 
 - **FR-APP-1** — Secretary can create an appointment by selecting: patient, therapist, date, start time, duration (defaults to 30 min, configurable), service type, room (optional), and notes.
 - **FR-APP-2** — On creation, the system validates:
@@ -109,7 +109,7 @@ This section describes **what** the system does, module by module. Each requirem
   2. The selected therapist is not on approved leave in that time window.
   3. The patient has no overlapping appointment.
   4. The clinic is open at that time (business hours setting).
-- **FR-APP-3** — If a conflict exists, the booking is **rejected** with a clear message identifying the conflict (e.g., *"Therapist Ahmad has an appointment with Patient Sara at 10:00–10:30"*). The Secretary then either picks a different time, picks a different therapist, or overrides only after explicit confirmation (override is logged).
+- **FR-APP-3** — If a conflict exists, the booking is **rejected** with a clear message identifying the conflict (e.g., _"Therapist Ahmad has an appointment with Patient Sara at 10:00–10:30"_). The Secretary then either picks a different time, picks a different therapist, or overrides only after explicit confirmation (override is logged).
 - **FR-APP-4** — Secretary may **change the assigned therapist** for an existing appointment via a "Change therapist" action. The system performs the same conflict checks for the new therapist; on success, both therapists are notified (in-app + optional WhatsApp).
 - **FR-APP-5** — Secretary may **reschedule** an existing appointment by dragging it to a new time slot or a new day/week on the calendar view. The system re-runs all conflict checks.
 - **FR-APP-6** — Appointment statuses: `scheduled` → `confirmed` → `in_progress` → `completed` | `cancelled` | `no_show`. Status transitions are restricted (e.g., a completed appointment cannot return to scheduled).
@@ -126,7 +126,7 @@ This section describes **what** the system does, module by module. Each requirem
 - **FR-CAL-6** — Clicking on a patient name within the panel deep-links to the full **Patient file** (see 5.6).
 - **FR-CAL-7** — Visual indicator on therapist columns when the therapist is on leave (greyed-out background with a "Leave" label).
 
-### 5.5 Treatment plans (FR-PLAN) — *Doctor's core workflow*
+### 5.5 Treatment plans (FR-PLAN) — _Doctor's core workflow_
 
 - **FR-PLAN-1** — Doctor creates a treatment plan attached to a patient. Plan contains: clinical assessment, primary diagnosis, secondary diagnoses, goals (short-term, long-term), prescribed exercises (selected from the Exercise Library or custom), session frequency, plan duration (weeks), and notes for the therapist.
 - **FR-PLAN-2** — A plan is assigned to a primary Therapist. The Therapist receives an in-app notification.
@@ -149,7 +149,7 @@ This section describes **what** the system does, module by module. Each requirem
 - **FR-FILE-3** — Each timeline entry shows: timestamp, author (with role), entry type (note / plan update / appointment / report), and content. Entries are immutable once committed; edits create a new entry referencing the old one.
 - **FR-FILE-4** — Filters and search: filter by date range, author, entry type. Full-text search on note content.
 
-### 5.7 Session notes & reports (FR-NOTE) — *Therapist's core workflow*
+### 5.7 Session notes & reports (FR-NOTE) — _Therapist's core workflow_
 
 - **FR-NOTE-1** — At the end of every session, the assigned Therapist writes a **session note** containing: subjective (patient's reported state), objective (measured findings: ROM, pain score, etc.), assessment (interpretation), plan (what to do next session) — the **SOAP** format.
 - **FR-NOTE-2** — The Therapist can use a structured form (recommended) or free-text. Structured fields support quick analytics later.
@@ -214,19 +214,19 @@ This is integration-heavy; see Section 10 for the full integration spec. Summary
 
 ## 6. Non-functional requirements
 
-| Category | Requirement |
-|---|---|
-| **Performance** | P95 page load < 2.5s on 3G. Calendar view renders 500 appointments in < 500ms. |
-| **Availability** | Target 99.5% monthly uptime. Acceptable outage window: 1 hour/week for maintenance, off-hours. |
-| **Mobile** | Responsive from 320px (iPhone SE) and up. Calendar view on mobile collapses to single-therapist day view by default. |
-| **Internationalization** | Full EN/AR support. RTL mirroring in Arabic mode. Hijri / Gregorian calendar toggle in date displays. Arabic numerals (Eastern or Arabic-Indic, user preference). |
-| **Accessibility** | WCAG 2.1 AA target. Keyboard navigation on calendar. Color is never the only signal. |
-| **Security** | All traffic over HTTPS. Passwords hashed with bcrypt (cost 12+). Patient data encrypted at rest. PII never logged. Session cookies HTTP-only, Secure, SameSite=Lax. |
-| **Privacy** | Clinical data accessible only to assigned clinicians + Admin. Audit trail for every read of sensitive fields (configurable). Patient may request data export and account deletion (right to erasure). |
-| **Compliance** | Designed to align with Jordan's PDPL principles; not certified for healthcare-specific regimes (HIPAA, GDPR Article 9). Clinic should consult legal counsel before storing certain data classes. |
-| **Backups** | Daily encrypted DB backups, retained 30 days. Weekly full backup retained 90 days. Tested restore quarterly. |
-| **Audit** | All state changes recorded for 1 year minimum. Read-only after 30 days (no edits to historical audit entries). |
-| **Browser support** | Latest 2 versions of Chrome, Safari, Firefox, Edge. Safari iOS 15+, Chrome Android 100+. |
+| Category                 | Requirement                                                                                                                                                                                           |
+| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Performance**          | P95 page load < 2.5s on 3G. Calendar view renders 500 appointments in < 500ms.                                                                                                                        |
+| **Availability**         | Target 99.5% monthly uptime. Acceptable outage window: 1 hour/week for maintenance, off-hours.                                                                                                        |
+| **Mobile**               | Responsive from 320px (iPhone SE) and up. Calendar view on mobile collapses to single-therapist day view by default.                                                                                  |
+| **Internationalization** | Full EN/AR support. RTL mirroring in Arabic mode. Hijri / Gregorian calendar toggle in date displays. Arabic numerals (Eastern or Arabic-Indic, user preference).                                     |
+| **Accessibility**        | WCAG 2.1 AA target. Keyboard navigation on calendar. Color is never the only signal.                                                                                                                  |
+| **Security**             | All traffic over HTTPS. Passwords hashed with bcrypt (cost 12+). Patient data encrypted at rest. PII never logged. Session cookies HTTP-only, Secure, SameSite=Lax.                                   |
+| **Privacy**              | Clinical data accessible only to assigned clinicians + Admin. Audit trail for every read of sensitive fields (configurable). Patient may request data export and account deletion (right to erasure). |
+| **Compliance**           | Designed to align with Jordan's PDPL principles; not certified for healthcare-specific regimes (HIPAA, GDPR Article 9). Clinic should consult legal counsel before storing certain data classes.      |
+| **Backups**              | Daily encrypted DB backups, retained 30 days. Weekly full backup retained 90 days. Tested restore quarterly.                                                                                          |
+| **Audit**                | All state changes recorded for 1 year minimum. Read-only after 30 days (no edits to historical audit entries).                                                                                        |
+| **Browser support**      | Latest 2 versions of Chrome, Safari, Firefox, Edge. Safari iOS 15+, Chrome Android 100+.                                                                                                              |
 
 ---
 
@@ -234,22 +234,22 @@ This is integration-heavy; see Section 10 for the full integration spec. Summary
 
 ### 7.1 Tech stack
 
-| Layer | Choice | Why |
-|---|---|---|
-| **Frontend framework** | Next.js 15 (App Router) | SSR for performance, file-based routing, server actions reduce API surface, mature i18n. |
-| **UI library** | Tailwind CSS + shadcn/ui | Customizable, accessible, RTL-friendly, no heavy runtime. |
-| **Calendar component** | FullCalendar.io (premium resource view) or react-big-calendar (free) | Mature drag-and-drop, resource columns, RTL support. |
-| **State management** | TanStack Query (server state) + Zustand (UI state) | Server state separated from UI state; avoids over-engineering. |
-| **Backend runtime** | Node.js 20+ inside Next.js API Routes / Server Actions | One codebase, type-shared between front and back. |
-| **ORM** | Prisma | Type-safe, migrations, great DX, well-known. |
-| **Database** | PostgreSQL 16 | Relational integrity for clinical data, JSONB for flexible fields, mature tooling. |
-| **Auth** | Auth.js (NextAuth) v5 + custom providers (email/password, WhatsApp OTP) | Standard, secure, extensible. |
-| **Job queue** | BullMQ + Redis | For scheduled WhatsApp reminders, background reports. |
-| **File storage** | S3-compatible (AWS S3 or DigitalOcean Spaces) | Industry standard, CDN-friendly, presigned uploads for direct browser → S3. |
-| **WhatsApp** | Meta Cloud API (Business Platform) | Free 1,000 conversations/month, direct, scalable. |
-| **Hosting** | Vercel (app) + Neon / Supabase (DB) + Upstash (Redis) — *or* a single VPS with Docker Compose for cost simplicity | Two tiers proposed; pick based on traffic and budget. |
-| **Monitoring** | Sentry (errors) + Axiom or BetterStack (logs) + Uptime Robot | Minimal, sufficient for v1. |
-| **CI/CD** | GitHub Actions | Build, test, lint, deploy on push to `main`. |
+| Layer                  | Choice                                                                                                            | Why                                                                                      |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| **Frontend framework** | Next.js 15 (App Router)                                                                                           | SSR for performance, file-based routing, server actions reduce API surface, mature i18n. |
+| **UI library**         | Tailwind CSS + shadcn/ui                                                                                          | Customizable, accessible, RTL-friendly, no heavy runtime.                                |
+| **Calendar component** | FullCalendar.io (premium resource view) or react-big-calendar (free)                                              | Mature drag-and-drop, resource columns, RTL support.                                     |
+| **State management**   | TanStack Query (server state) + Zustand (UI state)                                                                | Server state separated from UI state; avoids over-engineering.                           |
+| **Backend runtime**    | Node.js 20+ inside Next.js API Routes / Server Actions                                                            | One codebase, type-shared between front and back.                                        |
+| **ORM**                | Prisma                                                                                                            | Type-safe, migrations, great DX, well-known.                                             |
+| **Database**           | PostgreSQL 16                                                                                                     | Relational integrity for clinical data, JSONB for flexible fields, mature tooling.       |
+| **Auth**               | Auth.js (NextAuth) v5 + custom providers (email/password, WhatsApp OTP)                                           | Standard, secure, extensible.                                                            |
+| **Job queue**          | BullMQ + Redis                                                                                                    | For scheduled WhatsApp reminders, background reports.                                    |
+| **File storage**       | S3-compatible (AWS S3 or DigitalOcean Spaces)                                                                     | Industry standard, CDN-friendly, presigned uploads for direct browser → S3.              |
+| **WhatsApp**           | Meta Cloud API (Business Platform)                                                                                | Free 1,000 conversations/month, direct, scalable.                                        |
+| **Hosting**            | Vercel (app) + Neon / Supabase (DB) + Upstash (Redis) — _or_ a single VPS with Docker Compose for cost simplicity | Two tiers proposed; pick based on traffic and budget.                                    |
+| **Monitoring**         | Sentry (errors) + Axiom or BetterStack (logs) + Uptime Robot                                                      | Minimal, sufficient for v1.                                                              |
+| **CI/CD**              | GitHub Actions                                                                                                    | Build, test, lint, deploy on push to `main`.                                             |
 
 ### 7.2 High-level component view
 
@@ -508,97 +508,97 @@ REST conventions, JSON payloads, JWT auth via HTTP-only cookie. All routes prefi
 
 ### 9.1 Auth
 
-| Method | Path | Body | Notes |
-|---|---|---|---|
-| POST | `/api/v1/auth/login` | `{email, password}` | Returns session cookie |
-| POST | `/api/v1/auth/otp/request` | `{phone}` | Sends OTP via WhatsApp |
-| POST | `/api/v1/auth/otp/verify` | `{phone, otp}` | Returns session cookie |
-| POST | `/api/v1/auth/logout` | — | Clears cookie |
-| POST | `/api/v1/auth/password/reset` | `{email}` | Email link |
-| GET | `/api/v1/auth/me` | — | Current user + role |
+| Method | Path                          | Body                | Notes                  |
+| ------ | ----------------------------- | ------------------- | ---------------------- |
+| POST   | `/api/v1/auth/login`          | `{email, password}` | Returns session cookie |
+| POST   | `/api/v1/auth/otp/request`    | `{phone}`           | Sends OTP via WhatsApp |
+| POST   | `/api/v1/auth/otp/verify`     | `{phone, otp}`      | Returns session cookie |
+| POST   | `/api/v1/auth/logout`         | —                   | Clears cookie          |
+| POST   | `/api/v1/auth/password/reset` | `{email}`           | Email link             |
+| GET    | `/api/v1/auth/me`             | —                   | Current user + role    |
 
 ### 9.2 Users
 
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/api/v1/users` | Admin only; filter by role |
-| POST | `/api/v1/users` | Admin only |
-| GET | `/api/v1/users/{id}` | RBAC checked |
-| PATCH | `/api/v1/users/{id}` | RBAC checked |
-| DELETE | `/api/v1/users/{id}` | Soft delete; Admin only |
+| Method | Path                 | Notes                      |
+| ------ | -------------------- | -------------------------- |
+| GET    | `/api/v1/users`      | Admin only; filter by role |
+| POST   | `/api/v1/users`      | Admin only                 |
+| GET    | `/api/v1/users/{id}` | RBAC checked               |
+| PATCH  | `/api/v1/users/{id}` | RBAC checked               |
+| DELETE | `/api/v1/users/{id}` | Soft delete; Admin only    |
 
 ### 9.3 Appointments
 
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/api/v1/appointments?from=…&to=…&therapist_id=…` | Calendar feed |
-| POST | `/api/v1/appointments` | Creates with conflict check |
-| PATCH | `/api/v1/appointments/{id}` | Reschedule / change therapist / status |
-| DELETE | `/api/v1/appointments/{id}` | Cancellation (sets status) |
-| POST | `/api/v1/appointments/recurring` | Bulk-create a series |
-| GET | `/api/v1/appointments/conflicts?therapist_id=…&starts_at=…&duration=…` | Pre-check before commit |
+| Method | Path                                                                   | Notes                                  |
+| ------ | ---------------------------------------------------------------------- | -------------------------------------- |
+| GET    | `/api/v1/appointments?from=…&to=…&therapist_id=…`                      | Calendar feed                          |
+| POST   | `/api/v1/appointments`                                                 | Creates with conflict check            |
+| PATCH  | `/api/v1/appointments/{id}`                                            | Reschedule / change therapist / status |
+| DELETE | `/api/v1/appointments/{id}`                                            | Cancellation (sets status)             |
+| POST   | `/api/v1/appointments/recurring`                                       | Bulk-create a series                   |
+| GET    | `/api/v1/appointments/conflicts?therapist_id=…&starts_at=…&duration=…` | Pre-check before commit                |
 
 ### 9.4 Patients
 
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/api/v1/patients` | Secretary/Admin |
-| GET | `/api/v1/patients/{id}` | Full patient file |
-| GET | `/api/v1/patients/{id}/timeline` | Aggregated history |
-| GET | `/api/v1/patients/{id}/appointments` | |
-| GET | `/api/v1/patients/{id}/notes` | |
-| GET | `/api/v1/patients/{id}/plans` | |
+| Method | Path                                 | Notes              |
+| ------ | ------------------------------------ | ------------------ |
+| GET    | `/api/v1/patients`                   | Secretary/Admin    |
+| GET    | `/api/v1/patients/{id}`              | Full patient file  |
+| GET    | `/api/v1/patients/{id}/timeline`     | Aggregated history |
+| GET    | `/api/v1/patients/{id}/appointments` |                    |
+| GET    | `/api/v1/patients/{id}/notes`        |                    |
+| GET    | `/api/v1/patients/{id}/plans`        |                    |
 
 ### 9.5 Treatment plans
 
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/api/v1/plans` | Doctor only |
-| GET | `/api/v1/plans/{id}` | Versioned response includes version chain |
-| PATCH | `/api/v1/plans/{id}` | Creates new version |
-| POST | `/api/v1/plans/{id}/propose` | Therapist proposes change |
-| POST | `/api/v1/plans/{id}/approve` | Doctor approves proposal |
+| Method | Path                         | Notes                                     |
+| ------ | ---------------------------- | ----------------------------------------- |
+| POST   | `/api/v1/plans`              | Doctor only                               |
+| GET    | `/api/v1/plans/{id}`         | Versioned response includes version chain |
+| PATCH  | `/api/v1/plans/{id}`         | Creates new version                       |
+| POST   | `/api/v1/plans/{id}/propose` | Therapist proposes change                 |
+| POST   | `/api/v1/plans/{id}/approve` | Doctor approves proposal                  |
 
 ### 9.6 Session notes
 
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/api/v1/session-notes` | Therapist; one per appointment |
-| GET | `/api/v1/session-notes/{id}` | |
-| PATCH | `/api/v1/session-notes/{id}` | Within 24h window; afterward immutable |
+| Method | Path                         | Notes                                  |
+| ------ | ---------------------------- | -------------------------------------- |
+| POST   | `/api/v1/session-notes`      | Therapist; one per appointment         |
+| GET    | `/api/v1/session-notes/{id}` |                                        |
+| PATCH  | `/api/v1/session-notes/{id}` | Within 24h window; afterward immutable |
 
 ### 9.7 Home program
 
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/api/v1/home-program/items` | Add exercise to patient program |
-| GET | `/api/v1/home-program?patient_id=…` | |
-| PATCH | `/api/v1/home-program/items/{id}` | |
-| POST | `/api/v1/home-program/completions` | Patient marks done |
+| Method | Path                                | Notes                           |
+| ------ | ----------------------------------- | ------------------------------- |
+| POST   | `/api/v1/home-program/items`        | Add exercise to patient program |
+| GET    | `/api/v1/home-program?patient_id=…` |                                 |
+| PATCH  | `/api/v1/home-program/items/{id}`   |                                 |
+| POST   | `/api/v1/home-program/completions`  | Patient marks done              |
 
 ### 9.8 Exercises
 
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/api/v1/exercises?q=…&category=…` | Search |
-| POST | `/api/v1/exercises` | Therapist/Doctor |
-| POST | `/api/v1/exercises/{id}/media` | Returns S3 presigned URL for direct upload |
+| Method | Path                               | Notes                                      |
+| ------ | ---------------------------------- | ------------------------------------------ |
+| GET    | `/api/v1/exercises?q=…&category=…` | Search                                     |
+| POST   | `/api/v1/exercises`                | Therapist/Doctor                           |
+| POST   | `/api/v1/exercises/{id}/media`     | Returns S3 presigned URL for direct upload |
 
 ### 9.9 Leaves
 
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/api/v1/leaves` | Request |
-| GET | `/api/v1/leaves?status=pending` | Admin |
-| POST | `/api/v1/leaves/{id}/approve` | Admin; triggers conflict scan |
-| POST | `/api/v1/leaves/{id}/reject` | Admin |
+| Method | Path                            | Notes                         |
+| ------ | ------------------------------- | ----------------------------- |
+| POST   | `/api/v1/leaves`                | Request                       |
+| GET    | `/api/v1/leaves?status=pending` | Admin                         |
+| POST   | `/api/v1/leaves/{id}/approve`   | Admin; triggers conflict scan |
+| POST   | `/api/v1/leaves/{id}/reject`    | Admin                         |
 
 ### 9.10 WhatsApp webhook
 
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/api/v1/whatsapp/webhook` | Meta verification challenge |
-| POST | `/api/v1/whatsapp/webhook` | Inbound messages and delivery status |
+| Method | Path                       | Notes                                |
+| ------ | -------------------------- | ------------------------------------ |
+| GET    | `/api/v1/whatsapp/webhook` | Meta verification challenge          |
+| POST   | `/api/v1/whatsapp/webhook` | Inbound messages and delivery status |
 
 ### 9.11 Error format
 
@@ -623,7 +623,7 @@ REST conventions, JSON payloads, JWT auth via HTTP-only cookie. All routes prefi
 ### 10.1 Setup checklist
 
 1. **Meta Business Account** + **WhatsApp Business Account (WABA)** created.
-2. **Business verified** with Meta (clinic commercial registration). *Allow 1–2 weeks.*
+2. **Business verified** with Meta (clinic commercial registration). _Allow 1–2 weeks._
 3. **Phone number** registered with WABA. Cannot be in personal WhatsApp use.
 4. **System User token** generated with permissions: `whatsapp_business_messaging`, `whatsapp_business_management`.
 5. **Webhook** endpoint configured (`/api/v1/whatsapp/webhook`) + verification token.
@@ -631,14 +631,14 @@ REST conventions, JSON payloads, JWT auth via HTTP-only cookie. All routes prefi
 
 ### 10.2 Required templates (initial set)
 
-| Name | Language | Category | Variables |
-|---|---|---|---|
-| `appointment_confirmation` | en, ar | UTILITY | `{patient_name}`, `{therapist_name}`, `{date}`, `{time}`, `{clinic_address}` |
-| `appointment_reminder_30min` | en, ar | UTILITY | `{patient_name}`, `{therapist_name}`, `{time}` |
-| `appointment_rescheduled` | en, ar | UTILITY | `{patient_name}`, `{new_date}`, `{new_time}`, `{therapist_name}` |
-| `appointment_cancelled` | en, ar | UTILITY | `{patient_name}`, `{date}`, `{time}`, `{reason}` |
-| `home_exercise_reminder` | en, ar | UTILITY | `{patient_name}`, `{exercise_name}`, `{therapist_note}`, `{portal_link}` |
-| `otp_login` | en, ar | AUTHENTICATION | `{otp}` |
+| Name                         | Language | Category       | Variables                                                                    |
+| ---------------------------- | -------- | -------------- | ---------------------------------------------------------------------------- |
+| `appointment_confirmation`   | en, ar   | UTILITY        | `{patient_name}`, `{therapist_name}`, `{date}`, `{time}`, `{clinic_address}` |
+| `appointment_reminder_30min` | en, ar   | UTILITY        | `{patient_name}`, `{therapist_name}`, `{time}`                               |
+| `appointment_rescheduled`    | en, ar   | UTILITY        | `{patient_name}`, `{new_date}`, `{new_time}`, `{therapist_name}`             |
+| `appointment_cancelled`      | en, ar   | UTILITY        | `{patient_name}`, `{date}`, `{time}`, `{reason}`                             |
+| `home_exercise_reminder`     | en, ar   | UTILITY        | `{patient_name}`, `{exercise_name}`, `{therapist_note}`, `{portal_link}`     |
+| `otp_login`                  | en, ar   | AUTHENTICATION | `{otp}`                                                                      |
 
 Sample (`appointment_reminder_30min`, Arabic):
 
@@ -777,17 +777,17 @@ sequenceDiagram
 
 ### 13.1 Threat model summary
 
-| Threat | Mitigation |
-|---|---|
-| Stolen session cookie | HTTP-only, Secure, SameSite=Lax; 7-day expiry with idle rotation |
-| Credential stuffing | Rate limit `/auth/login` (5/min/IP); account lockout after 10 failures (15 min); password complexity policy |
-| Privilege escalation | RBAC at API + UI; permission checks centralized; tests for every role × endpoint |
-| PII leak via logs | Custom logger redacts `phone`, `national_id`, `medical_history` |
-| SQL injection | Prisma parameterized queries; no raw SQL except in vetted migrations |
-| XSS | React escapes by default; rich-text fields sanitized server-side via DOMPurify |
-| CSRF | SameSite cookies; double-submit token for state-changing API calls from external origins |
-| File upload abuse | S3 presigned URLs with content-type + size restrictions; antivirus scan post-upload (ClamAV) |
-| Direct object reference | All resource lookups scope by user context (e.g., `WHERE patient_id IN (assigned_patients)`) |
+| Threat                  | Mitigation                                                                                                  |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Stolen session cookie   | HTTP-only, Secure, SameSite=Lax; 7-day expiry with idle rotation                                            |
+| Credential stuffing     | Rate limit `/auth/login` (5/min/IP); account lockout after 10 failures (15 min); password complexity policy |
+| Privilege escalation    | RBAC at API + UI; permission checks centralized; tests for every role × endpoint                            |
+| PII leak via logs       | Custom logger redacts `phone`, `national_id`, `medical_history`                                             |
+| SQL injection           | Prisma parameterized queries; no raw SQL except in vetted migrations                                        |
+| XSS                     | React escapes by default; rich-text fields sanitized server-side via DOMPurify                              |
+| CSRF                    | SameSite cookies; double-submit token for state-changing API calls from external origins                    |
+| File upload abuse       | S3 presigned URLs with content-type + size restrictions; antivirus scan post-upload (ClamAV)                |
+| Direct object reference | All resource lookups scope by user context (e.g., `WHERE patient_id IN (assigned_patients)`)                |
 
 ### 13.2 Patient data rights
 
@@ -801,15 +801,15 @@ sequenceDiagram
 
 ### 14.1 Recommended deployment (Option A — managed services)
 
-| Component | Service | Notes |
-|---|---|---|
-| App hosting | Vercel | Auto deploys from `main`; preview deploys per PR |
-| Database | Neon or Supabase Postgres | Branching support for staging |
-| Redis | Upstash | Serverless-friendly |
-| File storage | AWS S3 (eu-central-1 or me-south-1 for low latency to Amman) | |
-| WhatsApp | Meta Cloud API | Direct |
-| Monitoring | Sentry + Axiom | |
-| Secrets | Vercel env vars | Per-environment |
+| Component    | Service                                                      | Notes                                            |
+| ------------ | ------------------------------------------------------------ | ------------------------------------------------ |
+| App hosting  | Vercel                                                       | Auto deploys from `main`; preview deploys per PR |
+| Database     | Neon or Supabase Postgres                                    | Branching support for staging                    |
+| Redis        | Upstash                                                      | Serverless-friendly                              |
+| File storage | AWS S3 (eu-central-1 or me-south-1 for low latency to Amman) |                                                  |
+| WhatsApp     | Meta Cloud API                                               | Direct                                           |
+| Monitoring   | Sentry + Axiom                                               |                                                  |
+| Secrets      | Vercel env vars                                              | Per-environment                                  |
 
 Approximate monthly cost at low traffic (single clinic, 20 staff, 500 patients): **~$80–$150 USD**.
 
@@ -837,16 +837,16 @@ Cost: **~$25–$40 USD/month**. Pros: lower cost. Cons: you operate it (backups,
 
 Estimates assume **1 senior full-stack engineer** working full-time, with input from the clinic on requirements. A second engineer roughly halves duration with some coordination overhead.
 
-| Phase | Scope | Deliverable | Estimate |
-|---|---|---|---|
-| **0. Foundation** | Repo, CI, environments, Auth, RBAC scaffolding, DB schema, base UI shell, i18n setup | Empty but secure app with login, role switching, AR/EN toggle | **2 weeks** |
-| **1. Patient & user management** | CRUD for all user types, Admin panel for staff users, patient profile pages | Admin can manage users; secretary can manage patients | **1.5 weeks** |
-| **2. Appointments (core)** | Calendar (day/week/resource view), create/edit/cancel, conflict detection, drag-and-drop reschedule, change therapist | Secretary's full workflow functional, no WhatsApp yet | **3 weeks** |
-| **3. WhatsApp integration** | Meta setup, template approvals, confirmation + 30min reminder, reschedule/cancel notifications, webhook + inbound parsing, OTP login | Live WhatsApp flows; patient OTP login working | **2.5 weeks** |
-| **4. Clinical workflows** | Treatment plans (doctor), session notes (therapist), shared patient timeline, end-of-day/week reports | Doctor and Therapist roles fully operational | **3 weeks** |
-| **5. Home program** | Exercise library, home program builder, video/image upload, patient portal home-program view, scheduled WhatsApp reminders, completion tracking | Patients receive home programs and reminders | **2.5 weeks** |
-| **6. Leave & polish** | Leave management with conflict scan, dashboards/reports for all roles, audit log viewer, accessibility pass, mobile polish | Production-ready v1 | **2 weeks** |
-| **Total** | | | **~16.5 weeks (≈ 4 months)** |
+| Phase                            | Scope                                                                                                                                           | Deliverable                                                   | Estimate                     |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ---------------------------- |
+| **0. Foundation**                | Repo, CI, environments, Auth, RBAC scaffolding, DB schema, base UI shell, i18n setup                                                            | Empty but secure app with login, role switching, AR/EN toggle | **2 weeks**                  |
+| **1. Patient & user management** | CRUD for all user types, Admin panel for staff users, patient profile pages                                                                     | Admin can manage users; secretary can manage patients         | **1.5 weeks**                |
+| **2. Appointments (core)**       | Calendar (day/week/resource view), create/edit/cancel, conflict detection, drag-and-drop reschedule, change therapist                           | Secretary's full workflow functional, no WhatsApp yet         | **3 weeks**                  |
+| **3. WhatsApp integration**      | Meta setup, template approvals, confirmation + 30min reminder, reschedule/cancel notifications, webhook + inbound parsing, OTP login            | Live WhatsApp flows; patient OTP login working                | **2.5 weeks**                |
+| **4. Clinical workflows**        | Treatment plans (doctor), session notes (therapist), shared patient timeline, end-of-day/week reports                                           | Doctor and Therapist roles fully operational                  | **3 weeks**                  |
+| **5. Home program**              | Exercise library, home program builder, video/image upload, patient portal home-program view, scheduled WhatsApp reminders, completion tracking | Patients receive home programs and reminders                  | **2.5 weeks**                |
+| **6. Leave & polish**            | Leave management with conflict scan, dashboards/reports for all roles, audit log viewer, accessibility pass, mobile polish                      | Production-ready v1                                           | **2 weeks**                  |
+| **Total**                        |                                                                                                                                                 |                                                               | **~16.5 weeks (≈ 4 months)** |
 
 ### 15.1 Milestone gates
 
@@ -859,17 +859,17 @@ Estimates assume **1 senior full-stack engineer** working full-time, with input 
 
 ## 16. Risks & mitigations
 
-| # | Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|---|
-| R1 | Meta template approval rejected or delayed | Medium | High (delays WhatsApp launch) | Submit templates in Phase 2 (parallel with calendar build); have fallback wording; engage a Meta-experienced partner if rejections stack |
-| R2 | Business verification with Meta takes longer than expected | Medium | High | Start verification on Day 1 of project; ensure clinic has commercial registration + utility bill ready |
-| R3 | Calendar UX falls short for power users | Medium | Medium | Pilot with Secretary in Phase 2; budget 1 week of iteration before Phase 3 |
-| R4 | Bilingual content drift (EN strings updated, AR forgotten) | High | Low | CI check fails build if a key exists in `en.json` but not `ar.json` |
-| R5 | Patient privacy incident | Low | Very high | Pre-launch security review; encrypted PII at rest; audit logs; pen-test before public launch |
-| R6 | WhatsApp cost overrun if patient base grows fast | Low | Medium | Monitor monthly conversation count; alerting at 80% of free tier; budget moves to paid tier at ~1500 patients |
-| R7 | Therapist resistance to structured notes (vs free text) | Medium | Medium | Phase 4 ships with free-text option; structured fields added progressively |
-| R8 | Mobile drag-and-drop UX is awkward | Medium | Medium | On mobile, default to "tap to reschedule" modal; drag-and-drop stays for desktop |
-| R9 | Data migration if clinic has existing records | Medium | Medium | Provide CSV import for patients and historical appointments; one-time job in Phase 1 |
+| #   | Risk                                                       | Likelihood | Impact                        | Mitigation                                                                                                                               |
+| --- | ---------------------------------------------------------- | ---------- | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| R1  | Meta template approval rejected or delayed                 | Medium     | High (delays WhatsApp launch) | Submit templates in Phase 2 (parallel with calendar build); have fallback wording; engage a Meta-experienced partner if rejections stack |
+| R2  | Business verification with Meta takes longer than expected | Medium     | High                          | Start verification on Day 1 of project; ensure clinic has commercial registration + utility bill ready                                   |
+| R3  | Calendar UX falls short for power users                    | Medium     | Medium                        | Pilot with Secretary in Phase 2; budget 1 week of iteration before Phase 3                                                               |
+| R4  | Bilingual content drift (EN strings updated, AR forgotten) | High       | Low                           | CI check fails build if a key exists in `en.json` but not `ar.json`                                                                      |
+| R5  | Patient privacy incident                                   | Low        | Very high                     | Pre-launch security review; encrypted PII at rest; audit logs; pen-test before public launch                                             |
+| R6  | WhatsApp cost overrun if patient base grows fast           | Low        | Medium                        | Monitor monthly conversation count; alerting at 80% of free tier; budget moves to paid tier at ~1500 patients                            |
+| R7  | Therapist resistance to structured notes (vs free text)    | Medium     | Medium                        | Phase 4 ships with free-text option; structured fields added progressively                                                               |
+| R8  | Mobile drag-and-drop UX is awkward                         | Medium     | Medium                        | On mobile, default to "tap to reschedule" modal; drag-and-drop stays for desktop                                                         |
+| R9  | Data migration if clinic has existing records              | Medium     | Medium                        | Provide CSV import for patients and historical appointments; one-time job in Phase 1                                                     |
 
 ---
 
@@ -895,37 +895,41 @@ These need answers before or during Phase 0:
 ## Appendix A — Sample WhatsApp template texts
 
 **appointment_confirmation (Arabic)**
+
 > مرحباً {{1}}، تم تأكيد موعدك في Theone.pt مع المعالج {{2}} يوم {{3}} الساعة {{4}}. العنوان: {{5}}. للاستفسار اتصل بنا أو رد على هذه الرسالة.
 
 **appointment_confirmation (English)**
+
 > Hi {{1}}, your appointment at Theone.pt with {{2}} is confirmed for {{3}} at {{4}}. Address: {{5}}. Reply to this message for any changes.
 
 **home_exercise_reminder (Arabic)**
+
 > تذكير: حان وقت تمرين «{{2}}» ضمن برنامجك المنزلي. ملاحظة معالجك: {{3}}. شاهد الفيديو هنا: {{4}}.
 
 **home_exercise_reminder (English)**
+
 > Reminder: time for your home exercise "{{2}}". Therapist's note: {{3}}. Watch the video: {{4}}.
 
 ---
 
 ## Appendix B — Selected user stories
 
-- **US-S1** *(Secretary)* As the secretary, I want to drag an appointment to a new slot so that I can reschedule without retyping; the system should prevent overlaps automatically.
-- **US-S2** *(Secretary)* As the secretary, when I change a therapist on an appointment, I want to see at a glance if the new therapist is free, on leave, or booked.
-- **US-D1** *(Doctor)* As the doctor, I want to write one treatment plan and assign it to a therapist, then read the therapist's session notes throughout the week without chasing paper.
-- **US-T1** *(Therapist)* As the therapist, when I open today's schedule, I want to see for each patient what the doctor's plan is and what the last session covered.
-- **US-T2** *(Therapist)* As the therapist, I want to attach a short video to a home exercise and add a note ("focus on slow controlled motion"), and have the patient receive a reminder with that note 30 minutes before they should do it.
-- **US-P1** *(Patient)* As a patient, I want a WhatsApp reminder 30 minutes before my appointment so I don't miss it, and a separate reminder 30 minutes before my home exercise so I don't forget.
-- **US-P2** *(Patient)* As a patient, I want to watch the video of my exercise and mark it done; I want to see my streak.
-- **US-A1** *(Admin)* As the admin, when I approve a therapist's leave, I want the system to immediately tell me which appointments are now conflicting so I can ask the secretary to reassign them.
+- **US-S1** _(Secretary)_ As the secretary, I want to drag an appointment to a new slot so that I can reschedule without retyping; the system should prevent overlaps automatically.
+- **US-S2** _(Secretary)_ As the secretary, when I change a therapist on an appointment, I want to see at a glance if the new therapist is free, on leave, or booked.
+- **US-D1** _(Doctor)_ As the doctor, I want to write one treatment plan and assign it to a therapist, then read the therapist's session notes throughout the week without chasing paper.
+- **US-T1** _(Therapist)_ As the therapist, when I open today's schedule, I want to see for each patient what the doctor's plan is and what the last session covered.
+- **US-T2** _(Therapist)_ As the therapist, I want to attach a short video to a home exercise and add a note ("focus on slow controlled motion"), and have the patient receive a reminder with that note 30 minutes before they should do it.
+- **US-P1** _(Patient)_ As a patient, I want a WhatsApp reminder 30 minutes before my appointment so I don't miss it, and a separate reminder 30 minutes before my home exercise so I don't forget.
+- **US-P2** _(Patient)_ As a patient, I want to watch the video of my exercise and mark it done; I want to see my streak.
+- **US-A1** _(Admin)_ As the admin, when I approve a therapist's leave, I want the system to immediately tell me which appointments are now conflicting so I can ask the secretary to reassign them.
 
 ---
 
 ## Document control
 
-| Version | Date | Author | Change |
-|---|---|---|---|
-| 0.1 | May 2026 | — | Initial draft |
-| 1.0 | May 2026 | — | Pre-build version |
+| Version | Date     | Author | Change            |
+| ------- | -------- | ------ | ----------------- |
+| 0.1     | May 2026 | —      | Initial draft     |
+| 1.0     | May 2026 | —      | Pre-build version |
 
 > **Next step after sign-off on this document:** answer the open questions in §17, then begin **Phase 0 (Foundation)** — repository setup, CI, base schema, and the EN/AR shell.

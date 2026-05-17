@@ -42,6 +42,7 @@
   "devDependencies": {
     "@commitlint/cli": "^19.6.1",
     "@commitlint/config-conventional": "^19.6.0",
+    "@eslint/eslintrc": "^3.3.5",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.5",
     "@types/react-dom": "^19.0.3",
@@ -49,7 +50,6 @@
     "eslint": "^9.18.0",
     "eslint-config-next": "15.1.4",
     "eslint-config-prettier": "^9.1.0",
-    "eslint-plugin-tailwindcss": "^3.17.5",
     "husky": "^9.1.7",
     "lint-staged": "^15.3.0",
     "postcss": "^8.5.1",
@@ -60,7 +60,11 @@
     "vitest": "^2.1.8"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild", "sharp", "unrs-resolver"]
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "unrs-resolver"
+    ]
   },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
