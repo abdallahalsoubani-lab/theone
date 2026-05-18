@@ -1,4 +1,5 @@
 import { AppointmentStatus, AuditAction, UserRole } from '@prisma/client';
+import type { CancellationCategory } from '@prisma/client';
 
 import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
@@ -264,7 +265,21 @@ export const cancelAppointment = withAudit<
   }> {
     const existing = await db.appointment.findUnique({
       where: { id: input.id },
-      select: { id: true, status: true, startsAt: true },
+      select: {
+        id: true,
+        status: true,
+        startsAt: true,
+        patientId: true,
+        patient: {
+          select: {
+            phone: true,
+            languagePref: true,
+            whatsappReachable: true,
+            fullNameEn: true,
+            fullNameAr: true,
+          },
+        },
+      },
     });
     if (!existing) throw new AppointmentError(notFound);
     if (!canTransition(existing.status, AppointmentStatus.CANCELLED)) {
@@ -284,12 +299,61 @@ export const cancelAppointment = withAudit<
         status: AppointmentStatus.CANCELLED,
         cancellationReason: input.cancellationReason,
         cancellationCategory: input.cancellationCategory,
+        cancellationNotes: input.cancellationNotes ?? null,
       },
     });
     await cancelAppointmentReminder(input.id);
+
+    // Optional patient notification via the existing
+    // `appointment_cancellation` template seeded in Prompt 2. The
+    // template's three placeholders are date, time, and reason — we
+    // pass the localized category label as the reason. Best-effort
+    // fan-out: failures log + continue so cancel still succeeds.
+    if (input.notifyPatient && existing.patient.whatsappReachable) {
+      const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
+      const dateStr = existing.startsAt.toISOString().slice(0, 10);
+      const timeStr = existing.startsAt.toISOString().slice(11, 16);
+      void enqueueWhatsappOutbound({
+        kind: 'template',
+        templateName: 'appointment_cancelled',
+        language: existing.patient.languagePref,
+        parameters: [
+          dateStr,
+          timeStr,
+          categoryLabelForLocale(input.cancellationCategory, existing.patient.languagePref),
+        ],
+        recipientPhone: existing.patient.phone,
+        recipientUserId: existing.patientId,
+        appointmentId: existing.id,
+        source: 'queue',
+      }).catch((err: unknown) => {
+        console.error('[appointments.cancel] notification enqueue failed', err);
+      });
+    }
+
     return { appointmentId: input.id, flaggedShortNotice: shortNotice };
   },
 );
+
+/**
+ * Localized label for a cancellation category. Used in the WhatsApp
+ * cancellation message; UI surfaces translate via the i18n bundle.
+ */
+function categoryLabelForLocale(category: CancellationCategory, language: 'EN' | 'AR'): string {
+  const labels: Record<CancellationCategory, { en: string; ar: string }> = {
+    PATIENT_REQUEST: { en: 'patient request', ar: 'طلب المريض' },
+    PATIENT_NO_SHOW: { en: 'patient no-show', ar: 'عدم حضور المريض' },
+    PATIENT_ILLNESS: { en: 'patient illness', ar: 'مرض المريض' },
+    PATIENT_TRAVEL: { en: 'patient travel', ar: 'سفر المريض' },
+    CLINIC_RESCHEDULING: { en: 'clinic rescheduling', ar: 'إعادة جدولة العيادة' },
+    THERAPIST_UNAVAILABLE: { en: 'therapist unavailable', ar: 'المعالج غير متاح' },
+    WEATHER: { en: 'weather', ar: 'ظروف جوية' },
+    INSURANCE_ISSUE: { en: 'insurance issue', ar: 'مشكلة تأمين' },
+    OTHER: { en: 'other', ar: 'أخرى' },
+  };
+  const pair = labels[category];
+  return language === 'AR' ? pair.ar : pair.en;
+}
 
 export const updateAppointmentStatus = withAudit<
   [{ id: string; to: AppointmentStatus }],

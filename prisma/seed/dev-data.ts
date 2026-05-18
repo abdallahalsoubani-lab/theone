@@ -14,6 +14,7 @@ import {
   type Prisma,
   type PrismaClient,
   AppointmentStatus,
+  CancellationCategory,
   Comorbidity,
   Gender,
   IntakeStatus,
@@ -557,6 +558,12 @@ async function seedAppointments(
         status: d.status,
         createdById: staff.secretary,
         notes: d.status === AppointmentStatus.CANCELLED ? 'Patient called to reschedule.' : null,
+        // Sample categories on cancelled rows so the Prompt 11 dashboard
+        // analytics widget has realistic distribution on a fresh clone.
+        cancellationCategory:
+          d.status === AppointmentStatus.CANCELLED ? cancellationCategorySample(d.idx) : null,
+        cancellationReason:
+          d.status === AppointmentStatus.CANCELLED ? 'Cancelled via legacy flow.' : null,
       },
     });
     created.push({ id, patientId: patient.id, therapistId, status: d.status });
@@ -838,4 +845,19 @@ async function seedLeave(db: PrismaClient, staff: StaffIds) {
       approvedById: staff.admin,
     },
   });
+}
+
+/**
+ * Deterministic category sampler for seeded CANCELLED appointments.
+ * Distribution roughly matches the Prompt 7b §4.1 guidance — half
+ * PATIENT_REQUEST, a quarter PATIENT_ILLNESS, an eighth
+ * THERAPIST_UNAVAILABLE, remainder OTHER. Keyed on the appointment
+ * index so re-runs converge to the same shape.
+ */
+function cancellationCategorySample(idx: number): CancellationCategory {
+  const bucket = idx % 8;
+  if (bucket < 4) return CancellationCategory.PATIENT_REQUEST;
+  if (bucket < 6) return CancellationCategory.PATIENT_ILLNESS;
+  if (bucket === 6) return CancellationCategory.THERAPIST_UNAVAILABLE;
+  return CancellationCategory.OTHER;
 }

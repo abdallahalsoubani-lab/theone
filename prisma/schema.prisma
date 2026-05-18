@@ -57,8 +57,13 @@ enum AppointmentStatus {
 
 enum CancellationCategory {
   PATIENT_REQUEST
+  PATIENT_NO_SHOW
+  PATIENT_ILLNESS
+  PATIENT_TRAVEL
+  CLINIC_RESCHEDULING
   THERAPIST_UNAVAILABLE
-  CLINIC_CLOSURE
+  WEATHER
+  INSURANCE_ISSUE
   OTHER
 }
 
@@ -83,6 +88,8 @@ enum NotificationType {
   DOCTOR_REVIEW_ADDED
   APPOINTMENT_RESCHEDULE_REQUEST
   LOW_COMPLIANCE
+  APPOINTMENT_THERAPIST_ASSIGNED
+  APPOINTMENT_THERAPIST_REMOVED
 }
 
 enum LeaveType {
@@ -399,6 +406,10 @@ model Appointment {
   notes                String?
   cancellationReason   String?
   cancellationCategory CancellationCategory?
+  // Free-form notes captured alongside the category at cancel time.
+  // The category drives analytics in Prompt 11; this column carries
+  // the unstructured context the Secretary wants to keep on the row.
+  cancellationNotes    String?
   createdById          String
   // Group key for recurring series. Single appointments may leave this null;
   // every occurrence of a series shares the same seriesId. Future features

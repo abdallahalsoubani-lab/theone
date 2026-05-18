@@ -767,6 +767,14 @@
       "LOW_COMPLIANCE": {
         "title": "Low home-program compliance",
         "body": "{patientName} has dropped to {rate}% adherence over the past 7 days. Consider following up."
+      },
+      "APPOINTMENT_THERAPIST_ASSIGNED": {
+        "title": "New appointment assigned",
+        "body": "You've been assigned {patientName}'s appointment on {date}."
+      },
+      "APPOINTMENT_THERAPIST_REMOVED": {
+        "title": "Appointment reassigned",
+        "body": "{patientName}'s appointment on {date} has been moved to another therapist."
       }
     }
   },
@@ -1017,6 +1025,30 @@
       "streak": "Streak (days)",
       "overdue": "Overdue",
       "lastCompleted": "Last completed"
+    }
+  },
+  "calendar": {
+    "cancel": {
+      "title": "Cancel appointment",
+      "categoryLegend": "Reason category",
+      "categories": {
+        "PATIENT_REQUEST": "Patient request",
+        "PATIENT_NO_SHOW": "Patient no-show",
+        "PATIENT_ILLNESS": "Patient illness",
+        "PATIENT_TRAVEL": "Patient travel",
+        "CLINIC_RESCHEDULING": "Clinic rescheduling",
+        "THERAPIST_UNAVAILABLE": "Therapist unavailable",
+        "WEATHER": "Weather",
+        "INSURANCE_ISSUE": "Insurance issue",
+        "OTHER": "Other"
+      },
+      "notesLabel": "Notes (optional)",
+      "notesPlaceholder": "Anything the Secretary should remember about this cancellation.",
+      "notifyPatient": "Notify the patient via WhatsApp",
+      "seriesNote": "This appointment is part of a series. Choose the scope after confirming the category.",
+      "keep": "Keep appointment",
+      "confirm": "Confirm cancellation",
+      "cancelledToast": "Appointment cancelled."
     }
   }
 }

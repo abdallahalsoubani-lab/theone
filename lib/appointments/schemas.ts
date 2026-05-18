@@ -53,7 +53,15 @@ export type AppointmentChangeTherapistInput = z.infer<typeof appointmentChangeTh
 export const appointmentCancelSchema = z.object({
   id: z.string().cuid(),
   cancellationCategory: z.nativeEnum(CancellationCategory),
+  // The category drives Prompt 11 analytics; `cancellationReason`
+  // remains as the legacy short-label from Prompt 7 (kept so older
+  // rows don't break) and `cancellationNotes` is the new free-form
+  // field surfaced by the cancel modal.
   cancellationReason: z.string().min(2).max(500),
+  cancellationNotes: z.string().max(500).optional().nullable(),
+  /** When true and the patient is whatsappReachable, send the
+   *  `appointment_cancellation` template. Defaults to true. */
+  notifyPatient: z.boolean().default(true),
 });
 
 export type AppointmentCancelInput = z.infer<typeof appointmentCancelSchema>;

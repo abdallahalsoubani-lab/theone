@@ -58,6 +58,14 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationType, NotificationTempla
     titleKey: 'notifications.types.LOW_COMPLIANCE.title',
     bodyKey: 'notifications.types.LOW_COMPLIANCE.body',
   },
+  APPOINTMENT_THERAPIST_ASSIGNED: {
+    titleKey: 'notifications.types.APPOINTMENT_THERAPIST_ASSIGNED.title',
+    bodyKey: 'notifications.types.APPOINTMENT_THERAPIST_ASSIGNED.body',
+  },
+  APPOINTMENT_THERAPIST_REMOVED: {
+    titleKey: 'notifications.types.APPOINTMENT_THERAPIST_REMOVED.title',
+    bodyKey: 'notifications.types.APPOINTMENT_THERAPIST_REMOVED.body',
+  },
 };
 
 /**
@@ -75,4 +83,6 @@ export type NotificationParams = {
   DOCTOR_REVIEW_ADDED: { doctorName: string; patientName: string };
   APPOINTMENT_RESCHEDULE_REQUEST: { patientName: string };
   LOW_COMPLIANCE: { patientName: string; rate: string };
+  APPOINTMENT_THERAPIST_ASSIGNED: { patientName: string; date: string };
+  APPOINTMENT_THERAPIST_REMOVED: { patientName: string; date: string };
 };

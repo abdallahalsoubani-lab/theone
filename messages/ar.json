@@ -767,6 +767,14 @@
       "LOW_COMPLIANCE": {
         "title": "انخفاض الالتزام بالبرنامج المنزلي",
         "body": "انخفض التزام {patientName} إلى {rate}٪ خلال آخر 7 أيام. ننصح بالمتابعة."
+      },
+      "APPOINTMENT_THERAPIST_ASSIGNED": {
+        "title": "تم تعيين موعد جديد",
+        "body": "تم تعيينك لموعد {patientName} بتاريخ {date}."
+      },
+      "APPOINTMENT_THERAPIST_REMOVED": {
+        "title": "تم نقل الموعد",
+        "body": "تم نقل موعد {patientName} بتاريخ {date} إلى معالج آخر."
       }
     }
   },
@@ -1017,6 +1025,30 @@
       "streak": "سلسلة (أيام)",
       "overdue": "متأخرة",
       "lastCompleted": "آخر إنجاز"
+    }
+  },
+  "calendar": {
+    "cancel": {
+      "title": "إلغاء الموعد",
+      "categoryLegend": "سبب الإلغاء",
+      "categories": {
+        "PATIENT_REQUEST": "طلب المريض",
+        "PATIENT_NO_SHOW": "عدم حضور المريض",
+        "PATIENT_ILLNESS": "مرض المريض",
+        "PATIENT_TRAVEL": "سفر المريض",
+        "CLINIC_RESCHEDULING": "إعادة جدولة من العيادة",
+        "THERAPIST_UNAVAILABLE": "المعالج غير متاح",
+        "WEATHER": "ظروف جوية",
+        "INSURANCE_ISSUE": "مشكلة تأمين",
+        "OTHER": "أخرى"
+      },
+      "notesLabel": "ملاحظات (اختياري)",
+      "notesPlaceholder": "أي تفاصيل تريد المسؤولة عن الاستقبال الاحتفاظ بها.",
+      "notifyPatient": "إشعار المريض عبر واتساب",
+      "seriesNote": "هذا الموعد جزء من سلسلة. اختر النطاق بعد تأكيد السبب.",
+      "keep": "الاحتفاظ بالموعد",
+      "confirm": "تأكيد الإلغاء",
+      "cancelledToast": "تم إلغاء الموعد."
     }
   }
 }

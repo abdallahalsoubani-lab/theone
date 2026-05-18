@@ -4,7 +4,7 @@ import { AppointmentStatus } from '@prisma/client';
 import { Check, CircleDot, ExternalLink, Pencil, X } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -17,9 +17,11 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet';
 import { Link } from '@/i18n/navigation';
-import { cancelAppointmentAction, updateStatusAction } from '@/lib/appointments/actions';
+import { updateStatusAction } from '@/lib/appointments/actions';
 import { formatDate, formatTime } from '@/lib/format/date';
 import { formatPhone } from '@/lib/format/phone';
+
+import { CancelAppointmentModal } from './CancelAppointmentModal';
 
 export interface SidePanelAppointment {
   id: string;
@@ -52,7 +54,6 @@ interface Props {
  * picker, Prompt 7b will replace this with the modal described in §4.9.
  */
 export function AppointmentSidePanel({ open, appointment, onClose, onEdit }: Props) {
-  const t = useTranslations('appointments');
   const tStatus = useTranslations('appointments.status');
   const tActions = useTranslations('appointments.actions');
   const tSide = useTranslations('appointments.sidePanel');
@@ -61,6 +62,10 @@ export function AppointmentSidePanel({ open, appointment, onClose, onEdit }: Pro
   const locale = useLocale();
   const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
   const [pending, startTransition] = useTransition();
+  // Prompt 7b §4.2: cancel always goes through the category modal; the
+  // submit + WhatsApp notification + audit happen inside the modal's
+  // own action call. The panel just opens it.
+  const [cancelOpen, setCancelOpen] = useState(false);
 
   if (!appointment) {
     return (
@@ -87,27 +92,7 @@ export function AppointmentSidePanel({ open, appointment, onClose, onEdit }: Pro
       onClose();
     });
 
-  // Quick-cancel with a default category. Prompt 7b will replace with the
-  // category-picker modal.
-  const handleCancel = () =>
-    startTransition(async () => {
-      const r = await cancelAppointmentAction({
-        id: appointment.id,
-        cancellationCategory: 'PATIENT_REQUEST',
-        cancellationReason: 'Cancelled from calendar',
-      });
-      if (!r.ok) {
-        toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
-        return;
-      }
-      if (r.data.flaggedShortNotice) {
-        toast.warning(t('cancel.shortNoticeWarning'));
-      } else {
-        toast.success(tToasts('cancelled'));
-      }
-      router.refresh();
-      onClose();
-    });
+  const handleCancel = () => setCancelOpen(true);
 
   const status = appointment.status;
   const canConfirm = status === AppointmentStatus.SCHEDULED;
@@ -236,6 +221,15 @@ export function AppointmentSidePanel({ open, appointment, onClose, onEdit }: Pro
           <p className="text-xs text-brand-textMuted">{tSide('sessionNoteCta')}</p>
         ) : null}
       </SheetContent>
+      <CancelAppointmentModal
+        open={cancelOpen}
+        appointmentId={appointment.id}
+        seriesId={null}
+        onClose={() => setCancelOpen(false)}
+        onCancelled={() => {
+          onClose();
+        }}
+      />
     </Sheet>
   );
 }
