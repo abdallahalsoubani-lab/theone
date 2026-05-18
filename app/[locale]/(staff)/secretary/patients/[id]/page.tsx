@@ -2,7 +2,9 @@ import { setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
 import { auth } from '@/auth';
+import { PatientHomeProgramTab } from '@/components/home-program/PatientHomeProgramTab';
 import { PatientFilePage } from '@/components/patients/PatientFilePage';
+import { getPatientHomeProgramTabData } from '@/lib/clinical/home-program/patient-tab';
 import { getPatientPlanState } from '@/lib/clinical/plans/queries';
 import { listSessionNotesForPatient } from '@/lib/clinical/session-notes/queries';
 import { getPatientTimeline } from '@/lib/clinical/timeline/query';
@@ -28,22 +30,24 @@ export default async function SecretaryPatientFilePage({
   const sp = await searchParams;
   const timelinePage = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
   const session = await auth();
-  const [patient, activity, intakes, planState, notes, timeline] = await Promise.all([
-    getPatientFile(id),
-    listPatientActivity(id),
-    listIntakesForPatient(id),
-    getPatientPlanState(id),
-    listSessionNotesForPatient(id),
-    getPatientTimeline(
-      id,
-      {
-        search: sp.q,
-        from: sp.from ? new Date(sp.from) : undefined,
-        to: sp.to ? new Date(sp.to) : undefined,
-      },
-      { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
-    ),
-  ]);
+  const [patient, activity, intakes, planState, notes, timeline, homeProgramData] =
+    await Promise.all([
+      getPatientFile(id),
+      listPatientActivity(id),
+      listIntakesForPatient(id),
+      getPatientPlanState(id),
+      listSessionNotesForPatient(id),
+      getPatientTimeline(
+        id,
+        {
+          search: sp.q,
+          from: sp.from ? new Date(sp.from) : undefined,
+          to: sp.to ? new Date(sp.to) : undefined,
+        },
+        { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
+      ),
+      getPatientHomeProgramTabData(id),
+    ]);
   if (!patient) notFound();
   return (
     <PatientFilePage
@@ -59,6 +63,18 @@ export default async function SecretaryPatientFilePage({
       timeline={timeline}
       timelinePage={timelinePage}
       timelinePageSize={TIMELINE_PAGE_SIZE}
+      homeProgram={
+        <PatientHomeProgramTab
+          patientId={patient.id}
+          items={homeProgramData.items}
+          sevenDay={homeProgramData.sevenDay}
+          thirtyDay={homeProgramData.thirtyDay}
+          streak={homeProgramData.streak}
+          lastCompletedById={homeProgramData.lastCompletedById}
+          canEdit={false}
+          locale={locale === 'ar' ? 'ar' : 'en'}
+        />
+      }
       viewerRole="SECRETARY"
       actorId={session?.user?.id ?? ''}
     />

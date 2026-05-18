@@ -27,6 +27,8 @@ interface Props {
   notes?: ReactNode;
   /** Clinical timeline (Prompt 9). Falls back to the placeholder if omitted. */
   timeline?: ReactNode;
+  /** Home program (Prompt 10). Falls back to the placeholder if omitted. */
+  homeProgram?: ReactNode;
 }
 
 export function PatientFileTabs({
@@ -37,6 +39,7 @@ export function PatientFileTabs({
   plan,
   notes,
   timeline,
+  homeProgram,
 }: Props) {
   const t = useTranslations('patients.file');
 
@@ -104,7 +107,9 @@ export function PatientFileTabs({
         )}
       </TabsContent>
       <TabsContent value="home">
-        <Placeholder icon={<Home className="size-6" />} message={t('placeholderHomeProgram')} />
+        {homeProgram ?? (
+          <Placeholder icon={<Home className="size-6" />} message={t('placeholderHomeProgram')} />
+        )}
       </TabsContent>
       <TabsContent value="timeline">
         {timeline ?? (

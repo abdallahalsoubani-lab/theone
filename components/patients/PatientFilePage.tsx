@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react';
+
 import { PatientNotesTab } from '@/components/clinical/PatientNotesTab';
 import { PatientPlanTab } from '@/components/clinical/PatientPlanTab';
 import { PatientTimelineTab } from '@/components/clinical/PatientTimelineTab';
@@ -22,19 +24,18 @@ interface Props {
   canEdit: boolean;
   canResetPassword: boolean;
   locale: 'en' | 'ar';
-  /**
-   * Optional plan state — populated when the caller has fetched it.
-   * When omitted the Plan tab falls back to its placeholder copy.
-   */
   planState?: PatientPlanState;
-  /** Optional session-notes list. When omitted the Notes tab falls back. */
   notes?: SessionNoteRow[];
-  /** Optional timeline page. When omitted the Timeline tab falls back. */
   timeline?: TimelinePage;
   timelinePage?: number;
   timelinePageSize?: number;
+  /**
+   * Home program tab content (Prompt 10). Caller passes a pre-rendered
+   * <PatientHomeProgramTab/> with the items + compliance data fetched
+   * on the server.
+   */
+  homeProgram?: ReactNode;
   viewerRole?: 'DOCTOR' | 'THERAPIST' | 'SECRETARY' | 'ADMIN' | 'PATIENT';
-  /** Current actor id — needed for the notes tab's author gating. */
   actorId?: string;
 }
 
@@ -56,6 +57,7 @@ export function PatientFilePage({
   timeline,
   timelinePage = 1,
   timelinePageSize = 25,
+  homeProgram,
   viewerRole,
   actorId,
 }: Props) {
@@ -110,6 +112,7 @@ export function PatientFilePage({
             />
           ) : undefined
         }
+        homeProgram={homeProgram}
         activity={<PatientActivityTab rows={activity} />}
       />
     </section>

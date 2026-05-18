@@ -616,6 +616,23 @@
       "readOnlyNotice": "To change your name, date of birth, or clinical information, please contact the clinic.",
       "save": "Save changes",
       "saved": "Your profile is updated."
+    },
+    "homeProgram": {
+      "title": "My home program",
+      "streakBanner": "You've completed exercises {count, plural, one {1 day} other {# days}} in a row. Keep going!",
+      "todayHeading": "Today",
+      "noToday": "No exercises scheduled for today. See the full program below.",
+      "fullProgramHeading": "Full program",
+      "noProgram": "Your therapist hasn't assigned a home program yet.",
+      "min": "min",
+      "paused": "Paused",
+      "markDone": "Mark done",
+      "completed": "Completed",
+      "completedAt": "Completed at {time}",
+      "doneToast": "Marked as done.",
+      "painScorePrompt": "How was your pain during this exercise? (0 = no pain, 10 = worst)",
+      "skip": "Skip",
+      "save": "Save"
     }
   },
   "navigation": {
@@ -993,6 +1010,13 @@
       "errors": {
         "daysRequired": "Select at least one day."
       }
+    },
+    "compliance": {
+      "sevenDay": "7-day rate",
+      "thirtyDay": "30-day rate",
+      "streak": "Streak (days)",
+      "overdue": "Overdue",
+      "lastCompleted": "Last completed"
     }
   }
 }
