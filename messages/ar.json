@@ -303,6 +303,8 @@
       "nextAppointmentPlaceholder": "ستظهر تفاصيل الموعد هنا عند تفعيل الجدولة.",
       "homeProgramTitle": "البرنامج المنزلي اليوم",
       "homeProgramPlaceholder": "ستظهر تمارينك هنا بعد أن يحدّدها معالجك.",
+      "activeItemsCount": "{count} تمارين في برنامجك الحالي.",
+      "weekDotsAria": "إنجاز هذا الأسبوع",
       "profileTitle": "ملفي",
       "profileSubtitle": "حافظ على تحديث بيانات التواصل.",
       "readOnlyNotice": "لتغيير الاسم أو تاريخ الميلاد أو البيانات الطبية، يرجى التواصل مع العيادة.",

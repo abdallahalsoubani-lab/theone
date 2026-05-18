@@ -20,6 +20,7 @@ import { Link } from '@/i18n/navigation';
 import { updateStatusAction } from '@/lib/appointments/actions';
 import { formatDate, formatTime } from '@/lib/format/date';
 import { formatPhone } from '@/lib/format/phone';
+import { useIsMobile } from '@/lib/hooks/useIsMobile';
 
 import { CancelAppointmentModal } from './CancelAppointmentModal';
 
@@ -73,6 +74,10 @@ export function AppointmentSidePanel({
   const locale = useLocale();
   const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
   const [pending, startTransition] = useTransition();
+  // Prompt 11 §4.7.1: the side panel slides up from the bottom on
+  // mobile breakpoints instead of from the inline-end edge.
+  const isMobile = useIsMobile();
+  const sheetSide = isMobile ? 'bottom' : 'end';
   // Prompt 7b §4.2: cancel always goes through the category modal; the
   // submit + WhatsApp notification + audit happen inside the modal's
   // own action call. The panel just opens it.
@@ -81,7 +86,7 @@ export function AppointmentSidePanel({
   if (!appointment) {
     return (
       <Sheet open={open} onOpenChange={(o) => (o ? null : onClose())}>
-        <SheetContent side="end" />
+        <SheetContent side={sheetSide} />
       </Sheet>
     );
   }
@@ -119,7 +124,14 @@ export function AppointmentSidePanel({
 
   return (
     <Sheet open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <SheetContent side="end" className="space-y-4 overflow-y-auto">
+      <SheetContent
+        side={sheetSide}
+        className={
+          isMobile
+            ? 'max-h-[90vh] space-y-4 overflow-y-auto rounded-t-xl'
+            : 'space-y-4 overflow-y-auto'
+        }
+      >
         <SheetHeader>
           <SheetTitle>{patientName}</SheetTitle>
           <SheetDescription>{formatPhone(appointment.patientPhone)}</SheetDescription>

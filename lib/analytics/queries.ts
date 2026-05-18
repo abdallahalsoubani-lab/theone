@@ -252,6 +252,115 @@ export async function getCancellationCategories(
   );
 }
 
+// ─── Per-role widgets (Prompt 11 §4.2.2 / §4.2.3) ─────────────────────────
+
+export interface ComplianceTrendPoint {
+  date: string; // YYYY-MM-DD
+  rate: number; // 0-100
+}
+
+/**
+ * 30-day compliance trend for the patients a Doctor is responsible for
+ * (active treatment plans). One point per day, completed-vs-expected
+ * across that day's scheduled home-program items.
+ */
+export async function getComplianceTrendForDoctor(
+  doctorId: string,
+  days = 30,
+): Promise<ComplianceTrendPoint[]> {
+  return cached({ name: 'getComplianceTrendForDoctor', args: { doctorId, days } }, async () => {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    since.setHours(0, 0, 0, 0);
+
+    const completions = await db.homeProgramCompletion.findMany({
+      where: {
+        completedAt: { gte: since },
+        item: { patient: { patientProfile: { responsibleDoctorId: doctorId } } },
+      },
+      select: { completedAt: true, scheduledDate: true },
+    });
+
+    const buckets = new Map<string, { done: number; expected: number }>();
+    for (let i = 0; i < days; i++) {
+      const d = new Date(since);
+      d.setDate(d.getDate() + i);
+      buckets.set(toDateKey(d), { done: 0, expected: 0 });
+    }
+    for (const c of completions) {
+      const key = toDateKey(c.scheduledDate);
+      const b = buckets.get(key);
+      if (!b) continue;
+      b.expected++;
+      if (c.completedAt) b.done++;
+    }
+    return Array.from(buckets.entries()).map(([date, b]) => ({
+      date,
+      rate: b.expected > 0 ? Math.round((b.done / b.expected) * 100) : 0,
+    }));
+  });
+}
+
+export interface ScheduleDensityRow {
+  day: string; // localized weekday label set by the caller; we return YYYY-MM-DD
+  minutes: number;
+}
+
+/**
+ * This-week schedule density for a single therapist. One bar per day
+ * Sun..Sat with total booked minutes.
+ */
+export async function getScheduleDensityForTherapist(
+  therapistId: string,
+): Promise<ScheduleDensityRow[]> {
+  return cached(
+    { name: 'getScheduleDensityForTherapist', args: { therapistId } },
+    async () => {
+      const now = new Date();
+      const start = new Date(now);
+      start.setDate(start.getDate() - start.getDay());
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(start);
+      end.setDate(end.getDate() + 7);
+
+      const rows = await db.appointment.findMany({
+        where: {
+          therapistId,
+          startsAt: { gte: start, lt: end },
+          status: {
+            in: [
+              AppointmentStatus.SCHEDULED,
+              AppointmentStatus.CONFIRMED,
+              AppointmentStatus.IN_PROGRESS,
+              AppointmentStatus.COMPLETED,
+            ],
+          },
+        },
+        select: { startsAt: true, durationMinutes: true },
+      });
+
+      const buckets = new Map<string, number>();
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start);
+        d.setDate(d.getDate() + i);
+        buckets.set(toDateKey(d), 0);
+      }
+      for (const a of rows) {
+        const key = toDateKey(a.startsAt);
+        buckets.set(key, (buckets.get(key) ?? 0) + a.durationMinutes);
+      }
+      return Array.from(buckets.entries()).map(([day, minutes]) => ({ day, minutes }));
+    },
+    60, // shorter TTL — schedule churns more than aggregates
+  );
+}
+
+function toDateKey(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+    d.getDate(),
+  ).padStart(2, '0')}`;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
 interface DayHours {

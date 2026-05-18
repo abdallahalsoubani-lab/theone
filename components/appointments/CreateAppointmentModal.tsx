@@ -6,16 +6,16 @@ import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  ResponsiveModal,
+  ResponsiveModalContent,
+  ResponsiveModalDescription,
+  ResponsiveModalFooter,
+  ResponsiveModalHeader,
+  ResponsiveModalTitle,
+} from '@/components/ui/responsive-modal';
 import { createAppointmentAction, previewConflictsAction } from '@/lib/appointments/actions';
 import type { ConflictResult } from '@/lib/appointments/conflicts';
 
@@ -142,12 +142,12 @@ export function CreateAppointmentModal({
 
   return (
     <>
-      <Dialog open={open && !seriesOpen} onOpenChange={(o) => (o ? null : onClose())}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{tCommon('save')}</DialogTitle>
-            <DialogDescription className="sr-only">{t('save')}</DialogDescription>
-          </DialogHeader>
+      <ResponsiveModal open={open && !seriesOpen} onOpenChange={(o) => (o ? null : onClose())}>
+        <ResponsiveModalContent>
+          <ResponsiveModalHeader>
+            <ResponsiveModalTitle>{tCommon('save')}</ResponsiveModalTitle>
+            <ResponsiveModalDescription className="sr-only">{t('save')}</ResponsiveModalDescription>
+          </ResponsiveModalHeader>
 
           <div className="space-y-3">
             <div className="space-y-1">
@@ -258,7 +258,7 @@ export function CreateAppointmentModal({
             ) : null}
           </div>
 
-          <DialogFooter className="gap-2">
+          <ResponsiveModalFooter className="gap-2">
             <Button
               type="button"
               variant="ghost"
@@ -295,9 +295,9 @@ export function CreateAppointmentModal({
                 {t('save')}
               </Button>
             )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </ResponsiveModalFooter>
+        </ResponsiveModalContent>
+      </ResponsiveModal>
       <CreateSeriesModal
         open={open && seriesOpen}
         onClose={() => {

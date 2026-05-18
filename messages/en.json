@@ -611,6 +611,8 @@
       "nextAppointmentPlaceholder": "Appointment details will appear here once scheduling is live.",
       "homeProgramTitle": "Today's home program",
       "homeProgramPlaceholder": "Your exercises will appear here once your therapist sets them.",
+      "activeItemsCount": "{count} exercises in your current program.",
+      "weekDotsAria": "This week's completion",
       "profileTitle": "My profile",
       "profileSubtitle": "Keep your contact information up to date.",
       "readOnlyNotice": "To change your name, date of birth, or clinical information, please contact the clinic.",

@@ -8,8 +8,13 @@ import { toast } from 'sonner';
 
 import { SeriesScopePicker } from '@/components/appointments/SeriesScopePicker';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import {
+  ResponsiveModal,
+  ResponsiveModalContent,
+  ResponsiveModalHeader,
+  ResponsiveModalTitle,
+} from '@/components/ui/responsive-modal';
 import { cancelAppointmentAction } from '@/lib/appointments/actions';
 import type { SeriesEditMode } from '@/lib/appointments/schemas';
 
@@ -80,11 +85,11 @@ export function CancelAppointmentModal({
   const categories = Object.values(CancellationCategory);
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('title')}</DialogTitle>
-        </DialogHeader>
+    <ResponsiveModal open={open} onOpenChange={(o) => (o ? null : onClose())}>
+      <ResponsiveModalContent>
+        <ResponsiveModalHeader>
+          <ResponsiveModalTitle>{t('title')}</ResponsiveModalTitle>
+        </ResponsiveModalHeader>
 
         <fieldset className="space-y-2">
           <legend className="text-sm font-medium text-brand-navy">{t('categoryLegend')}</legend>
@@ -151,7 +156,7 @@ export function CancelAppointmentModal({
             {t('confirm')}
           </Button>
         </div>
-      </DialogContent>
-    </Dialog>
+      </ResponsiveModalContent>
+    </ResponsiveModal>
   );
 }

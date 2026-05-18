@@ -2,8 +2,10 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
+import { ScheduleDensity } from '@/components/analytics/ScheduleDensity';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
+import { getScheduleDensityForTherapist } from '@/lib/analytics/queries';
 import { listAppointmentsPendingNote } from '@/lib/clinical/session-notes/queries';
 import { db } from '@/lib/db';
 import { countUnreadNotificationsForCurrentUser } from '@/lib/notifications/queries';
@@ -32,7 +34,7 @@ export default async function TherapistDashboard({
   const tomorrow = new Date(today);
   tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
-  const [todayAppts, pendingNotes, assignedCount, unread] = await Promise.all([
+  const [todayAppts, pendingNotes, assignedCount, unread, scheduleDensity] = await Promise.all([
     db.appointment.findMany({
       where: {
         therapistId,
@@ -50,6 +52,7 @@ export default async function TherapistDashboard({
     listAppointmentsPendingNote(therapistId, 5),
     db.patientProfile.count({ where: { assignedTherapistId: therapistId } }),
     countUnreadNotificationsForCurrentUser(),
+    getScheduleDensityForTherapist(therapistId),
   ]);
 
   return (
@@ -66,6 +69,8 @@ export default async function TherapistDashboard({
         <Stat label={t('assignedPatients')} value={assignedCount} href="/therapist/patients" />
         <Stat label={t('unreadNotifs')} value={unread} href="/notifications" />
       </div>
+
+      <ScheduleDensity data={scheduleDensity} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-brand-navy">{t('todayScheduleHeading')}</h2>

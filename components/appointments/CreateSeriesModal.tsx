@@ -6,16 +6,16 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  ResponsiveModal,
+  ResponsiveModalContent,
+  ResponsiveModalDescription,
+  ResponsiveModalFooter,
+  ResponsiveModalHeader,
+  ResponsiveModalTitle,
+} from '@/components/ui/responsive-modal';
 import {
   createSeriesAction,
   previewSeriesAction,
@@ -290,12 +290,12 @@ export function CreateSeriesModal({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>{t('title')}</DialogTitle>
-          <DialogDescription>{t('subtitle')}</DialogDescription>
-        </DialogHeader>
+    <ResponsiveModal open={open} onOpenChange={(o) => (o ? null : onClose())}>
+      <ResponsiveModalContent desktopMaxWidth="max-w-2xl">
+        <ResponsiveModalHeader>
+          <ResponsiveModalTitle>{t('title')}</ResponsiveModalTitle>
+          <ResponsiveModalDescription>{t('subtitle')}</ResponsiveModalDescription>
+        </ResponsiveModalHeader>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
@@ -519,7 +519,7 @@ export function CreateSeriesModal({
           ) : null}
         </section>
 
-        <DialogFooter>
+        <ResponsiveModalFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
             {tCommon('cancel')}
           </Button>
@@ -530,9 +530,9 @@ export function CreateSeriesModal({
           >
             {pending ? t('saving') : t('save')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveModalFooter>
+      </ResponsiveModalContent>
+    </ResponsiveModal>
   );
 }
 

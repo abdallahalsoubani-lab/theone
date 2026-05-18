@@ -7,15 +7,15 @@ import { toast } from 'sonner';
 
 import { SeriesScopePicker } from '@/components/appointments/SeriesScopePicker';
 import { Button } from '@/components/ui/button';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
+import {
+  ResponsiveModal,
+  ResponsiveModalContent,
+  ResponsiveModalDescription,
+  ResponsiveModalFooter,
+  ResponsiveModalHeader,
+  ResponsiveModalTitle,
+} from '@/components/ui/responsive-modal';
 import {
   changeTherapistAction,
   previewTherapistAvailabilityAction,
@@ -140,12 +140,12 @@ export function ChangeTherapistModal({
   const current = clinicians.find((c) => c.id === currentTherapistId);
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{t('title')}</DialogTitle>
-          <DialogDescription>{t('subtitle')}</DialogDescription>
-        </DialogHeader>
+    <ResponsiveModal open={open} onOpenChange={(o) => (o ? null : onClose())}>
+      <ResponsiveModalContent>
+        <ResponsiveModalHeader>
+          <ResponsiveModalTitle>{t('title')}</ResponsiveModalTitle>
+          <ResponsiveModalDescription>{t('subtitle')}</ResponsiveModalDescription>
+        </ResponsiveModalHeader>
 
         {current ? (
           <div className="rounded-md border border-brand-border bg-brand-bg p-2 text-sm">
@@ -222,15 +222,15 @@ export function ChangeTherapistModal({
           />
         </div>
 
-        <DialogFooter>
+        <ResponsiveModalFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
             {tCommon('cancel')}
           </Button>
           <Button type="button" disabled={!picked || pending} onClick={submit}>
             {pending ? t('saving') : t('save')}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </ResponsiveModalFooter>
+      </ResponsiveModalContent>
+    </ResponsiveModal>
   );
 }

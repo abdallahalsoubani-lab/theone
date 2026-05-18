@@ -2,9 +2,11 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
+import { ComplianceTrend } from '@/components/analytics/ComplianceTrend';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
+import { getComplianceTrendForDoctor } from '@/lib/analytics/queries';
 import { listPendingProposalsForDoctor } from '@/lib/clinical/plans/queries';
 import { db } from '@/lib/db';
 import { countUnreadNotificationsForCurrentUser } from '@/lib/notifications/queries';
@@ -27,33 +29,35 @@ export default async function DoctorDashboard({ params }: { params: Promise<{ lo
   const since7d = new Date();
   since7d.setUTCDate(since7d.getUTCDate() - 7);
 
-  const [activeCount, pendingProposals, weekNotes, unread, recentReports] = await Promise.all([
-    db.treatmentPlan.count({
-      where: { doctorId, status: 'ACTIVE' },
-    }),
-    listPendingProposalsForDoctor(doctorId),
-    db.sessionNote.count({
-      where: {
-        createdAt: { gte: since7d },
-        patient: {
-          patientProfile: {
-            OR: [{ assignedTherapistId: doctorId }, { responsibleDoctorId: doctorId }],
+  const [activeCount, pendingProposals, weekNotes, unread, recentReports, complianceTrend] =
+    await Promise.all([
+      db.treatmentPlan.count({
+        where: { doctorId, status: 'ACTIVE' },
+      }),
+      listPendingProposalsForDoctor(doctorId),
+      db.sessionNote.count({
+        where: {
+          createdAt: { gte: since7d },
+          patient: {
+            patientProfile: {
+              OR: [{ assignedTherapistId: doctorId }, { responsibleDoctorId: doctorId }],
+            },
           },
         },
-      },
-    }),
-    countUnreadNotificationsForCurrentUser(),
-    db.dayReport.findMany({
-      where: { submittedAt: { gte: since7d } },
-      orderBy: { submittedAt: 'desc' },
-      take: 5,
-      select: {
-        id: true,
-        date: true,
-        therapist: { select: { fullNameEn: true, fullNameAr: true } },
-      },
-    }),
-  ]);
+      }),
+      countUnreadNotificationsForCurrentUser(),
+      db.dayReport.findMany({
+        where: { submittedAt: { gte: since7d } },
+        orderBy: { submittedAt: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          date: true,
+          therapist: { select: { fullNameEn: true, fullNameAr: true } },
+        },
+      }),
+      getComplianceTrendForDoctor(doctorId, 30),
+    ]);
 
   return (
     <section className="space-y-6 p-6">
@@ -69,6 +73,8 @@ export default async function DoctorDashboard({ params }: { params: Promise<{ lo
         <Stat label={t('weekNotes')} value={weekNotes} />
         <Stat label={t('unreadNotifs')} value={unread} href="/notifications" />
       </div>
+
+      <ComplianceTrend data={complianceTrend} />
 
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-brand-navy">{t('pendingProposalsHeading')}</h2>
