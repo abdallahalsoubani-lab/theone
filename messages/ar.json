@@ -332,7 +332,8 @@
       "whatsappTemplates": "قوالب واتساب",
       "whatsappMessages": "رسائل واتساب"
     },
-    "inbox": "صندوق الوارد"
+    "inbox": "صندوق الوارد",
+    "exerciseLibrary": "مكتبة التمارين"
   },
   "shell": {
     "userMenu": "الحساب",
@@ -903,6 +904,63 @@
       "prev": "السابق",
       "next": "التالي",
       "pageOf": "صفحة {page} من {totalPages}"
+    },
+    "exercises": {
+      "libraryTitle": "مكتبة التمارين",
+      "librarySubtitle": "كتالوج تمارين مُختار بأوصاف ثنائية اللغة ووسائط اختيارية. تُنشئ التعديلات إصدارات جديدة؛ تستمر البرامج المنزلية الحالية في استخدام الإصدار المُسند إليها.",
+      "newExercise": "تمرين جديد",
+      "newExerciseTitle": "تمرين جديد",
+      "newExerciseSubtitle": "أضف تمريناً إلى المكتبة المشتركة. الأسماء والأوصاف بكلا اللغتين مطلوبة؛ الصورة والفيديو اختياريان ولكنهما يحسّنان تجربة المريض.",
+      "editTitle": "تعديل التمرين",
+      "editSubtitle": "الحفظ ينشئ إصداراً جديداً. يستمر المرضى على البرامج الحالية في رؤية الإصدار المُسند إليهم.",
+      "nameEn": "الاسم (إنجليزي)",
+      "nameAr": "الاسم (عربي)",
+      "category": "الفئة",
+      "anatomicalRegion": "المنطقة التشريحية",
+      "descriptionEn": "الوصف (إنجليزي)",
+      "descriptionAr": "الوصف (عربي)",
+      "contraindications": "موانع الاستخدام",
+      "defaultInstructionEn": "التعليمات الافتراضية (إنجليزي)",
+      "defaultInstructionAr": "التعليمات الافتراضية (عربي)",
+      "image": "صورة",
+      "video": "فيديو",
+      "uploadMedia": "رفع (≤ {maxMb} ميجا)",
+      "uploadHint": "الأنواع المسموح بها: {types} · حد أقصى {maxMb} ميجا",
+      "uploadDoneToast": "اكتمل الرفع.",
+      "removeMedia": "إزالة",
+      "cancel": "إلغاء",
+      "create": "إنشاء التمرين",
+      "saveAsNewVersion": "حفظ كإصدار جديد",
+      "createdToast": "تم إنشاء التمرين.",
+      "updatedToast": "تم حفظ الإصدار الجديد.",
+      "archivedToast": "تمت أرشفة التمرين.",
+      "restoredToast": "تمت استعادة التمرين.",
+      "archive": "أرشفة",
+      "restore": "استعادة",
+      "archived": "مؤرشف",
+      "edit": "تعديل",
+      "view": "عرض",
+      "search": "بحث",
+      "searchPlaceholder": "ابحث في التمارين…",
+      "all": "الكل",
+      "tabActive": "نشطة",
+      "tabArchived": "مؤرشفة",
+      "noImage": "لا توجد صورة",
+      "hasVideo": "فيديو",
+      "contra": "موانع",
+      "empty": "لا توجد تمارين تطابق الفلاتر.",
+      "emptyArchived": "لا توجد تمارين مؤرشفة.",
+      "description": "الوصف",
+      "defaultInstruction": "تعليمات المريض",
+      "versionNote": "الإصدار الحالي: v{version}. الحفظ ينشئ v{version}+1.",
+      "pageOf": "صفحة {page} من {totalPages}",
+      "prev": "السابق",
+      "next": "التالي",
+      "errors": {
+        "unsupportedType": "نوع الملف غير مدعوم.",
+        "tooLarge": "الملف يتجاوز حد {maxMb} ميجا.",
+        "uploadFailed": "فشل الرفع. حاول مرة أخرى."
+      }
     }
   }
 }

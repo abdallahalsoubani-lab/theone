@@ -640,7 +640,8 @@
       "whatsappTemplates": "WhatsApp templates",
       "whatsappMessages": "WhatsApp messages"
     },
-    "inbox": "Inbox"
+    "inbox": "Inbox",
+    "exerciseLibrary": "Exercise library"
   },
   "styleGuide": {
     "title": "Style guide",
@@ -903,6 +904,63 @@
       "prev": "Previous",
       "next": "Next",
       "pageOf": "Page {page} of {totalPages}"
+    },
+    "exercises": {
+      "libraryTitle": "Exercise library",
+      "librarySubtitle": "Curated catalogue of exercises with bilingual descriptions and optional media. Edits create new versions; existing home programs continue using the version they were assigned.",
+      "newExercise": "New exercise",
+      "newExerciseTitle": "New exercise",
+      "newExerciseSubtitle": "Add an exercise to the shared library. Bilingual names and descriptions are required; image and video are optional but improve the patient experience.",
+      "editTitle": "Edit exercise",
+      "editSubtitle": "Saving creates a new version. Patients on existing home programs continue seeing the version they were assigned.",
+      "nameEn": "Name (English)",
+      "nameAr": "Name (Arabic)",
+      "category": "Category",
+      "anatomicalRegion": "Anatomical region",
+      "descriptionEn": "Description (English)",
+      "descriptionAr": "Description (Arabic)",
+      "contraindications": "Contraindications",
+      "defaultInstructionEn": "Default instruction (English)",
+      "defaultInstructionAr": "Default instruction (Arabic)",
+      "image": "Image",
+      "video": "Video",
+      "uploadMedia": "Upload (≤ {maxMb} MB)",
+      "uploadHint": "Allowed: {types} · Max {maxMb} MB",
+      "uploadDoneToast": "Upload complete.",
+      "removeMedia": "Remove",
+      "cancel": "Cancel",
+      "create": "Create exercise",
+      "saveAsNewVersion": "Save as new version",
+      "createdToast": "Exercise created.",
+      "updatedToast": "New version saved.",
+      "archivedToast": "Exercise archived.",
+      "restoredToast": "Exercise restored.",
+      "archive": "Archive",
+      "restore": "Restore",
+      "archived": "Archived",
+      "edit": "Edit",
+      "view": "View",
+      "search": "Search",
+      "searchPlaceholder": "Search exercises…",
+      "all": "All",
+      "tabActive": "Active",
+      "tabArchived": "Archived",
+      "noImage": "No image",
+      "hasVideo": "Video",
+      "contra": "Contra.",
+      "empty": "No exercises match the current filters.",
+      "emptyArchived": "No archived exercises.",
+      "description": "Description",
+      "defaultInstruction": "Patient instruction",
+      "versionNote": "Current version: v{version}. Saving creates v{version}+1.",
+      "pageOf": "Page {page} of {totalPages}",
+      "prev": "Previous",
+      "next": "Next",
+      "errors": {
+        "unsupportedType": "File type is not supported.",
+        "tooLarge": "File exceeds the {maxMb} MB limit.",
+        "uploadFailed": "Upload failed. Try again."
+      }
     }
   }
 }

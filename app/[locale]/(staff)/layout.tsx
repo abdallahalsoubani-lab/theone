@@ -1,4 +1,4 @@
-import { Calendar, ClipboardList, Inbox, Users } from 'lucide-react';
+import { Calendar, ClipboardList, Dumbbell, Inbox, Users } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -68,6 +68,11 @@ export default async function StaffLayout({
         href: '/doctor/dashboard',
         icon: <ClipboardList className="size-4" />,
       },
+      {
+        label: tNav('exerciseLibrary'),
+        href: '/clinical/exercises',
+        icon: <Dumbbell className="size-4" />,
+      },
     );
   } else if (role === 'THERAPIST') {
     links.push(
@@ -80,6 +85,11 @@ export default async function StaffLayout({
         label: tPatients('navTitle'),
         href: '/therapist/patients',
         icon: <Users className="size-4" />,
+      },
+      {
+        label: tNav('exerciseLibrary'),
+        href: '/clinical/exercises',
+        icon: <Dumbbell className="size-4" />,
       },
     );
   }

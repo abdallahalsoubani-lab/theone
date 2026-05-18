@@ -9,12 +9,7 @@ import type { LocalizedError } from '@/lib/db';
 import { env } from '@/lib/env';
 import { requirePermission } from '@/lib/rbac/guards';
 import { STORAGE_BUCKET, s3 } from '@/lib/storage/client';
-import {
-  buildObjectKey,
-  getUploadPolicy,
-  validateUploadInput,
-  type UploadKind,
-} from '@/lib/storage/policies';
+import { buildObjectKey, validateUploadInput, type UploadKind } from '@/lib/storage/policies';
 
 /**
  * Generate a presigned PUT URL for a direct browser-to-S3 upload
@@ -111,28 +106,11 @@ export async function createUploadUrl(
   };
 }
 
-/**
- * Public URL for the object — used in `<img src>` / `<video src>` once
- * the upload finishes. Local dev hits MinIO directly; production swaps
- * S3_PUBLIC_BASE_URL to the CDN (CloudFront / Cloudflare). When
- * S3_PUBLIC_BASE_URL is unset we fall back to the endpoint + bucket so
- * the URL still resolves in dev.
- *
- * Exported so the Exercise form can read it without re-implementing
- * the format.
- */
-export function buildPublicUrl(key: string): string {
+// Module-local — 'use server' files can only export async functions, so
+// buildPublicUrl and the policy re-exports live in '@/lib/storage/urls'.
+function buildPublicUrl(key: string): string {
   const base =
     process.env.S3_PUBLIC_BASE_URL ??
     `${(env.S3_ENDPOINT ?? 'http://localhost:9000').replace(/\/$/, '')}/${STORAGE_BUCKET}`;
   return `${base}/${key}`;
 }
-
-// Re-export the policy helpers so the form component can show
-// human-readable size hints without re-importing from a sibling path.
-export { getUploadPolicy };
-export type { UploadKind };
-
-// Used only by tests to silence unused warnings when validateUploadInput
-// is exercised through this action.
-export const _internal = { validateUploadInput };

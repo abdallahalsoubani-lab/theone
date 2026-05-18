@@ -1,4 +1,5 @@
-import { createUploadUrl, type UploadKind } from './actions/createUploadUrl';
+import { createUploadUrl } from './actions/createUploadUrl';
+import type { UploadKind } from './policies';
 
 /**
  * Browser-side upload helper. Calls the server action to get a
