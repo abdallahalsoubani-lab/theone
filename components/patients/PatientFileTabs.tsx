@@ -6,16 +6,38 @@ import type { ReactNode } from 'react';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-type TabKey = 'profile' | 'intake' | 'appointments' | 'plan' | 'notes' | 'home' | 'activity';
+type TabKey =
+  | 'profile'
+  | 'intake'
+  | 'appointments'
+  | 'plan'
+  | 'notes'
+  | 'home'
+  | 'timeline'
+  | 'activity';
 
 interface Props {
   defaultTab?: TabKey;
   profile: ReactNode;
   intake: ReactNode;
   activity: ReactNode;
+  /** Treatment-plan tab content (Prompt 9). Falls back to the placeholder if omitted. */
+  plan?: ReactNode;
+  /** Session-notes tab content (Prompt 9). Falls back to the placeholder if omitted. */
+  notes?: ReactNode;
+  /** Clinical timeline (Prompt 9). Falls back to the placeholder if omitted. */
+  timeline?: ReactNode;
 }
 
-export function PatientFileTabs({ defaultTab = 'profile', profile, intake, activity }: Props) {
+export function PatientFileTabs({
+  defaultTab = 'profile',
+  profile,
+  intake,
+  activity,
+  plan,
+  notes,
+  timeline,
+}: Props) {
   const t = useTranslations('patients.file');
 
   return (
@@ -45,6 +67,10 @@ export function PatientFileTabs({ defaultTab = 'profile', profile, intake, activ
           <Home className="me-2 size-4" />
           {t('tabHomeProgram')}
         </TabsTrigger>
+        <TabsTrigger value="timeline">
+          <Activity className="me-2 size-4" />
+          {t('tabTimeline')}
+        </TabsTrigger>
         <TabsTrigger value="activity">
           <Activity className="me-2 size-4" />
           {t('tabActivity')}
@@ -62,19 +88,28 @@ export function PatientFileTabs({ defaultTab = 'profile', profile, intake, activ
         />
       </TabsContent>
       <TabsContent value="plan">
-        <Placeholder
-          icon={<Stethoscope className="size-6" />}
-          message={t('placeholderTreatmentPlan')}
-        />
+        {plan ?? (
+          <Placeholder
+            icon={<Stethoscope className="size-6" />}
+            message={t('placeholderTreatmentPlan')}
+          />
+        )}
       </TabsContent>
       <TabsContent value="notes">
-        <Placeholder
-          icon={<FileText className="size-6" />}
-          message={t('placeholderSessionNotes')}
-        />
+        {notes ?? (
+          <Placeholder
+            icon={<FileText className="size-6" />}
+            message={t('placeholderSessionNotes')}
+          />
+        )}
       </TabsContent>
       <TabsContent value="home">
         <Placeholder icon={<Home className="size-6" />} message={t('placeholderHomeProgram')} />
+      </TabsContent>
+      <TabsContent value="timeline">
+        {timeline ?? (
+          <Placeholder icon={<Activity className="size-6" />} message={t('placeholderTimeline')} />
+        )}
       </TabsContent>
 
       <TabsContent value="activity">{activity}</TabsContent>

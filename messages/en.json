@@ -495,7 +495,9 @@
       "ageYears": "{age} years",
       "resetPassword": "Reset password",
       "confirmResetPassword": "Force a new temporary password? A WhatsApp message with the new credentials will be sent.",
-      "resetToast": "Password reset. New temporary password sent."
+      "resetToast": "Password reset. New temporary password sent.",
+      "tabTimeline": "Timeline",
+      "placeholderTimeline": "Clinical timeline arrives in Prompt 9."
     },
     "toasts": {
       "created": "Patient created.",
@@ -743,6 +745,80 @@
       "APPOINTMENT_RESCHEDULE_REQUEST": {
         "title": "Reschedule request",
         "body": "{patientName} requested to reschedule an appointment."
+      }
+    }
+  },
+  "clinical": {
+    "plans": {
+      "newPlanTitle": "New treatment plan",
+      "newPlanSubtitle": "Author the initial plan. The assigned Therapist receives a notification on save.",
+      "viewPlanTitle": "Treatment plan",
+      "proposeTitle": "Propose plan change",
+      "proposeSubtitle": "Edit the plan and explain the change. The Doctor will approve or reject your proposal.",
+      "patient": "Patient",
+      "plan": "Plan",
+      "forPatient": "For",
+      "by": "by",
+      "diagnosisSection": "Diagnosis",
+      "diagnosisPrimary": "Primary diagnosis",
+      "diagnosisSecondary": "Secondary diagnosis (optional)",
+      "goalsSection": "Goals",
+      "goalsShort": "Short-term goals",
+      "goalsLong": "Long-term goals (optional)",
+      "frequencyPerWeek": "Sessions per week",
+      "durationWeeks": "Duration (weeks)",
+      "assignedTherapist": "Assigned therapist",
+      "therapistNotes": "Notes for therapist",
+      "exercisesSection": "Exercises",
+      "addExercise": "Add exercise",
+      "removeExercise": "Remove exercise",
+      "exercise": "Exercise",
+      "sets": "Sets",
+      "reps": "Reps",
+      "durationSeconds": "Duration (s)",
+      "exercises": "Exercises",
+      "schedule": "Schedule",
+      "weekShort": "week",
+      "weeks": "weeks",
+      "noExercises": "No exercises configured.",
+      "createPlan": "Create plan",
+      "submitProposal": "Submit proposal",
+      "createdToast": "Treatment plan created.",
+      "proposedToast": "Proposal submitted.",
+      "approvedToast": "Proposal approved.",
+      "rejectedToast": "Proposal rejected.",
+      "pausedToast": "Plan paused.",
+      "completedToast": "Plan marked complete.",
+      "discontinuedToast": "Plan discontinued.",
+      "proposalReason": "Reason for change",
+      "proposalReasonPlaceholder": "e.g., Patient tolerating sessions well — increasing weekly frequency.",
+      "rejectedReason": "Rejection reason",
+      "rejectReasonLabel": "Why are you rejecting this proposal?",
+      "pendingApproval": "Pending Doctor approval",
+      "approve": "Approve",
+      "reject": "Reject",
+      "confirmReject": "Confirm rejection",
+      "cancel": "Cancel",
+      "edit": "Edit",
+      "proposeChange": "Propose change",
+      "pause": "Pause",
+      "markComplete": "Mark complete",
+      "discontinue": "Discontinue",
+      "noActivePlan": "No active treatment plan.",
+      "newPlan": "New plan",
+      "history": "Version history",
+      "status": {
+        "ACTIVE": "Active",
+        "PROPOSED": "Proposed",
+        "REJECTED": "Rejected",
+        "SUPERSEDED": "Superseded",
+        "PAUSED": "Paused",
+        "COMPLETED": "Completed",
+        "DISCONTINUED": "Discontinued"
+      },
+      "errors": {
+        "exercisesRequired": "A plan must include at least one exercise.",
+        "rejectReason": "Rejection reason must be at least 5 characters."
       }
     }
   }

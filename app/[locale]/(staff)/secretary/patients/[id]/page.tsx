@@ -2,6 +2,7 @@ import { setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
 import { PatientFilePage } from '@/components/patients/PatientFilePage';
+import { getPatientPlanState } from '@/lib/clinical/plans/queries';
 import { listIntakesForPatient } from '@/lib/intake/queries';
 import { ensureCanReadPatient } from '@/lib/patients/access';
 import { getPatientFile } from '@/lib/patients/queries';
@@ -17,10 +18,11 @@ export default async function SecretaryPatientFilePage({
   setRequestLocale(locale);
   await requirePermission('patients.read');
   await ensureCanReadPatient(id);
-  const [patient, activity, intakes] = await Promise.all([
+  const [patient, activity, intakes, planState] = await Promise.all([
     getPatientFile(id),
     listPatientActivity(id),
     listIntakesForPatient(id),
+    getPatientPlanState(id),
   ]);
   if (!patient) notFound();
   return (
@@ -32,6 +34,8 @@ export default async function SecretaryPatientFilePage({
       canEdit
       canResetPassword
       locale={locale === 'ar' ? 'ar' : 'en'}
+      planState={planState}
+      viewerRole="SECRETARY"
     />
   );
 }

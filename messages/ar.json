@@ -187,7 +187,9 @@
       "ageYears": "{age} سنة",
       "resetPassword": "إعادة تعيين كلمة المرور",
       "confirmResetPassword": "إعادة تعيين كلمة المرور؟ ستُرسل رسالة واتساب بكلمة مرور جديدة.",
-      "resetToast": "تم تصفير كلمة المرور وإرسال كلمة جديدة."
+      "resetToast": "تم تصفير كلمة المرور وإرسال كلمة جديدة.",
+      "tabTimeline": "المسار الزمني",
+      "placeholderTimeline": "المسار الزمني السريري قادم في الموجه 9."
     },
     "toasts": {
       "created": "تم إنشاء المراجع.",
@@ -743,6 +745,80 @@
       "APPOINTMENT_RESCHEDULE_REQUEST": {
         "title": "طلب إعادة جدولة",
         "body": "طلب {patientName} إعادة جدولة موعد."
+      }
+    }
+  },
+  "clinical": {
+    "plans": {
+      "newPlanTitle": "خطة علاج جديدة",
+      "newPlanSubtitle": "أنشئ الخطة الأولية. سيتلقى المعالج المسؤول إشعاراً عند الحفظ.",
+      "viewPlanTitle": "خطة العلاج",
+      "proposeTitle": "اقتراح تعديل خطة",
+      "proposeSubtitle": "عدّل الخطة واشرح التعديل. سيوافق الطبيب على اقتراحك أو يرفضه.",
+      "patient": "المريض",
+      "plan": "الخطة",
+      "forPatient": "لـ",
+      "by": "بواسطة",
+      "diagnosisSection": "التشخيص",
+      "diagnosisPrimary": "التشخيص الأساسي",
+      "diagnosisSecondary": "التشخيص الثانوي (اختياري)",
+      "goalsSection": "الأهداف",
+      "goalsShort": "أهداف قصيرة المدى",
+      "goalsLong": "أهداف طويلة المدى (اختياري)",
+      "frequencyPerWeek": "الجلسات أسبوعياً",
+      "durationWeeks": "المدة (أسابيع)",
+      "assignedTherapist": "المعالج المسؤول",
+      "therapistNotes": "ملاحظات للمعالج",
+      "exercisesSection": "التمارين",
+      "addExercise": "إضافة تمرين",
+      "removeExercise": "إزالة التمرين",
+      "exercise": "التمرين",
+      "sets": "المجموعات",
+      "reps": "التكرارات",
+      "durationSeconds": "المدة (ث)",
+      "exercises": "التمارين",
+      "schedule": "الجدول",
+      "weekShort": "أسبوع",
+      "weeks": "أسابيع",
+      "noExercises": "لم يتم تهيئة أي تمارين.",
+      "createPlan": "إنشاء الخطة",
+      "submitProposal": "تقديم الاقتراح",
+      "createdToast": "تم إنشاء خطة العلاج.",
+      "proposedToast": "تم تقديم الاقتراح.",
+      "approvedToast": "تمت الموافقة على الاقتراح.",
+      "rejectedToast": "تم رفض الاقتراح.",
+      "pausedToast": "تم إيقاف الخطة مؤقتاً.",
+      "completedToast": "تم تعليم الخطة كمكتملة.",
+      "discontinuedToast": "تم إنهاء الخطة.",
+      "proposalReason": "سبب التعديل",
+      "proposalReasonPlaceholder": "مثلاً: المريض يتحمل الجلسات جيداً — زيادة عدد الجلسات الأسبوعية.",
+      "rejectedReason": "سبب الرفض",
+      "rejectReasonLabel": "لماذا ترفض هذا الاقتراح؟",
+      "pendingApproval": "قيد موافقة الطبيب",
+      "approve": "موافقة",
+      "reject": "رفض",
+      "confirmReject": "تأكيد الرفض",
+      "cancel": "إلغاء",
+      "edit": "تعديل",
+      "proposeChange": "اقتراح تعديل",
+      "pause": "إيقاف مؤقت",
+      "markComplete": "تعليم كمكتمل",
+      "discontinue": "إنهاء",
+      "noActivePlan": "لا توجد خطة علاج نشطة.",
+      "newPlan": "خطة جديدة",
+      "history": "سجل الإصدارات",
+      "status": {
+        "ACTIVE": "نشطة",
+        "PROPOSED": "مقترحة",
+        "REJECTED": "مرفوضة",
+        "SUPERSEDED": "تم استبدالها",
+        "PAUSED": "متوقفة مؤقتاً",
+        "COMPLETED": "مكتملة",
+        "DISCONTINUED": "منتهية"
+      },
+      "errors": {
+        "exercisesRequired": "يجب أن تتضمن الخطة تمريناً واحداً على الأقل.",
+        "rejectReason": "يجب أن يكون سبب الرفض 5 أحرف على الأقل."
       }
     }
   }
