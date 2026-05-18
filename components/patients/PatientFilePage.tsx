@@ -1,3 +1,4 @@
+import { PatientNotesTab } from '@/components/clinical/PatientNotesTab';
 import { PatientPlanTab } from '@/components/clinical/PatientPlanTab';
 import { PatientActivityTab } from '@/components/patients/PatientActivityTab';
 import { PatientFileTabs } from '@/components/patients/PatientFileTabs';
@@ -6,6 +7,7 @@ import { PatientIntakeTab } from '@/components/patients/PatientIntakeTab';
 import { PatientProfileTab } from '@/components/patients/PatientProfileTab';
 import { ResetPasswordButton } from '@/components/patients/PatientFileShell';
 import type { PatientPlanState } from '@/lib/clinical/plans/queries';
+import type { SessionNoteRow } from '@/lib/clinical/session-notes/queries';
 import type { IntakeListRow } from '@/lib/intake/queries';
 import type { PatientFileData } from '@/lib/patients/queries';
 import type { PatientActivityRow } from '@/lib/patients/queries-audit';
@@ -23,7 +25,11 @@ interface Props {
    * When omitted the Plan tab falls back to its placeholder copy.
    */
   planState?: PatientPlanState;
+  /** Optional session-notes list. When omitted the Notes tab falls back. */
+  notes?: SessionNoteRow[];
   viewerRole?: 'DOCTOR' | 'THERAPIST' | 'SECRETARY' | 'ADMIN' | 'PATIENT';
+  /** Current actor id — needed for the notes tab's author gating. */
+  actorId?: string;
 }
 
 /**
@@ -40,7 +46,9 @@ export function PatientFilePage({
   canResetPassword,
   locale,
   planState,
+  notes,
   viewerRole,
+  actorId,
 }: Props) {
   return (
     <section className="space-y-6 p-6">
@@ -70,6 +78,16 @@ export function PatientFilePage({
               state={planState}
               patientId={patient.id}
               viewerRole={viewerRole ?? 'SECRETARY'}
+            />
+          ) : undefined
+        }
+        notes={
+          notes ? (
+            <PatientNotesTab
+              notes={notes}
+              viewerRole={viewerRole ?? 'SECRETARY'}
+              actorId={actorId ?? ''}
+              locale={locale}
             />
           ) : undefined
         }

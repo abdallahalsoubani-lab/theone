@@ -181,15 +181,16 @@ export function AppointmentSidePanel({ open, appointment, onClose, onEdit }: Pro
             </Button>
           ) : null}
           {canComplete ? (
-            <Button
-              type="button"
-              className="w-full justify-start"
-              variant="outline"
-              disabled={pending}
-              onClick={() => handleStatus(AppointmentStatus.COMPLETED, 'markedCompleted')}
-            >
-              <Check className="me-2 size-4" />
-              {tActions('complete')}
+            // Post-Prompt 9: completing an appointment requires writing
+            // a session note. The button navigates to the SOAP form;
+            // saving the note transitions the appointment to COMPLETED
+            // in the same transaction. Admin-override for backfilling
+            // without a note is intentionally not exposed in this UI.
+            <Button asChild className="w-full justify-start" variant="outline" disabled={pending}>
+              <Link href={`/therapist/sessions/${appointment.id}/note/new` as `/${string}`}>
+                <Check className="me-2 size-4" />
+                {tActions('complete')}
+              </Link>
             </Button>
           ) : null}
           {canNoShow ? (

@@ -1,8 +1,10 @@
 import { setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
+import { auth } from '@/auth';
 import { PatientFilePage } from '@/components/patients/PatientFilePage';
 import { getPatientPlanState } from '@/lib/clinical/plans/queries';
+import { listSessionNotesForPatient } from '@/lib/clinical/session-notes/queries';
 import { listIntakesForPatient } from '@/lib/intake/queries';
 import { ensureCanReadPatient } from '@/lib/patients/access';
 import { getPatientFile } from '@/lib/patients/queries';
@@ -18,11 +20,13 @@ export default async function DoctorPatientFilePage({
   setRequestLocale(locale);
   await requirePermission('patients.read.assigned');
   await ensureCanReadPatient(id);
-  const [patient, activity, intakes, planState] = await Promise.all([
+  const session = await auth();
+  const [patient, activity, intakes, planState, notes] = await Promise.all([
     getPatientFile(id),
     listPatientActivity(id),
     listIntakesForPatient(id),
     getPatientPlanState(id),
+    listSessionNotesForPatient(id),
   ]);
   if (!patient) notFound();
   return (
@@ -35,7 +39,9 @@ export default async function DoctorPatientFilePage({
       canResetPassword={false}
       locale={locale === 'ar' ? 'ar' : 'en'}
       planState={planState}
+      notes={notes}
       viewerRole="DOCTOR"
+      actorId={session?.user?.id ?? ''}
     />
   );
 }

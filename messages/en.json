@@ -820,6 +820,36 @@
         "exercisesRequired": "A plan must include at least one exercise.",
         "rejectReason": "Rejection reason must be at least 5 characters."
       }
+    },
+    "notes": {
+      "newNoteTitle": "Write session note",
+      "newNoteSubtitle": "Saving the note transitions the appointment to Completed.",
+      "editNoteTitle": "Edit session note",
+      "addendumTitle": "Add addendum",
+      "addendumSubtitle": "Addenda are how corrections after the 24-hour window are recorded.",
+      "editWindowOpen": "You can edit this note for the next 24 hours.",
+      "editWindowClosed": "This note is older than 24 hours and can no longer be edited. Use \"Add addendum\" to record a correction.",
+      "appointment": "Appointment",
+      "patient": "Patient",
+      "subjective": "Subjective",
+      "objective": "Objective",
+      "assessment": "Assessment",
+      "planField": "Plan",
+      "measurements": "Measurements",
+      "measurementsPlaceholder": "Free-form measurements (ROM, strength, range, etc.). Pre-structured fields are intentionally not added until we have data on what therapists actually write here.",
+      "painScore": "Pain score",
+      "painScoreHint": "0 = no pain, 10 = worst imaginable.",
+      "save": "Save note",
+      "update": "Update note",
+      "saveAddendum": "Save addendum",
+      "cancel": "Cancel",
+      "createdToast": "Session note saved. Appointment marked complete.",
+      "updatedToast": "Session note updated.",
+      "addendumToast": "Addendum saved.",
+      "empty": "No session notes yet.",
+      "edit": "Edit",
+      "addAddendum": "Add addendum",
+      "addendaHeading": "Addenda"
     }
   }
 }
