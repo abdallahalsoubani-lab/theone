@@ -850,6 +850,44 @@
       "edit": "Edit",
       "addAddendum": "Add addendum",
       "addendaHeading": "Addenda"
+    },
+    "reports": {
+      "endOfDayTitle": "End-of-day report",
+      "endOfDaySubtitle": "Review today's completed appointments. Editable per-patient notes and an overall summary; submission notifies responsible doctors.",
+      "date": "Date",
+      "overallSummary": "Overall summary",
+      "submit": "Submit report",
+      "submittedToast": "Day report submitted.",
+      "noCompletedAppointments": "No completed appointments today. Complete an appointment from the calendar to surface it here.",
+      "weeklyReviewTitle": "Weekly review",
+      "weekOf": "Week of",
+      "noDayReports": "No day reports this week yet.",
+      "entries": "entries",
+      "addReview": "Add review",
+      "reviewAddedToast": "Review added.",
+      "reviewPlaceholder": "Comment on this patient's week (≥ 10 chars). Reviews are immutable once submitted.",
+      "commentMinLength": "Comment must be at least 10 characters."
+    },
+    "dashboard": {
+      "doctorTitle": "Doctor dashboard",
+      "therapistTitle": "Therapist dashboard",
+      "activePatients": "Active patients",
+      "pendingProposals": "Pending proposals",
+      "weekNotes": "Notes this week",
+      "unreadNotifs": "Unread notifications",
+      "pendingProposalsHeading": "Pending proposals",
+      "noPendingProposals": "No proposals to review.",
+      "recentDayReportsHeading": "Recent day reports",
+      "noDayReports": "No recent day reports.",
+      "openWeeklyReview": "Open weekly review →",
+      "todayAppts": "Today’s appointments",
+      "pendingNotes": "Pending session notes",
+      "assignedPatients": "Assigned patients",
+      "todayScheduleHeading": "Today’s schedule",
+      "noAppointmentsToday": "No appointments today.",
+      "pendingNotesHeading": "Sessions awaiting a note",
+      "noPendingNotes": "No outstanding session notes.",
+      "openEndOfDay": "Open end-of-day report →"
     }
   }
 }

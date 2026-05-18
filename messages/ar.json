@@ -850,6 +850,44 @@
       "edit": "تعديل",
       "addAddendum": "إضافة ملاحظة تكميلية",
       "addendaHeading": "الملاحظات التكميلية"
+    },
+    "reports": {
+      "endOfDayTitle": "تقرير نهاية اليوم",
+      "endOfDaySubtitle": "راجع المواعيد المكتملة اليوم. ملاحظات قابلة للتعديل لكل مريض وملخص عام؛ التقديم يُخطر الأطباء المسؤولين.",
+      "date": "التاريخ",
+      "overallSummary": "الملخص العام",
+      "submit": "تقديم التقرير",
+      "submittedToast": "تم تقديم تقرير اليوم.",
+      "noCompletedAppointments": "لا توجد مواعيد مكتملة اليوم. أكمل موعداً من التقويم ليظهر هنا.",
+      "weeklyReviewTitle": "المراجعة الأسبوعية",
+      "weekOf": "أسبوع",
+      "noDayReports": "لا توجد تقارير يومية هذا الأسبوع بعد.",
+      "entries": "إدخالات",
+      "addReview": "إضافة مراجعة",
+      "reviewAddedToast": "تمت إضافة المراجعة.",
+      "reviewPlaceholder": "علّق على أسبوع هذا المريض (≥ 10 أحرف). المراجعات غير قابلة للتعديل بعد التقديم.",
+      "commentMinLength": "يجب أن تكون المراجعة 10 أحرف على الأقل."
+    },
+    "dashboard": {
+      "doctorTitle": "لوحة الطبيب",
+      "therapistTitle": "لوحة المعالج",
+      "activePatients": "المرضى النشطون",
+      "pendingProposals": "الاقتراحات قيد المراجعة",
+      "weekNotes": "ملاحظات هذا الأسبوع",
+      "unreadNotifs": "الإشعارات غير المقروءة",
+      "pendingProposalsHeading": "الاقتراحات قيد المراجعة",
+      "noPendingProposals": "لا توجد اقتراحات للمراجعة.",
+      "recentDayReportsHeading": "تقارير اليوم الأخيرة",
+      "noDayReports": "لا توجد تقارير حديثة.",
+      "openWeeklyReview": "فتح المراجعة الأسبوعية ←",
+      "todayAppts": "مواعيد اليوم",
+      "pendingNotes": "ملاحظات جلسة معلقة",
+      "assignedPatients": "المرضى المسؤول عنهم",
+      "todayScheduleHeading": "جدول اليوم",
+      "noAppointmentsToday": "لا توجد مواعيد اليوم.",
+      "pendingNotesHeading": "جلسات بانتظار ملاحظة",
+      "noPendingNotes": "لا توجد ملاحظات جلسة معلقة.",
+      "openEndOfDay": "فتح تقرير نهاية اليوم ←"
     }
   }
 }
