@@ -59,6 +59,7 @@ export async function seedDevData(db: PrismaClient): Promise<void> {
   await seedTreatmentPlans(db, patients, staff);
   await seedHomeProgram(db, patients, exercises);
   await seedLeave(db, staff);
+  await seedClinicalReports(db, patients, staff, appointments);
 }
 
 async function loadSpecialties(db: PrismaClient) {
@@ -578,8 +579,12 @@ async function seedSessionNotes(
     .slice(0, 3);
   for (let i = 0; i < completed.length; i++) {
     const a = completed[i]!;
+    // Post-Prompt 9 the unique on (appointmentId) is partial (primary
+    // notes only), so we upsert by deterministic id instead. The dev
+    // seed still creates exactly one primary note per completed
+    // appointment.
     await db.sessionNote.upsert({
-      where: { appointmentId: a.id },
+      where: { id: `seed-note-${a.id}` },
       update: {},
       create: {
         id: `seed-note-${a.id}`,
@@ -635,6 +640,127 @@ async function seedTreatmentPlans(
       status: PlanStatus.COMPLETED,
     },
   });
+
+  // A PROPOSED revision off the active plan — gives the Doctor a
+  // dashboard entry to triage on a fresh clone (Prompt 9 §4.4-§4.5).
+  // Targets a different patient than the active plan to avoid tripping
+  // the (patientId WHERE PROPOSED) partial unique on re-seed.
+  const proposalTarget = patients[2];
+  if (proposalTarget) {
+    await db.treatmentPlan.upsert({
+      where: { id: 'seed-plan-proposed-parent' },
+      update: {},
+      create: {
+        id: 'seed-plan-proposed-parent',
+        patientId: proposalTarget.id,
+        doctorId: staff.doctor,
+        assignedTherapistId: staff.therapists.ahmad,
+        diagnosisPrimary: 'Cervical strain, chronic',
+        goalsShortTerm: 'Reduce pain to 3/10 within two weeks.',
+        goalsLongTerm: 'Restore full cervical range of motion.',
+        frequencyPerWeek: 2,
+        durationWeeks: 6,
+        status: PlanStatus.ACTIVE,
+        therapistNotes: 'Avoid end-range cervical extension until weeks 3-4.',
+      },
+    });
+    await db.treatmentPlan.upsert({
+      where: { id: 'seed-plan-proposed-child' },
+      update: {},
+      create: {
+        id: 'seed-plan-proposed-child',
+        patientId: proposalTarget.id,
+        doctorId: staff.doctor,
+        assignedTherapistId: staff.therapists.ahmad,
+        parentPlanId: 'seed-plan-proposed-parent',
+        version: 2,
+        diagnosisPrimary: 'Cervical strain, chronic',
+        goalsShortTerm: 'Reduce pain to 3/10 within two weeks.',
+        goalsLongTerm: 'Restore full cervical range of motion.',
+        frequencyPerWeek: 3,
+        durationWeeks: 6,
+        status: PlanStatus.PROPOSED,
+        therapistNotes: 'Avoid end-range cervical extension until weeks 3-4.',
+        proposalReason: 'Patient tolerating sessions well — request to add a third weekly slot.',
+      },
+    });
+  }
+}
+
+async function seedClinicalReports(
+  db: PrismaClient,
+  patients: ReadonlyArray<PatientDef>,
+  staff: StaffIds,
+  appointments: ReadonlyArray<{
+    id: string;
+    patientId: string;
+    therapistId: string;
+    status: AppointmentStatus;
+  }>,
+) {
+  // Yesterday's day report from one of the therapists, covering the
+  // session notes that touch that day. Date stored as midnight UTC to
+  // match Postgres DATE semantics.
+  const yesterday = new Date();
+  yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+  yesterday.setUTCHours(0, 0, 0, 0);
+
+  const therapistDayEntries = appointments
+    .filter(
+      (a) => a.status === AppointmentStatus.COMPLETED && a.therapistId === staff.therapists.ahmad,
+    )
+    .slice(0, 2)
+    .map((a) => ({
+      patientId: a.patientId,
+      appointmentId: a.id,
+      note: 'Completed session. Patient tolerated all exercises; see session note for ROM measurements.',
+    }));
+
+  if (therapistDayEntries.length > 0) {
+    const existing = await db.dayReport.findUnique({
+      where: { therapistId_date: { therapistId: staff.therapists.ahmad, date: yesterday } },
+    });
+    if (!existing) {
+      await db.dayReport.create({
+        data: {
+          id: 'seed-day-report-yesterday',
+          therapistId: staff.therapists.ahmad,
+          date: yesterday,
+          overallSummary:
+            'Steady day — both patients progressing per plan. No adverse events. ' +
+            'Recommend continuing current frequency for the lumbar patient.',
+          patientEntries: therapistDayEntries,
+        },
+      });
+    }
+  }
+
+  // A doctor review from last week, attached to whichever patient the
+  // doctor day-reported on (or the first patient if no day-report rows
+  // landed).
+  const reviewPatient = therapistDayEntries[0]?.patientId ?? patients[0]?.id ?? null;
+  if (reviewPatient) {
+    const weekStarting = new Date();
+    weekStarting.setUTCDate(weekStarting.getUTCDate() - 7);
+    weekStarting.setUTCHours(0, 0, 0, 0);
+
+    const existing = await db.doctorReview.findFirst({
+      where: { doctorId: staff.doctor, patientId: reviewPatient, weekStarting },
+    });
+    if (!existing) {
+      await db.doctorReview.create({
+        data: {
+          id: 'seed-doctor-review-1',
+          doctorId: staff.doctor,
+          patientId: reviewPatient,
+          weekStarting,
+          comment:
+            'Solid week. Pain trajectory is on track; continue with current plan. ' +
+            'Re-evaluate need for cervical traction at the two-week mark.',
+        },
+      });
+    }
+  }
 }
 
 async function seedHomeProgram(

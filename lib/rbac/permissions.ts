@@ -50,12 +50,22 @@ export const PERMISSIONS = {
   TREATMENT_PLANS_READ_ASSIGNED: 'treatment_plans.read.assigned',
   TREATMENT_PLANS_UPDATE_OWN: 'treatment_plans.update.own', // doctor — own
   TREATMENT_PLANS_UPDATE_ASSIGNED: 'treatment_plans.update.assigned', // therapist
+  // Proposal workflow (Prompt 9 §4.4-§4.5). 2-segment codes to match the
+  // can() parser; the "assigned-therapist-only" guard is enforced inside
+  // each action via the resource-scope check in lib/clinical/plans.
+  TREATMENT_PLANS_PROPOSE: 'treatment_plans.propose',
+  TREATMENT_PLANS_APPROVE: 'treatment_plans.approve',
+  TREATMENT_PLANS_REJECT: 'treatment_plans.reject',
+  TREATMENT_PLANS_PAUSE: 'treatment_plans.pause',
+  TREATMENT_PLANS_COMPLETE: 'treatment_plans.complete',
+  TREATMENT_PLANS_DISCONTINUE: 'treatment_plans.discontinue',
 
   // ── Session notes ─────────────────────────────────────────────────────
   SESSION_NOTES_CREATE_OWN: 'session_notes.create.own', // therapist
   SESSION_NOTES_READ: 'session_notes.read', // secretary + admin
   SESSION_NOTES_READ_ASSIGNED: 'session_notes.read.assigned', // doctor / therapist
   SESSION_NOTES_UPDATE_OWN: 'session_notes.update.own', // therapist (within 24h)
+  SESSION_NOTES_ADDENDUM: 'session_notes.addendum', // therapist + doctor + admin
 
   // ── Patient timeline ─────────────────────────────────────────────────
   PATIENT_TIMELINE_READ: 'patient_timeline.read', // secretary + admin (full)
@@ -85,9 +95,25 @@ export const PERMISSIONS = {
   LEAVES_UPDATE: 'leaves.update',
   LEAVES_DELETE: 'leaves.delete',
 
-  // ── Reports ───────────────────────────────────────────────────────────
+  // ── Reports (end-of-day + end-of-week, Prompt 9) ─────────────────────
   REPORTS_READ: 'reports.read',
   REPORTS_READ_OWN: 'reports.read.own', // therapist — own end-of-day
+  REPORTS_SUBMIT: 'reports.submit', // therapist — submit a DayReport
+  REPORTS_REVIEW: 'reports.review', // doctor — weekly review page
+
+  // ── Doctor reviews (Prompt 9) ─────────────────────────────────────────
+  DOCTOR_REVIEWS_CREATE: 'doctor_reviews.create',
+  DOCTOR_REVIEWS_READ_ASSIGNED: 'doctor_reviews.read.assigned',
+
+  // ── Patient timeline (Prompt 9) ──────────────────────────────────────
+  // Aggregated clinical narrative — read-only by design. The .assigned
+  // variant is the clinical default; secretary/admin get the unscoped
+  // variant via the existing PATIENT_TIMELINE_READ code from Prompt 6.
+  TIMELINE_READ_ASSIGNED: 'timeline.read.assigned',
+
+  // ── Notifications (everyone gets their own; Prompt 9) ─────────────────
+  NOTIFICATIONS_READ_OWN: 'notifications.read.own',
+  NOTIFICATIONS_MARK_READ_OWN: 'notifications.mark_read.own',
 
   // ── Rooms (read for all staff, mutations admin-only — Prompt 5 §4.7) ─
   // rooms.read is shared with the calendar so the appointment form (Prompt 7)
@@ -158,6 +184,8 @@ const PATIENT_PERMS = new Set<PermissionCode>([
   PERMISSIONS.PATIENTS_READ_OWN,
   PERMISSIONS.PATIENTS_UPDATE_OWN,
   PERMISSIONS.INTAKE_READ_OWN,
+  PERMISSIONS.NOTIFICATIONS_READ_OWN,
+  PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN,
 ]);
 
 const SECRETARY_PERMS = new Set<PermissionCode>([
@@ -192,6 +220,8 @@ const SECRETARY_PERMS = new Set<PermissionCode>([
   PERMISSIONS.INTAKE_UPDATE,
   PERMISSIONS.INBOX_READ,
   PERMISSIONS.INBOX_RESOLVE,
+  PERMISSIONS.NOTIFICATIONS_READ_OWN,
+  PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN,
 ]);
 
 const DOCTOR_PERMS = new Set<PermissionCode>([
@@ -202,15 +232,27 @@ const DOCTOR_PERMS = new Set<PermissionCode>([
   PERMISSIONS.TREATMENT_PLANS_CREATE,
   PERMISSIONS.TREATMENT_PLANS_READ_ASSIGNED,
   PERMISSIONS.TREATMENT_PLANS_UPDATE_OWN,
+  PERMISSIONS.TREATMENT_PLANS_APPROVE,
+  PERMISSIONS.TREATMENT_PLANS_REJECT,
+  PERMISSIONS.TREATMENT_PLANS_PAUSE,
+  PERMISSIONS.TREATMENT_PLANS_COMPLETE,
+  PERMISSIONS.TREATMENT_PLANS_DISCONTINUE,
   PERMISSIONS.SESSION_NOTES_READ_ASSIGNED,
+  PERMISSIONS.SESSION_NOTES_ADDENDUM,
   PERMISSIONS.PATIENT_TIMELINE_READ_ASSIGNED,
+  PERMISSIONS.TIMELINE_READ_ASSIGNED,
   PERMISSIONS.HOME_PROGRAM_READ,
   PERMISSIONS.LEAVES_CREATE_OWN,
   PERMISSIONS.LEAVES_READ_OWN,
   PERMISSIONS.REPORTS_READ,
+  PERMISSIONS.REPORTS_REVIEW,
+  PERMISSIONS.DOCTOR_REVIEWS_CREATE,
+  PERMISSIONS.DOCTOR_REVIEWS_READ_ASSIGNED,
   PERMISSIONS.ROOMS_READ,
   PERMISSIONS.PATIENTS_READ_ASSIGNED,
   PERMISSIONS.INTAKE_READ_ASSIGNED,
+  PERMISSIONS.NOTIFICATIONS_READ_OWN,
+  PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN,
 ]);
 
 const THERAPIST_PERMS = new Set<PermissionCode>([
@@ -221,10 +263,13 @@ const THERAPIST_PERMS = new Set<PermissionCode>([
   PERMISSIONS.APPOINTMENTS_STATUS_COMPLETE,
   PERMISSIONS.TREATMENT_PLANS_READ_ASSIGNED,
   PERMISSIONS.TREATMENT_PLANS_UPDATE_ASSIGNED,
+  PERMISSIONS.TREATMENT_PLANS_PROPOSE,
   PERMISSIONS.SESSION_NOTES_CREATE_OWN,
   PERMISSIONS.SESSION_NOTES_READ_ASSIGNED,
   PERMISSIONS.SESSION_NOTES_UPDATE_OWN,
+  PERMISSIONS.SESSION_NOTES_ADDENDUM,
   PERMISSIONS.PATIENT_TIMELINE_READ_ASSIGNED,
+  PERMISSIONS.TIMELINE_READ_ASSIGNED,
   PERMISSIONS.HOME_PROGRAM_READ,
   PERMISSIONS.HOME_PROGRAM_CREATE_ASSIGNED,
   PERMISSIONS.HOME_PROGRAM_UPDATE_ASSIGNED,
@@ -234,9 +279,12 @@ const THERAPIST_PERMS = new Set<PermissionCode>([
   PERMISSIONS.LEAVES_CREATE_OWN,
   PERMISSIONS.LEAVES_READ_OWN,
   PERMISSIONS.REPORTS_READ_OWN,
+  PERMISSIONS.REPORTS_SUBMIT,
   PERMISSIONS.ROOMS_READ,
   PERMISSIONS.PATIENTS_READ_ASSIGNED,
   PERMISSIONS.INTAKE_READ_ASSIGNED,
+  PERMISSIONS.NOTIFICATIONS_READ_OWN,
+  PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN,
 ]);
 
 const ADMIN_PERMS = new Set<PermissionCode>([
@@ -264,6 +312,24 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.LEAVES_UPDATE,
   PERMISSIONS.LEAVES_DELETE,
   PERMISSIONS.REPORTS_READ,
+  PERMISSIONS.REPORTS_SUBMIT,
+  PERMISSIONS.REPORTS_REVIEW,
+  PERMISSIONS.TREATMENT_PLANS_CREATE,
+  PERMISSIONS.TREATMENT_PLANS_UPDATE_OWN,
+  PERMISSIONS.TREATMENT_PLANS_PROPOSE,
+  PERMISSIONS.TREATMENT_PLANS_APPROVE,
+  PERMISSIONS.TREATMENT_PLANS_REJECT,
+  PERMISSIONS.TREATMENT_PLANS_PAUSE,
+  PERMISSIONS.TREATMENT_PLANS_COMPLETE,
+  PERMISSIONS.TREATMENT_PLANS_DISCONTINUE,
+  PERMISSIONS.SESSION_NOTES_CREATE_OWN,
+  PERMISSIONS.SESSION_NOTES_UPDATE_OWN,
+  PERMISSIONS.SESSION_NOTES_ADDENDUM,
+  PERMISSIONS.DOCTOR_REVIEWS_CREATE,
+  PERMISSIONS.DOCTOR_REVIEWS_READ_ASSIGNED,
+  PERMISSIONS.TIMELINE_READ_ASSIGNED,
+  PERMISSIONS.NOTIFICATIONS_READ_OWN,
+  PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN,
   PERMISSIONS.WHATSAPP_TEMPLATES_CREATE,
   PERMISSIONS.WHATSAPP_TEMPLATES_READ,
   PERMISSIONS.WHATSAPP_TEMPLATES_UPDATE,

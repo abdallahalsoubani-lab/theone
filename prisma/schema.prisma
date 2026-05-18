@@ -64,9 +64,24 @@ enum CancellationCategory {
 
 enum PlanStatus {
   ACTIVE
+  PROPOSED
+  REJECTED
+  SUPERSEDED
   PAUSED
   COMPLETED
   DISCONTINUED
+}
+
+enum NotificationType {
+  PLAN_ASSIGNED
+  PLAN_PROPOSAL_RECEIVED
+  PLAN_PROPOSAL_APPROVED
+  PLAN_PROPOSAL_REJECTED
+  PLAN_PAUSED
+  PLAN_DISCONTINUED
+  DAY_REPORT_SUBMITTED
+  DOCTOR_REVIEW_ADDED
+  APPOINTMENT_RESCHEDULE_REQUEST
 }
 
 enum LeaveType {
@@ -288,6 +303,11 @@ model User {
   intakesAsReviewer        IntakeAssessment[]     @relation("IntakeReviewer")
   customQuestionsCreated   IntakeCustomQuestion[] @relation("CustomQuestionCreatedBy")
   clinicSettingsUpdates    ClinicSettings[]       @relation("ClinicSettingsUpdatedBy")
+  notifications            Notification[]         @relation("UserNotifications")
+  treatmentPlansApproved   TreatmentPlan[]        @relation("PlanApprovals")
+  dayReports               DayReport[]            @relation("TherapistDayReports")
+  doctorReviewsAsDoctor    DoctorReview[]         @relation("DoctorReviews")
+  doctorReviewsAsPatient   DoctorReview[]         @relation("PatientDoctorReviews")
 
   // Note: real `phone` and `email` uniqueness scoped to non-deleted rows is enforced
   // by partial unique indexes in the init migration (Prisma can't express them).
@@ -388,7 +408,11 @@ model Appointment {
   therapist   User         @relation("AppointmentTherapist", fields: [therapistId], references: [id], onDelete: Restrict)
   room        Room?        @relation(fields: [roomId], references: [id], onDelete: Restrict)
   createdBy   User         @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  sessionNote SessionNote?
+  // Primary session note + 0..N addenda (Prompt 9 §4.7.3). The partial
+  // unique index on SessionNote.appointmentId enforces "at most one
+  // primary note per appointment"; addenda share the appointmentId via
+  // their parentNoteId chain.
+  sessionNotes SessionNote[]
 
   whatsappMessages WhatsAppMessage[]
   inboxItems       InboxItem[]
@@ -416,6 +440,21 @@ model TreatmentPlan {
   status              PlanStatus @default(ACTIVE)
   version             Int        @default(1)
   parentPlanId        String?
+  // Free-form notes the Doctor wants the Therapist to read. Optional;
+  // distinct from goals so the therapist sees "execution guidance" vs.
+  // "clinical objectives" cleanly.
+  therapistNotes      String?
+
+  // Proposal lifecycle (Prompt 9 §4.4). Set when a Therapist proposes a
+  // change to the active plan via a new row with status=PROPOSED.
+  proposalReason String?
+  // Set when the Doctor rejects a proposal — visible to the Therapist
+  // so they can see why.
+  rejectedReason String?
+  // Approval audit (set when a PROPOSED row transitions to ACTIVE).
+  approvedAt   DateTime?
+  approvedById String?
+  approvedBy   User?     @relation("PlanApprovals", fields: [approvedById], references: [id], onDelete: SetNull)
 
   patient           User            @relation("PlanPatient", fields: [patientId], references: [id], onDelete: Restrict)
   doctor            User            @relation("PlanDoctor", fields: [doctorId], references: [id], onDelete: Restrict)
@@ -429,9 +468,11 @@ model TreatmentPlan {
 
   // Only one ACTIVE plan per patient — enforced by a partial unique index added in
   // the init migration's raw SQL extension (Prisma can't express WHERE on indexes).
+  // Prompt 9 adds a second partial unique: at most one PROPOSED plan per patient.
   @@index([patientId, status])
   @@index([assignedTherapistId])
   @@index([doctorId])
+  @@index([approvedById])
 }
 
 model PlanExercise {
@@ -477,7 +518,10 @@ model Exercise {
 
 model SessionNote {
   id            String @id @default(cuid())
-  appointmentId String @unique
+  // appointmentId is unique for *primary* notes only — addenda share the
+  // appointment with their parent. Enforced by a partial unique index in
+  // the Prompt 9 migration: UNIQUE (appointmentId) WHERE parentNoteId IS NULL.
+  appointmentId String
   patientId     String
   therapistId   String
   subjective    String
@@ -486,16 +530,24 @@ model SessionNote {
   plan          String
   painScore     Int?
   measurements  Json?
+  // Addendum chain (Prompt 9 §4.7.3). When non-null, this row is an
+  // amendment that points at its parent primary note. The 24-hour
+  // immutability rule applies to the row itself, not the chain.
+  parentNoteId  String?
 
-  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
-  patient     User        @relation("NotePatient", fields: [patientId], references: [id], onDelete: Restrict)
-  therapist   User        @relation("NoteTherapist", fields: [therapistId], references: [id], onDelete: Restrict)
+  appointment Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  patient     User          @relation("NotePatient", fields: [patientId], references: [id], onDelete: Restrict)
+  therapist   User          @relation("NoteTherapist", fields: [therapistId], references: [id], onDelete: Restrict)
+  parentNote  SessionNote?  @relation("SessionNoteAddenda", fields: [parentNoteId], references: [id], onDelete: Restrict)
+  addenda     SessionNote[] @relation("SessionNoteAddenda")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([patientId, createdAt])
   @@index([therapistId, createdAt])
+  @@index([appointmentId])
+  @@index([parentNoteId])
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -680,6 +732,86 @@ model InboxItem {
   @@index([patientId, createdAt(sort: Desc)])
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+//  Clinical workflows — notifications, day reports, doctor reviews (Prompt 9).
+//
+//  Notifications: a generic in-app delivery surface. Clinical events
+//  (plan assigned, proposal received, day report submitted, …) fan out
+//  one row per recipient. Patient-facing channels stay separate; nothing
+//  here goes to WhatsApp in v1.
+//
+//  DayReport: one row per therapist per day. Holds the therapist's
+//  end-of-day summary plus per-patient notes; the doctor's weekly review
+//  page aggregates these grouped by patient.
+//
+//  DoctorReview: doctor's per-patient clinical commentary written during
+//  the weekly review pass. Immutable once submitted; a second row for the
+//  same (doctor, patient, weekStarting) is allowed as an amendment.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model Notification {
+  id                String           @id @default(cuid())
+  recipientId       String
+  recipient         User             @relation("UserNotifications", fields: [recipientId], references: [id], onDelete: Cascade)
+  type              NotificationType
+  // i18n keys — the bell renderer reads `notifications.types.{type}.title`
+  // and `.body` and interpolates `params` into the template.
+  titleKey          String
+  bodyKey           String
+  // {paramKey: value} pairs the renderer substitutes into the localized
+  // text. Strongly recommend keeping the param set narrow per type so
+  // the templates don't drift.
+  params            Json             @default("{}")
+  linkPath          String?
+  relatedEntityType String?
+  relatedEntityId   String?
+  readAt            DateTime?
+
+  createdAt DateTime @default(now())
+
+  // Compound index supporting "unread count for me" + "my latest
+  // notifications", which are the two reads we do on every page load.
+  @@index([recipientId, readAt, createdAt(sort: Desc)])
+}
+
+model DayReport {
+  id             String   @id @default(cuid())
+  therapistId    String
+  therapist      User     @relation("TherapistDayReports", fields: [therapistId], references: [id], onDelete: Restrict)
+  // Date the report covers. Stored as @db.Date so date-only comparisons
+  // are timezone-stable (no midnight-rollover bugs across DST).
+  date           DateTime @db.Date
+  overallSummary String
+  // [{patientId, appointmentId, note}] — keyed by patientId for the
+  // doctor's weekly grouping. Schema-validated at the action boundary.
+  patientEntries Json
+  submittedAt    DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Upsert key — submitting twice on the same date overwrites rather
+  // than duplicates.
+  @@unique([therapistId, date])
+  @@index([date])
+}
+
+model DoctorReview {
+  id           String   @id @default(cuid())
+  doctorId     String
+  doctor       User     @relation("DoctorReviews", fields: [doctorId], references: [id], onDelete: Restrict)
+  patientId    String
+  patient      User     @relation("PatientDoctorReviews", fields: [patientId], references: [id], onDelete: Restrict)
+  // Start of the ISO week the review covers (Monday by convention).
+  weekStarting DateTime @db.Date
+  comment      String
+
+  createdAt DateTime @default(now())
+
+  @@index([patientId, createdAt(sort: Desc)])
+  @@index([doctorId, weekStarting])
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 //  Audit log
 // ═════════════════════════════════════════════════════════════════════════════
@@ -845,6 +977,12 @@ model ClinicSettings {
   serviceTypes Json
 
   hijriDefault Boolean @default(false)
+
+  // Whether patients can see clinical content (treatment plan, session
+  // notes) in their own file. Default OFF per Prompt 9 §3 — many PT
+  // practices share openly, others don't. A small UI toggle on the
+  // Clinic Settings page from Prompt 5 covers this.
+  patientCanViewClinicalNotes Boolean @default(false)
 
   updatedAt   DateTime @updatedAt
   updatedById String?
