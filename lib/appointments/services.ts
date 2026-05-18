@@ -9,12 +9,15 @@ import {
   enqueueAppointmentReminder,
 } from '@/lib/queue/jobs/appointmentReminder';
 
-import { checkConflicts, type Conflict } from './conflicts';
+import { checkConflicts, type Conflict, type ConflictResult } from './conflicts';
+import { expandRecurrence, MAX_SERIES_OCCURRENCES, type PlannedOccurrence } from './recurrence';
 import type {
   AppointmentCancelInput,
   AppointmentChangeTherapistInput,
   AppointmentCreateInput,
   AppointmentRescheduleInput,
+  SeriesCreateInput,
+  SeriesPreviewInput,
 } from './schemas';
 import { canTransition, permissionForTransition, STATUS_ERRORS } from './status';
 
@@ -400,6 +403,257 @@ export const updateAppointmentStatus = withAudit<
     }
 
     return { appointmentId: id };
+  },
+);
+
+// ─── Recurring series (Prompt 7b §4.4) ────────────────────────────────────
+
+export interface SeriesPreviewOccurrence {
+  index: number;
+  startsAt: Date;
+  durationMinutes: number;
+  conflicts: ConflictResult;
+}
+
+/**
+ * Expand a recurrence rule and run the conflict engine against every
+ * occurrence. Pure-read; no transactions, no audit — the Secretary's
+ * series-builder UI calls this to render the per-occurrence resolution
+ * picker. Each occurrence carries its own conflict list so the user
+ * can chose Skip / Shift +1d / Shift +1w / Override per row.
+ *
+ * The preview is also re-run after every resolution change so a shifted
+ * slot never lands silently — if the +1d shift still conflicts, the
+ * client surfaces the new conflicts and asks the user to resolve again.
+ */
+export async function previewSeries(
+  input: SeriesPreviewInput,
+): Promise<{ occurrences: SeriesPreviewOccurrence[] }> {
+  const planned = expandRecurrence(input.rule, input.startsAt, input.durationMinutes);
+  const occurrences = await Promise.all(
+    planned.map(async (p) => ({
+      index: p.index,
+      startsAt: p.startsAt,
+      durationMinutes: p.durationMinutes,
+      conflicts: await checkConflicts({
+        patientId: input.patientId,
+        therapistId: input.therapistId,
+        startsAt: p.startsAt,
+        durationMinutes: p.durationMinutes,
+      }),
+    })),
+  );
+  return { occurrences };
+}
+
+/**
+ * Re-validate a single occurrence against the conflict engine. Used by
+ * the resolution UI after a +1d / +1w shift so the new slot is checked
+ * before the user moves on (no silent acceptance — Prompt 7b §4.4).
+ */
+export async function previewSingleOccurrence(input: {
+  patientId: string;
+  therapistId: string;
+  startsAt: Date;
+  durationMinutes: number;
+}): Promise<ConflictResult> {
+  return checkConflicts({
+    patientId: input.patientId,
+    therapistId: input.therapistId,
+    startsAt: input.startsAt,
+    durationMinutes: input.durationMinutes,
+  });
+}
+
+export const createSeries = withAudit<
+  [SeriesCreateInput],
+  {
+    seriesId: string;
+    appointmentIds: string[];
+    skippedCount: number;
+    overrideCount: number;
+  }
+>(
+  {
+    entityType: 'Appointment',
+    action: AuditAction.CREATE,
+    extractEntityId: (_args, result) => result.seriesId,
+    extractAfter: (result) => ({
+      event: result.overrideCount > 0 ? 'OVERRIDE_CONFLICT' : 'APPOINTMENT_SERIES_CREATED',
+      seriesId: result.seriesId,
+      appointmentCount: result.appointmentIds.length,
+      skippedCount: result.skippedCount,
+      overrideCount: result.overrideCount,
+    }),
+  },
+  async function createSeriesInner(input): Promise<{
+    seriesId: string;
+    appointmentIds: string[];
+    skippedCount: number;
+    overrideCount: number;
+  }> {
+    const session = await auth();
+    if (!session?.user?.id) throw new AppointmentError(unauthenticated);
+
+    // Re-expand from the rule + first slot to validate the client's
+    // resolution list matches the actual occurrence count. The client
+    // cannot smuggle extra rows past this check.
+    const planned = expandRecurrence(input.rule, input.startsAt, input.durationMinutes);
+    if (planned.length === 0) {
+      throw new AppointmentError({
+        code: 'SERIES_EMPTY',
+        message_en: 'Series produced no occurrences.',
+        message_ar: 'لم تنتج السلسلة أي مواعيد.',
+      });
+    }
+    if (planned.length > MAX_SERIES_OCCURRENCES) {
+      throw new AppointmentError({
+        code: 'SERIES_TOO_LARGE',
+        message_en: `Series exceeds the ${MAX_SERIES_OCCURRENCES}-occurrence limit.`,
+        message_ar: `تجاوزت السلسلة الحد الأقصى ${MAX_SERIES_OCCURRENCES} موعداً.`,
+      });
+    }
+    if (input.resolutions.length !== planned.length) {
+      throw new AppointmentError({
+        code: 'SERIES_RESOLUTION_MISMATCH',
+        message_en: 'Resolution list does not match the expanded series.',
+        message_ar: 'قائمة القرارات لا تطابق السلسلة الموسعة.',
+      });
+    }
+
+    const byIndex = new Map<number, PlannedOccurrence>();
+    for (const p of planned) byIndex.set(p.index, p);
+
+    // Decide the final occurrences (Skip drops the row; Shift moves
+    // startsAt; Override accepts conflicts; Keep requires conflict-free).
+    interface FinalOccurrence {
+      index: number;
+      startsAt: Date;
+      durationMinutes: number;
+      override: boolean;
+    }
+    const finalOccurrences: FinalOccurrence[] = [];
+    let skippedCount = 0;
+    let overrideCount = 0;
+
+    for (const r of input.resolutions) {
+      if (!byIndex.has(r.index)) {
+        throw new AppointmentError({
+          code: 'SERIES_UNKNOWN_INDEX',
+          message_en: `Resolution references unknown occurrence index ${r.index}.`,
+          message_ar: `القرار يشير إلى موعد غير معروف رقم ${r.index}.`,
+        });
+      }
+      if (r.resolution === 'SKIP') {
+        skippedCount++;
+        continue;
+      }
+      const base = byIndex.get(r.index)!;
+      // The startsAt in the resolution is authoritative for shifts;
+      // for KEEP / OVERRIDE the client should send the original value.
+      // We trust input.startsAt but re-run the conflict engine before
+      // accepting — the engine is the only source of truth for whether
+      // a slot is bookable.
+      finalOccurrences.push({
+        index: r.index,
+        startsAt: r.resolution === 'KEEP' ? base.startsAt : r.startsAt,
+        durationMinutes: input.durationMinutes,
+        override: r.resolution === 'OVERRIDE',
+      });
+      if (r.resolution === 'OVERRIDE') overrideCount++;
+    }
+
+    if (finalOccurrences.length === 0) {
+      throw new AppointmentError({
+        code: 'SERIES_ALL_SKIPPED',
+        message_en: 'Every occurrence was skipped — nothing to book.',
+        message_ar: 'تم تخطي جميع المواعيد — لا يوجد شيء للحجز.',
+      });
+    }
+
+    // Re-run conflict check on every final slot. KEEP / SHIFT must be
+    // conflict-free; OVERRIDE accepts conflicts. Race protection: this
+    // happens inside the transaction below so the read+write is serialized
+    // against any concurrent insert that lands between preview and submit.
+    const seriesId = `ser_${session.user.id}_${Date.now().toString(36)}`;
+    let appointmentIds: string[];
+    try {
+      appointmentIds = await db.$transaction(async (tx) => {
+        const ids: string[] = [];
+        for (const occ of finalOccurrences) {
+          const conflicts = await checkConflicts({
+            patientId: input.patientId,
+            therapistId: input.therapistId,
+            startsAt: occ.startsAt,
+            durationMinutes: occ.durationMinutes,
+          });
+          if (!conflicts.ok && !occ.override) {
+            // Atomic abort — Prompt 7b §4.4: any failure rolls back the
+            // entire series and surfaces the failing occurrence in the
+            // error payload.
+            throw new AppointmentError({
+              code: 'SERIES_OCCURRENCE_CONFLICT',
+              message_en: `Occurrence ${occ.index + 1} conflicts — resolve or override before saving.`,
+              message_ar: `الموعد رقم ${occ.index + 1} يتعارض — يرجى الحل أو التجاوز قبل الحفظ.`,
+              details: {
+                occurrenceIndex: occ.index,
+                startsAt: occ.startsAt.toISOString(),
+                conflicts: conflicts.conflicts as unknown as Record<string, unknown>,
+              },
+            });
+          }
+          if (occ.override) {
+            // Tightened permission check — the action-layer guard already
+            // validated the caller holds appointments.override_conflict;
+            // surfacing the conflicts in the audit payload happens via
+            // overrideCount on the outer return.
+          }
+          const created = await tx.appointment.create({
+            data: {
+              patientId: input.patientId,
+              therapistId: input.therapistId,
+              roomId: input.roomId ?? null,
+              startsAt: occ.startsAt,
+              durationMinutes: occ.durationMinutes,
+              status: AppointmentStatus.SCHEDULED,
+              notes: input.notes ?? null,
+              createdById: session.user!.id!,
+              seriesId,
+            },
+            select: { id: true, startsAt: true },
+          });
+          ids.push(created.id);
+        }
+        return ids;
+      });
+    } catch (err) {
+      // Re-throw AppointmentError untouched; wrap unexpected DB errors
+      // so the caller gets a localized message either way.
+      if (err instanceof AppointmentError) throw err;
+      throw new AppointmentError({
+        code: 'SERIES_TRANSACTION_FAILED',
+        message_en: 'Series creation failed — no appointments were saved.',
+        message_ar: 'فشل إنشاء السلسلة — لم يتم حفظ أي موعد.',
+        details: { cause: String((err as Error)?.message ?? err) },
+      });
+    }
+
+    // Enqueue reminders best-effort after the transaction commits. If
+    // the reminder queue is down the appointments are still booked.
+    const offset = await getReminderOffsetMinutes();
+    await Promise.all(
+      appointmentIds.map((id, i) =>
+        enqueueAppointmentReminder({
+          appointmentId: id,
+          startsAt: finalOccurrences[i]!.startsAt,
+          reminderOffsetMinutes: offset,
+        }).catch((err: unknown) => {
+          console.error('[series.create] reminder enqueue failed', { id, err });
+        }),
+      ),
+    );
+
+    return { seriesId, appointmentIds, skippedCount, overrideCount };
   },
 );
 

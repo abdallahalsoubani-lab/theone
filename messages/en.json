@@ -1049,6 +1049,43 @@
       "keep": "Keep appointment",
       "confirm": "Confirm cancellation",
       "cancelledToast": "Appointment cancelled."
+    },
+    "series": {
+      "title": "Recurring appointments",
+      "subtitle": "Set the pattern, then resolve any per-occurrence conflicts before saving.",
+      "patternLegend": "Pattern",
+      "intervalLabel": "Every",
+      "intervalSuffix": "week(s)",
+      "weekdayLegend": "On these days",
+      "countLabel": "Total occurrences",
+      "previewLegend": "Occurrences",
+      "previewIntro": "{count} occurrences will be created. Resolve any conflicts below.",
+      "conflictCount": "{count} conflict(s)",
+      "noConflict": "Available",
+      "resolutionKeep": "Keep",
+      "resolutionSkip": "Skip",
+      "resolutionShift1d": "Shift +1 day",
+      "resolutionShift1w": "Shift +1 week",
+      "resolutionOverride": "Override",
+      "resolutionPending": "Resolve",
+      "weekdays": {
+        "SUN": "Sun",
+        "MON": "Mon",
+        "TUE": "Tue",
+        "WED": "Wed",
+        "THU": "Thu",
+        "FRI": "Fri",
+        "SAT": "Sat"
+      },
+      "save": "Create series",
+      "saving": "Creating…",
+      "createdToast": "Series created — {count} appointment(s) booked.",
+      "unresolvedError": "Resolve every conflicting occurrence before saving.",
+      "occurrenceFailed": "Occurrence #{index} failed: {message}",
+      "overrideNotPermitted": "You don't have permission to override conflicts.",
+      "rangeError": "Series must contain between 1 and 52 occurrences.",
+      "recurringToggle": "Recurring",
+      "switchToSingle": "Single appointment"
     }
   }
 }

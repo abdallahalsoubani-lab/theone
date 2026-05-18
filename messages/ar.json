@@ -1049,6 +1049,43 @@
       "keep": "الاحتفاظ بالموعد",
       "confirm": "تأكيد الإلغاء",
       "cancelledToast": "تم إلغاء الموعد."
+    },
+    "series": {
+      "title": "مواعيد متكررة",
+      "subtitle": "اضبط النمط ثم حل التعارضات لكل موعد قبل الحفظ.",
+      "patternLegend": "النمط",
+      "intervalLabel": "كل",
+      "intervalSuffix": "أسبوع",
+      "weekdayLegend": "في هذه الأيام",
+      "countLabel": "إجمالي المواعيد",
+      "previewLegend": "المواعيد",
+      "previewIntro": "سيتم إنشاء {count} موعد. يرجى حل التعارضات أدناه.",
+      "conflictCount": "{count} تعارض",
+      "noConflict": "متاح",
+      "resolutionKeep": "إبقاء",
+      "resolutionSkip": "تخطي",
+      "resolutionShift1d": "نقل +١ يوم",
+      "resolutionShift1w": "نقل +١ أسبوع",
+      "resolutionOverride": "تجاوز",
+      "resolutionPending": "بحاجة للحل",
+      "weekdays": {
+        "SUN": "أحد",
+        "MON": "إثنين",
+        "TUE": "ثلاثاء",
+        "WED": "أربعاء",
+        "THU": "خميس",
+        "FRI": "جمعة",
+        "SAT": "سبت"
+      },
+      "save": "إنشاء السلسلة",
+      "saving": "جاري الإنشاء…",
+      "createdToast": "تم إنشاء السلسلة — {count} موعد.",
+      "unresolvedError": "يرجى حل كل التعارضات قبل الحفظ.",
+      "occurrenceFailed": "فشل الموعد رقم {index}: {message}",
+      "overrideNotPermitted": "ليس لديك صلاحية تجاوز التعارضات.",
+      "rangeError": "يجب أن تحتوي السلسلة على ما بين 1 و 52 موعداً.",
+      "recurringToggle": "متكرر",
+      "switchToSingle": "موعد فردي"
     }
   }
 }

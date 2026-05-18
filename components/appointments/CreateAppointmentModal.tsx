@@ -19,6 +19,8 @@ import { Label } from '@/components/ui/label';
 import { createAppointmentAction, previewConflictsAction } from '@/lib/appointments/actions';
 import type { ConflictResult } from '@/lib/appointments/conflicts';
 
+import { CreateSeriesModal } from './CreateSeriesModal';
+
 interface Patient {
   id: string;
   fullNameEn: string;
@@ -71,9 +73,14 @@ export function CreateAppointmentModal({
   const tCommon = useTranslations('common');
   const tToasts = useTranslations('appointments.toasts');
   const tConflicts = useTranslations('appointments.conflicts');
+  const tSeries = useTranslations('calendar.series');
   const router = useRouter();
   const locale = useLocale();
   const [pending, startTransition] = useTransition();
+  // Recurring-series builder (Prompt 7b §4.4). The button below the
+  // standard form swaps the dialog out for the series modal — staying
+  // in the same overlay so the Secretary doesn't lose their context.
+  const [seriesOpen, setSeriesOpen] = useState(false);
 
   const [patientId, setPatientId] = useState('');
   const [therapistId, setTherapistId] = useState(defaultTherapistId ?? '');
@@ -134,153 +141,178 @@ export function CreateAppointmentModal({
     });
 
   return (
-    <Dialog open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{tCommon('save')}</DialogTitle>
-          <DialogDescription className="sr-only">{t('save')}</DialogDescription>
-        </DialogHeader>
+    <>
+      <Dialog open={open && !seriesOpen} onOpenChange={(o) => (o ? null : onClose())}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{tCommon('save')}</DialogTitle>
+            <DialogDescription className="sr-only">{t('save')}</DialogDescription>
+          </DialogHeader>
 
-        <div className="space-y-3">
-          <div className="space-y-1">
-            <Label htmlFor="appt-patient">{t('patient')}</Label>
-            <select
-              id="appt-patient"
-              value={patientId}
-              onChange={(e) => setPatientId(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">—</option>
-              {patients.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {locale === 'ar' ? p.fullNameAr : p.fullNameEn} ({p.phone})
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-3">
             <div className="space-y-1">
-              <Label htmlFor="appt-therapist">{t('therapist')}</Label>
+              <Label htmlFor="appt-patient">{t('patient')}</Label>
               <select
-                id="appt-therapist"
-                value={therapistId}
-                onChange={(e) => setTherapistId(e.target.value)}
+                id="appt-patient"
+                value={patientId}
+                onChange={(e) => setPatientId(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 <option value="">—</option>
-                {clinicians.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {locale === 'ar' ? c.fullNameAr : c.fullNameEn}
+                {patients.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {locale === 'ar' ? p.fullNameAr : p.fullNameEn} ({p.phone})
                   </option>
                 ))}
               </select>
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="appt-room">{t('room')}</Label>
-              <select
-                id="appt-room"
-                value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">—</option>
-                {rooms.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
 
-          <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label htmlFor="appt-therapist">{t('therapist')}</Label>
+                <select
+                  id="appt-therapist"
+                  value={therapistId}
+                  onChange={(e) => setTherapistId(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">—</option>
+                  {clinicians.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {locale === 'ar' ? c.fullNameAr : c.fullNameEn}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="appt-room">{t('room')}</Label>
+                <select
+                  id="appt-room"
+                  value={roomId}
+                  onChange={(e) => setRoomId(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">—</option>
+                  {rooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
+              <div className="space-y-1">
+                <Label htmlFor="appt-starts">{t('startsAt')}</Label>
+                <Input
+                  id="appt-starts"
+                  type="datetime-local"
+                  value={startsAt}
+                  onChange={(e) => setStartsAt(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="appt-duration">{t('duration')}</Label>
+                <Input
+                  id="appt-duration"
+                  type="number"
+                  inputMode="numeric"
+                  min={5}
+                  max={480}
+                  step={15}
+                  value={duration}
+                  onChange={(e) => setDuration(parseInt(e.target.value || '30', 10))}
+                />
+              </div>
+            </div>
+
             <div className="space-y-1">
-              <Label htmlFor="appt-starts">{t('startsAt')}</Label>
-              <Input
-                id="appt-starts"
-                type="datetime-local"
-                value={startsAt}
-                onChange={(e) => setStartsAt(e.target.value)}
+              <Label htmlFor="appt-notes">{t('notes')}</Label>
+              <textarea
+                id="appt-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                rows={2}
+                className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               />
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="appt-duration">{t('duration')}</Label>
-              <Input
-                id="appt-duration"
-                type="number"
-                inputMode="numeric"
-                min={5}
-                max={480}
-                step={15}
-                value={duration}
-                onChange={(e) => setDuration(parseInt(e.target.value || '30', 10))}
-              />
-            </div>
-          </div>
 
-          <div className="space-y-1">
-            <Label htmlFor="appt-notes">{t('notes')}</Label>
-            <textarea
-              id="appt-notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              rows={2}
-              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-          </div>
-
-          {hasConflicts ? (
-            <div
-              role="alert"
-              className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
-            >
-              <p className="font-medium">{tConflicts('title')}</p>
-              <ul className="list-disc ps-5 text-xs">
-                {(
-                  conflicts as {
-                    ok: false;
-                    conflicts: typeof conflicts extends { conflicts: infer C } ? C : never;
-                  }
-                ).conflicts.map((c, i) => (
-                  <li key={i}>{describeConflict(c, tConflicts, locale)}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-        </div>
-
-        <DialogFooter className="gap-2">
-          <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
-            {tCommon('cancel')}
-          </Button>
-          {hasConflicts ? (
-            canOverride ? (
-              <Button
-                type="button"
-                variant="destructive"
-                disabled={pending || !patientId || !therapistId || !startsAt}
-                onClick={() => submit(true)}
+            {hasConflicts ? (
+              <div
+                role="alert"
+                className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
               >
-                {tConflicts('overrideButton')}
-              </Button>
-            ) : (
-              <Button type="button" disabled>
-                {tConflicts('cancelButton')}
-              </Button>
-            )
-          ) : (
+                <p className="font-medium">{tConflicts('title')}</p>
+                <ul className="list-disc ps-5 text-xs">
+                  {(
+                    conflicts as {
+                      ok: false;
+                      conflicts: typeof conflicts extends { conflicts: infer C } ? C : never;
+                    }
+                  ).conflicts.map((c, i) => (
+                    <li key={i}>{describeConflict(c, tConflicts, locale)}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+
+          <DialogFooter className="gap-2">
             <Button
               type="button"
-              disabled={pending || !patientId || !therapistId || !startsAt}
-              onClick={() => submit(false)}
+              variant="ghost"
+              className="me-auto"
+              disabled={pending}
+              onClick={() => setSeriesOpen(true)}
             >
-              {t('save')}
+              {tSeries('recurringToggle')}
             </Button>
-          )}
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+            <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
+              {tCommon('cancel')}
+            </Button>
+            {hasConflicts ? (
+              canOverride ? (
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={pending || !patientId || !therapistId || !startsAt}
+                  onClick={() => submit(true)}
+                >
+                  {tConflicts('overrideButton')}
+                </Button>
+              ) : (
+                <Button type="button" disabled>
+                  {tConflicts('cancelButton')}
+                </Button>
+              )
+            ) : (
+              <Button
+                type="button"
+                disabled={pending || !patientId || !therapistId || !startsAt}
+                onClick={() => submit(false)}
+              >
+                {t('save')}
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <CreateSeriesModal
+        open={open && seriesOpen}
+        onClose={() => {
+          setSeriesOpen(false);
+          onClose();
+        }}
+        patients={patients}
+        clinicians={clinicians}
+        rooms={rooms}
+        defaultStartsAt={defaultStartsAt}
+        defaultTherapistId={defaultTherapistId}
+        defaultDurationMinutes={defaultDurationMinutes}
+        canOverride={canOverride}
+      />
+    </>
   );
 }
 

@@ -73,6 +73,58 @@ export const appointmentStatusSchema = z.object({
 
 export type AppointmentStatusInput = z.infer<typeof appointmentStatusSchema>;
 
+// ─── Recurring series (Prompt 7b §4.4) ────────────────────────────────────
+
+const weekdayEnum = z.enum(['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']);
+
+export const recurrenceRuleSchema = z.object({
+  frequency: z.literal('WEEKLY'),
+  interval: z.number().int().min(1).max(8),
+  byWeekday: z.array(weekdayEnum).min(1).max(7),
+  count: z.number().int().min(1).max(52),
+});
+
+export type RecurrenceRuleInput = z.infer<typeof recurrenceRuleSchema>;
+
+/** Per-occurrence resolution chosen in the preview UI. */
+export const seriesResolutionSchema = z.enum(['KEEP', 'SKIP', 'SHIFT_1D', 'SHIFT_1W', 'OVERRIDE']);
+export type SeriesResolution = z.infer<typeof seriesResolutionSchema>;
+
+export const seriesOccurrenceInputSchema = z.object({
+  /** 0-based index from the original expansion. Preserved so the
+   *  server can recompute the expanded list and match user choices
+   *  back to the planned slots after shifts. */
+  index: z.number().int().min(0),
+  /** UTC start. May differ from the expanded value when the user
+   *  chose SHIFT_1D / SHIFT_1W. */
+  startsAt: z.coerce.date(),
+  resolution: seriesResolutionSchema,
+});
+
+export const seriesPreviewSchema = z.object({
+  patientId: z.string().cuid(),
+  therapistId: z.string().cuid(),
+  roomId: z.string().cuid().optional().nullable(),
+  startsAt: z.coerce.date(),
+  durationMinutes: z
+    .number()
+    .int()
+    .positive()
+    .max(8 * 60),
+  rule: recurrenceRuleSchema,
+});
+
+export type SeriesPreviewInput = z.infer<typeof seriesPreviewSchema>;
+
+export const seriesCreateSchema = seriesPreviewSchema.extend({
+  notes: z.string().max(2000).optional().nullable(),
+  /** Resolved per-occurrence decisions. Must cover every occurrence in
+   *  the expansion (the server re-expands to validate the count). */
+  resolutions: z.array(seriesOccurrenceInputSchema).min(1).max(52),
+});
+
+export type SeriesCreateInput = z.infer<typeof seriesCreateSchema>;
+
 export const appointmentListFiltersSchema = z.object({
   /** Inclusive UTC range. Defaults to today through 14 days out at the call site. */
   from: z.coerce.date(),

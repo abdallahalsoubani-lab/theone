@@ -2,6 +2,8 @@ import { AppointmentStatus, type LanguagePref } from '@prisma/client';
 
 import { db } from '@/lib/db';
 
+import { DAY_KEYS, type DayKey } from './conflicts-time';
+
 /**
  * Conflict detection engine — the SINGLE source of truth for whether a
  * proposed appointment slot is valid (Prompt 7 §4.3).
@@ -46,9 +48,6 @@ export type Conflict =
   | { kind: 'CLINIC_CLOSED_THIS_DAY'; dayKey: DayKey };
 
 export type ConflictResult = { ok: true } | { ok: false; conflicts: Conflict[] };
-
-type DayKey = 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
-const DAY_KEYS: ReadonlyArray<DayKey> = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 
 interface DayHours {
   open: string; // "HH:MM"
@@ -213,5 +212,6 @@ function toHm(d: Date): string {
  * ClinicSettings without hitting the DB. Production code calls
  * `checkConflicts(input)` and lets the function load hours from Prisma.
  */
-export type { DayKey, DayHours };
+export type { DayHours };
+export { DAY_KEYS, type DayKey };
 export type LocalizedConflictLabel = (c: Conflict, language: LanguagePref) => string;
