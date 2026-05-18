@@ -961,6 +961,38 @@
         "tooLarge": "الملف يتجاوز حد {maxMb} ميجا.",
         "uploadFailed": "فشل الرفع. حاول مرة أخرى."
       }
+    },
+    "homeProgram": {
+      "builderTitle": "البرنامج المنزلي للمريض {name}",
+      "builderSubtitle": "أنشئ خطة التمارين المنزلية للمريض. كل عنصر يجدول تذكير واتساب قبل 30 دقيقة من الوقت المجدول.",
+      "currentProgram": "البرنامج الحالي",
+      "newItem": "تمرين جديد",
+      "addExercise": "إضافة تمرين",
+      "emptyBuilder": "لا توجد تمارين في هذا البرنامج بعد. استخدم النموذج على اليمين لإضافة تمرين.",
+      "exercise": "التمرين",
+      "daysOfWeek": "أيام الأسبوع",
+      "scheduledTime": "الوقت",
+      "durationMinutes": "الدقائق",
+      "setsReps": "مجموعات × تكرارات",
+      "therapistNote": "ملاحظة للمريض",
+      "therapistNotePlaceholder": "تظهر للمريض في تذكير واتساب.",
+      "cancel": "إلغاء",
+      "add": "إضافة إلى البرنامج",
+      "save": "حفظ التغييرات",
+      "addedToast": "تمت إضافة التمرين.",
+      "updatedToast": "تم تحديث التمرين.",
+      "deletedToast": "تمت إزالة التمرين.",
+      "pausedToast": "تم إيقاف التمرين مؤقتاً.",
+      "resumedToast": "تم استئناف التمرين.",
+      "confirmDelete": "هل تريد إزالة هذا التمرين من البرنامج؟",
+      "paused": "متوقف",
+      "edit": "تعديل",
+      "pause": "إيقاف مؤقت",
+      "resume": "استئناف",
+      "delete": "حذف",
+      "errors": {
+        "daysRequired": "اختر يوماً واحداً على الأقل."
+      }
     }
   }
 }

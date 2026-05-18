@@ -961,6 +961,38 @@
         "tooLarge": "File exceeds the {maxMb} MB limit.",
         "uploadFailed": "Upload failed. Try again."
       }
+    },
+    "homeProgram": {
+      "builderTitle": "{name}'s home program",
+      "builderSubtitle": "Build the patient's at-home exercise plan. Each item schedules WhatsApp reminders 30 minutes before the scheduled time.",
+      "currentProgram": "Current program",
+      "newItem": "New exercise",
+      "addExercise": "Add exercise",
+      "emptyBuilder": "No exercises in this program yet. Use the form on the right to add one.",
+      "exercise": "Exercise",
+      "daysOfWeek": "Days of the week",
+      "scheduledTime": "Time",
+      "durationMinutes": "Minutes",
+      "setsReps": "Sets × reps",
+      "therapistNote": "Note for the patient",
+      "therapistNotePlaceholder": "Shown to the patient in the WhatsApp reminder.",
+      "cancel": "Cancel",
+      "add": "Add to program",
+      "save": "Save changes",
+      "addedToast": "Exercise added.",
+      "updatedToast": "Exercise updated.",
+      "deletedToast": "Exercise removed.",
+      "pausedToast": "Exercise paused.",
+      "resumedToast": "Exercise resumed.",
+      "confirmDelete": "Remove this exercise from the program?",
+      "paused": "Paused",
+      "edit": "Edit",
+      "pause": "Pause",
+      "resume": "Resume",
+      "delete": "Delete",
+      "errors": {
+        "daysRequired": "Select at least one day."
+      }
     }
   }
 }
