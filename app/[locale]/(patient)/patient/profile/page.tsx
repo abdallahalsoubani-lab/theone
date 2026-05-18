@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { PatientSelfEditForm } from '@/components/patient-portal/PatientSelfEditForm';
+import { ExportPatientFileButton } from '@/components/exports/ExportPatientFileButton';
 import { getPatientFile } from '@/lib/patients/queries';
 
 export default async function PatientProfilePage({
@@ -21,9 +22,12 @@ export default async function PatientProfilePage({
 
   return (
     <section className="mx-auto max-w-3xl space-y-6 p-6">
-      <header>
-        <h1 className="text-2xl font-medium text-brand-navy">{t('profileTitle')}</h1>
-        <p className="text-sm text-brand-textMuted">{t('profileSubtitle')}</p>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-medium text-brand-navy">{t('profileTitle')}</h1>
+          <p className="text-sm text-brand-textMuted">{t('profileSubtitle')}</p>
+        </div>
+        <ExportPatientFileButton patientId={session.user.id} locale={locale} />
       </header>
       <PatientSelfEditForm
         initial={{

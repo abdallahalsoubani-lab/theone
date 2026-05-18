@@ -1,5 +1,6 @@
 import { useLocale } from 'next-intl';
 
+import { ExportPatientFileButton } from '@/components/exports/ExportPatientFileButton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { formatPhone } from '@/lib/format/phone';
@@ -40,6 +41,7 @@ export function PatientHeader({ patient }: { patient: PatientFileData }) {
           </span>
         </div>
       </div>
+      <ExportPatientFileButton patientId={patient.id} locale={locale} />
     </div>
   );
 }

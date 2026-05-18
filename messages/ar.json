@@ -398,6 +398,9 @@
   "auth": {
     "title": "تسجيل الدخول إلى Theone.pt",
     "subtitle": "اختر طريقة تسجيل الدخول.",
+    "login": {
+      "forgotPasswordHint": "نسيت كلمة المرور؟ تواصل مع مدير العيادة."
+    },
     "staffTab": "موظفون",
     "patientTab": "مراجع",
     "emailLabel": "البريد الإلكتروني",
@@ -1234,5 +1237,11 @@
       "axis": "اليوم",
       "minutes": "دقائق محجوزة"
     }
+  },
+  "exports": {
+    "downloadFile": "تحميل ملفي",
+    "downloading": "جاري التحضير…",
+    "downloaded": "بدأ التحميل.",
+    "downloadFailed": "تعذر إنشاء الملف."
   }
 }

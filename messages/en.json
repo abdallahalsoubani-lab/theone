@@ -60,6 +60,9 @@
   "auth": {
     "title": "Sign in to Theone.pt",
     "subtitle": "Choose how you sign in.",
+    "login": {
+      "forgotPasswordHint": "Forgot your password? Contact your clinic Admin."
+    },
     "staffTab": "Staff",
     "patientTab": "Patient",
     "emailLabel": "Email",
@@ -1234,5 +1237,11 @@
       "axis": "Day",
       "minutes": "Minutes booked"
     }
+  },
+  "exports": {
+    "downloadFile": "Download my file",
+    "downloading": "Preparing…",
+    "downloaded": "Download started.",
+    "downloadFailed": "Could not generate the file."
   }
 }

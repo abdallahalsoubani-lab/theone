@@ -1,7 +1,6 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Link } from '@/i18n/navigation';
 
 import { PatientLoginForm } from './_components/PatientLoginForm';
 import { StaffLoginForm } from './_components/StaffLoginForm';
@@ -31,14 +30,13 @@ export default async function LoginPage({ params }: { params: Promise<{ locale: 
         </TabsContent>
       </Tabs>
 
-      <div className="text-center text-sm">
-        <Link
-          href="/forgot-password"
-          className="text-brand-cyan underline-offset-4 hover:underline"
-        >
-          {t('forgotPassword')}
-        </Link>
-      </div>
+      {/*
+       * Prompt 11 §4.4: no self-service password reset in v1. Admins
+       * issue temp passwords via /admin/users (Prompt 5). The OTP tab
+       * above remains the password-free fallback for any phone-bound
+       * account.
+       */}
+      <p className="text-center text-xs text-brand-textMuted">{t('login.forgotPasswordHint')}</p>
     </div>
   );
 }
