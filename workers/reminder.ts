@@ -2,8 +2,9 @@
  * Appointment-reminder worker.
  *
  * Started by `pnpm workers:start` — a separate Node process in production.
- * In dev it can run in the same Node process; the singleton in
- * `lib/queue/client.ts` ensures only one Redis connection.
+ * In dev it runs in the same Node process as the WhatsApp outbound worker
+ * (workers/whatsapp.ts); the singleton in `lib/queue/client.ts` ensures
+ * only one Redis connection.
  *
  * Job lifecycle:
  *   1. enqueueAppointmentReminder schedules a delayed job at
@@ -12,10 +13,15 @@
  *   3. The handler re-reads the appointment from the DB to confirm it's
  *      still active (SCHEDULED or CONFIRMED) — terminal/cancelled
  *      appointments are silently skipped
- *   4. Calls `whatsapp.sendTemplate('appointment_reminder_30min', ...)`
- *      — in dev this writes `[DEV WHATSAPP]` to the console; in prod
- *      Prompt 8 swaps `WHATSAPP_PROVIDER` and the real Meta/Twilio send
- *      runs with no change to this code
+ *   4. Enqueues a `whatsappOutbound` job carrying the template name +
+ *      parameters. The dedicated outbound worker (workers/whatsapp.ts)
+ *      handles retries, rate limiting, audit, and reachability flips.
+ *
+ * Before Prompt 8, this worker called whatsapp.sendTemplate directly. The
+ * outbound queue decouples the "should I send" decision (lives here, with
+ * the domain model) from "did the send succeed" (lives in the outbound
+ * worker, uniform across all senders). That uniformity is what lets the
+ * Admin message log + resend action work for every kind of outbound.
  */
 
 import { Worker } from 'bullmq';
@@ -23,8 +29,8 @@ import { Worker } from 'bullmq';
 import { db } from '@/lib/db';
 import { queueRedis } from '@/lib/queue/client';
 import type { AppointmentReminderJob } from '@/lib/queue/jobs/appointmentReminder';
+import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 import { REMINDER_QUEUE } from '@/lib/queue/queues';
-import { whatsapp } from '@/lib/whatsapp';
 
 export function startReminderWorker(): Worker {
   const worker = new Worker<AppointmentReminderJob>(
@@ -35,7 +41,13 @@ export function startReminderWorker(): Worker {
         where: { id: appointmentId },
         include: {
           patient: {
-            select: { fullNameEn: true, fullNameAr: true, phone: true, languagePref: true },
+            select: {
+              id: true,
+              fullNameEn: true,
+              fullNameAr: true,
+              phone: true,
+              languagePref: true,
+            },
           },
           therapist: { select: { fullNameEn: true, fullNameAr: true } },
         },
@@ -57,17 +69,17 @@ export function startReminderWorker(): Worker {
       const therapistName = lang === 'AR' ? appt.therapist.fullNameAr : appt.therapist.fullNameEn;
       const timeLabel = appt.startsAt.toISOString();
 
-      const result = await whatsapp.sendTemplate({
-        name: 'appointment_reminder_30min',
-        recipientPhone: appt.patient.phone,
+      const id = await enqueueWhatsappOutbound({
+        kind: 'template',
+        templateName: 'appointment_reminder_30min',
         language: lang,
         parameters: [therapistName, timeLabel],
+        recipientPhone: appt.patient.phone,
         recipientUserId: appt.patientId,
+        appointmentId: appt.id,
+        source: 'queue',
       });
-      console.warn(
-        `[reminder] sent appointment_reminder_30min appointment=${appointmentId} ` +
-          `provider-msg-id=${result.providerMessageId ?? 'n/a'} status=${result.status}`,
-      );
+      console.warn(`[reminder] appointment=${appointmentId} enqueued outbound=${id ?? 'n/a'}`);
     },
     { connection: queueRedis },
   );

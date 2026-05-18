@@ -104,10 +104,14 @@ export const createPatient = withAudit<[PatientCreateInput], CreatePatientResult
     });
 
     // Outside the transaction so DB commit isn't blocked on network IO.
+    // Post-Prompt 8: send is enqueued — the outbound worker handles retries
+    // and surfaces eventual failures via the Secretary inbox + patient
+    // profile reachability badge. SENT here means "we handed it off
+    // cleanly to the outbound queue", not "the patient received it".
     let whatsappStatus: 'SENT' | 'FAILED' = 'SENT';
     let whatsappError: string | undefined;
     try {
-      const result = await sendPatientCredentials({
+      await sendPatientCredentials({
         recipientUserId: patient.id,
         recipientPhone: patient.phone,
         recipientName: input.languagePref === 'AR' ? input.fullNameAr : input.fullNameEn,
@@ -116,14 +120,10 @@ export const createPatient = withAudit<[PatientCreateInput], CreatePatientResult
         portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/${input.languagePref === 'AR' ? 'ar' : 'en'}/login`,
         language: input.languagePref,
       });
-      if (result.status === 'FAILED') {
-        whatsappStatus = 'FAILED';
-        whatsappError = result.failureReason ?? 'unknown';
-      }
     } catch (err) {
       whatsappStatus = 'FAILED';
       whatsappError = err instanceof Error ? err.message : String(err);
-      console.error('[patients] WhatsApp credential delivery failed', err);
+      console.error('[patients] WhatsApp credential enqueue failed', err);
     }
 
     return { patientId: patient.id, tempPassword, whatsappStatus, whatsappError };
@@ -272,7 +272,7 @@ export const resetPatientPassword = withAudit<[string], ResetPasswordResult>(
 
     let whatsappStatus: 'SENT' | 'FAILED' = 'SENT';
     try {
-      const result = await sendPatientCredentials({
+      await sendPatientCredentials({
         recipientUserId: patient.id,
         recipientPhone: patient.phone,
         recipientName: patient.languagePref === 'AR' ? patient.fullNameAr : patient.fullNameEn,
@@ -281,10 +281,9 @@ export const resetPatientPassword = withAudit<[string], ResetPasswordResult>(
         portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/${patient.languagePref === 'AR' ? 'ar' : 'en'}/login`,
         language: patient.languagePref,
       });
-      if (result.status === 'FAILED') whatsappStatus = 'FAILED';
     } catch (err) {
       whatsappStatus = 'FAILED';
-      console.error('[patients] WhatsApp reset-credentials delivery failed', err);
+      console.error('[patients] WhatsApp reset-credentials enqueue failed', err);
     }
 
     return { patientId: id, tempPassword, whatsappStatus };
