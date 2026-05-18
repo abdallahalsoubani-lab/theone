@@ -6,10 +6,12 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
+import { SeriesScopePicker } from '@/components/appointments/SeriesScopePicker';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { cancelAppointmentAction } from '@/lib/appointments/actions';
+import type { SeriesEditMode } from '@/lib/appointments/schemas';
 
 interface Props {
   open: boolean;
@@ -49,6 +51,7 @@ export function CancelAppointmentModal({
   );
   const [notes, setNotes] = useState('');
   const [notifyPatient, setNotifyPatient] = useState(true);
+  const [seriesMode, setSeriesMode] = useState<SeriesEditMode>('ONE');
 
   function submit() {
     if (!appointmentId) return;
@@ -61,6 +64,7 @@ export function CancelAppointmentModal({
         cancellationReason: t(`categories.${category}`),
         cancellationNotes: notes || null,
         notifyPatient,
+        seriesMode: seriesId ? seriesMode : 'ONE',
       });
       if (!r.ok) {
         toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
@@ -131,9 +135,12 @@ export function CancelAppointmentModal({
         </label>
 
         {seriesId ? (
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            {t('seriesNote')}
-          </p>
+          <div className="space-y-1">
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              {t('seriesNote')}
+            </p>
+            <SeriesScopePicker value={seriesMode} onChange={setSeriesMode} />
+          </div>
         ) : null}
 
         <div className="flex justify-end gap-2">

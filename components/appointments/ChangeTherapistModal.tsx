@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
+import { SeriesScopePicker } from '@/components/appointments/SeriesScopePicker';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
   changeTherapistAction,
   previewTherapistAvailabilityAction,
 } from '@/lib/appointments/actions';
+import type { SeriesEditMode } from '@/lib/appointments/schemas';
 import type { TherapistAvailabilityRow } from '@/lib/appointments/services';
 
 interface Clinician {
@@ -72,6 +74,7 @@ export function ChangeTherapistModal({
   const [reason, setReason] = useState('');
   const [rows, setRows] = useState<TherapistAvailabilityRow[]>([]);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
+  const [seriesMode, setSeriesMode] = useState<SeriesEditMode>('ONE');
 
   useEffect(() => {
     if (!open) {
@@ -120,6 +123,7 @@ export function ChangeTherapistModal({
         therapistId: picked,
         reason: reason || null,
         overrideConflicts: false,
+        seriesMode: seriesId ? seriesMode : 'ONE',
       });
       if (!r.ok) {
         toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
@@ -154,11 +158,7 @@ export function ChangeTherapistModal({
           </div>
         ) : null}
 
-        {seriesId ? (
-          <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-            {t('seriesNote')}
-          </p>
-        ) : null}
+        {seriesId ? <SeriesScopePicker value={seriesMode} onChange={setSeriesMode} /> : null}
 
         <ul className="max-h-72 space-y-1 overflow-y-auto" role="radiogroup">
           {others.map((c) => {

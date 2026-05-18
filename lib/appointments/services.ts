@@ -12,13 +12,14 @@ import {
 import { checkConflicts, type Conflict, type ConflictResult } from './conflicts';
 import { expandRecurrence, MAX_SERIES_OCCURRENCES, type PlannedOccurrence } from './recurrence';
 import type {
-  AppointmentCancelInput,
-  AppointmentChangeTherapistInput,
+  AppointmentCancelParsed,
+  AppointmentChangeTherapistParsed,
   AppointmentCreateInput,
-  AppointmentRescheduleInput,
+  AppointmentRescheduleParsed,
   SeriesCreateInput,
   SeriesPreviewInput,
 } from './schemas';
+import { selectSeriesOccurrences, type SeriesOccurrenceRow } from './series';
 import { canTransition, permissionForTransition, STATUS_ERRORS } from './status';
 
 export class AppointmentError extends Error {
@@ -113,7 +114,7 @@ export const createAppointment = withAudit<
 );
 
 export const rescheduleAppointment = withAudit<
-  [AppointmentRescheduleInput],
+  [AppointmentRescheduleParsed],
   { appointmentId: string; conflictsOverridden: boolean }
 >(
   {
@@ -135,7 +136,7 @@ export const rescheduleAppointment = withAudit<
     }),
   },
   async function rescheduleInner(
-    input: AppointmentRescheduleInput,
+    input: AppointmentRescheduleParsed,
   ): Promise<{ appointmentId: string; conflictsOverridden: boolean }> {
     const existing = await db.appointment.findUnique({
       where: { id: input.id },
@@ -194,7 +195,7 @@ export const rescheduleAppointment = withAudit<
 );
 
 export const changeAppointmentTherapist = withAudit<
-  [AppointmentChangeTherapistInput],
+  [AppointmentChangeTherapistParsed],
   {
     appointmentId: string;
     conflictsOverridden: boolean;
@@ -362,7 +363,7 @@ export async function getTherapistAvailabilityForTimeSlot(args: {
 }
 
 export const cancelAppointment = withAudit<
-  [AppointmentCancelInput],
+  [AppointmentCancelParsed],
   { appointmentId: string; flaggedShortNotice: boolean }
 >(
   {
@@ -447,6 +448,385 @@ export const cancelAppointment = withAudit<
     }
 
     return { appointmentId: input.id, flaggedShortNotice: shortNotice };
+  },
+);
+
+// ─── Series-edit bulk paths (Prompt 7b §4.7) ──────────────────────────────
+
+export interface BulkFailure {
+  appointmentId: string;
+  startsAt: Date;
+  reason: 'CONFLICT' | 'INVALID_TRANSITION' | 'NOT_FOUND';
+  conflicts?: Conflict[];
+}
+
+export class BulkAppointmentError extends AppointmentError {
+  constructor(failures: BulkFailure[]) {
+    super({
+      code: 'SERIES_BULK_FAILED',
+      message_en: `${failures.length} occurrence(s) could not be updated — the entire series edit was rolled back.`,
+      message_ar: `تعذر تحديث ${failures.length} موعد — تم التراجع عن تعديل السلسلة بالكامل.`,
+      details: { failures: failures as unknown as Record<string, unknown> },
+    });
+  }
+}
+
+/**
+ * Bulk cancel for FOLLOWING / ALL. Status-guards each row, applies
+ * the same category + reason transactionally, and (after commit) fans
+ * out WhatsApp notifications when notifyPatient is true. Any row that
+ * cannot legally transition aborts the whole batch — partial cancels
+ * would be impossible to reason about in the audit log.
+ */
+export const cancelAppointmentSeries = withAudit<
+  [AppointmentCancelParsed],
+  {
+    appointmentIds: string[];
+    skippedCount: number;
+    flaggedShortNotice: boolean;
+  }
+>(
+  {
+    entityType: 'Appointment',
+    action: AuditAction.UPDATE,
+    extractEntityId: (args) => args[0].id,
+    extractAfter: (result) => ({
+      event: 'APPOINTMENT_SERIES_CANCELLED',
+      appointmentIds: result.appointmentIds,
+      skippedCount: result.skippedCount,
+      flaggedShortNotice: result.flaggedShortNotice,
+    }),
+  },
+  async function cancelSeriesInner(input): Promise<{
+    appointmentIds: string[];
+    skippedCount: number;
+    flaggedShortNotice: boolean;
+  }> {
+    if (!input.cancellationReason) {
+      throw new AppointmentError(STATUS_ERRORS.CANCEL_REASON_REQUIRED);
+    }
+
+    const occurrences = await selectSeriesOccurrences({
+      appointmentId: input.id,
+      mode: input.seriesMode,
+    });
+    if (occurrences.length === 0) {
+      throw new AppointmentError(notFound);
+    }
+
+    // Pre-flight: every row must be in an active state.
+    const failures: BulkFailure[] = [];
+    for (const occ of occurrences) {
+      if (!canTransition(occ.status, AppointmentStatus.CANCELLED)) {
+        failures.push({
+          appointmentId: occ.id,
+          startsAt: occ.startsAt,
+          reason: 'INVALID_TRANSITION',
+        });
+      }
+    }
+    if (failures.length > 0) throw new BulkAppointmentError(failures);
+
+    let flaggedShortNotice = false;
+    const ids = await db.$transaction(async (tx) => {
+      const updated: string[] = [];
+      for (const occ of occurrences) {
+        if (occ.startsAt.getTime() - Date.now() < 2 * 60 * 60 * 1000) {
+          flaggedShortNotice = true;
+        }
+        await tx.appointment.update({
+          where: { id: occ.id },
+          data: {
+            status: AppointmentStatus.CANCELLED,
+            cancellationReason: input.cancellationReason,
+            cancellationCategory: input.cancellationCategory,
+            cancellationNotes: input.cancellationNotes ?? null,
+          },
+        });
+        updated.push(occ.id);
+      }
+      return updated;
+    });
+
+    // Side effects after commit.
+    await Promise.all(ids.map((id) => cancelAppointmentReminder(id)));
+
+    if (input.notifyPatient) {
+      const enriched = await db.appointment.findMany({
+        where: { id: { in: ids } },
+        select: {
+          id: true,
+          startsAt: true,
+          patientId: true,
+          patient: {
+            select: { phone: true, languagePref: true, whatsappReachable: true },
+          },
+        },
+      });
+      const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
+      for (const row of enriched) {
+        if (!row.patient.whatsappReachable) continue;
+        const dateStr = row.startsAt.toISOString().slice(0, 10);
+        const timeStr = row.startsAt.toISOString().slice(11, 16);
+        void enqueueWhatsappOutbound({
+          kind: 'template',
+          templateName: 'appointment_cancelled',
+          language: row.patient.languagePref,
+          parameters: [
+            dateStr,
+            timeStr,
+            categoryLabelForLocale(input.cancellationCategory, row.patient.languagePref),
+          ],
+          recipientPhone: row.patient.phone,
+          recipientUserId: row.patientId,
+          appointmentId: row.id,
+          source: 'queue',
+        }).catch((err: unknown) => {
+          console.error('[appointments.cancelSeries] notification enqueue failed', err);
+        });
+      }
+    }
+
+    return { appointmentIds: ids, skippedCount: 0, flaggedShortNotice };
+  },
+);
+
+/**
+ * Bulk reschedule for FOLLOWING / ALL. Computes the delta between the
+ * target appointment's current `startsAt` and the new `startsAt`, then
+ * applies that same delta to every occurrence in scope. Conflict-checks
+ * each new slot inside the transaction; a single conflict aborts the
+ * entire batch (Prompt 7b §4.7 — no partial application).
+ */
+export const rescheduleAppointmentSeries = withAudit<
+  [AppointmentRescheduleParsed],
+  {
+    appointmentIds: string[];
+    conflictsOverridden: boolean;
+  }
+>(
+  {
+    entityType: 'Appointment',
+    action: AuditAction.UPDATE,
+    extractEntityId: (args) => args[0].id,
+    extractAfter: (result) => ({
+      event: result.conflictsOverridden ? 'OVERRIDE_CONFLICT' : 'APPOINTMENT_SERIES_RESCHEDULED',
+      appointmentIds: result.appointmentIds,
+    }),
+  },
+  async function rescheduleSeriesInner(input): Promise<{
+    appointmentIds: string[];
+    conflictsOverridden: boolean;
+  }> {
+    const target = await db.appointment.findUnique({
+      where: { id: input.id },
+      select: { id: true, startsAt: true, therapistId: true, status: true },
+    });
+    if (!target) throw new AppointmentError(notFound);
+
+    const deltaMs = input.startsAt.getTime() - target.startsAt.getTime();
+    const occurrences = await selectSeriesOccurrences({
+      appointmentId: input.id,
+      mode: input.seriesMode,
+    });
+    if (occurrences.length === 0) throw new AppointmentError(notFound);
+
+    interface Planned {
+      occ: SeriesOccurrenceRow;
+      newStartsAt: Date;
+      newDurationMinutes: number;
+      newTherapistId: string;
+    }
+    const planned: Planned[] = occurrences.map((occ) => ({
+      occ,
+      newStartsAt: new Date(occ.startsAt.getTime() + deltaMs),
+      // For the single-appointment path the user may have changed
+      // duration / therapist / room. For the bulk path we keep those
+      // per-occurrence (each row keeps its own duration + therapist).
+      newDurationMinutes: occ.id === target.id ? input.durationMinutes : occ.durationMinutes,
+      newTherapistId:
+        occ.id === target.id ? (input.therapistId ?? occ.therapistId) : occ.therapistId,
+    }));
+
+    const failures: BulkFailure[] = [];
+    await db.$transaction(async (tx) => {
+      for (const p of planned) {
+        const conflicts = await checkConflicts({
+          appointmentId: p.occ.id,
+          patientId: p.occ.patientId,
+          therapistId: p.newTherapistId,
+          startsAt: p.newStartsAt,
+          durationMinutes: p.newDurationMinutes,
+        });
+        if (!conflicts.ok && !input.overrideConflicts) {
+          failures.push({
+            appointmentId: p.occ.id,
+            startsAt: p.newStartsAt,
+            reason: 'CONFLICT',
+            conflicts: conflicts.conflicts,
+          });
+        }
+      }
+      if (failures.length > 0) {
+        throw new BulkAppointmentError(failures);
+      }
+      for (const p of planned) {
+        await tx.appointment.update({
+          where: { id: p.occ.id },
+          data: {
+            startsAt: p.newStartsAt,
+            durationMinutes: p.newDurationMinutes,
+            therapistId: p.newTherapistId,
+            ...(p.occ.id === target.id && input.roomId !== undefined
+              ? { roomId: input.roomId }
+              : {}),
+          },
+        });
+      }
+    });
+
+    // Re-enqueue reminders for active occurrences.
+    const ids = planned.map((p) => p.occ.id);
+    await Promise.all(ids.map((id) => cancelAppointmentReminder(id)));
+    const offset = await getReminderOffsetMinutes();
+    await Promise.all(
+      planned
+        .filter(
+          (p) =>
+            p.occ.status === AppointmentStatus.SCHEDULED ||
+            p.occ.status === AppointmentStatus.CONFIRMED,
+        )
+        .map((p) =>
+          enqueueAppointmentReminder({
+            appointmentId: p.occ.id,
+            startsAt: p.newStartsAt,
+            reminderOffsetMinutes: offset,
+          }).catch((err: unknown) => {
+            console.error('[appointments.rescheduleSeries] reminder enqueue failed', err);
+          }),
+        ),
+    );
+
+    return { appointmentIds: ids, conflictsOverridden: false };
+  },
+);
+
+/**
+ * Bulk change-therapist for FOLLOWING / ALL. Swaps therapist on every
+ * occurrence in scope inside one transaction; emits the
+ * APPOINTMENT_THERAPIST_REMOVED / _ASSIGNED notifications once for the
+ * old + new therapist after commit (collapsed — one summary per
+ * recipient, not N spam messages).
+ */
+export const changeAppointmentTherapistSeries = withAudit<
+  [AppointmentChangeTherapistParsed],
+  {
+    appointmentIds: string[];
+    previousTherapistId: string;
+    newTherapistId: string;
+    reason: string | null;
+    conflictsOverridden: boolean;
+  }
+>(
+  {
+    entityType: 'Appointment',
+    action: AuditAction.UPDATE,
+    extractEntityId: (args) => args[0].id,
+    extractAfter: (result) => ({
+      event: result.conflictsOverridden
+        ? 'OVERRIDE_CONFLICT'
+        : 'APPOINTMENT_SERIES_THERAPIST_CHANGED',
+      appointmentIds: result.appointmentIds,
+      previousTherapistId: result.previousTherapistId,
+      newTherapistId: result.newTherapistId,
+      reason: result.reason,
+    }),
+  },
+  async function changeTherapistSeriesInner(input): Promise<{
+    appointmentIds: string[];
+    previousTherapistId: string;
+    newTherapistId: string;
+    reason: string | null;
+    conflictsOverridden: boolean;
+  }> {
+    const occurrences = await selectSeriesOccurrences({
+      appointmentId: input.id,
+      mode: input.seriesMode,
+    });
+    if (occurrences.length === 0) throw new AppointmentError(notFound);
+    const previousTherapistId = occurrences[0]!.therapistId;
+
+    const failures: BulkFailure[] = [];
+    await db.$transaction(async (tx) => {
+      for (const occ of occurrences) {
+        const conflicts = await checkConflicts({
+          appointmentId: occ.id,
+          patientId: occ.patientId,
+          therapistId: input.therapistId,
+          startsAt: occ.startsAt,
+          durationMinutes: occ.durationMinutes,
+        });
+        if (!conflicts.ok && !input.overrideConflicts) {
+          failures.push({
+            appointmentId: occ.id,
+            startsAt: occ.startsAt,
+            reason: 'CONFLICT',
+            conflicts: conflicts.conflicts,
+          });
+        }
+      }
+      if (failures.length > 0) {
+        throw new BulkAppointmentError(failures);
+      }
+      for (const occ of occurrences) {
+        if (occ.therapistId === input.therapistId) continue;
+        await tx.appointment.update({
+          where: { id: occ.id },
+          data: { therapistId: input.therapistId },
+        });
+      }
+    });
+
+    // Single summary notification per side (Prompt 7b §4.7 — don't
+    // spam the therapist with N rows).
+    if (previousTherapistId !== input.therapistId) {
+      const patient = await db.appointment
+        .findUnique({
+          where: { id: input.id },
+          select: { patient: { select: { fullNameEn: true } } },
+        })
+        .then((r) => r?.patient.fullNameEn ?? '');
+      const firstStart = occurrences[0]!.startsAt.toISOString().slice(0, 10);
+      const { createNotification } = await import('@/lib/notifications/actions');
+      void createNotification({
+        recipientId: previousTherapistId,
+        type: 'APPOINTMENT_THERAPIST_REMOVED',
+        params: { patientName: patient, date: firstStart },
+        linkPath: `/therapist/schedule`,
+        relatedEntityType: 'Appointment',
+        relatedEntityId: input.id,
+      }).catch((err: unknown) => {
+        console.error('[appointments.changeTherapistSeries] removed notif failed', err);
+      });
+      void createNotification({
+        recipientId: input.therapistId,
+        type: 'APPOINTMENT_THERAPIST_ASSIGNED',
+        params: { patientName: patient, date: firstStart },
+        linkPath: `/therapist/schedule`,
+        relatedEntityType: 'Appointment',
+        relatedEntityId: input.id,
+      }).catch((err: unknown) => {
+        console.error('[appointments.changeTherapistSeries] assigned notif failed', err);
+      });
+    }
+
+    return {
+      appointmentIds: occurrences.map((o) => o.id),
+      previousTherapistId,
+      newTherapistId: input.therapistId,
+      reason: input.reason ?? null,
+      conflictsOverridden: false,
+    };
   },
 );
 

@@ -26,7 +26,9 @@ import {
 import {
   appointmentToLocalized,
   cancelAppointment,
+  cancelAppointmentSeries,
   changeAppointmentTherapist,
+  changeAppointmentTherapistSeries,
   createAppointment,
   createSeries,
   getTherapistAvailabilityForTimeSlot,
@@ -34,6 +36,7 @@ import {
   previewSeries,
   previewSingleOccurrence,
   rescheduleAppointment,
+  rescheduleAppointmentSeries,
   updateAppointmentStatus,
   type SeriesPreviewOccurrence,
   type TherapistAvailabilityRow,
@@ -87,9 +90,13 @@ export async function createAppointmentAction(
   }
 }
 
-export async function rescheduleAppointmentAction(
-  input: AppointmentRescheduleInput,
-): Promise<Result<{ appointmentId: string; conflictsOverridden: boolean }>> {
+export async function rescheduleAppointmentAction(input: AppointmentRescheduleInput): Promise<
+  Result<{
+    appointmentId?: string;
+    appointmentIds?: string[];
+    conflictsOverridden: boolean;
+  }>
+> {
   await requirePermission('appointments.update');
   const parsed = appointmentRescheduleSchema.safeParse(input);
   if (!parsed.success) return fail(appointmentToLocalized(parsed.error));
@@ -97,7 +104,12 @@ export async function rescheduleAppointmentAction(
     await requirePermission('appointments.override_conflict');
   }
   try {
-    const data = await rescheduleAppointment(parsed.data);
+    if (parsed.data.seriesMode === 'ONE') {
+      const data = await rescheduleAppointment(parsed.data);
+      revalidate();
+      return ok(data);
+    }
+    const data = await rescheduleAppointmentSeries(parsed.data);
     revalidate();
     return ok(data);
   } catch (err) {
@@ -107,7 +119,8 @@ export async function rescheduleAppointmentAction(
 
 export async function changeTherapistAction(input: AppointmentChangeTherapistInput): Promise<
   Result<{
-    appointmentId: string;
+    appointmentId?: string;
+    appointmentIds?: string[];
     conflictsOverridden: boolean;
     previousTherapistId: string;
     newTherapistId: string;
@@ -121,7 +134,12 @@ export async function changeTherapistAction(input: AppointmentChangeTherapistInp
     await requirePermission('appointments.override_conflict');
   }
   try {
-    const data = await changeAppointmentTherapist(parsed.data);
+    if (parsed.data.seriesMode === 'ONE') {
+      const data = await changeAppointmentTherapist(parsed.data);
+      revalidate();
+      return ok(data);
+    }
+    const data = await changeAppointmentTherapistSeries(parsed.data);
     revalidate();
     return ok(data);
   } catch (err) {
@@ -154,14 +172,23 @@ export async function previewTherapistAvailabilityAction(input: {
   }
 }
 
-export async function cancelAppointmentAction(
-  input: AppointmentCancelInput,
-): Promise<Result<{ appointmentId: string; flaggedShortNotice: boolean }>> {
+export async function cancelAppointmentAction(input: AppointmentCancelInput): Promise<
+  Result<{
+    appointmentId?: string;
+    appointmentIds?: string[];
+    flaggedShortNotice: boolean;
+  }>
+> {
   await requirePermission('appointments.cancel');
   const parsed = appointmentCancelSchema.safeParse(input);
   if (!parsed.success) return fail(appointmentToLocalized(parsed.error));
   try {
-    const data = await cancelAppointment(parsed.data);
+    if (parsed.data.seriesMode === 'ONE') {
+      const data = await cancelAppointment(parsed.data);
+      revalidate();
+      return ok(data);
+    }
+    const data = await cancelAppointmentSeries(parsed.data);
     revalidate();
     return ok(data);
   } catch (err) {

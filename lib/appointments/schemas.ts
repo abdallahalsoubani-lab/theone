@@ -22,6 +22,15 @@ export const appointmentCreateSchema = z.object({
 
 export type AppointmentCreateInput = z.infer<typeof appointmentCreateSchema>;
 
+/**
+ * Series-edit scope (Prompt 7b §4.7). The user is prompted before
+ * cancel / reschedule / change-therapist actions on a series-bound
+ * appointment. The action then receives the explicit mode so the
+ * service can fan out atomically across the chosen scope.
+ */
+export const seriesEditModeSchema = z.enum(['ONE', 'FOLLOWING', 'ALL']);
+export type SeriesEditMode = z.infer<typeof seriesEditModeSchema>;
+
 export const appointmentRescheduleSchema = z.object({
   id: z.string().cuid(),
   startsAt: z.coerce.date(),
@@ -38,9 +47,13 @@ export const appointmentRescheduleSchema = z.object({
    * reschedule modal accepts an override flag.
    */
   overrideConflicts: z.boolean().default(false),
+  /** Defaults to ONE so the existing single-appointment paths continue
+   *  to work unchanged. FOLLOWING / ALL fan out across the series. */
+  seriesMode: seriesEditModeSchema.default('ONE'),
 });
 
-export type AppointmentRescheduleInput = z.infer<typeof appointmentRescheduleSchema>;
+export type AppointmentRescheduleInput = z.input<typeof appointmentRescheduleSchema>;
+export type AppointmentRescheduleParsed = z.infer<typeof appointmentRescheduleSchema>;
 
 export const appointmentChangeTherapistSchema = z.object({
   id: z.string().cuid(),
@@ -49,9 +62,11 @@ export const appointmentChangeTherapistSchema = z.object({
    *  in the assigned/removed notification body when present. */
   reason: z.string().max(500).optional().nullable(),
   overrideConflicts: z.boolean().default(false),
+  seriesMode: seriesEditModeSchema.default('ONE'),
 });
 
-export type AppointmentChangeTherapistInput = z.infer<typeof appointmentChangeTherapistSchema>;
+export type AppointmentChangeTherapistInput = z.input<typeof appointmentChangeTherapistSchema>;
+export type AppointmentChangeTherapistParsed = z.infer<typeof appointmentChangeTherapistSchema>;
 
 export const appointmentCancelSchema = z.object({
   id: z.string().cuid(),
@@ -65,9 +80,11 @@ export const appointmentCancelSchema = z.object({
   /** When true and the patient is whatsappReachable, send the
    *  `appointment_cancellation` template. Defaults to true. */
   notifyPatient: z.boolean().default(true),
+  seriesMode: seriesEditModeSchema.default('ONE'),
 });
 
-export type AppointmentCancelInput = z.infer<typeof appointmentCancelSchema>;
+export type AppointmentCancelInput = z.input<typeof appointmentCancelSchema>;
+export type AppointmentCancelParsed = z.infer<typeof appointmentCancelSchema>;
 
 export const appointmentStatusSchema = z.object({
   id: z.string().cuid(),

@@ -1050,6 +1050,18 @@
       "confirm": "Confirm cancellation",
       "cancelledToast": "Appointment cancelled."
     },
+    "seriesScope": {
+      "legend": "Apply to",
+      "ONE": "This appointment only",
+      "FOLLOWING": "This and all following",
+      "ALL": "All in the series",
+      "confirmTitle": "Apply to which appointments?",
+      "confirmDescription": "This appointment is part of a recurring series. Choose the scope before continuing.",
+      "continue": "Continue",
+      "cancel": "Cancel",
+      "bulkFailedTitle": "Series edit aborted",
+      "bulkFailedDescription": "{count} occurrence(s) failed — the whole batch was rolled back."
+    },
     "changeTherapist": {
       "title": "Change therapist",
       "subtitle": "Pick a different clinician for this appointment. Availability is recomputed on save.",

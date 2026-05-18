@@ -12,9 +12,11 @@ import {
 import { SecretaryCalendar } from '@/components/calendar/SecretaryCalendar';
 import { ChangeTherapistModal } from '@/components/appointments/ChangeTherapistModal';
 import { CreateAppointmentModal } from '@/components/appointments/CreateAppointmentModal';
+import { SeriesScopeConfirmDialog } from '@/components/appointments/SeriesScopeConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { rescheduleAppointmentAction } from '@/lib/appointments/actions';
 import type { CalendarAppointment } from '@/lib/appointments/queries';
+import type { SeriesEditMode } from '@/lib/appointments/schemas';
 
 interface Props {
   appointments: CalendarAppointment[];
@@ -68,6 +70,17 @@ export function SecretaryCalendarBoard({
   // Change-therapist modal (Prompt 7b §4.6).
   const [changeTherapistOpen, setChangeTherapistOpen] = useState(false);
 
+  // Pending drag-reschedule needing series-scope confirmation
+  // (Prompt 7b §4.7). When the dragged appointment is part of a series
+  // we hold the move + open the scope picker before firing the action.
+  const [pendingDrop, setPendingDrop] = useState<{
+    appointmentId: string;
+    start: Date;
+    therapistId: string;
+    durationMinutes: number;
+    seriesId: string | null;
+  } | null>(null);
+
   const handleSlotSelect = (slot: { start: Date; end: Date; resourceId?: string }) => {
     setCreateSlot({ start: slot.start, therapistId: slot.resourceId });
     setCreateOpen(true);
@@ -97,16 +110,23 @@ export function SecretaryCalendarBoard({
     setPanelOpen(true);
   };
 
-  const handleEventDrop = (args: { appointmentId: string; start: Date; resourceId?: string }) => {
-    const existing = appointments.find((a) => a.id === args.appointmentId);
-    if (!existing) return;
+  const dispatchReschedule = (
+    args: {
+      appointmentId: string;
+      start: Date;
+      therapistId: string;
+      durationMinutes: number;
+    },
+    seriesMode: SeriesEditMode,
+  ) => {
     startTransition(async () => {
       const r = await rescheduleAppointmentAction({
         id: args.appointmentId,
         startsAt: args.start,
-        durationMinutes: existing.durationMinutes,
-        therapistId: args.resourceId ?? existing.therapistId,
+        durationMinutes: args.durationMinutes,
+        therapistId: args.therapistId,
         overrideConflicts: false,
+        seriesMode,
       });
       if (!r.ok) {
         toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
@@ -116,6 +136,23 @@ export function SecretaryCalendarBoard({
       toast.success(locale === 'ar' ? 'تم نقل الموعد' : 'Appointment rescheduled');
       router.refresh();
     });
+  };
+
+  const handleEventDrop = (args: { appointmentId: string; start: Date; resourceId?: string }) => {
+    const existing = appointments.find((a) => a.id === args.appointmentId);
+    if (!existing) return;
+    const drop = {
+      appointmentId: args.appointmentId,
+      start: args.start,
+      therapistId: args.resourceId ?? existing.therapistId,
+      durationMinutes: existing.durationMinutes,
+      seriesId: existing.seriesId,
+    };
+    if (existing.seriesId) {
+      setPendingDrop(drop);
+      return;
+    }
+    dispatchReschedule(drop, 'ONE');
   };
 
   return (
@@ -159,6 +196,21 @@ export function SecretaryCalendarBoard({
         appointment={panelAppt}
         onClose={() => setPanelOpen(false)}
         onChangeTherapist={panelAppt ? () => setChangeTherapistOpen(true) : undefined}
+      />
+
+      <SeriesScopeConfirmDialog
+        open={pendingDrop !== null}
+        onClose={() => {
+          // User cancelled the scope picker — revert the optimistic drag.
+          setPendingDrop(null);
+          router.refresh();
+        }}
+        onConfirm={(mode) => {
+          if (!pendingDrop) return;
+          const drop = pendingDrop;
+          setPendingDrop(null);
+          dispatchReschedule(drop, mode);
+        }}
       />
 
       {panelAppt ? (
