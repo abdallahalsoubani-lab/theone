@@ -29,6 +29,7 @@
     "db:seed": "dotenv -e .env.local -- tsx prisma/seed.ts",
     "db:studio": "dotenv -e .env.local -- prisma studio",
     "i18n:check": "tsx scripts/check-i18n-sync.ts",
+    "workers:start": "dotenv -e .env.local -- tsx workers/index.ts",
     "prepare": "husky"
   },
   "prisma": {
@@ -47,6 +48,7 @@
     "@radix-ui/react-slot": "^1.1.1",
     "@radix-ui/react-tabs": "^1.1.13",
     "@tanstack/react-table": "^8.21.3",
+    "bullmq": "^5.76.10",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "ioredis": "^5.10.1",
