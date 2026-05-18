@@ -21,6 +21,8 @@ import type { SeriesEditMode } from '@/lib/appointments/schemas';
 interface Props {
   appointments: CalendarAppointment[];
   resources: Array<{ id: string; fullNameEn: string; fullNameAr: string }>;
+  /** Approved leaves overlapping the visible range (Prompt 11 §4.1.5). */
+  leaves?: Array<{ id: string; userId: string; startDate: Date; endDate: Date }>;
   patients: Array<{ id: string; fullNameEn: string; fullNameAr: string; phone: string }>;
   rooms: Array<{ id: string; name: string }>;
   defaultDurationMinutes: number;
@@ -44,6 +46,7 @@ interface Props {
 export function SecretaryCalendarBoard({
   appointments,
   resources,
+  leaves,
   patients,
   rooms,
   defaultDurationMinutes,
@@ -172,6 +175,7 @@ export function SecretaryCalendarBoard({
       <SecretaryCalendar
         appointments={appointments}
         resources={resources}
+        leaves={leaves}
         minHour={minHour}
         maxHour={maxHour}
         onSelectSlot={handleSlotSelect}

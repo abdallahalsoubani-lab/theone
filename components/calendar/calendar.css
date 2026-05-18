@@ -112,6 +112,18 @@
   color: rgb(153, 27, 27);
 }
 
+/* Leave overlay (Prompt 11 §4.1.5) — muted background on the therapist
+ * column for an approved leave window. The conflict engine already
+ * blocks new bookings; this just makes the blocked region obvious. */
+.rbc-background-event {
+  background-color: rgba(90, 101, 128, 0.2);
+  border: 1px dashed rgba(90, 101, 128, 0.45);
+  color: var(--brand-text-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+  pointer-events: none;
+}
+
 /* ── RTL fixes ────────────────────────────────────────────────────── */
 /*
  * react-big-calendar's stylesheet uses physical left/right in several places.

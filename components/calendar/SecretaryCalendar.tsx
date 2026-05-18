@@ -28,6 +28,9 @@ export interface SecretaryCalendarProps {
   appointments: CalendarAppointment[];
   /** Active therapists / doctors — rendered as resource columns. */
   resources: Array<{ id: string; fullNameEn: string; fullNameAr: string }>;
+  /** Approved leaves overlapping the visible range (Prompt 11 §4.1.5).
+   *  Rendered as muted background blocks on the therapist's column. */
+  leaves?: Array<{ id: string; userId: string; startDate: Date; endDate: Date }>;
   /** Min hour (24h, 0–23) — derived from ClinicSettings.businessHours earliest open. */
   minHour: number;
   /** Max hour (24h) — derived from latest close. */
@@ -64,6 +67,7 @@ interface AppointmentEvent extends RbcEvent {
 export function SecretaryCalendar({
   appointments,
   resources,
+  leaves,
   minHour,
   maxHour,
   onSelectSlot,
@@ -72,6 +76,7 @@ export function SecretaryCalendar({
 }: SecretaryCalendarProps) {
   const locale = useLocale();
   const t = useTranslations('appointments');
+  const tLeave = useTranslations('leave');
   const intlLocale = locale === 'ar' ? arLocale : enLocale;
 
   const localizer = useMemo(
@@ -99,6 +104,29 @@ export function SecretaryCalendar({
       })),
     [appointments, locale],
   );
+
+  // Leave overlays — rendered via react-big-calendar's `backgroundEvents`
+  // prop. The conflict engine already blocks new bookings on these days
+  // (`THERAPIST_ON_LEAVE` kind from Prompt 7); the background block is
+  // the visual layer that makes the blocked region obvious.
+  const leaveBackgroundEvents = useMemo(() => {
+    if (!leaves || leaves.length === 0) return [];
+    const onLeaveLabel = tLeave('calendar.onLeave');
+    return leaves.map((l) => {
+      const start = new Date(l.startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(l.endDate);
+      end.setHours(23, 59, 59, 999);
+      return {
+        id: `leave-${l.id}`,
+        title: onLeaveLabel,
+        start,
+        end,
+        resourceId: l.userId,
+        leave: true as const,
+      };
+    });
+  }, [leaves, tLeave]);
 
   const rbcResources = useMemo<CalendarResource[]>(
     () =>
@@ -175,6 +203,7 @@ export function SecretaryCalendar({
           eventPropGetter={(event) => ({
             className: `rbc-event-status-${event.status}`,
           })}
+          backgroundEvents={leaveBackgroundEvents as unknown as AppointmentEvent[]}
           components={{
             event: AppointmentEventCard,
           }}

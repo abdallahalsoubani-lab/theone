@@ -8,6 +8,7 @@ import {
   listActivePatientsBrief,
   listAppointmentsForCalendar,
 } from '@/lib/appointments/queries';
+import { listApprovedLeavesInRange } from '@/lib/leave/queries';
 import { can } from '@/lib/rbac/can';
 import { requirePermission } from '@/lib/rbac/guards';
 
@@ -38,7 +39,7 @@ export default async function SecretaryCalendarPage({
   to.setDate(to.getDate() + 21);
   to.setHours(23, 59, 59, 999);
 
-  const [appointments, resources, patients, rooms, settings] = await Promise.all([
+  const [appointments, resources, patients, rooms, settings, leaves] = await Promise.all([
     listAppointmentsForCalendar({ from, to }),
     listActiveClinicians(),
     listActivePatientsBrief(),
@@ -51,6 +52,7 @@ export default async function SecretaryCalendarPage({
       where: { id: 'default' },
       select: { businessHours: true, defaultAppointmentDuration: true },
     }),
+    listApprovedLeavesInRange(from, to),
   ]);
 
   const { minHour, maxHour } = deriveDayWindow(settings?.businessHours);
@@ -62,6 +64,7 @@ export default async function SecretaryCalendarPage({
       <SecretaryCalendarBoard
         appointments={appointments}
         resources={resources}
+        leaves={leaves}
         patients={patients}
         rooms={rooms}
         defaultDurationMinutes={defaultDurationMinutes}

@@ -90,6 +90,9 @@ enum NotificationType {
   LOW_COMPLIANCE
   APPOINTMENT_THERAPIST_ASSIGNED
   APPOINTMENT_THERAPIST_REMOVED
+  LEAVE_REQUESTED
+  LEAVE_APPROVED
+  LEAVE_REJECTED
 }
 
 enum LeaveType {
@@ -145,6 +148,7 @@ enum InboxItemType {
   INBOUND_CANCEL_REQUEST
   INBOUND_UNKNOWN
   OUTBOUND_DELIVERY_FAILED
+  LEAVE_CONFLICT
 }
 
 enum AuditAction {
@@ -648,6 +652,8 @@ model Leave {
   user       User  @relation("LeaveUser", fields: [userId], references: [id], onDelete: Restrict)
   approvedBy User? @relation("LeaveApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
 
+  inboxItems InboxItem[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -749,6 +755,11 @@ model InboxItem {
   patientId     String?
   appointmentId String?
   messageId     String?
+  // Optional reference to the approved leave that caused the conflict.
+  // Used by LEAVE_CONFLICT items so the Secretary can see "this clash
+  // came from <Therapist> being on leave <date range>" without joining
+  // through the appointment.
+  leaveId       String?
   // Free-form note captured at creation time (e.g., the failure reason or
   // the inbound body preview). Avoids forcing the Secretary to open the
   // related row to triage.
@@ -764,11 +775,13 @@ model InboxItem {
   appointment Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   message     WhatsAppMessage? @relation("InboxItemMessage", fields: [messageId], references: [id], onDelete: SetNull)
   resolvedBy  User?            @relation("InboxItemResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  leave       Leave?           @relation(fields: [leaveId], references: [id], onDelete: SetNull)
 
   // Resolved items stay in the table for audit; the inbox queries filter
   // on `resolvedAt IS NULL`. The compound index keeps that lookup cheap.
   @@index([resolvedAt, createdAt(sort: Desc)])
   @@index([patientId, createdAt(sort: Desc)])
+  @@index([leaveId])
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

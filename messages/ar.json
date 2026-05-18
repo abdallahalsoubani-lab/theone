@@ -775,6 +775,18 @@
       "APPOINTMENT_THERAPIST_REMOVED": {
         "title": "تم نقل الموعد",
         "body": "تم نقل موعد {patientName} بتاريخ {date} إلى معالج آخر."
+      },
+      "LEAVE_REQUESTED": {
+        "title": "طلب إجازة",
+        "body": "طلب {requesterName} إجازة في الفترة {dateRange}."
+      },
+      "LEAVE_APPROVED": {
+        "title": "تمت الموافقة على الإجازة",
+        "body": "تمت الموافقة على طلب إجازتك للفترة {dateRange}."
+      },
+      "LEAVE_REJECTED": {
+        "title": "تم رفض الإجازة",
+        "body": "تم رفض طلب إجازتك للفترة {dateRange}: {reason}"
       }
     }
   },
@@ -1119,6 +1131,66 @@
       "rangeError": "يجب أن تحتوي السلسلة على ما بين 1 و 52 موعداً.",
       "recurringToggle": "متكرر",
       "switchToSingle": "موعد فردي"
+    }
+  },
+  "leave": {
+    "myLeavesTitle": "إجازاتي",
+    "myLeavesSubtitle": "اطلب إجازة وراجع حالة الطلبات السابقة.",
+    "adminTitle": "الإجازات",
+    "adminSubtitle": "وافق على طلبات الإجازات أو ارفضها وراجعها.",
+    "requestButton": "طلب إجازة",
+    "form": {
+      "title": "طلب إجازة",
+      "type": "نوع الإجازة",
+      "startDate": "تاريخ البداية",
+      "endDate": "تاريخ النهاية",
+      "reason": "السبب",
+      "reasonPlaceholder": "سبب موجز للإجازة.",
+      "save": "إرسال الطلب",
+      "saving": "جاري الإرسال…"
+    },
+    "types": {
+      "SICK": "مرضية",
+      "VACATION": "إجازة سنوية",
+      "PERSONAL": "شخصية"
+    },
+    "status": {
+      "PENDING": "بانتظار الموافقة",
+      "APPROVED": "موافق عليها",
+      "REJECTED": "مرفوضة"
+    },
+    "columns": {
+      "user": "الموظف",
+      "type": "النوع",
+      "range": "التواريخ",
+      "reason": "السبب",
+      "status": "الحالة",
+      "approvedBy": "الموافقة من",
+      "requestedAt": "تاريخ الطلب",
+      "actions": "إجراءات"
+    },
+    "actions": {
+      "approve": "موافقة",
+      "reject": "رفض",
+      "rejectTitle": "رفض الإجازة",
+      "rejectReason": "سبب الرفض",
+      "rejectSave": "رفض الإجازة",
+      "rejecting": "جاري الرفض…",
+      "cancel": "إلغاء"
+    },
+    "toasts": {
+      "requested": "تم إرسال طلب الإجازة.",
+      "approved": "تمت الموافقة على الإجازة.",
+      "approvedWithConflicts": "تمت الموافقة على الإجازة — تم إرسال {count} تعارض إلى صندوق المسؤولة عن الاستقبال.",
+      "rejected": "تم رفض الإجازة."
+    },
+    "calendar": {
+      "onLeave": "في إجازة"
+    },
+    "empty": {
+      "mine": "لا توجد طلبات إجازة بعد.",
+      "all": "لا توجد طلبات إجازة في النظام بعد.",
+      "pending": "لا توجد طلبات إجازة معلقة."
     }
   }
 }

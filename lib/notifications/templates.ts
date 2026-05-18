@@ -66,6 +66,18 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationType, NotificationTempla
     titleKey: 'notifications.types.APPOINTMENT_THERAPIST_REMOVED.title',
     bodyKey: 'notifications.types.APPOINTMENT_THERAPIST_REMOVED.body',
   },
+  LEAVE_REQUESTED: {
+    titleKey: 'notifications.types.LEAVE_REQUESTED.title',
+    bodyKey: 'notifications.types.LEAVE_REQUESTED.body',
+  },
+  LEAVE_APPROVED: {
+    titleKey: 'notifications.types.LEAVE_APPROVED.title',
+    bodyKey: 'notifications.types.LEAVE_APPROVED.body',
+  },
+  LEAVE_REJECTED: {
+    titleKey: 'notifications.types.LEAVE_REJECTED.title',
+    bodyKey: 'notifications.types.LEAVE_REJECTED.body',
+  },
 };
 
 /**
@@ -85,4 +97,7 @@ export type NotificationParams = {
   LOW_COMPLIANCE: { patientName: string; rate: string };
   APPOINTMENT_THERAPIST_ASSIGNED: { patientName: string; date: string };
   APPOINTMENT_THERAPIST_REMOVED: { patientName: string; date: string };
+  LEAVE_REQUESTED: { requesterName: string; dateRange: string };
+  LEAVE_APPROVED: { dateRange: string };
+  LEAVE_REJECTED: { reason: string; dateRange: string };
 };

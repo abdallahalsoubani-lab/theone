@@ -775,6 +775,18 @@
       "APPOINTMENT_THERAPIST_REMOVED": {
         "title": "Appointment reassigned",
         "body": "{patientName}'s appointment on {date} has been moved to another therapist."
+      },
+      "LEAVE_REQUESTED": {
+        "title": "Leave request",
+        "body": "{requesterName} requested leave for {dateRange}."
+      },
+      "LEAVE_APPROVED": {
+        "title": "Leave approved",
+        "body": "Your leave request for {dateRange} has been approved."
+      },
+      "LEAVE_REJECTED": {
+        "title": "Leave rejected",
+        "body": "Your leave request for {dateRange} was rejected: {reason}"
       }
     }
   },
@@ -1119,6 +1131,66 @@
       "rangeError": "Series must contain between 1 and 52 occurrences.",
       "recurringToggle": "Recurring",
       "switchToSingle": "Single appointment"
+    }
+  },
+  "leave": {
+    "myLeavesTitle": "My leave",
+    "myLeavesSubtitle": "Request leave and review the status of past requests.",
+    "adminTitle": "Leaves",
+    "adminSubtitle": "Approve, reject, and review staff leave requests.",
+    "requestButton": "Request leave",
+    "form": {
+      "title": "Request leave",
+      "type": "Leave type",
+      "startDate": "Start date",
+      "endDate": "End date",
+      "reason": "Reason",
+      "reasonPlaceholder": "A short reason for the leave.",
+      "save": "Submit request",
+      "saving": "Submitting…"
+    },
+    "types": {
+      "SICK": "Sick",
+      "VACATION": "Vacation",
+      "PERSONAL": "Personal"
+    },
+    "status": {
+      "PENDING": "Pending",
+      "APPROVED": "Approved",
+      "REJECTED": "Rejected"
+    },
+    "columns": {
+      "user": "Staff member",
+      "type": "Type",
+      "range": "Dates",
+      "reason": "Reason",
+      "status": "Status",
+      "approvedBy": "Approved by",
+      "requestedAt": "Requested",
+      "actions": "Actions"
+    },
+    "actions": {
+      "approve": "Approve",
+      "reject": "Reject",
+      "rejectTitle": "Reject leave",
+      "rejectReason": "Rejection reason",
+      "rejectSave": "Reject leave",
+      "rejecting": "Rejecting…",
+      "cancel": "Cancel"
+    },
+    "toasts": {
+      "requested": "Leave request submitted.",
+      "approved": "Leave approved.",
+      "approvedWithConflicts": "Leave approved — {count} conflict(s) sent to the Secretary inbox.",
+      "rejected": "Leave rejected."
+    },
+    "calendar": {
+      "onLeave": "On leave"
+    },
+    "empty": {
+      "mine": "No leave requests yet.",
+      "all": "No leave requests in the system yet.",
+      "pending": "No pending leave requests."
     }
   }
 }
