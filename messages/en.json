@@ -745,6 +745,10 @@
       "APPOINTMENT_RESCHEDULE_REQUEST": {
         "title": "Reschedule request",
         "body": "{patientName} requested to reschedule an appointment."
+      },
+      "LOW_COMPLIANCE": {
+        "title": "Low home-program compliance",
+        "body": "{patientName} has dropped to {rate}% adherence over the past 7 days. Consider following up."
       }
     }
   },

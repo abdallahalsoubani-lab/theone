@@ -1,9 +1,16 @@
 #!/usr/bin/env bash
 #
-# One-shot bucket creation for the MinIO container started by docker-compose.
-# Idempotent: re-runs are no-ops once the bucket exists.
+# One-shot bucket creation + policy bootstrap for the MinIO container
+# started by docker-compose. Idempotent: re-runs are no-ops once the
+# bucket exists.
 #
 # Picked up by `pnpm infra:up`.
+#
+# Bucket layout (Prompt 10 §4.2.4):
+#   exercises/img/{userId}/{date}/{uuid}.{ext}    — exercise images
+#   exercises/video/{userId}/{date}/{uuid}.{ext}  — exercise videos
+# The exercises/ prefix has public-read so the patient browser renders
+# media directly via the public URL without signed-URL gymnastics.
 
 set -euo pipefail
 
@@ -26,10 +33,30 @@ for _ in $(seq 1 30); do
   sleep 1
 done
 
-echo "[init-minio] ensuring bucket '${BUCKET}' exists"
+# Policy doc: read-only on the exercises/* prefix. Other prefixes stay
+# private. Production swap to AWS uses the equivalent bucket policy via
+# `aws s3api put-bucket-policy` or Terraform.
+POLICY_FILE="$(mktemp)"
+cat > "${POLICY_FILE}" <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": { "AWS": ["*"] },
+      "Action": ["s3:GetObject"],
+      "Resource": ["arn:aws:s3:::${BUCKET}/exercises/*"]
+    }
+  ]
+}
+EOF
+
+echo "[init-minio] ensuring bucket '${BUCKET}' exists + applying exercises/* read policy"
 docker run --rm --network host \
+  -v "${POLICY_FILE}:/policy.json:ro" \
   -e MC_HOST_local="http://${ACCESS_KEY}:${SECRET_KEY}@${ENDPOINT#http://}" \
   minio/mc:latest \
-  sh -c "mc mb --ignore-existing local/${BUCKET} && mc anonymous set download local/${BUCKET} >/dev/null 2>&1 || true"
+  sh -c "mc mb --ignore-existing local/${BUCKET} && (mc anonymous set-json /policy.json local/${BUCKET} >/dev/null 2>&1 || mc anonymous set download local/${BUCKET} >/dev/null 2>&1 || true)"
 
+rm -f "${POLICY_FILE}"
 echo "[init-minio] done"

@@ -16,7 +16,6 @@ import {
   AppointmentStatus,
   Comorbidity,
   Gender,
-  HomeProgramFrequency,
   IntakeStatus,
   IntakeType,
   LanguagePref,
@@ -771,6 +770,7 @@ async function seedHomeProgram(
   const patient = patients[0]!;
   const ex1 = exercises[0]!;
   const ex2 = exercises[1]!;
+  // Daily morning routine. daysOfWeek covers the full week.
   await db.homeProgramItem.upsert({
     where: { id: 'seed-hp-01' },
     update: {},
@@ -778,12 +778,14 @@ async function seedHomeProgram(
       id: 'seed-hp-01',
       patientId: patient.id,
       exerciseId: ex1.id!,
-      frequency: HomeProgramFrequency.DAILY,
+      daysOfWeek: [0, 1, 2, 3, 4, 5, 6],
       scheduledTime: '08:00',
       durationMinutes: 10,
+      setsReps: '3 × 10',
       therapistNote: 'Focus on slow controlled motion.',
     },
   });
+  // Three-times-a-week evening exercise — Mon/Wed/Fri.
   await db.homeProgramItem.upsert({
     where: { id: 'seed-hp-02' },
     update: {},
@@ -791,10 +793,10 @@ async function seedHomeProgram(
       id: 'seed-hp-02',
       patientId: patient.id,
       exerciseId: ex2.id!,
-      frequency: HomeProgramFrequency.WEEKLY_N,
-      timesPerWeek: 3,
+      daysOfWeek: [1, 3, 5],
       scheduledTime: '19:00',
       durationMinutes: 8,
+      setsReps: '2 × 12',
     },
   });
 

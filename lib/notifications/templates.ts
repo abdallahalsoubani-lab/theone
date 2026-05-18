@@ -54,6 +54,10 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationType, NotificationTempla
     titleKey: 'notifications.types.APPOINTMENT_RESCHEDULE_REQUEST.title',
     bodyKey: 'notifications.types.APPOINTMENT_RESCHEDULE_REQUEST.body',
   },
+  LOW_COMPLIANCE: {
+    titleKey: 'notifications.types.LOW_COMPLIANCE.title',
+    bodyKey: 'notifications.types.LOW_COMPLIANCE.body',
+  },
 };
 
 /**
@@ -70,4 +74,5 @@ export type NotificationParams = {
   DAY_REPORT_SUBMITTED: { therapistName: string; date: string };
   DOCTOR_REVIEW_ADDED: { doctorName: string; patientName: string };
   APPOINTMENT_RESCHEDULE_REQUEST: { patientName: string };
+  LOW_COMPLIANCE: { patientName: string; rate: string };
 };

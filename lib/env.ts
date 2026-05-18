@@ -24,12 +24,20 @@ const envSchema = z.object({
   // Redis (Prompt 8 begins using this)
   REDIS_URL: z.string().url().optional(),
 
-  // S3 / MinIO (Prompt 6/7 begin using this)
+  // S3 / MinIO (Prompt 6/7 begin using this; Prompt 10 wires direct uploads)
   S3_ENDPOINT: z.string().url().optional(),
   S3_REGION: z.string().optional(),
   S3_BUCKET: z.string().optional(),
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
+  // Public base URL the browser hits to render images / videos. Defaults
+  // to `${S3_ENDPOINT}/${S3_BUCKET}` for local MinIO; production sets this
+  // to a CDN (CloudFront / Cloudflare) so traffic doesn't terminate at
+  // S3 directly.
+  S3_PUBLIC_BASE_URL: z.string().url().optional(),
+  // Home-reminder offset window — defaults to 30 minutes ahead of the
+  // scheduled exercise time. Patient-facing copy assumes 30 min.
+  HOME_REMINDER_OFFSET_MINUTES: z.coerce.number().int().min(1).max(180).default(30),
 
   // WhatsApp provider (Prompt 8). `console` is the dev default — every send
   // writes a structured payload to stderr and no network IO is performed.

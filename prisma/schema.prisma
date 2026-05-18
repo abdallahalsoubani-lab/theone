@@ -82,6 +82,7 @@ enum NotificationType {
   DAY_REPORT_SUBMITTED
   DOCTOR_REVIEW_ADDED
   APPOINTMENT_RESCHEDULE_REQUEST
+  LOW_COMPLIANCE
 }
 
 enum LeaveType {
@@ -500,10 +501,29 @@ model Exercise {
   category          String
   anatomicalRegion  String
   contraindications String?
+  // Default patient-facing instruction. Per-item overrides land on
+  // HomeProgramItem.therapistNote.
+  defaultInstructionEn String?
+  defaultInstructionAr String?
   videoUrl          String?
+  videoMimeType     String?
+  videoSizeBytes    Int?
   imageUrl          String?
+  imageMimeType     String?
+  imageSizeBytes    Int?
   version           Int     @default(1)
   createdById       String
+
+  // Version chain (Prompt 10 §4.3.4). Editing creates a new row; the old
+  // row gets replacedById set so existing HomeProgramItems continue to
+  // reference the version they were assigned, while the library list
+  // shows only un-replaced + active rows.
+  replacedById      String?  @unique
+  replacedBy        Exercise? @relation("ExerciseVersions", fields: [replacedById], references: [id], onDelete: SetNull)
+  predecessor       Exercise? @relation("ExerciseVersions")
+  // Soft delete — keep historical rows visible only through their existing
+  // HomeProgramItem references.
+  active            Boolean  @default(true)
 
   createdBy        User              @relation("ExerciseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   planExercises    PlanExercise[]
@@ -514,6 +534,7 @@ model Exercise {
 
   @@index([category])
   @@index([anatomicalRegion])
+  @@index([active, replacedById])
 }
 
 model SessionNote {
@@ -555,16 +576,23 @@ model SessionNote {
 // ═════════════════════════════════════════════════════════════════════════════
 
 model HomeProgramItem {
-  id              String               @id @default(cuid())
+  id              String   @id @default(cuid())
   patientId       String
   exerciseId      String
-  frequency       HomeProgramFrequency
-  timesPerWeek    Int?
+  // Days the exercise is scheduled. 0 = Sunday, 6 = Saturday. The
+  // home_program_items_days_of_week_check constraint in the Prompt 10
+  // migration enforces length 1-7, values 0-6, and uniqueness.
+  daysOfWeek      Int[]
   // Time-of-day as "HH:MM" — see file header note. Recurring local-time concept.
   scheduledTime   String
   durationMinutes Int
+  setsReps        String?
   therapistNote   String?
-  active          Boolean              @default(true)
+  active          Boolean  @default(true)
+  // BullMQ repeat-job key returned by Queue.add(). Stored here so the
+  // update / delete paths can call removeRepeatableByKey() without
+  // re-deriving the cron pattern.
+  reminderJobKey  String?
 
   patient     User                    @relation("HomeProgramPatient", fields: [patientId], references: [id], onDelete: Restrict)
   exercise    Exercise                @relation(fields: [exerciseId], references: [id], onDelete: Restrict)

@@ -745,6 +745,10 @@
       "APPOINTMENT_RESCHEDULE_REQUEST": {
         "title": "طلب إعادة جدولة",
         "body": "طلب {patientName} إعادة جدولة موعد."
+      },
+      "LOW_COMPLIANCE": {
+        "title": "انخفاض الالتزام بالبرنامج المنزلي",
+        "body": "انخفض التزام {patientName} إلى {rate}٪ خلال آخر 7 أيام. ننصح بالمتابعة."
       }
     }
   },
