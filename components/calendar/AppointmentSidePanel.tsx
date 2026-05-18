@@ -1,7 +1,7 @@
 'use client';
 
 import { AppointmentStatus } from '@prisma/client';
-import { Check, CircleDot, ExternalLink, Pencil, X } from 'lucide-react';
+import { Check, CircleDot, ExternalLink, Pencil, UserCog, X } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
@@ -29,6 +29,7 @@ export interface SidePanelAppointment {
   patientFullNameEn: string;
   patientFullNameAr: string;
   patientPhone: string;
+  therapistId: string;
   therapistFullNameEn: string;
   therapistFullNameAr: string;
   roomName: string | null;
@@ -36,6 +37,7 @@ export interface SidePanelAppointment {
   durationMinutes: number;
   status: AppointmentStatus;
   notes: string | null;
+  seriesId: string | null;
 }
 
 interface Props {
@@ -43,6 +45,9 @@ interface Props {
   appointment: SidePanelAppointment | null;
   onClose: () => void;
   onEdit?: () => void;
+  /** Opens the change-therapist picker (Prompt 7b §4.6). The parent
+   *  owns the modal state + the clinicians list. */
+  onChangeTherapist?: () => void;
 }
 
 /**
@@ -53,7 +58,13 @@ interface Props {
  * Cancel uses a quick-confirm with a default category — for the full reason
  * picker, Prompt 7b will replace this with the modal described in §4.9.
  */
-export function AppointmentSidePanel({ open, appointment, onClose, onEdit }: Props) {
+export function AppointmentSidePanel({
+  open,
+  appointment,
+  onClose,
+  onEdit,
+  onChangeTherapist,
+}: Props) {
   const tStatus = useTranslations('appointments.status');
   const tActions = useTranslations('appointments.actions');
   const tSide = useTranslations('appointments.sidePanel');
@@ -102,6 +113,8 @@ export function AppointmentSidePanel({ open, appointment, onClose, onEdit }: Pro
   const canCancel =
     status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED;
   const canNoShow =
+    status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED;
+  const canChangeTherapist =
     status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED;
 
   return (
@@ -202,6 +215,18 @@ export function AppointmentSidePanel({ open, appointment, onClose, onEdit }: Pro
               {tActions('cancel')}
             </Button>
           ) : null}
+          {canChangeTherapist && onChangeTherapist ? (
+            <Button
+              type="button"
+              className="w-full justify-start"
+              variant="outline"
+              disabled={pending}
+              onClick={onChangeTherapist}
+            >
+              <UserCog className="me-2 size-4" />
+              {tActions('changeTherapist')}
+            </Button>
+          ) : null}
           {onEdit ? (
             <Button
               type="button"
@@ -224,7 +249,7 @@ export function AppointmentSidePanel({ open, appointment, onClose, onEdit }: Pro
       <CancelAppointmentModal
         open={cancelOpen}
         appointmentId={appointment.id}
-        seriesId={null}
+        seriesId={appointment.seriesId}
         onClose={() => setCancelOpen(false)}
         onCancelled={() => {
           onClose();

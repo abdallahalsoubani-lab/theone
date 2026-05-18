@@ -195,7 +195,13 @@ export const rescheduleAppointment = withAudit<
 
 export const changeAppointmentTherapist = withAudit<
   [AppointmentChangeTherapistInput],
-  { appointmentId: string; conflictsOverridden: boolean }
+  {
+    appointmentId: string;
+    conflictsOverridden: boolean;
+    previousTherapistId: string;
+    newTherapistId: string;
+    reason: string | null;
+  }
 >(
   {
     entityType: 'Appointment',
@@ -208,24 +214,35 @@ export const changeAppointmentTherapist = withAudit<
       }),
     extractAfter: (result) => ({
       event: result.conflictsOverridden ? 'OVERRIDE_CONFLICT' : 'THERAPIST_CHANGED',
+      previousTherapistId: result.previousTherapistId,
+      newTherapistId: result.newTherapistId,
+      reason: result.reason,
     }),
   },
   async function changeTherapistInner(input): Promise<{
     appointmentId: string;
     conflictsOverridden: boolean;
+    previousTherapistId: string;
+    newTherapistId: string;
+    reason: string | null;
   }> {
     const existing = await db.appointment.findUnique({
       where: { id: input.id },
       select: {
         id: true,
         patientId: true,
+        therapistId: true,
         startsAt: true,
         durationMinutes: true,
         status: true,
+        patient: { select: { fullNameEn: true, fullNameAr: true } },
       },
     });
     if (!existing) throw new AppointmentError(notFound);
 
+    // Re-run the conflict engine at submit time. The availability
+    // dots in the UI are advisory; the slot may have filled in
+    // between render and click. This is the authoritative check.
     const conflicts = await checkConflicts({
       appointmentId: input.id,
       patientId: existing.patientId,
@@ -237,17 +254,112 @@ export const changeAppointmentTherapist = withAudit<
       throw new AppointmentError(conflictError(conflicts.conflicts));
     }
 
+    // No-op when the user picks the same therapist (e.g. closed +
+    // reopened the modal). Avoid the notification fan-out in that case.
+    if (existing.therapistId === input.therapistId) {
+      return {
+        appointmentId: input.id,
+        conflictsOverridden: false,
+        previousTherapistId: existing.therapistId,
+        newTherapistId: input.therapistId,
+        reason: input.reason ?? null,
+      };
+    }
+
     await db.appointment.update({
       where: { id: input.id },
       data: { therapistId: input.therapistId },
     });
 
+    // Notification fan-out — two separate types so each side gets a
+    // focused message (Prompt 7b §4.6). Fire-and-forget; the audit
+    // row already captured the change above.
+    const { createNotification } = await import('@/lib/notifications/actions');
+    const dateStr = existing.startsAt.toISOString().slice(0, 10);
+    const patientName = existing.patient.fullNameEn;
+    void createNotification({
+      recipientId: existing.therapistId,
+      type: 'APPOINTMENT_THERAPIST_REMOVED',
+      params: { patientName, date: dateStr },
+      linkPath: `/therapist/schedule`,
+      relatedEntityType: 'Appointment',
+      relatedEntityId: input.id,
+    }).catch((err: unknown) => {
+      console.error('[appointments.changeTherapist] removed notification failed', err);
+    });
+    void createNotification({
+      recipientId: input.therapistId,
+      type: 'APPOINTMENT_THERAPIST_ASSIGNED',
+      params: { patientName, date: dateStr },
+      linkPath: `/therapist/schedule`,
+      relatedEntityType: 'Appointment',
+      relatedEntityId: input.id,
+    }).catch((err: unknown) => {
+      console.error('[appointments.changeTherapist] assigned notification failed', err);
+    });
+
     return {
       appointmentId: input.id,
       conflictsOverridden: !conflicts.ok && input.overrideConflicts,
+      previousTherapistId: existing.therapistId,
+      newTherapistId: input.therapistId,
+      reason: input.reason ?? null,
     };
   },
 );
+
+// ─── Batched availability query (Prompt 7b §4.6) ──────────────────────────
+
+export interface TherapistAvailabilityRow {
+  therapistId: string;
+  available: boolean;
+  conflictKinds: Array<
+    | 'THERAPIST_OVERLAP'
+    | 'PATIENT_OVERLAP'
+    | 'THERAPIST_ON_LEAVE'
+    | 'OUTSIDE_BUSINESS_HOURS'
+    | 'CLINIC_CLOSED_THIS_DAY'
+  >;
+}
+
+/**
+ * Run the conflict engine against every candidate therapist for a single
+ * appointment slot in parallel. Returns one row per therapist with an
+ * `available` flag (the green/red dot in the UI) and the conflict kinds
+ * so the picker can show a short reason inline. Parallel fan-out via
+ * Promise.all — sequential looping would dominate latency at clinic
+ * scale (50+ therapists).
+ *
+ * The dots are advisory only — `changeAppointmentTherapist` re-runs
+ * the engine at submit time and rejects if a conflict has emerged
+ * between render and click.
+ */
+export async function getTherapistAvailabilityForTimeSlot(args: {
+  appointmentId: string;
+  patientId: string;
+  startsAt: Date;
+  durationMinutes: number;
+  therapistIds: string[];
+  excludeTherapistId?: string;
+}): Promise<TherapistAvailabilityRow[]> {
+  const candidates = args.therapistIds.filter((id) => id !== args.excludeTherapistId);
+  return Promise.all(
+    candidates.map(async (therapistId) => {
+      const r = await checkConflicts({
+        appointmentId: args.appointmentId,
+        patientId: args.patientId,
+        therapistId,
+        startsAt: args.startsAt,
+        durationMinutes: args.durationMinutes,
+      });
+      return {
+        therapistId,
+        available: r.ok,
+        conflictKinds: r.ok ? [] : r.conflicts.map((c) => c.kind),
+      };
+    }),
+  );
+}
 
 export const cancelAppointment = withAudit<
   [AppointmentCancelInput],

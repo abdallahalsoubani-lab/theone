@@ -10,6 +10,7 @@ import {
   type SidePanelAppointment,
 } from '@/components/calendar/AppointmentSidePanel';
 import { SecretaryCalendar } from '@/components/calendar/SecretaryCalendar';
+import { ChangeTherapistModal } from '@/components/appointments/ChangeTherapistModal';
 import { CreateAppointmentModal } from '@/components/appointments/CreateAppointmentModal';
 import { Button } from '@/components/ui/button';
 import { rescheduleAppointmentAction } from '@/lib/appointments/actions';
@@ -64,6 +65,9 @@ export function SecretaryCalendarBoard({
   const [panelOpen, setPanelOpen] = useState(false);
   const [panelAppt, setPanelAppt] = useState<SidePanelAppointment | null>(null);
 
+  // Change-therapist modal (Prompt 7b §4.6).
+  const [changeTherapistOpen, setChangeTherapistOpen] = useState(false);
+
   const handleSlotSelect = (slot: { start: Date; end: Date; resourceId?: string }) => {
     setCreateSlot({ start: slot.start, therapistId: slot.resourceId });
     setCreateOpen(true);
@@ -80,6 +84,7 @@ export function SecretaryCalendarBoard({
       // Phone is fetched lazily; the calendar list query is lean. For now,
       // leave blank and Prompt 7b can fetch on open if needed.
       patientPhone: '',
+      therapistId: found.therapistId,
       therapistFullNameEn: found.therapistFullNameEn,
       therapistFullNameAr: found.therapistFullNameAr,
       roomName: found.roomName,
@@ -87,6 +92,7 @@ export function SecretaryCalendarBoard({
       durationMinutes: found.durationMinutes,
       status: found.status,
       notes: found.notes,
+      seriesId: found.seriesId,
     });
     setPanelOpen(true);
   };
@@ -152,7 +158,22 @@ export function SecretaryCalendarBoard({
         open={panelOpen}
         appointment={panelAppt}
         onClose={() => setPanelOpen(false)}
+        onChangeTherapist={panelAppt ? () => setChangeTherapistOpen(true) : undefined}
       />
+
+      {panelAppt ? (
+        <ChangeTherapistModal
+          open={changeTherapistOpen}
+          onClose={() => setChangeTherapistOpen(false)}
+          appointmentId={panelAppt.id}
+          patientId={panelAppt.patientId}
+          currentTherapistId={panelAppt.therapistId}
+          startsAt={panelAppt.startsAt}
+          durationMinutes={panelAppt.durationMinutes}
+          seriesId={panelAppt.seriesId}
+          clinicians={resources}
+        />
+      ) : null}
     </div>
   );
 }

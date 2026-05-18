@@ -1050,6 +1050,27 @@
       "confirm": "Confirm cancellation",
       "cancelledToast": "Appointment cancelled."
     },
+    "changeTherapist": {
+      "title": "Change therapist",
+      "subtitle": "Pick a different clinician for this appointment. Availability is recomputed on save.",
+      "currentLabel": "Current",
+      "availableBadge": "Available",
+      "unavailableBadge": "Unavailable",
+      "reasonLabel": "Reason (optional)",
+      "reasonPlaceholder": "Why is this appointment being reassigned?",
+      "seriesNote": "This appointment is part of a series. Only this single occurrence will be reassigned; bulk series edits are a separate flow.",
+      "save": "Reassign",
+      "saving": "Reassigning…",
+      "reassignedToast": "Appointment reassigned.",
+      "noChangeError": "Pick a therapist different from the current one.",
+      "conflictKinds": {
+        "THERAPIST_OVERLAP": "Already booked",
+        "PATIENT_OVERLAP": "Patient busy",
+        "THERAPIST_ON_LEAVE": "On leave",
+        "OUTSIDE_BUSINESS_HOURS": "Outside hours",
+        "CLINIC_CLOSED_THIS_DAY": "Clinic closed"
+      }
+    },
     "series": {
       "title": "Recurring appointments",
       "subtitle": "Set the pattern, then resolve any per-occurrence conflicts before saving.",

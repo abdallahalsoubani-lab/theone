@@ -18,6 +18,7 @@ export interface CalendarAppointment {
   durationMinutes: number;
   status: 'SCHEDULED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
   notes: string | null;
+  seriesId: string | null;
 }
 
 /**
@@ -60,6 +61,7 @@ export async function listAppointmentsForCalendar(
     durationMinutes: r.durationMinutes,
     status: r.status,
     notes: r.notes,
+    seriesId: r.seriesId,
   }));
 }
 

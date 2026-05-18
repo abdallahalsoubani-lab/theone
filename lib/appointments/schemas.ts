@@ -45,6 +45,9 @@ export type AppointmentRescheduleInput = z.infer<typeof appointmentRescheduleSch
 export const appointmentChangeTherapistSchema = z.object({
   id: z.string().cuid(),
   therapistId: z.string().cuid(),
+  /** Optional free-form reason logged on the audit row and surfaced
+   *  in the assigned/removed notification body when present. */
+  reason: z.string().max(500).optional().nullable(),
   overrideConflicts: z.boolean().default(false),
 });
 

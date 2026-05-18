@@ -29,12 +29,14 @@ import {
   changeAppointmentTherapist,
   createAppointment,
   createSeries,
+  getTherapistAvailabilityForTimeSlot,
   permissionForStatusChange,
   previewSeries,
   previewSingleOccurrence,
   rescheduleAppointment,
   updateAppointmentStatus,
   type SeriesPreviewOccurrence,
+  type TherapistAvailabilityRow,
 } from './services';
 
 const revalidate = () => {
@@ -103,9 +105,15 @@ export async function rescheduleAppointmentAction(
   }
 }
 
-export async function changeTherapistAction(
-  input: AppointmentChangeTherapistInput,
-): Promise<Result<{ appointmentId: string; conflictsOverridden: boolean }>> {
+export async function changeTherapistAction(input: AppointmentChangeTherapistInput): Promise<
+  Result<{
+    appointmentId: string;
+    conflictsOverridden: boolean;
+    previousTherapistId: string;
+    newTherapistId: string;
+    reason: string | null;
+  }>
+> {
   await requirePermission('appointments.update');
   const parsed = appointmentChangeTherapistSchema.safeParse(input);
   if (!parsed.success) return fail(appointmentToLocalized(parsed.error));
@@ -116,6 +124,31 @@ export async function changeTherapistAction(
     const data = await changeAppointmentTherapist(parsed.data);
     revalidate();
     return ok(data);
+  } catch (err) {
+    return fail(appointmentToLocalized(err));
+  }
+}
+
+/**
+ * Batched availability check for the change-therapist picker. Runs the
+ * conflict engine across every candidate therapist in parallel. The
+ * result is advisory — the eventual save re-runs the check.
+ */
+export async function previewTherapistAvailabilityAction(input: {
+  appointmentId: string;
+  patientId: string;
+  startsAt: string;
+  durationMinutes: number;
+  therapistIds: string[];
+  excludeTherapistId?: string;
+}): Promise<Result<{ rows: TherapistAvailabilityRow[] }>> {
+  await requirePermission('appointments.read');
+  try {
+    const rows = await getTherapistAvailabilityForTimeSlot({
+      ...input,
+      startsAt: new Date(input.startsAt),
+    });
+    return ok({ rows });
   } catch (err) {
     return fail(appointmentToLocalized(err));
   }

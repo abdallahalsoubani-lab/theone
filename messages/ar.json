@@ -1050,6 +1050,27 @@
       "confirm": "تأكيد الإلغاء",
       "cancelledToast": "تم إلغاء الموعد."
     },
+    "changeTherapist": {
+      "title": "تغيير المعالج",
+      "subtitle": "اختر معالجاً آخر لهذا الموعد. سيتم إعادة فحص التوفر عند الحفظ.",
+      "currentLabel": "الحالي",
+      "availableBadge": "متاح",
+      "unavailableBadge": "غير متاح",
+      "reasonLabel": "السبب (اختياري)",
+      "reasonPlaceholder": "لماذا يتم إعادة تعيين هذا الموعد؟",
+      "seriesNote": "هذا الموعد جزء من سلسلة. سيتم إعادة تعيين هذا الموعد فقط؛ تحرير السلسلة بالجملة في مسار منفصل.",
+      "save": "إعادة التعيين",
+      "saving": "جاري إعادة التعيين…",
+      "reassignedToast": "تمت إعادة تعيين الموعد.",
+      "noChangeError": "اختر معالجاً مختلفاً عن الحالي.",
+      "conflictKinds": {
+        "THERAPIST_OVERLAP": "محجوز",
+        "PATIENT_OVERLAP": "المريض مشغول",
+        "THERAPIST_ON_LEAVE": "في إجازة",
+        "OUTSIDE_BUSINESS_HOURS": "خارج الدوام",
+        "CLINIC_CLOSED_THIS_DAY": "العيادة مغلقة"
+      }
+    },
     "series": {
       "title": "مواعيد متكررة",
       "subtitle": "اضبط النمط ثم حل التعارضات لكل موعد قبل الحفظ.",
