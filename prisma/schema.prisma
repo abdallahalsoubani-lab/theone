@@ -347,6 +347,10 @@ model Appointment {
   cancellationReason   String?
   cancellationCategory CancellationCategory?
   createdById          String
+  // Group key for recurring series. Single appointments may leave this null;
+  // every occurrence of a series shares the same seriesId. Future features
+  // (cancel series, reschedule series) join on this column.
+  seriesId             String?
 
   patient     User  @relation("AppointmentPatient", fields: [patientId], references: [id], onDelete: Restrict)
   therapist   User  @relation("AppointmentTherapist", fields: [therapistId], references: [id], onDelete: Restrict)
@@ -360,6 +364,7 @@ model Appointment {
   @@index([therapistId, startsAt])
   @@index([patientId, startsAt])
   @@index([status])
+  @@index([seriesId])
 }
 
 model TreatmentPlan {
