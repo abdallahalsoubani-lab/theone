@@ -696,5 +696,54 @@
     "unreachable": "غير قابل للوصول — آخر فشل: {reason}",
     "lastDeliveryAt": "آخر تسليم في {date}",
     "lastFailureAt": "آخر فشل في {date}"
+  },
+  "notifications": {
+    "title": "الإشعارات",
+    "subtitle": "تحديثات داخل التطبيق حول عملك السريري والخطط والتقارير.",
+    "empty": "لا توجد إشعارات بعد.",
+    "markAllRead": "تعليم الكل كمقروء",
+    "viewAll": "عرض الكل",
+    "unreadLabel": "{count} غير مقروء",
+    "prev": "السابق",
+    "next": "التالي",
+    "pageOf": "صفحة {page} من {totalPages}",
+    "types": {
+      "PLAN_ASSIGNED": {
+        "title": "تم إسناد خطة علاج جديدة",
+        "body": "أسندت إليك د. {doctorName} خطة علاج {patientName}."
+      },
+      "PLAN_PROPOSAL_RECEIVED": {
+        "title": "اقتراح مراجعة خطة",
+        "body": "اقترح {therapistName} تعديلاً على خطة {patientName}: {reason}"
+      },
+      "PLAN_PROPOSAL_APPROVED": {
+        "title": "تمت الموافقة على المراجعة",
+        "body": "وافق د. {doctorName} على التعديل المقترح على خطة {patientName}."
+      },
+      "PLAN_PROPOSAL_REJECTED": {
+        "title": "تم رفض المراجعة",
+        "body": "رفض د. {doctorName} التعديل المقترح على خطة {patientName}: {reason}"
+      },
+      "PLAN_PAUSED": {
+        "title": "تم إيقاف خطة العلاج مؤقتاً",
+        "body": "تم إيقاف خطة {patientName} مؤقتاً."
+      },
+      "PLAN_DISCONTINUED": {
+        "title": "تم إنهاء خطة العلاج",
+        "body": "تم إنهاء خطة {patientName}."
+      },
+      "DAY_REPORT_SUBMITTED": {
+        "title": "تم تقديم تقرير نهاية اليوم",
+        "body": "قام {therapistName} بتقديم تقرير نهاية اليوم بتاريخ {date}."
+      },
+      "DOCTOR_REVIEW_ADDED": {
+        "title": "تمت إضافة المراجعة الأسبوعية",
+        "body": "أضاف د. {doctorName} مراجعة أسبوعية للمريض {patientName}."
+      },
+      "APPOINTMENT_RESCHEDULE_REQUEST": {
+        "title": "طلب إعادة جدولة",
+        "body": "طلب {patientName} إعادة جدولة موعد."
+      }
+    }
   }
 }

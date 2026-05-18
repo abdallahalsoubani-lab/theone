@@ -696,5 +696,54 @@
     "unreachable": "Unreachable — last failure: {reason}",
     "lastDeliveryAt": "Last delivery on {date}",
     "lastFailureAt": "Last failure on {date}"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "subtitle": "In-app updates about your clinical work, plans, and reports.",
+    "empty": "No notifications yet.",
+    "markAllRead": "Mark all read",
+    "viewAll": "View all",
+    "unreadLabel": "{count} unread",
+    "prev": "Previous",
+    "next": "Next",
+    "pageOf": "Page {page} of {totalPages}",
+    "types": {
+      "PLAN_ASSIGNED": {
+        "title": "New treatment plan assigned",
+        "body": "Dr. {doctorName} assigned you {patientName}’s treatment plan."
+      },
+      "PLAN_PROPOSAL_RECEIVED": {
+        "title": "Plan revision proposed",
+        "body": "{therapistName} proposed a change to {patientName}’s plan: {reason}"
+      },
+      "PLAN_PROPOSAL_APPROVED": {
+        "title": "Plan revision approved",
+        "body": "Dr. {doctorName} approved your proposed change to {patientName}’s plan."
+      },
+      "PLAN_PROPOSAL_REJECTED": {
+        "title": "Plan revision rejected",
+        "body": "Dr. {doctorName} rejected the proposed change to {patientName}’s plan: {reason}"
+      },
+      "PLAN_PAUSED": {
+        "title": "Treatment plan paused",
+        "body": "{patientName}’s plan has been paused."
+      },
+      "PLAN_DISCONTINUED": {
+        "title": "Treatment plan discontinued",
+        "body": "{patientName}’s plan has been discontinued."
+      },
+      "DAY_REPORT_SUBMITTED": {
+        "title": "End-of-day report submitted",
+        "body": "{therapistName} submitted the end-of-day report for {date}."
+      },
+      "DOCTOR_REVIEW_ADDED": {
+        "title": "Weekly review added",
+        "body": "Dr. {doctorName} added a weekly review for {patientName}."
+      },
+      "APPOINTMENT_RESCHEDULE_REQUEST": {
+        "title": "Reschedule request",
+        "body": "{patientName} requested to reschedule an appointment."
+      }
+    }
   }
 }

@@ -1,10 +1,13 @@
-import { Bell } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 
 import { auth } from '@/auth';
 import { Logo } from '@/components/brand/Logo';
-import { Button } from '@/components/ui/button';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { Link } from '@/i18n/navigation';
+import {
+  countUnreadNotificationsForCurrentUser,
+  listNotificationsForCurrentUser,
+} from '@/lib/notifications/queries';
 
 import { LanguageToggle } from './LanguageToggle';
 import { MobileNav } from './MobileNav';
@@ -31,6 +34,16 @@ export async function Header() {
       }
     : null;
 
+  // The bell needs an initial unread count + recent list so its first
+  // paint isn't empty. Skipped for unauthenticated requests — keeps the
+  // public landing page from issuing a db query it doesn't need.
+  const [initialUnread, initialItems] = user
+    ? await Promise.all([
+        countUnreadNotificationsForCurrentUser(),
+        listNotificationsForCurrentUser(10, 0),
+      ])
+    : [0, []];
+
   return (
     <header
       className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-brand-border bg-brand-surface px-4 sm:px-6"
@@ -56,15 +69,14 @@ export async function Header() {
       <div className="ms-auto flex items-center gap-1">
         <LanguageToggle />
         {user ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            aria-label={t('shell.notifications')}
-            className="hidden sm:inline-flex"
-          >
-            <Bell className="size-4" />
-          </Button>
+          <NotificationBell
+            initialUnreadCount={initialUnread}
+            initialItems={initialItems.map((i) => ({
+              ...i,
+              params: i.params as Record<string, string>,
+            }))}
+            notificationsPath="/notifications"
+          />
         ) : null}
         <UserMenu user={user} />
       </div>

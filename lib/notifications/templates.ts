@@ -1,0 +1,73 @@
+import type { NotificationType } from '@prisma/client';
+
+/**
+ * Notification templates — the static map of `NotificationType` to the
+ * i18n keys (`titleKey`, `bodyKey`) the row stores. The renderer reads
+ * `notifications.types.{type}.title` and `.body`, then interpolates
+ * `params` into the localized template.
+ *
+ * Keep the `params` set narrow per type so the localized templates don't
+ * drift. The TypeScript types below document the expected param shapes
+ * for each notification; the `createNotification` action enforces them
+ * at the call site.
+ */
+
+export interface NotificationTemplate {
+  titleKey: string;
+  bodyKey: string;
+}
+
+export const NOTIFICATION_TEMPLATES: Record<NotificationType, NotificationTemplate> = {
+  PLAN_ASSIGNED: {
+    titleKey: 'notifications.types.PLAN_ASSIGNED.title',
+    bodyKey: 'notifications.types.PLAN_ASSIGNED.body',
+  },
+  PLAN_PROPOSAL_RECEIVED: {
+    titleKey: 'notifications.types.PLAN_PROPOSAL_RECEIVED.title',
+    bodyKey: 'notifications.types.PLAN_PROPOSAL_RECEIVED.body',
+  },
+  PLAN_PROPOSAL_APPROVED: {
+    titleKey: 'notifications.types.PLAN_PROPOSAL_APPROVED.title',
+    bodyKey: 'notifications.types.PLAN_PROPOSAL_APPROVED.body',
+  },
+  PLAN_PROPOSAL_REJECTED: {
+    titleKey: 'notifications.types.PLAN_PROPOSAL_REJECTED.title',
+    bodyKey: 'notifications.types.PLAN_PROPOSAL_REJECTED.body',
+  },
+  PLAN_PAUSED: {
+    titleKey: 'notifications.types.PLAN_PAUSED.title',
+    bodyKey: 'notifications.types.PLAN_PAUSED.body',
+  },
+  PLAN_DISCONTINUED: {
+    titleKey: 'notifications.types.PLAN_DISCONTINUED.title',
+    bodyKey: 'notifications.types.PLAN_DISCONTINUED.body',
+  },
+  DAY_REPORT_SUBMITTED: {
+    titleKey: 'notifications.types.DAY_REPORT_SUBMITTED.title',
+    bodyKey: 'notifications.types.DAY_REPORT_SUBMITTED.body',
+  },
+  DOCTOR_REVIEW_ADDED: {
+    titleKey: 'notifications.types.DOCTOR_REVIEW_ADDED.title',
+    bodyKey: 'notifications.types.DOCTOR_REVIEW_ADDED.body',
+  },
+  APPOINTMENT_RESCHEDULE_REQUEST: {
+    titleKey: 'notifications.types.APPOINTMENT_RESCHEDULE_REQUEST.title',
+    bodyKey: 'notifications.types.APPOINTMENT_RESCHEDULE_REQUEST.body',
+  },
+};
+
+/**
+ * Documented param shapes per type. Carried as `Json` on the row; the
+ * UI interpolates with `next-intl`'s ICU placeholders.
+ */
+export type NotificationParams = {
+  PLAN_ASSIGNED: { doctorName: string; patientName: string };
+  PLAN_PROPOSAL_RECEIVED: { therapistName: string; patientName: string; reason: string };
+  PLAN_PROPOSAL_APPROVED: { doctorName: string; patientName: string };
+  PLAN_PROPOSAL_REJECTED: { doctorName: string; patientName: string; reason: string };
+  PLAN_PAUSED: { patientName: string };
+  PLAN_DISCONTINUED: { patientName: string };
+  DAY_REPORT_SUBMITTED: { therapistName: string; date: string };
+  DOCTOR_REVIEW_ADDED: { doctorName: string; patientName: string };
+  APPOINTMENT_RESCHEDULE_REQUEST: { patientName: string };
+};
