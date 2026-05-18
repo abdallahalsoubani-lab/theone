@@ -16,6 +16,89 @@
     "no": "لا",
     "close": "إغلاق"
   },
+  "appointments": {
+    "title": "التقويم",
+    "newAppointment": "موعد جديد",
+    "today": "اليوم",
+    "previous": "السابق",
+    "next": "التالي",
+    "viewDay": "يوم",
+    "viewWeek": "أسبوع",
+    "viewMonth": "شهر",
+    "viewAgenda": "جدول أعمال",
+    "allDay": "اليوم بأكمله",
+    "noEventsInRange": "لا توجد مواعيد في هذا النطاق.",
+    "showMore": "+{count} المزيد",
+    "status": {
+      "scheduled": "مجدول",
+      "confirmed": "مؤكد",
+      "inProgress": "قيد التنفيذ",
+      "completed": "مكتمل",
+      "cancelled": "ملغى",
+      "noShow": "عدم حضور"
+    },
+    "actions": {
+      "confirm": "تأكيد",
+      "checkIn": "بدء الجلسة",
+      "complete": "إنهاء الجلسة",
+      "cancel": "إلغاء",
+      "noShow": "تسجيل عدم حضور",
+      "changeTherapist": "تغيير المعالج",
+      "edit": "تعديل",
+      "openInCalendar": "فتح في التقويم"
+    },
+    "conflicts": {
+      "title": "تم اكتشاف تعارضات",
+      "therapistOverlap": "المعالج لديه موعد مع {patient} في {time}.",
+      "patientOverlap": "للمراجع موعد آخر مع {therapist} في {time}.",
+      "therapistOnLeave": "المعالج في إجازة موافق عليها هذا التاريخ.",
+      "outsideBusinessHours": "خارج ساعات العيادة ({open}–{close}).",
+      "clinicClosedThisDay": "العيادة مغلقة في هذا اليوم.",
+      "overrideConfirmTitle": "تجاوز التعارض؟",
+      "overrideConfirmDescription": "الحفظ سيؤدي إلى إنشاء الموعد رغم التعارض. سيُسجل التجاوز في سجل التدقيق.",
+      "overrideButton": "حفظ على أي حال",
+      "cancelButton": "تعديل الموعد"
+    },
+    "form": {
+      "patient": "المراجع",
+      "therapist": "المعالج",
+      "room": "الغرفة",
+      "startsAt": "وقت البدء",
+      "duration": "المدة (دقائق)",
+      "notes": "ملاحظات",
+      "save": "حفظ الموعد",
+      "cancel": "إلغاء"
+    },
+    "cancel": {
+      "title": "إلغاء الموعد",
+      "categoryLabel": "تصنيف السبب",
+      "reasonLabel": "تفاصيل السبب",
+      "shortNoticeWarning": "هذا الإلغاء قبل أقل من ساعتين من الموعد — سيُسجَّل في التقارير.",
+      "categoryPatientRequest": "طلب المراجع",
+      "categoryTherapistUnavailable": "المعالج غير متاح",
+      "categoryClinicClosure": "إغلاق العيادة",
+      "categoryOther": "أخرى",
+      "submit": "تأكيد الإلغاء"
+    },
+    "toasts": {
+      "created": "تم إنشاء الموعد.",
+      "rescheduled": "تم نقل الموعد.",
+      "therapistChanged": "تم تغيير المعالج.",
+      "cancelled": "تم إلغاء الموعد.",
+      "confirmed": "تم تأكيد الموعد.",
+      "markedInProgress": "تم بدء الجلسة.",
+      "markedCompleted": "تم إنهاء الجلسة.",
+      "markedNoShow": "تم تسجيل عدم الحضور.",
+      "conflictReverted": "تم التراجع — تعارض موجود."
+    },
+    "sidePanel": {
+      "patientHeader": "المراجع",
+      "appointmentDetails": "الموعد",
+      "linkedPlan": "الخطة العلاجية المرتبطة: قادمة في المهمة 9.",
+      "sessionNoteCta": "كتابة تقرير الجلسة (قادم في المهمة 9).",
+      "openPatientFile": "فتح ملف المراجع"
+    }
+  },
   "patients": {
     "navTitle": "المراجعون",
     "list": {

@@ -285,6 +285,89 @@
       "actionRead": "Read"
     }
   },
+  "appointments": {
+    "title": "Calendar",
+    "newAppointment": "New appointment",
+    "today": "Today",
+    "previous": "Previous",
+    "next": "Next",
+    "viewDay": "Day",
+    "viewWeek": "Week",
+    "viewMonth": "Month",
+    "viewAgenda": "Agenda",
+    "allDay": "All day",
+    "noEventsInRange": "No appointments in this range.",
+    "showMore": "+{count} more",
+    "status": {
+      "scheduled": "Scheduled",
+      "confirmed": "Confirmed",
+      "inProgress": "In progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "noShow": "No show"
+    },
+    "actions": {
+      "confirm": "Confirm",
+      "checkIn": "Mark in progress",
+      "complete": "Mark completed",
+      "cancel": "Cancel",
+      "noShow": "Mark no-show",
+      "changeTherapist": "Change therapist",
+      "edit": "Edit",
+      "openInCalendar": "Open in calendar"
+    },
+    "conflicts": {
+      "title": "Conflicts detected",
+      "therapistOverlap": "The therapist already has an appointment with {patient} at {time}.",
+      "patientOverlap": "This patient already has an appointment with {therapist} at {time}.",
+      "therapistOnLeave": "The therapist is on approved leave on this date.",
+      "outsideBusinessHours": "Outside clinic hours ({open}–{close}).",
+      "clinicClosedThisDay": "The clinic is closed on this day.",
+      "overrideConfirmTitle": "Override conflict?",
+      "overrideConfirmDescription": "Saving anyway will create the appointment despite the conflicts. The override will be recorded in the audit log.",
+      "overrideButton": "Save anyway",
+      "cancelButton": "Adjust the slot"
+    },
+    "form": {
+      "patient": "Patient",
+      "therapist": "Therapist",
+      "room": "Room",
+      "startsAt": "Start time",
+      "duration": "Duration (minutes)",
+      "notes": "Notes",
+      "save": "Save appointment",
+      "cancel": "Cancel"
+    },
+    "cancel": {
+      "title": "Cancel appointment",
+      "categoryLabel": "Reason category",
+      "reasonLabel": "Reason details",
+      "shortNoticeWarning": "This cancellation is less than 2 hours before the slot — it will be flagged in reports.",
+      "categoryPatientRequest": "Patient request",
+      "categoryTherapistUnavailable": "Therapist unavailable",
+      "categoryClinicClosure": "Clinic closure",
+      "categoryOther": "Other",
+      "submit": "Confirm cancellation"
+    },
+    "toasts": {
+      "created": "Appointment created.",
+      "rescheduled": "Appointment rescheduled.",
+      "therapistChanged": "Therapist changed.",
+      "cancelled": "Appointment cancelled.",
+      "confirmed": "Appointment confirmed.",
+      "markedInProgress": "Marked in progress.",
+      "markedCompleted": "Marked completed.",
+      "markedNoShow": "Marked no-show.",
+      "conflictReverted": "Drag reverted — conflict detected."
+    },
+    "sidePanel": {
+      "patientHeader": "Patient",
+      "appointmentDetails": "Appointment",
+      "linkedPlan": "Linked treatment plan: coming in Prompt 9.",
+      "sessionNoteCta": "Write session note (coming in Prompt 9).",
+      "openPatientFile": "Open patient file"
+    }
+  },
   "patients": {
     "navTitle": "Patients",
     "list": {

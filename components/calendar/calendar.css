@@ -1,0 +1,142 @@
+/*
+ * Theone.pt brand overrides for react-big-calendar.
+ *
+ * Goals:
+ *   - Replace the library's gray defaults with brand tokens
+ *   - Use logical CSS properties everywhere so RTL works without per-locale CSS
+ *   - Keep the resource view (one column per therapist) readable at narrow widths
+ *
+ * Imported once in app/globals.css after the Tailwind base layer (the rbc
+ * stylesheet defines its own resets that we want to override, not be reset by).
+ */
+
+@import 'react-big-calendar/lib/css/react-big-calendar.css';
+
+/* ── Outer chrome ─────────────────────────────────────────────────── */
+.rbc-calendar {
+  font-family: inherit;
+  color: var(--brand-text);
+  background-color: var(--brand-surface);
+  border: 1px solid var(--brand-border);
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.rbc-toolbar {
+  display: none; /* we render our own toolbar above the calendar */
+}
+
+/* ── Headers / column titles ──────────────────────────────────────── */
+.rbc-header,
+.rbc-time-header-content > .rbc-row,
+.rbc-time-header-cell,
+.rbc-month-row,
+.rbc-time-column .rbc-timeslot-group {
+  border-color: var(--brand-border);
+}
+
+.rbc-header {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--brand-text-muted);
+  background-color: var(--brand-bg);
+}
+
+/* ── Slots ────────────────────────────────────────────────────────── */
+.rbc-day-bg + .rbc-day-bg,
+.rbc-day-slot .rbc-time-slot,
+.rbc-time-content > * + * > *,
+.rbc-day-bg.rbc-today {
+  border-color: var(--brand-border);
+}
+
+.rbc-time-slot {
+  color: var(--brand-text-muted);
+}
+
+.rbc-today {
+  background-color: rgba(61, 192, 217, 0.08); /* brand-cyan tint */
+}
+
+.rbc-current-time-indicator {
+  background-color: var(--brand-cyan);
+  height: 2px;
+}
+
+/* ── Events: status-based colors (text labels are also rendered) ──── */
+.rbc-event {
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  color: var(--brand-navy);
+  background-color: rgba(27, 73, 130, 0.12); /* brand-blue tint */
+}
+
+.rbc-event:focus,
+.rbc-event.rbc-selected {
+  outline: 2px solid var(--brand-cyan);
+  outline-offset: 1px;
+}
+
+.rbc-event.rbc-event-status-SCHEDULED {
+  background-color: rgba(27, 73, 130, 0.14);
+  border-color: rgba(27, 73, 130, 0.4);
+}
+.rbc-event.rbc-event-status-CONFIRMED {
+  background-color: rgba(61, 192, 217, 0.16);
+  border-color: rgba(61, 192, 217, 0.45);
+}
+.rbc-event.rbc-event-status-IN_PROGRESS {
+  background-color: rgba(30, 95, 88, 0.16);
+  border-color: rgba(30, 95, 88, 0.4);
+}
+.rbc-event.rbc-event-status-COMPLETED {
+  background-color: rgba(90, 101, 128, 0.14);
+  border-color: rgba(90, 101, 128, 0.3);
+  color: var(--brand-text-muted);
+}
+.rbc-event.rbc-event-status-CANCELLED {
+  background-color: rgba(216, 222, 232, 0.5);
+  border-color: var(--brand-border);
+  color: var(--brand-text-muted);
+  text-decoration: line-through;
+}
+.rbc-event.rbc-event-status-NO_SHOW {
+  background-color: rgba(220, 38, 38, 0.1);
+  border-color: rgba(220, 38, 38, 0.45);
+  color: rgb(153, 27, 27);
+}
+
+/* ── RTL fixes ────────────────────────────────────────────────────── */
+/*
+ * react-big-calendar's stylesheet uses physical left/right in several places.
+ * The :dir(rtl) overrides flip them — same logical effect under both locales.
+ * Each block below was discovered by visiting /ar/secretary/calendar and
+ * documenting the breakage; see docs/calendar/README.md.
+ */
+
+[dir='rtl'] .rbc-time-header-content {
+  border-inline-start: 1px solid var(--brand-border);
+  border-inline-end: 0;
+}
+
+[dir='rtl'] .rbc-time-gutter,
+[dir='rtl'] .rbc-header-gutter {
+  border-inline-end: 1px solid var(--brand-border);
+  border-inline-start: 0;
+}
+
+[dir='rtl'] .rbc-day-slot .rbc-events-container {
+  margin-inline-end: 0;
+  margin-inline-start: 10px;
+}
+
+[dir='rtl'] .rbc-current-time-indicator {
+  /* The indicator is positioned via percentage left; RTL flips visually. */
+  transform: scaleX(-1);
+}
