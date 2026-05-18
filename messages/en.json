@@ -1243,5 +1243,75 @@
     "downloading": "Preparing…",
     "downloaded": "Download started.",
     "downloadFailed": "Could not generate the file."
+  },
+  "admin.settings": {
+    "title": "Clinic settings",
+    "subtitle": "Operational defaults that drive the calendar, the reminder timing, and the patient experience.",
+    "tabs": {
+      "general": "General",
+      "hours": "Business hours",
+      "appointments": "Appointments",
+      "languages": "Languages",
+      "services": "Service types",
+      "privacy": "Clinical privacy"
+    },
+    "fields": {
+      "nameEn": "Clinic name (English)",
+      "nameAr": "Clinic name (Arabic)",
+      "phone": "Contact phone",
+      "addressEn": "Address (English)",
+      "addressAr": "Address (Arabic)",
+      "timezone": "Time zone",
+      "defaultDuration": "Default appointment duration (min)",
+      "reminderOffset": "Reminder offset (min before)",
+      "defaultLanguage": "Default language for new users",
+      "hijriDefault": "Default new users to the Hijri calendar",
+      "patientCanViewClinicalNotes": "Allow patients to read their clinical notes",
+      "patientCanViewClinicalNotesHelp": "When off, patients see appointments and home program only; treatment plans and session notes stay clinical-only."
+    },
+    "days": {
+      "sun": "Sunday",
+      "mon": "Monday",
+      "tue": "Tuesday",
+      "wed": "Wednesday",
+      "thu": "Thursday",
+      "fri": "Friday",
+      "sat": "Saturday"
+    },
+    "open": "Open",
+    "active": "Active",
+    "addService": "Add service type",
+    "hoursHint": "The conflict engine uses these hours to flag out-of-hours bookings.",
+    "servicesHint": "At least one active service type must remain.",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "savedToast": "Clinic settings updated."
+  },
+  "admin.audit": {
+    "title": "Audit log",
+    "subtitle": "Every state-changing action in the system, paginated and filterable.",
+    "exportCsv": "Export CSV",
+    "filters": {
+      "from": "From",
+      "to": "To",
+      "actor": "Actor",
+      "actorPlaceholder": "name or email",
+      "entityType": "Entity type",
+      "entityTypePlaceholder": "Appointment, Patient, …",
+      "actions": "Actions"
+    },
+    "apply": "Apply filters",
+    "count": "{total} rows · page {page} of {totalPages}",
+    "columns": {
+      "timestamp": "When",
+      "actor": "Actor",
+      "action": "Action",
+      "entity": "Entity",
+      "diff": "Diff"
+    },
+    "viewDiff": "View before / after",
+    "empty": "No audit rows match the filters.",
+    "prev": "Previous",
+    "next": "Next"
   }
 }
