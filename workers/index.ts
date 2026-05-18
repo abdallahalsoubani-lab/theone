@@ -22,6 +22,10 @@
  *                       audit, and rate limiting are uniform.
  */
 
+import {
+  ensureComplianceDailyCheckScheduled,
+  startComplianceDailyCheckWorker,
+} from './complianceDailyCheck';
 import { startHomeReminderWorker } from './homeReminder';
 import { startReminderWorker } from './reminder';
 import { startWhatsappOutboundWorker } from './whatsapp';
@@ -31,13 +35,24 @@ const reminderWorker = startReminderWorker();
 console.warn(`[workers] appointment reminder worker listening on queue=${reminderWorker.name}`);
 const homeReminderWorker = startHomeReminderWorker();
 console.warn(`[workers] home reminder worker listening on queue=${homeReminderWorker.name}`);
+const complianceWorker = startComplianceDailyCheckWorker();
+console.warn(`[workers] compliance daily check worker listening on queue=${complianceWorker.name}`);
+// Register the recurring 18:00-local daily check (idempotent via jobId).
+void ensureComplianceDailyCheckScheduled().catch((err: unknown) => {
+  console.error('[workers] compliance daily check registration failed', err);
+});
 const whatsappWorker = startWhatsappOutboundWorker();
 console.warn(`[workers] whatsapp outbound worker listening on queue=${whatsappWorker.name}`);
 
 // Keep the process alive while the workers run. Graceful shutdown on SIGINT.
 async function shutdown(signal: string) {
   console.warn(`[workers] received ${signal}, closing workers…`);
-  await Promise.all([reminderWorker.close(), homeReminderWorker.close(), whatsappWorker.close()]);
+  await Promise.all([
+    reminderWorker.close(),
+    homeReminderWorker.close(),
+    complianceWorker.close(),
+    whatsappWorker.close(),
+  ]);
   console.warn('[workers] all workers closed; exiting');
   process.exit(0);
 }
