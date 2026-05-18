@@ -57,6 +57,8 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.INTAKE_CREATE]: true,
     [PERMISSIONS.INTAKE_READ]: true,
     [PERMISSIONS.INTAKE_UPDATE]: true,
+    [PERMISSIONS.INBOX_READ]: true,
+    [PERMISSIONS.INBOX_RESOLVE]: true,
   },
   DOCTOR: {
     [PERMISSIONS.OWN_PROFILE_READ]: true,
@@ -153,6 +155,10 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.INTAKE_CREATE]: true,
     [PERMISSIONS.INTAKE_READ]: true,
     [PERMISSIONS.INTAKE_UPDATE]: true,
+    [PERMISSIONS.INBOX_READ]: true,
+    [PERMISSIONS.INBOX_RESOLVE]: true,
+    [PERMISSIONS.WHATSAPP_MESSAGES_READ]: true,
+    [PERMISSIONS.WHATSAPP_MESSAGES_RESEND]: true,
   },
 };
 

@@ -2,6 +2,7 @@ import { Pencil } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
+import { PatientWhatsAppSection } from '@/components/patients/PatientWhatsAppSection';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
@@ -83,6 +84,13 @@ export function PatientProfileTab({
           <Field label={t('currentMedications')} value={patient.currentMedications} multiline />
         </CardContent>
       </Card>
+
+      <PatientWhatsAppSection
+        reachable={patient.whatsappReachable}
+        lastDeliveryAt={patient.whatsappLastDeliveryAt}
+        lastFailureAt={patient.whatsappLastFailureAt}
+        lastFailureReason={patient.whatsappLastFailureReason}
+      />
     </div>
   );
 }

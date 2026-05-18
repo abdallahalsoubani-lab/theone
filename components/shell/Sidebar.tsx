@@ -12,6 +12,8 @@ export interface NavLink {
   href: string;
   /** Optional icon node. */
   icon?: React.ReactNode;
+  /** Optional unread / count badge — e.g. unread inbox items. */
+  badge?: number;
 }
 
 /**
@@ -49,7 +51,12 @@ export function Sidebar({ links }: { links: ReadonlyArray<NavLink> }) {
                 aria-current={active ? 'page' : undefined}
               >
                 {link.icon}
-                <span>{link.label}</span>
+                <span className="flex-1">{link.label}</span>
+                {link.badge != null && link.badge > 0 ? (
+                  <span className="ms-auto rounded-full bg-brand-cyan/15 px-2 py-0.5 text-xs font-medium text-brand-cyan">
+                    {link.badge}
+                  </span>
+                ) : null}
               </Link>
             );
           })}

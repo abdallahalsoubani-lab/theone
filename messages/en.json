@@ -283,6 +283,45 @@
       "actionUpdate": "Updated",
       "actionDelete": "Deleted",
       "actionRead": "Read"
+    },
+    "whatsapp": {
+      "templatesTitle": "WhatsApp templates",
+      "templatesSubtitle": "Manage Meta + Twilio identifiers and approval status. Templates are created in the provider dashboards; this page tracks the metadata the app uses to send them.",
+      "messagesTitle": "WhatsApp messages",
+      "messagesSubtitle": "Audit log of every outbound and inbound WhatsApp message. Use the filters to narrow; FAILED outbound rows can be resent up to 3 times.",
+      "name": "Name",
+      "language": "Language",
+      "category": "Category",
+      "preview": "Preview",
+      "active": "Active",
+      "actions": "Actions",
+      "edit": "Edit",
+      "save": "Save",
+      "cancel": "Cancel",
+      "send": "Send",
+      "sendTest": "Send test",
+      "savedToast": "Template updated.",
+      "testSentToast": "Test message queued.",
+      "resendQueuedToast": "Resend queued.",
+      "phoneInvalid": "Phone must be in international format (e.g. +962…).",
+      "approved": "Approved",
+      "notApproved": "Not approved",
+      "pending": "Pending",
+      "rejected": "Rejected",
+      "paused": "Paused",
+      "notSubmitted": "Not submitted",
+      "on": "On",
+      "off": "Off",
+      "emptyTemplates": "No templates configured.",
+      "emptyMessages": "No messages match the current filters.",
+      "direction": "Direction",
+      "status": "Status",
+      "phone": "Phone",
+      "sentAt": "Sent at",
+      "recipient": "Recipient",
+      "template": "Template",
+      "body": "Body",
+      "resend": "Resend"
     }
   },
   "appointments": {
@@ -595,8 +634,11 @@
       "rooms": "Rooms",
       "customQuestions": "Intake questions",
       "settings": "Clinic settings",
-      "audit": "Audit log"
-    }
+      "audit": "Audit log",
+      "whatsappTemplates": "WhatsApp templates",
+      "whatsappMessages": "WhatsApp messages"
+    },
+    "inbox": "Inbox"
   },
   "styleGuide": {
     "title": "Style guide",
@@ -620,5 +662,39 @@
       "number": "Formatted number",
       "phone": "Phone number"
     }
+  },
+  "secretary": {
+    "inbox": {
+      "title": "Inbox",
+      "subtitle": "Inbound patient replies that need triage and outbound deliveries that failed after three retries.",
+      "type": "Type",
+      "patient": "Patient",
+      "preview": "Preview",
+      "received": "Received",
+      "actions": "Actions",
+      "resolve": "Mark resolved",
+      "resolvedToast": "Inbox item resolved.",
+      "openAppointment": "Open appointment",
+      "unknownSender": "Unknown sender",
+      "empty": "Inbox is clear.",
+      "types": {
+        "reschedule": "Reschedule request",
+        "cancel": "Cancel request",
+        "unknown": "Reply (no auto-action)",
+        "deliveryFailed": "Delivery failed"
+      }
+    }
+  },
+  "whatsapp": {
+    "errors": {
+      "templateNotConfigured": "Template not configured for the active provider.",
+      "recipientOptedOut": "Recipient is not reachable on WhatsApp.",
+      "rateLimited": "Provider rate limit hit — will retry.",
+      "invalidSignature": "Webhook signature verification failed."
+    },
+    "reachable": "Reachable on WhatsApp",
+    "unreachable": "Unreachable — last failure: {reason}",
+    "lastDeliveryAt": "Last delivery on {date}",
+    "lastFailureAt": "Last failure on {date}"
   }
 }

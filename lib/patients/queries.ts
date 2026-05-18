@@ -167,12 +167,28 @@ export interface PatientFileData {
   mustChangePassword: boolean;
   assignedTherapist: { id: string; fullNameEn: string; fullNameAr: string } | null;
   responsibleDoctor: { id: string; fullNameEn: string; fullNameAr: string } | null;
+  whatsappReachable: boolean;
+  whatsappLastFailureAt: Date | null;
+  whatsappLastFailureReason: string | null;
+  whatsappLastDeliveryAt: Date | null;
 }
 
 export async function getPatientFile(id: string): Promise<PatientFileData | null> {
   const u = await getPatientById(id);
   if (!u || !u.patientProfile) return null;
   const p = u.patientProfile;
+  // Look up the most recent successful outbound delivery so the profile
+  // section can show "Last delivery on …". Cheap because the
+  // (recipientPhone, sentAt DESC) index covers it.
+  const lastDelivered = await db.whatsAppMessage.findFirst({
+    where: {
+      recipientId: u.id,
+      direction: 'OUTBOUND',
+      status: { in: ['DELIVERED', 'READ', 'SENT'] },
+    },
+    orderBy: { sentAt: 'desc' },
+    select: { deliveredAt: true, sentAt: true },
+  });
   return {
     id: u.id,
     fullNameEn: u.fullNameEn,
@@ -195,6 +211,10 @@ export async function getPatientFile(id: string): Promise<PatientFileData | null
     mustChangePassword: u.mustChangePassword,
     assignedTherapist: p.assignedTherapist,
     responsibleDoctor: p.responsibleDoctor,
+    whatsappReachable: u.whatsappReachable,
+    whatsappLastFailureAt: u.whatsappLastFailureAt,
+    whatsappLastFailureReason: u.whatsappLastFailureReason,
+    whatsappLastDeliveryAt: lastDelivered?.deliveredAt ?? lastDelivered?.sentAt ?? null,
   };
 }
 

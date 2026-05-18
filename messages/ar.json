@@ -326,8 +326,11 @@
       "rooms": "الغرف",
       "customQuestions": "أسئلة الاستقبال",
       "settings": "إعدادات العيادة",
-      "audit": "سجل التدقيق"
-    }
+      "audit": "سجل التدقيق",
+      "whatsappTemplates": "قوالب واتساب",
+      "whatsappMessages": "رسائل واتساب"
+    },
+    "inbox": "صندوق الوارد"
   },
   "shell": {
     "userMenu": "الحساب",
@@ -596,6 +599,45 @@
       "actionUpdate": "حُدّث",
       "actionDelete": "حُذف",
       "actionRead": "قُرئ"
+    },
+    "whatsapp": {
+      "templatesTitle": "قوالب واتساب",
+      "templatesSubtitle": "إدارة معرّفات Meta و Twilio وحالة الموافقة. تُنشأ القوالب في لوحات المزوّدين؛ تتعقّب هذه الصفحة البيانات الوصفية التي يستخدمها التطبيق لإرسالها.",
+      "messagesTitle": "رسائل واتساب",
+      "messagesSubtitle": "سجل تدقيق لكل رسالة واتساب صادرة وواردة. استخدم الفلاتر للتصفية؛ يمكن إعادة إرسال الرسائل الفاشلة حتى 3 مرات.",
+      "name": "الاسم",
+      "language": "اللغة",
+      "category": "الفئة",
+      "preview": "معاينة",
+      "active": "نشط",
+      "actions": "إجراءات",
+      "edit": "تعديل",
+      "save": "حفظ",
+      "cancel": "إلغاء",
+      "send": "إرسال",
+      "sendTest": "إرسال اختبار",
+      "savedToast": "تم تحديث القالب.",
+      "testSentToast": "تم إدراج رسالة الاختبار في القائمة.",
+      "resendQueuedToast": "تم إدراج إعادة الإرسال في القائمة.",
+      "phoneInvalid": "يجب أن يكون الهاتف بالتنسيق الدولي (مثل +962…).",
+      "approved": "معتمد",
+      "notApproved": "غير معتمد",
+      "pending": "قيد المراجعة",
+      "rejected": "مرفوض",
+      "paused": "متوقف",
+      "notSubmitted": "لم يُقدّم",
+      "on": "مفعل",
+      "off": "معطل",
+      "emptyTemplates": "لا توجد قوالب مُهيّأة.",
+      "emptyMessages": "لا توجد رسائل تطابق الفلاتر الحالية.",
+      "direction": "الاتجاه",
+      "status": "الحالة",
+      "phone": "الهاتف",
+      "sentAt": "وقت الإرسال",
+      "recipient": "المستلم",
+      "template": "القالب",
+      "body": "النص",
+      "resend": "إعادة إرسال"
     }
   },
   "styleGuide": {
@@ -620,5 +662,39 @@
       "number": "رقم منسّق",
       "phone": "رقم الهاتف"
     }
+  },
+  "secretary": {
+    "inbox": {
+      "title": "صندوق الوارد",
+      "subtitle": "ردود المرضى الواردة التي تحتاج للمراجعة والرسائل الصادرة التي فشل تسليمها بعد ثلاث محاولات.",
+      "type": "النوع",
+      "patient": "المريض",
+      "preview": "معاينة",
+      "received": "تاريخ الاستلام",
+      "actions": "إجراءات",
+      "resolve": "تعليم كمعالج",
+      "resolvedToast": "تم حلّ العنصر.",
+      "openAppointment": "فتح الموعد",
+      "unknownSender": "مرسل غير معروف",
+      "empty": "صندوق الوارد فارغ.",
+      "types": {
+        "reschedule": "طلب إعادة جدولة",
+        "cancel": "طلب إلغاء",
+        "unknown": "ردّ (بدون إجراء تلقائي)",
+        "deliveryFailed": "فشل التسليم"
+      }
+    }
+  },
+  "whatsapp": {
+    "errors": {
+      "templateNotConfigured": "القالب غير مُهيّأ للمزوّد الحالي.",
+      "recipientOptedOut": "المستلم غير قابل للوصول عبر واتساب.",
+      "rateLimited": "تم بلوغ حد المزوّد — ستتم إعادة المحاولة.",
+      "invalidSignature": "فشل التحقق من توقيع الويب هوك."
+    },
+    "reachable": "قابل للوصول عبر واتساب",
+    "unreachable": "غير قابل للوصول — آخر فشل: {reason}",
+    "lastDeliveryAt": "آخر تسليم في {date}",
+    "lastFailureAt": "آخر فشل في {date}"
   }
 }

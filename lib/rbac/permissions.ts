@@ -121,6 +121,18 @@ export const PERMISSIONS = {
   WHATSAPP_TEMPLATES_UPDATE: 'whatsapp_templates.update',
   WHATSAPP_TEMPLATES_DELETE: 'whatsapp_templates.delete',
 
+  // ── WhatsApp message log + resend (admin, Prompt 8) ──────────────────
+  // 2-segment codes; the existing WHATSAPP_TEMPLATES_UPDATE serves as the
+  // "manage templates" capability, so no separate manage code is needed.
+  WHATSAPP_MESSAGES_READ: 'whatsapp_messages.read',
+  WHATSAPP_MESSAGES_RESEND: 'whatsapp_messages.resend',
+
+  // ── Secretary inbox (Prompt 8) ───────────────────────────────────────
+  // Surfaces inbound reschedule/cancel requests and outbound delivery
+  // failures. ADMIN inherits via the catch-all in can().
+  INBOX_READ: 'inbox.read',
+  INBOX_RESOLVE: 'inbox.resolve',
+
   // ── System settings (admin only) ─────────────────────────────────────
   SYSTEM_SETTINGS_CREATE: 'system_settings.create',
   SYSTEM_SETTINGS_READ: 'system_settings.read',
@@ -178,6 +190,8 @@ const SECRETARY_PERMS = new Set<PermissionCode>([
   PERMISSIONS.INTAKE_CREATE,
   PERMISSIONS.INTAKE_READ,
   PERMISSIONS.INTAKE_UPDATE,
+  PERMISSIONS.INBOX_READ,
+  PERMISSIONS.INBOX_RESOLVE,
 ]);
 
 const DOCTOR_PERMS = new Set<PermissionCode>([
@@ -277,6 +291,10 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.INTAKE_CREATE,
   PERMISSIONS.INTAKE_READ,
   PERMISSIONS.INTAKE_UPDATE,
+  PERMISSIONS.INBOX_READ,
+  PERMISSIONS.INBOX_RESOLVE,
+  PERMISSIONS.WHATSAPP_MESSAGES_READ,
+  PERMISSIONS.WHATSAPP_MESSAGES_RESEND,
 ]);
 
 export const ROLE_PERMISSIONS: Record<UserRole, ReadonlySet<PermissionCode>> = {

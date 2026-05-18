@@ -1,10 +1,11 @@
-import { Calendar, ClipboardList, Users } from 'lucide-react';
+import { Calendar, ClipboardList, Inbox, Users } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { auth } from '@/auth';
 import { Sidebar, type NavLink } from '@/components/shell/Sidebar';
+import { countUnresolvedInbox } from '@/lib/inbox/queries';
 
 /**
  * Staff route group layout.
@@ -31,6 +32,7 @@ export default async function StaffLayout({
 
   const links: NavLink[] = [];
   if (role === 'SECRETARY' || role === 'ADMIN') {
+    const inboxCount = await countUnresolvedInbox();
     links.push(
       {
         label: tNav('appointments'),
@@ -41,6 +43,12 @@ export default async function StaffLayout({
         label: tPatients('navTitle'),
         href: '/secretary/patients',
         icon: <Users className="size-4" />,
+      },
+      {
+        label: tNav('inbox'),
+        href: '/secretary/inbox',
+        icon: <Inbox className="size-4" />,
+        badge: inboxCount,
       },
     );
   } else if (role === 'DOCTOR') {
