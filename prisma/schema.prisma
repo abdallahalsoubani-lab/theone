@@ -102,6 +102,28 @@ enum WaMessageStatus {
   FAILED
 }
 
+enum WaTemplateApprovalStatus {
+  NOT_SUBMITTED
+  PENDING
+  APPROVED
+  REJECTED
+  PAUSED
+}
+
+enum WaInboundIntent {
+  CONFIRM
+  RESCHEDULE_REQUEST
+  CANCEL_REQUEST
+  UNKNOWN
+}
+
+enum InboxItemType {
+  INBOUND_RESCHEDULE_REQUEST
+  INBOUND_CANCEL_REQUEST
+  INBOUND_UNKNOWN
+  OUTBOUND_DELIVERY_FAILED
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -225,6 +247,14 @@ model User {
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
 
+  // WhatsApp delivery reachability — flipped to false by the outbound queue
+  // worker after three retries fail (Prompt 8 §4.12). The Secretary uses the
+  // patient profile WhatsApp section (§4.11) to triage; the flag flips back
+  // to true automatically on the next successful delivery.
+  whatsappReachable         Boolean   @default(true)
+  whatsappLastFailureAt     DateTime?
+  whatsappLastFailureReason String?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -235,27 +265,29 @@ model User {
   // Relations as actor across the domain. Names are explicit because several
   // tables reference User multiple times (e.g. Appointment has patientId, therapistId,
   // createdById) and Prisma needs disambiguation.
-  appointmentsAsPatient    Appointment[]       @relation("AppointmentPatient")
-  appointmentsAsTherapist  Appointment[]       @relation("AppointmentTherapist")
-  appointmentsCreatedBy    Appointment[]       @relation("AppointmentCreatedBy")
-  treatmentPlansAsPatient  TreatmentPlan[]     @relation("PlanPatient")
-  treatmentPlansAsDoctor   TreatmentPlan[]     @relation("PlanDoctor")
-  treatmentPlansAsAssigned TreatmentPlan[]     @relation("PlanAssignedTherapist")
-  sessionNotesAsPatient    SessionNote[]       @relation("NotePatient")
-  sessionNotesAsTherapist  SessionNote[]       @relation("NoteTherapist")
-  homeProgramItems         HomeProgramItem[]   @relation("HomeProgramPatient")
-  exercisesCreated         Exercise[]          @relation("ExerciseCreatedBy")
-  leaves                   Leave[]             @relation("LeaveUser")
-  leavesApproved           Leave[]             @relation("LeaveApprovedBy")
-  patientsAsTherapist      PatientProfile[]    @relation("PatientAssignedTherapist")
-  patientsAsDoctor         PatientProfile[]    @relation("PatientResponsibleDoctor")
-  whatsappMessages         WhatsAppMessage[]   @relation("WhatsAppRecipient")
-  auditLogs                AuditLog[]          @relation("AuditActor")
-  intakesAsPatient         IntakeAssessment[]  @relation("IntakePatient")
-  intakesAsAssessor        IntakeAssessment[]  @relation("IntakeAssessor")
-  intakesAsReviewer        IntakeAssessment[]  @relation("IntakeReviewer")
+  appointmentsAsPatient    Appointment[]          @relation("AppointmentPatient")
+  appointmentsAsTherapist  Appointment[]          @relation("AppointmentTherapist")
+  appointmentsCreatedBy    Appointment[]          @relation("AppointmentCreatedBy")
+  treatmentPlansAsPatient  TreatmentPlan[]        @relation("PlanPatient")
+  treatmentPlansAsDoctor   TreatmentPlan[]        @relation("PlanDoctor")
+  treatmentPlansAsAssigned TreatmentPlan[]        @relation("PlanAssignedTherapist")
+  sessionNotesAsPatient    SessionNote[]          @relation("NotePatient")
+  sessionNotesAsTherapist  SessionNote[]          @relation("NoteTherapist")
+  homeProgramItems         HomeProgramItem[]      @relation("HomeProgramPatient")
+  exercisesCreated         Exercise[]             @relation("ExerciseCreatedBy")
+  leaves                   Leave[]                @relation("LeaveUser")
+  leavesApproved           Leave[]                @relation("LeaveApprovedBy")
+  patientsAsTherapist      PatientProfile[]       @relation("PatientAssignedTherapist")
+  patientsAsDoctor         PatientProfile[]       @relation("PatientResponsibleDoctor")
+  whatsappMessages         WhatsAppMessage[]      @relation("WhatsAppRecipient")
+  inboxItems               InboxItem[]            @relation("InboxItemPatient")
+  inboxItemsResolved       InboxItem[]            @relation("InboxItemResolvedBy")
+  auditLogs                AuditLog[]             @relation("AuditActor")
+  intakesAsPatient         IntakeAssessment[]     @relation("IntakePatient")
+  intakesAsAssessor        IntakeAssessment[]     @relation("IntakeAssessor")
+  intakesAsReviewer        IntakeAssessment[]     @relation("IntakeReviewer")
   customQuestionsCreated   IntakeCustomQuestion[] @relation("CustomQuestionCreatedBy")
-  clinicSettingsUpdates    ClinicSettings[]    @relation("ClinicSettingsUpdatedBy")
+  clinicSettingsUpdates    ClinicSettings[]       @relation("ClinicSettingsUpdatedBy")
 
   // Note: real `phone` and `email` uniqueness scoped to non-deleted rows is enforced
   // by partial unique indexes in the init migration (Prisma can't express them).
@@ -270,18 +302,18 @@ model PatientProfile {
   userId String @id
   user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
 
-  dateOfBirth             DateTime
-  gender                  Gender
+  dateOfBirth           DateTime
+  gender                Gender
   // TODO(Prompt 11 hardening): encrypt at rest via pgcrypto symmetric encryption.
-  nationalId              String?
-  address                 String?
-  occupation              String?
-  emergencyContactName    String?
-  emergencyContactPhone   String?
-  medicalHistorySummary   String?
-  allergies               String?
-  currentMedications      String?
-  hijriCalendarPref       Boolean  @default(false)
+  nationalId            String?
+  address               String?
+  occupation            String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  medicalHistorySummary String?
+  allergies             String?
+  currentMedications    String?
+  hijriCalendarPref     Boolean  @default(false)
 
   assignedTherapistId String?
   assignedTherapist   User?   @relation("PatientAssignedTherapist", fields: [assignedTherapistId], references: [id], onDelete: Restrict)
@@ -297,11 +329,11 @@ model PatientProfile {
 }
 
 model Specialty {
-  id          String  @id @default(cuid())
-  nameEn      String  @unique
-  nameAr      String  @unique
+  id          String   @id @default(cuid())
+  nameEn      String   @unique
+  nameAr      String   @unique
   description String?
-  active      Boolean @default(true)
+  active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -352,11 +384,14 @@ model Appointment {
   // (cancel series, reschedule series) join on this column.
   seriesId             String?
 
-  patient     User  @relation("AppointmentPatient", fields: [patientId], references: [id], onDelete: Restrict)
-  therapist   User  @relation("AppointmentTherapist", fields: [therapistId], references: [id], onDelete: Restrict)
-  room        Room? @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  createdBy   User  @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  patient     User         @relation("AppointmentPatient", fields: [patientId], references: [id], onDelete: Restrict)
+  therapist   User         @relation("AppointmentTherapist", fields: [therapistId], references: [id], onDelete: Restrict)
+  room        Room?        @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  createdBy   User         @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   sessionNote SessionNote?
+
+  whatsappMessages WhatsAppMessage[]
+  inboxItems       InboxItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -441,8 +476,8 @@ model Exercise {
 }
 
 model SessionNote {
-  id            String  @id @default(cuid())
-  appointmentId String  @unique
+  id            String @id @default(cuid())
+  appointmentId String @unique
   patientId     String
   therapistId   String
   subjective    String
@@ -479,8 +514,8 @@ model HomeProgramItem {
   therapistNote   String?
   active          Boolean              @default(true)
 
-  patient     User                      @relation("HomeProgramPatient", fields: [patientId], references: [id], onDelete: Restrict)
-  exercise    Exercise                  @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+  patient     User                    @relation("HomeProgramPatient", fields: [patientId], references: [id], onDelete: Restrict)
+  exercise    Exercise                @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
   completions HomeProgramCompletion[]
 
   createdAt DateTime @default(now())
@@ -534,41 +569,115 @@ model Leave {
 // ═════════════════════════════════════════════════════════════════════════════
 
 model WhatsAppTemplate {
-  id               String             @id @default(cuid())
-  metaTemplateName String             @unique
-  language         LanguagePref
-  category         WaTemplateCategory
-  contentPreview   String
-  approvedAt       DateTime?
+  id             String             @id @default(cuid())
+  // Logical template name — the canonical identifier the application uses
+  // when calling whatsapp.sendTemplate(). Stable across providers; do not
+  // change once a template is referenced in code. Provider-specific names
+  // (Meta template name, Twilio ContentSid) live in their own columns.
+  name           String
+  language       LanguagePref
+  category       WaTemplateCategory
+  contentPreview String
+  active         Boolean            @default(true)
+
+  // Meta Cloud API metadata. Template names follow Meta's naming rules
+  // (lowercase, underscores, ≤512 chars) and aren't editable after
+  // approval. Status is maintained by the Admin manually for v1; future
+  // versions can poll Meta's template management API.
+  metaTemplateName   String?
+  metaApprovalStatus WaTemplateApprovalStatus @default(NOT_SUBMITTED)
+  metaApprovedAt     DateTime?
+
+  // Twilio Content API metadata. ContentSids look like `HXxxxx…` and are
+  // opaque; we record them here and use them at send-time.
+  twilioContentSid String?
+  twilioApproved   Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   messages WhatsAppMessage[]
+
+  @@unique([name, language])
 }
 
 model WhatsAppMessage {
-  id             String             @id @default(cuid())
-  templateId     String?
-  recipientId    String?
-  recipientPhone String
-  parameters     Json               @default("{}")
-  direction      WaMessageDirection
-  status         WaMessageStatus    @default(QUEUED)
-  metaMessageId  String?
-  body           String
-  sentAt         DateTime           @default(now())
-  deliveredAt    DateTime?
-  readAt         DateTime?
+  id                String             @id @default(cuid())
+  templateId        String?
+  recipientId       String?
+  recipientPhone    String
+  parameters        Json               @default("{}")
+  direction         WaMessageDirection
+  status            WaMessageStatus    @default(QUEUED)
+  // Provider-side message identifier (Twilio SID `SM…` / `MM…` or Meta
+  // `wamid.…`). Used to correlate inbound webhook events back to the row
+  // and to deduplicate redelivered webhooks.
+  providerMessageId String?
+  body              String
+  // Free-form reason captured on FAILED status — surfaced in the Admin
+  // message log and the patient profile reachability section.
+  failureReason     String?
+  // Inbound intent classification (CONFIRM / RESCHEDULE_REQUEST / …) or
+  // null for outbound. Computed by lib/whatsapp/inbound/parser.ts.
+  intent            WaInboundIntent?
+  // Linked appointment when the message concerns an appointment — set on
+  // outbound (reminder, confirmation, rescheduled, cancelled) and on
+  // inbound replies matched to the most recent outbound within 24h.
+  appointmentId     String?
+  // Number of resends issued from /admin/whatsapp/messages — capped at 3
+  // (see lib/whatsapp/resend.ts) to defend against feedback loops.
+  resendCount       Int                @default(0)
+  sentAt            DateTime           @default(now())
+  deliveredAt       DateTime?
+  readAt            DateTime?
 
-  template  WhatsAppTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  recipient User?             @relation("WhatsAppRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
+  template    WhatsAppTemplate? @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  recipient   User?             @relation("WhatsAppRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
+  appointment Appointment?      @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  inboxItems InboxItem[] @relation("InboxItemMessage")
 
   createdAt DateTime @default(now())
 
   @@index([recipientPhone, sentAt(sort: Desc)])
   @@index([status])
-  @@index([metaMessageId])
+  @@index([providerMessageId])
+  @@index([appointmentId])
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Secretary inbox — action items raised by inbound WhatsApp parsing and by
+//  outbound delivery failures. The Secretary works the inbox to triage
+//  reschedule requests, fix unreachable phone numbers, and acknowledge
+//  unstructured patient replies. See Prompt 8 §4.7 / §4.8.
+// ─────────────────────────────────────────────────────────────────────────────
+
+model InboxItem {
+  id            String        @id @default(cuid())
+  type          InboxItemType
+  patientId     String?
+  appointmentId String?
+  messageId     String?
+  // Free-form note captured at creation time (e.g., the failure reason or
+  // the inbound body preview). Avoids forcing the Secretary to open the
+  // related row to triage.
+  note          String?
+
+  resolvedAt   DateTime?
+  resolvedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  patient     User?            @relation("InboxItemPatient", fields: [patientId], references: [id], onDelete: SetNull)
+  appointment Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  message     WhatsAppMessage? @relation("InboxItemMessage", fields: [messageId], references: [id], onDelete: SetNull)
+  resolvedBy  User?            @relation("InboxItemResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+
+  // Resolved items stay in the table for audit; the inbox queries filter
+  // on `resolvedAt IS NULL`. The compound index keeps that lookup cheap.
+  @@index([resolvedAt, createdAt(sort: Desc)])
+  @@index([patientId, createdAt(sort: Desc)])
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -611,12 +720,12 @@ model IntakeAssessment {
   reviewedByClinicianId String?
   reviewedAt            DateTime?
 
-  patient            User                  @relation("IntakePatient", fields: [patientId], references: [id], onDelete: Restrict)
-  assessedBy         User                  @relation("IntakeAssessor", fields: [assessedById], references: [id], onDelete: Restrict)
+  patient             User                 @relation("IntakePatient", fields: [patientId], references: [id], onDelete: Restrict)
+  assessedBy          User                 @relation("IntakeAssessor", fields: [assessedById], references: [id], onDelete: Restrict)
   reviewedByClinician User?                @relation("IntakeReviewer", fields: [reviewedByClinicianId], references: [id], onDelete: Restrict)
-  adultData          AdultIntakeData?
-  pediatricData      PediatricIntakeData?
-  customAnswers      IntakeCustomAnswer[]
+  adultData           AdultIntakeData?
+  pediatricData       PediatricIntakeData?
+  customAnswers       IntakeCustomAnswer[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -632,23 +741,23 @@ model AdultIntakeData {
   intakeId String           @id
   intake   IntakeAssessment @relation(fields: [intakeId], references: [id], onDelete: Cascade)
 
-  physicalActivityLevel       PhysicalActivityLevel
-  medicalDiagnosis            String?
-  primaryComplaint            String
-  painTiming                  PainTiming
-  symptomDuration             SymptomDuration
-  painSeverity                PainSeverity
-  painAggravatingFactors      String?
-  painRelievingFactors        String?
-  painStability               PainStability
+  physicalActivityLevel        PhysicalActivityLevel
+  medicalDiagnosis             String?
+  primaryComplaint             String
+  painTiming                   PainTiming
+  symptomDuration              SymptomDuration
+  painSeverity                 PainSeverity
+  painAggravatingFactors       String?
+  painRelievingFactors         String?
+  painStability                PainStability
   currentMedicationsForProblem String?
-  otherMedications            String?
-  conditions                  Comorbidity[]
-  otherConditions             String?
-  previousFractures           String?
-  previousSurgeries           String?
-  previousPtExperience        String?
-  referralSource              ReferralSource
+  otherMedications             String?
+  conditions                   Comorbidity[]
+  otherConditions              String?
+  previousFractures            String?
+  previousSurgeries            String?
+  previousPtExperience         String?
+  referralSource               ReferralSource
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -689,11 +798,11 @@ model IntakeCustomQuestion {
 }
 
 model IntakeCustomAnswer {
-  id         String  @id @default(cuid())
-  intakeId   String
-  questionId String
+  id           String  @id @default(cuid())
+  intakeId     String
+  questionId   String
   // For TEXT / TEXTAREA / NUMBER / DATE.
-  value      String?
+  value        String?
   // For SINGLE_SELECT / MULTI_SELECT — array of selected option values.
   // Stored as JSON so renaming an option later does not corrupt historical answers.
   valueOptions Json?

@@ -12,6 +12,7 @@ import {
   CustomQuestionType,
   LanguagePref,
   UserRole,
+  WaTemplateApprovalStatus,
   WaTemplateCategory,
 } from '@prisma/client';
 
@@ -34,13 +35,26 @@ const ROOMS: ReadonlyArray<string> = [
 ];
 
 type SeedTemplate = {
-  metaTemplateName: string;
+  name: string;
   language: LanguagePref;
   category: WaTemplateCategory;
   contentPreview: string;
+  metaTemplateName: string;
+  metaApprovalStatus: WaTemplateApprovalStatus;
+  twilioContentSid: string;
+  twilioApproved: boolean;
 };
 
-// Stub previews — Meta-approved bodies arrive in Prompt 8. Each pair is EN + AR.
+/**
+ * Reference templates. The `name` column is the canonical logical identifier
+ * (e.g., `appointment_reminder_30min`) that call sites reference via
+ * `whatsapp.sendTemplate({ name, language, … })`. The provider-specific
+ * identifiers (`metaTemplateName`, `twilioContentSid`) are backfilled here
+ * with dev placeholders so the seeded clinic works end-to-end against the
+ * Twilio Sandbox without the operator hand-creating each one. Production
+ * provisioning is described in `docs/whatsapp/setup-meta.md` and
+ * `docs/whatsapp/setup-twilio.md`.
+ */
 const WHATSAPP_TEMPLATES: ReadonlyArray<SeedTemplate> = [
   [
     'appointment_confirmation',
@@ -84,20 +98,32 @@ const WHATSAPP_TEMPLATES: ReadonlyArray<SeedTemplate> = [
     'Welcome to Theone.pt. Login: {{1}}, temporary password: {{2}}. Please change it on first sign-in.',
     'مرحباً بك في Theone.pt. الدخول: {{1}}، كلمة مرور مؤقتة: {{2}}. يرجى تغييرها عند أول تسجيل دخول.',
   ],
-].flatMap(([name, category, en, ar]) => [
-  {
-    metaTemplateName: name as string,
-    language: LanguagePref.EN,
-    category: category as WaTemplateCategory,
-    contentPreview: en as string,
-  },
-  {
-    metaTemplateName: `${name}_ar`,
-    language: LanguagePref.AR,
-    category: category as WaTemplateCategory,
-    contentPreview: ar as string,
-  },
-]);
+].flatMap(([name, category, en, ar]): SeedTemplate[] => {
+  const logicalName = name as string;
+  const cat = category as WaTemplateCategory;
+  return [
+    {
+      name: logicalName,
+      language: LanguagePref.EN,
+      category: cat,
+      contentPreview: en as string,
+      metaTemplateName: logicalName,
+      metaApprovalStatus: WaTemplateApprovalStatus.NOT_SUBMITTED,
+      twilioContentSid: `HX_DEV_${logicalName}_en`,
+      twilioApproved: true,
+    },
+    {
+      name: logicalName,
+      language: LanguagePref.AR,
+      category: cat,
+      contentPreview: ar as string,
+      metaTemplateName: logicalName,
+      metaApprovalStatus: WaTemplateApprovalStatus.NOT_SUBMITTED,
+      twilioContentSid: `HX_DEV_${logicalName}_ar`,
+      twilioApproved: true,
+    },
+  ];
+});
 
 export async function seedReference(db: PrismaClient): Promise<void> {
   await Promise.all(
@@ -119,9 +145,17 @@ export async function seedReference(db: PrismaClient): Promise<void> {
   await Promise.all(
     WHATSAPP_TEMPLATES.map((t) =>
       db.whatsAppTemplate.upsert({
-        where: { metaTemplateName: t.metaTemplateName },
-        update: { contentPreview: t.contentPreview, language: t.language, category: t.category },
-        create: t,
+        where: { name_language: { name: t.name, language: t.language } },
+        update: {
+          contentPreview: t.contentPreview,
+          category: t.category,
+          metaTemplateName: t.metaTemplateName,
+          metaApprovalStatus: t.metaApprovalStatus,
+          twilioContentSid: t.twilioContentSid,
+          twilioApproved: t.twilioApproved,
+          active: true,
+        },
+        create: { ...t, active: true },
       }),
     ),
   );

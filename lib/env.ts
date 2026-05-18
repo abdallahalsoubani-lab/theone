@@ -31,8 +31,25 @@ const envSchema = z.object({
   S3_ACCESS_KEY_ID: z.string().optional(),
   S3_SECRET_ACCESS_KEY: z.string().optional(),
 
-  // WhatsApp provider (Prompt 8)
-  WHATSAPP_PROVIDER: z.enum(['twilio', 'meta']).default('twilio'),
+  // WhatsApp provider (Prompt 8). `console` is the dev default — every send
+  // writes a structured payload to stderr and no network IO is performed.
+  // `twilio` and `meta` activate the real provider implementations and
+  // require the matching credential block below.
+  WHATSAPP_PROVIDER: z.enum(['console', 'twilio', 'meta']).default('console'),
+
+  // Twilio credentials — required when WHATSAPP_PROVIDER=twilio. The
+  // sandbox sender is shared (+14155238886); production accounts use a
+  // dedicated Twilio WhatsApp number. See docs/whatsapp/setup-twilio.md.
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_WHATSAPP_FROM: z.string().optional(),
+
+  // Meta Cloud API credentials — required when WHATSAPP_PROVIDER=meta. See
+  // docs/whatsapp/setup-meta.md for the Business Manager walkthrough.
+  META_WHATSAPP_PHONE_ID: z.string().optional(),
+  META_WHATSAPP_TOKEN: z.string().optional(),
+  META_WHATSAPP_VERIFY_TOKEN: z.string().optional(),
+  META_WHATSAPP_APP_SECRET: z.string().optional(),
 
   // Auth (Prompt 4)
   AUTH_SECRET: z.string().min(32).optional(),
