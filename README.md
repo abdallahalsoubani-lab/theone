@@ -1,161 +1,182 @@
 # Theone.pt
 
-Bilingual (English + Arabic, RTL) physiotherapy clinic management web application for
-**The One for Physiotherapy** (المركز الأول للعلاج الطبيعي), Amman, Jordan.
+> Bilingual (English + Arabic, RTL-first) physiotherapy clinic management
+> system for **The One for Physiotherapy** (المركز الأول للعلاج الطبيعي),
+> Amman, Jordan.
 
-> **Current phase: 0 — Foundation.** The repo runs end-to-end as a Next.js 15 + Tailwind
-> application with the locked brand identity and a `/style-guide` route. No business
-> features exist yet — those land in Prompts 2 onwards (see `docs/prompts/`).
+A complete clinic platform covering the full patient journey — registration,
+intake assessment, treatment planning, appointment scheduling, SOAP session
+notes, home-exercise programs, and compliance tracking — with WhatsApp as
+the primary patient communication channel. Built for a single clinic of
+5-10 staff and a few hundred active patients.
+
+---
+
+## Status
+
+**v1.0 — feature complete.** The system was built across 12 sequential
+prompts (`docs/prompts/`) covering foundation through launch readiness.
+912 tests passing, 1,087 i18n keys EN+AR in sync, 8 database migrations.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full release notes and
+[`docs/backlog.md`](docs/backlog.md) for the explicit deferrals.
+
+---
+
+## Tech stack
+
+- **Framework:** Next.js 15 (App Router) + React 19 + TypeScript strict
+- **Database:** PostgreSQL 16 + Prisma 6
+- **Auth:** Auth.js v5 with Credentials + Phone-OTP providers
+- **i18n:** next-intl (EN + AR with full RTL)
+- **Background jobs:** BullMQ + Redis
+- **Calendar:** react-big-calendar
+- **PDF:** @react-pdf/renderer
+- **Storage:** AWS SDK v3 (MinIO locally, S3 in production)
+- **Charts:** Recharts
+- **Tests:** Vitest + Playwright
+
+The stack is deliberately tight. See [`CLAUDE.md`](CLAUDE.md) for the
+locked dependencies and the rationale.
 
 ---
 
 ## Prerequisites
 
-- **Node.js 20 LTS** (pinned in `.nvmrc`; CI matches)
-- **pnpm 10** (pinned in `package.json` under `packageManager`)
-- **Docker Desktop** (for Postgres + Redis + MinIO locally)
+- Node.js 20 LTS (Node 22 also supported); see `.nvmrc`
+- pnpm 10 (pinned in `package.json`'s `packageManager`)
+- Docker Desktop or Docker Engine + Compose (for local Postgres + Redis + MinIO)
+- (Optional) ngrok or similar for WhatsApp webhook testing against a public URL
 
 ---
 
-## Quickstart
+## Quick start
 
 ```bash
-git clone <repo-url> theone-pt
-cd theone-pt
+git clone <repo-url> theone && cd theone
 cp .env.example .env.local
-pnpm install && pnpm infra:up
-pnpm db:reset      # apply schema + seed reference and dev data
-pnpm dev
+pnpm install
+pnpm infra:up         # Postgres + Redis + MinIO via docker compose
+pnpm db:reset         # apply migrations + seed reference + dev data
+pnpm dev              # Next.js on http://localhost:3000
+
+# in a second terminal:
+pnpm workers:start    # BullMQ workers for reminders + WhatsApp + compliance scan
 ```
 
-Visit:
+Then visit:
 
-- <http://localhost:3000/en> — landing page (English)
-- <http://localhost:3000/ar> — landing page (Arabic, RTL layout)
-- <http://localhost:3000/en/style-guide> — visual smoke test for the design system
-- <http://localhost:9001> — MinIO console (login: `minio_admin` / `minio_admin_change_me`)
+- <http://localhost:3000/ar> — landing page (Arabic, RTL — default locale)
+- <http://localhost:3000/en/login> — sign in (English)
+- <http://localhost:9001> — MinIO console (`minio_admin` / `minio_admin_change_me`)
+
+### Dev credentials
+
+Loaded by the Tier 2 seed; **never present in production**.
+
+| Role         | Email                                                  | Password                      |
+| ------------ | ------------------------------------------------------ | ----------------------------- |
+| Admin        | `admin@theone.pt`                                      | `Admin@123`                   |
+| Doctor       | `dr.sara@theone.pt`                                    | `Doctor@123`                  |
+| Secretary    | `secretary@theone.pt`                                  | `Reception@123`               |
+| Therapists   | `ahmad@theone.pt`, `layan@theone.pt`, `omar@theone.pt` | `Therapist@123`               |
+| Patients (8) | `*@example.com` or phone                               | `Patient@123` (forces change) |
+
+The first production Admin is created via
+[`pnpm bootstrap:admin`](scripts/bootstrap-admin.ts) on a clean database.
 
 ---
 
 ## Available scripts
 
-| Command                  | Purpose                                                                    |
-| ------------------------ | -------------------------------------------------------------------------- |
-| `pnpm dev`               | Start the Next.js dev server on port 3000                                  |
-| `pnpm build`             | Production build                                                           |
-| `pnpm start`             | Run the production build                                                   |
-| `pnpm typecheck`         | Strict TypeScript check (no emit)                                          |
-| `pnpm lint`              | ESLint — zero warnings tolerated                                           |
-| `pnpm lint:fix`          | ESLint with autofix                                                        |
-| `pnpm format`            | Prettier — write changes                                                   |
-| `pnpm format:check`      | Prettier — fail on drift (used in CI)                                      |
-| `pnpm test`              | Vitest one-shot                                                            |
-| `pnpm test:watch`        | Vitest in watch mode                                                       |
-| `pnpm infra:up`          | Start docker-compose services (postgres, redis, minio) + init MinIO bucket |
-| `pnpm infra:down`        | Stop docker-compose services (keeps volumes)                               |
-| `pnpm infra:reset`       | Wipe volumes and restart fresh                                             |
-| `pnpm infra:logs`        | Tail logs from all services                                                |
-| `pnpm db:generate`       | Regenerate the Prisma client (after editing `schema.prisma`)               |
-| `pnpm db:migrate`        | Create a new migration and apply it to the dev database                    |
-| `pnpm db:migrate:deploy` | Apply pending migrations (used in production and CI)                       |
-| `pnpm db:reset`          | Drop + recreate the dev database, replay all migrations, run the seed      |
-| `pnpm db:seed`           | Run the seed against the current database without resetting                |
-| `pnpm db:studio`         | Open Prisma Studio for visual table inspection                             |
+| Command                                                            | Purpose                                                    |
+| ------------------------------------------------------------------ | ---------------------------------------------------------- |
+| `pnpm dev`                                                         | Next.js dev server on port 3000                            |
+| `pnpm build`                                                       | Production build                                           |
+| `pnpm start`                                                       | Run the production build                                   |
+| `pnpm typecheck`                                                   | Strict TypeScript, no emit                                 |
+| `pnpm lint` / `pnpm lint:fix`                                      | ESLint (zero warnings tolerated)                           |
+| `pnpm format` / `pnpm format:check`                                | Prettier write / verify                                    |
+| `pnpm test` / `pnpm test:watch`                                    | Vitest one-shot / watch                                    |
+| `pnpm i18n:check`                                                  | EN + AR translation-key parity                             |
+| `pnpm size-limit`                                                  | 200 kB gzipped first-load JS budget                        |
+| `pnpm infra:up` / `down` / `reset`                                 | docker-compose lifecycle                                   |
+| `pnpm db:migrate` / `migrate:deploy` / `reset` / `seed` / `studio` | Prisma helpers                                             |
+| `pnpm workers:start`                                               | Spawn the BullMQ workers (reminders, WhatsApp, compliance) |
+| `pnpm bootstrap:admin`                                             | One-shot first-Admin creator (production only)             |
 
 ---
 
-## Folder structure
+## Project structure
 
 ```
-app/
-  [locale]/              # 'en' | 'ar' — root layout sets <html lang dir>
-    (auth)/              # Login, OTP, reset — owned by Prompt 4
-    (patient)/           # Patient portal — owned by Prompts 6, 10
-    (staff)/             # Secretary, therapist, doctor — owned by Prompts 7, 9
-    (admin)/             # Admin panel — owned by Prompt 5
-    style-guide/         # Visual smoke test for the design system
-    page.tsx             # Landing
-    layout.tsx           # Root layout (html + body + fonts)
-  api/v1/                # REST endpoints — added by the prompt that owns each module
-components/
-  ui/                    # shadcn primitives (button, card, input, label, etc.)
-  brand/                 # Logo and brand-specific components
-  calendar/              # Owned by Prompt 7
-  patient-file/          # Owned by Prompt 6
-  whatsapp/              # Owned by Prompt 8
-lib/
-  env.ts                 # Runtime env validation (Zod)
-  utils.ts               # cn() helper
-  db/                    # Prisma client — owned by Prompt 2
-  auth/                  # Auth.js v5 — owned by Prompt 4
-  rbac/                  # Permission helpers + audit wrapper — owned by Prompt 4
-  whatsapp/              # Provider abstraction — owned by Prompt 8
-  queue/                 # BullMQ — owned by Prompt 8
-messages/                # i18n catalogs — owned by Prompt 3
-public/                  # logo.svg, logo-dark.svg, logo-wordmark.svg
-scripts/                 # init-minio.sh and other ops scripts
-docs/                    # Spec, master context, sequential build prompts
+app/[locale]/        Next.js App Router; locale always prefixed
+  (admin)/admin/     Admin UI — users, rooms, settings, audit, dashboard, leaves
+  (staff)/           Secretary + Doctor + Therapist UIs
+  (patient)/patient/ Patient portal
+  (auth)/            Login + password change
+  api/v1/            Internal API routes (webhooks, exports, presigned URLs)
+components/          React components, colocated by feature
+lib/                 Domain logic — actions, queries, schemas, services
+prisma/              schema.prisma + 8 migrations + 2-tier seed
+workers/             BullMQ worker entrypoints
+messages/            EN + AR i18n catalogs
+docs/                Per-feature documentation — see docs/README.md
+tests/               Playwright e2e scaffolds (a11y + mobile)
+scripts/             Operational scripts (bootstrap, i18n check, MinIO init)
 ```
 
-Most leaf directories ship with a one-line `README.md` pointing to the prompt that
-owns them. As prompts land they replace placeholders with real implementations.
+Unit tests live next to source: `lib/foo/__tests__/foo.test.ts`.
+
+---
+
+## Documentation
+
+Start with the [documentation index](docs/README.md). Highlights:
+
+- **[`CLAUDE.md`](CLAUDE.md)** — project context loaded by AI assistants.
+  Lists the conventions, anti-patterns, and quality gates.
+- **[`docs/onboarding.md`](docs/onboarding.md)** — new-engineer walkthrough,
+  clone to first PR.
+- **[`docs/architecture/overview.md`](docs/architecture/overview.md)** —
+  high-level system design + request lifecycle.
+- **[`docs/ops/runbook.md`](docs/ops/runbook.md)** — daily / weekly /
+  incident procedures.
+- **[`docs/deploy/vps.md`](docs/deploy/vps.md)** — production deployment
+  walkthrough (Path B — VPS + Docker Compose). Path A (managed Vercel +
+  Neon + Upstash) lives at [`docs/deploy/managed.md`](docs/deploy/managed.md).
+- **[`docs/Theone-pt-Technical-Spec.md`](docs/Theone-pt-Technical-Spec.md)** —
+  the original 50 KB design specification.
+- **[`docs/prompts/`](docs/prompts/)** — the 12 prompt specifications that
+  built this system in order.
 
 ---
 
 ## Brand identity
 
-Eleven brand tokens are wired into Tailwind (`bg-brand-navy`, `text-brand-cyan`, …) and
-into `globals.css` as CSS variables (`var(--brand-navy)`) so they work in inline styles,
-SVGs, and dynamically generated content alike. The complete palette and usage guide
-lives in [docs/Prompt-0-Master-Context.md](docs/Prompt-0-Master-Context.md) §4.1.
+Eleven brand tokens are wired into Tailwind (`bg-brand-navy`,
+`text-brand-cyan`, …) and into `globals.css` as CSS variables
+(`var(--brand-navy)`) so they work in inline styles, SVGs, and dynamic
+content alike. The palette is **locked** — see
+[`docs/Prompt-0-Master-Context.md`](docs/Prompt-0-Master-Context.md) §4.1.
 
-The logo files in `/public` are **placeholders**. See [public/README.md](public/README.md)
-for the swap procedure when the production logo is supplied.
-
----
-
-## Dev credentials (seed data — never use in production)
-
-`pnpm db:reset` creates the following accounts. Passwords are hashed with bcrypt and
-land in the database; they exist purely to unblock UI development.
-
-| Role               | Email                                                  | Password                                         |
-| ------------------ | ------------------------------------------------------ | ------------------------------------------------ |
-| Admin              | `admin@theone.pt`                                      | `Admin@123`                                      |
-| Doctor             | `dr.sara@theone.pt`                                    | `Doctor@123`                                     |
-| Therapist          | `ahmad@theone.pt`, `layan@theone.pt`, `omar@theone.pt` | `Therapist@123`                                  |
-| Secretary          | `reception@theone.pt`                                  | `Reception@123`                                  |
-| Patient (8 seeded) | phone-only or email                                    | `Patient@123` (with `mustChangePassword = true`) |
-
-> Real authentication flow lands in **Prompt 4**. Until then these are seed-only.
-
-## Reference documents
-
-- [`docs/Theone-pt-Technical-Spec.md`](docs/Theone-pt-Technical-Spec.md) — full functional
-  and technical specification (source of truth for behavior)
-- [`docs/Prompt-0-Master-Context.md`](docs/Prompt-0-Master-Context.md) — project briefing,
-  coding standards, working protocol
-- [`docs/db/schema.md`](docs/db/schema.md) — entity-relationship diagram and design
-  decisions for the data model
-- [`docs/prompts/`](docs/prompts/) — sequential build prompts (Prompt 1 onward)
+The logo files in `/public` are **placeholders** until the clinic supplies
+the production assets. See [`public/README.md`](public/README.md) for the
+swap procedure.
 
 ---
 
 ## Contributing
 
-- **Branch naming.** `<type>/<short-description>`, e.g. `feat/secretary-calendar`,
-  `fix/audit-log-race`. The current foundation branch is `claude/review-project-briefing-tnVPw`.
-- **Commit messages.** Conventional Commits, enforced by commitlint:
-  `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, `perf:`, `style:`, `build:`, `ci:`, `revert:`.
-- **Pull requests.** One PR per build prompt. The PR template
-  (`.github/PULL_REQUEST_TEMPLATE.md`) prompts for the three required sections:
-  **What was built**, **What was deferred and why**, **What to test manually**.
-- **Pre-commit hooks.** Husky runs `lint-staged` (ESLint --fix + Prettier --write) on
-  staged files. The `commit-msg` hook runs commitlint. Do not bypass with `--no-verify`
-  unless the project owner has approved the workaround.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md). For AI assistants, the
+authoritative pattern guide is [`CLAUDE.md`](CLAUDE.md).
+
+Quality gates run via Husky pre-commit on staged files and again in CI
+against the full tree.
 
 ---
 
 ## License
 
-To be confirmed by the project owner before public release.
+Clinic-internal for v1. Public-release licensing to be decided by the
+project owner.
