@@ -888,6 +888,17 @@
       "pendingNotesHeading": "Sessions awaiting a note",
       "noPendingNotes": "No outstanding session notes.",
       "openEndOfDay": "Open end-of-day report →"
+    },
+    "timeline": {
+      "search": "Search",
+      "searchPlaceholder": "Search session notes and treatment plans…",
+      "from": "From",
+      "to": "To",
+      "empty": "No clinical events on this timeline yet.",
+      "open": "Open →",
+      "prev": "Previous",
+      "next": "Next",
+      "pageOf": "Page {page} of {totalPages}"
     }
   }
 }

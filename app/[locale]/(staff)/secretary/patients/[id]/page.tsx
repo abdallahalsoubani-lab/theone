@@ -5,28 +5,44 @@ import { auth } from '@/auth';
 import { PatientFilePage } from '@/components/patients/PatientFilePage';
 import { getPatientPlanState } from '@/lib/clinical/plans/queries';
 import { listSessionNotesForPatient } from '@/lib/clinical/session-notes/queries';
+import { getPatientTimeline } from '@/lib/clinical/timeline/query';
 import { listIntakesForPatient } from '@/lib/intake/queries';
 import { ensureCanReadPatient } from '@/lib/patients/access';
 import { getPatientFile } from '@/lib/patients/queries';
 import { listPatientActivity } from '@/lib/patients/queries-audit';
 import { requirePermission } from '@/lib/rbac/guards';
 
+const TIMELINE_PAGE_SIZE = 25;
+
 export default async function SecretaryPatientFilePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string; id: string }>;
+  searchParams: Promise<Record<string, string>>;
 }) {
   const { locale, id } = await params;
   setRequestLocale(locale);
   await requirePermission('patients.read');
   await ensureCanReadPatient(id);
+  const sp = await searchParams;
+  const timelinePage = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
   const session = await auth();
-  const [patient, activity, intakes, planState, notes] = await Promise.all([
+  const [patient, activity, intakes, planState, notes, timeline] = await Promise.all([
     getPatientFile(id),
     listPatientActivity(id),
     listIntakesForPatient(id),
     getPatientPlanState(id),
     listSessionNotesForPatient(id),
+    getPatientTimeline(
+      id,
+      {
+        search: sp.q,
+        from: sp.from ? new Date(sp.from) : undefined,
+        to: sp.to ? new Date(sp.to) : undefined,
+      },
+      { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
+    ),
   ]);
   if (!patient) notFound();
   return (
@@ -40,6 +56,9 @@ export default async function SecretaryPatientFilePage({
       locale={locale === 'ar' ? 'ar' : 'en'}
       planState={planState}
       notes={notes}
+      timeline={timeline}
+      timelinePage={timelinePage}
+      timelinePageSize={TIMELINE_PAGE_SIZE}
       viewerRole="SECRETARY"
       actorId={session?.user?.id ?? ''}
     />

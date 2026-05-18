@@ -888,6 +888,17 @@
       "pendingNotesHeading": "جلسات بانتظار ملاحظة",
       "noPendingNotes": "لا توجد ملاحظات جلسة معلقة.",
       "openEndOfDay": "فتح تقرير نهاية اليوم ←"
+    },
+    "timeline": {
+      "search": "بحث",
+      "searchPlaceholder": "ابحث في ملاحظات الجلسات وخطط العلاج…",
+      "from": "من",
+      "to": "إلى",
+      "empty": "لا توجد أحداث سريرية على هذا المسار الزمني بعد.",
+      "open": "فتح ←",
+      "prev": "السابق",
+      "next": "التالي",
+      "pageOf": "صفحة {page} من {totalPages}"
     }
   }
 }
