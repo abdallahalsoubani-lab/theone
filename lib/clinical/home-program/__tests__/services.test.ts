@@ -1,6 +1,16 @@
 import { AuditAction } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// Mock the BullMQ reminder helpers so tests don't try to talk to Redis.
+vi.mock('@/lib/queue/jobs/homeExerciseReminder', () => ({
+  registerHomeReminderJob: vi.fn(async () => 'fake-repeat-key'),
+  removeHomeReminderJob: vi.fn(async () => undefined),
+}));
+
+vi.mock('@/lib/env', () => ({
+  env: { HOME_REMINDER_OFFSET_MINUTES: 30 },
+}));
+
 vi.mock('@/lib/db', () => {
   const state = {
     items: [] as Array<{

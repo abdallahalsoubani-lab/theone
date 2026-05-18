@@ -4,6 +4,11 @@ import type { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
+import { env } from '@/lib/env';
+import {
+  registerHomeReminderJob,
+  removeHomeReminderJob,
+} from '@/lib/queue/jobs/homeExerciseReminder';
 
 import type {
   HomeProgramItemCreateInput,
@@ -129,6 +134,27 @@ export const addHomeProgramItem = withAudit<
       },
       select: { id: true },
     });
+
+    // Register the BullMQ recurring reminder. Best-effort: a Redis hiccup
+    // logs + continues; the row already exists and the daily check job
+    // will surface the missing reminder via the compliance signal.
+    try {
+      const key = await registerHomeReminderJob({
+        itemId: row.id,
+        scheduledTime: input.scheduledTime,
+        daysOfWeek: [...input.daysOfWeek].sort((a, b) => a - b),
+        offsetMinutes: env.HOME_REMINDER_OFFSET_MINUTES,
+      });
+      if (key) {
+        await db.homeProgramItem.update({
+          where: { id: row.id },
+          data: { reminderJobKey: key },
+        });
+      }
+    } catch (err) {
+      console.error('[home-program] reminder registration failed', err);
+    }
+
     return { itemId: row.id };
   },
 );
@@ -146,7 +172,7 @@ export const updateHomeProgramItem = withAudit<
   async function inner(input, ctx): Promise<{ itemId: string }> {
     const existing = await db.homeProgramItem.findUnique({
       where: { id: input.id },
-      select: { id: true, patientId: true },
+      select: { id: true, patientId: true, reminderJobKey: true },
     });
     if (!existing) throw new HomeProgramError(notFound);
     await ensureClinicalActorCanManage({ actorId: ctx.actorId, patientId: existing.patientId });
@@ -163,6 +189,27 @@ export const updateHomeProgramItem = withAudit<
         active: input.active,
       },
     });
+
+    // Re-register the reminder cron to reflect the new schedule.
+    try {
+      await removeHomeReminderJob(existing.reminderJobKey);
+      let newKey: string | null = null;
+      if (input.active) {
+        newKey = await registerHomeReminderJob({
+          itemId: input.id,
+          scheduledTime: input.scheduledTime,
+          daysOfWeek: [...input.daysOfWeek].sort((a, b) => a - b),
+          offsetMinutes: env.HOME_REMINDER_OFFSET_MINUTES,
+        });
+      }
+      await db.homeProgramItem.update({
+        where: { id: input.id },
+        data: { reminderJobKey: newKey },
+      });
+    } catch (err) {
+      console.error('[home-program] reminder re-registration failed', err);
+    }
+
     return { itemId: input.id };
   },
 );
@@ -181,11 +228,33 @@ export const setHomeProgramItemActive = withAudit<
   async function inner({ id, active }, ctx): Promise<{ itemId: string; active: boolean }> {
     const existing = await db.homeProgramItem.findUnique({
       where: { id },
-      select: { patientId: true },
+      select: {
+        patientId: true,
+        reminderJobKey: true,
+        scheduledTime: true,
+        daysOfWeek: true,
+      },
     });
     if (!existing) throw new HomeProgramError(notFound);
     await ensureClinicalActorCanManage({ actorId: ctx.actorId, patientId: existing.patientId });
     await db.homeProgramItem.update({ where: { id }, data: { active } });
+    // Pause = drop the cron; resume = re-register with the existing schedule.
+    try {
+      if (!active) {
+        await removeHomeReminderJob(existing.reminderJobKey);
+        await db.homeProgramItem.update({ where: { id }, data: { reminderJobKey: null } });
+      } else if (!existing.reminderJobKey) {
+        const key = await registerHomeReminderJob({
+          itemId: id,
+          scheduledTime: existing.scheduledTime,
+          daysOfWeek: existing.daysOfWeek,
+          offsetMinutes: env.HOME_REMINDER_OFFSET_MINUTES,
+        });
+        await db.homeProgramItem.update({ where: { id }, data: { reminderJobKey: key } });
+      }
+    } catch (err) {
+      console.error('[home-program] setActive cron sync failed', err);
+    }
     return { itemId: id, active };
   },
 );
@@ -203,10 +272,17 @@ export const deleteHomeProgramItem = withAudit<
   async function inner({ id }, ctx): Promise<{ itemId: string }> {
     const existing = await db.homeProgramItem.findUnique({
       where: { id },
-      select: { patientId: true },
+      select: { patientId: true, reminderJobKey: true },
     });
     if (!existing) throw new HomeProgramError(notFound);
     await ensureClinicalActorCanManage({ actorId: ctx.actorId, patientId: existing.patientId });
+    // Remove the BullMQ reminder before deleting the row so the cron
+    // doesn't fire against an orphaned id.
+    try {
+      await removeHomeReminderJob(existing.reminderJobKey);
+    } catch (err) {
+      console.error('[home-program] reminder removal on delete failed', err);
+    }
     // Cascade deletes the HomeProgramCompletion rows (FK Cascade).
     await db.homeProgramItem.delete({ where: { id } });
     return { itemId: id };
