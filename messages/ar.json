@@ -1192,5 +1192,45 @@
       "all": "لا توجد طلبات إجازة في النظام بعد.",
       "pending": "لا توجد طلبات إجازة معلقة."
     }
+  },
+  "analytics": {
+    "dashboardTitle": "لوحة العيادة",
+    "dashboardSubtitle": "نظرة سريعة على الأداء التشغيلي. تتحدث الأرقام كل 5 دقائق.",
+    "kpi": {
+      "activePatients": "المرضى النشطون",
+      "monthAppointments": "مواعيد هذا الشهر",
+      "noShowRate": "نسبة الغياب",
+      "complianceAverage": "متوسط الالتزام",
+      "utilization": "نسبة الاستخدام"
+    },
+    "trend": {
+      "title": "الاتجاه الشهري (٦ أشهر)",
+      "booked": "محجوز",
+      "completed": "مكتمل",
+      "cancelled": "ملغى"
+    },
+    "diagnoses": {
+      "title": "التشخيصات الأكثر تكراراً"
+    },
+    "referrals": {
+      "title": "مصادر الإحالات"
+    },
+    "cancellations": {
+      "title": "فئات الإلغاءات",
+      "category": "الفئة",
+      "count": "العدد",
+      "share": "النسبة",
+      "empty": "لا توجد إلغاءات في هذا النطاق."
+    },
+    "compliance": {
+      "title": "اتجاه الالتزام (30 يوماً)",
+      "axis": "اليوم",
+      "rate": "النسبة (٪)"
+    },
+    "schedule": {
+      "title": "كثافة جدول هذا الأسبوع",
+      "axis": "اليوم",
+      "minutes": "دقائق محجوزة"
+    }
   }
 }

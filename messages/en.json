@@ -1192,5 +1192,45 @@
       "all": "No leave requests in the system yet.",
       "pending": "No pending leave requests."
     }
+  },
+  "analytics": {
+    "dashboardTitle": "Clinic dashboard",
+    "dashboardSubtitle": "Operational health at a glance. Numbers refresh every 5 minutes.",
+    "kpi": {
+      "activePatients": "Active patients",
+      "monthAppointments": "This-month appointments",
+      "noShowRate": "No-show rate",
+      "complianceAverage": "Compliance average",
+      "utilization": "Utilization"
+    },
+    "trend": {
+      "title": "Monthly trend (6 months)",
+      "booked": "Booked",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "diagnoses": {
+      "title": "Top diagnoses"
+    },
+    "referrals": {
+      "title": "Referral sources"
+    },
+    "cancellations": {
+      "title": "Cancellation categories",
+      "category": "Category",
+      "count": "Count",
+      "share": "Share",
+      "empty": "No cancellations in this range."
+    },
+    "compliance": {
+      "title": "Compliance trend (30 days)",
+      "axis": "Day",
+      "rate": "Rate (%)"
+    },
+    "schedule": {
+      "title": "This week's schedule density",
+      "axis": "Day",
+      "minutes": "Minutes booked"
+    }
   }
 }
