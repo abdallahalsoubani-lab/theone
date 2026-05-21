@@ -128,6 +128,22 @@ function wrapTwilioError(err: unknown): WhatsAppError {
   const message = e?.message ?? String(err);
   const providerCode = e?.code;
   const httpStatus = e?.status ?? 0;
+  // Placeholder / unregistered Twilio Content SID — the seed inserts fake
+  // `HX_DEV_*` SIDs for local dev and Twilio rejects them with code 20422
+  // ("Invalid Parameter"). Surface a friendly, actionable failure reason
+  // instead of the raw "Invalid Parameter: ContentSid" string so the Admin
+  // knows exactly what to fix in /admin/whatsapp/templates.
+  const codeNum =
+    typeof providerCode === 'string' ? Number.parseInt(providerCode, 10) : providerCode;
+  if (codeNum === 20422 || /content\s*sid/i.test(message) || /HX[_A-Z0-9]+/.test(message)) {
+    return new WhatsAppError({
+      code: 'TEMPLATE_SID_INVALID',
+      message,
+      retryable: false,
+      provider: 'twilio',
+      providerCode,
+    });
+  }
   if (isTerminalTwilioError(providerCode)) {
     if (providerCode === 21610 || providerCode === 63016) {
       return new WhatsAppError({

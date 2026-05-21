@@ -17,6 +17,7 @@
 export type WhatsAppErrorCode =
   | 'TEMPLATE_NOT_CONFIGURED'
   | 'TEMPLATE_NOT_APPROVED'
+  | 'TEMPLATE_SID_INVALID'
   | 'INVALID_RECIPIENT'
   | 'RECIPIENT_OPTED_OUT'
   | 'NOT_IN_24H_WINDOW'
@@ -110,6 +111,41 @@ export function describeWhatsAppError(err: unknown): string {
   }
   if (err instanceof Error) return stripSecrets(err.message);
   return 'Unknown error';
+}
+
+/**
+ * Extract the leading `WhatsAppErrorCode` from a stored failureReason string
+ * produced by `describeWhatsAppError`. The format is
+ *   "{CODE}[ [{providerCode}]]: {message}"
+ * so the code is everything up to the first space, `[`, or `:`.
+ *
+ * Used by the Admin WhatsApp messages table to swap a raw failure string
+ * for a localized friendly explanation when one is available.
+ */
+export function parseFailureReasonCode(
+  reason: string | null | undefined,
+): WhatsAppErrorCode | null {
+  if (!reason) return null;
+  const match = reason.match(/^([A-Z_]+)\b/);
+  const code = match?.[1];
+  if (!code) return null;
+  const all: ReadonlyArray<WhatsAppErrorCode> = [
+    'TEMPLATE_NOT_CONFIGURED',
+    'TEMPLATE_NOT_APPROVED',
+    'TEMPLATE_SID_INVALID',
+    'INVALID_RECIPIENT',
+    'RECIPIENT_OPTED_OUT',
+    'NOT_IN_24H_WINDOW',
+    'PROVIDER_RATE_LIMIT',
+    'PROVIDER_AUTH',
+    'PROVIDER_5XX',
+    'PROVIDER_NETWORK',
+    'PROVIDER_UNKNOWN',
+    'INVALID_SIGNATURE',
+    'WEBHOOK_PARSE',
+    'NOT_IMPLEMENTED',
+  ];
+  return (all as ReadonlyArray<string>).includes(code) ? (code as WhatsAppErrorCode) : null;
 }
 
 function stripSecrets(message: string): string {

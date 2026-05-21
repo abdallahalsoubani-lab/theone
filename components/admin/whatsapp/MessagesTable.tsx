@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { resendMessageAction } from '@/lib/admin/whatsapp/actions';
 import type { MessageListRow } from '@/lib/admin/whatsapp/queries';
+import { parseFailureReasonCode } from '@/lib/whatsapp/errors';
 
 interface Props {
   rows: MessageListRow[];
@@ -128,9 +129,7 @@ export function MessagesTable({ rows, initialFilters }: Props) {
                   </td>
                   <td className="px-3 py-3">
                     <StatusBadge status={row.status} />
-                    {row.failureReason ? (
-                      <div className="mt-1 text-xs text-brand-textMuted">{row.failureReason}</div>
-                    ) : null}
+                    <FailureReason reason={row.failureReason} />
                   </td>
                   <td className="px-3 py-3">
                     <div className="font-mono text-xs text-brand-textMuted">
@@ -175,6 +174,30 @@ export function MessagesTable({ rows, initialFilters }: Props) {
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Renders a failure reason. If the stored string begins with a known
+ * WhatsAppErrorCode (the convention written by `describeWhatsAppError`),
+ * the friendly localized message replaces the raw provider string. Falls
+ * back to the raw string otherwise — admins can still read the original
+ * for codes we haven't translated yet.
+ */
+function FailureReason({ reason }: { reason: string | null }) {
+  const t = useTranslations('admin.whatsapp');
+  if (!reason) return null;
+  const code = parseFailureReasonCode(reason);
+  if (!code) {
+    return <div className="mt-1 text-xs text-brand-textMuted">{reason}</div>;
+  }
+  return (
+    <div className="mt-1 space-y-0.5 text-xs">
+      <div className="text-brand-text">{t(`failureReason.${code}`)}</div>
+      {code === 'TEMPLATE_SID_INVALID' ? (
+        <div className="text-brand-textMuted">{t('failureReason.TEMPLATE_SID_INVALID_HINT')}</div>
+      ) : null}
     </div>
   );
 }

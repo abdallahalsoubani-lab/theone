@@ -254,15 +254,52 @@
       "serviceNameEn": "Name (English)",
       "serviceNameAr": "Name (Arabic)",
       "serviceDuration": "Duration (minutes)",
-      "save": "Save settings",
-      "savedToast": "Settings saved.",
+      "save": "Save changes",
+      "savedToast": "Clinic settings updated.",
       "sunday": "Sunday",
       "monday": "Monday",
       "tuesday": "Tuesday",
       "wednesday": "Wednesday",
       "thursday": "Thursday",
       "friday": "Friday",
-      "saturday": "Saturday"
+      "saturday": "Saturday",
+      "subtitle": "Operational defaults that drive the calendar, the reminder timing, and the patient experience.",
+      "tabs": {
+        "general": "General",
+        "hours": "Business hours",
+        "appointments": "Appointments",
+        "languages": "Languages",
+        "services": "Service types",
+        "privacy": "Clinical privacy"
+      },
+      "fields": {
+        "nameEn": "Clinic name (English)",
+        "nameAr": "Clinic name (Arabic)",
+        "phone": "Contact phone",
+        "addressEn": "Address (English)",
+        "addressAr": "Address (Arabic)",
+        "timezone": "Time zone",
+        "defaultDuration": "Default appointment duration (min)",
+        "reminderOffset": "Reminder offset (min before)",
+        "defaultLanguage": "Default language for new users",
+        "hijriDefault": "Default new users to the Hijri calendar",
+        "patientCanViewClinicalNotes": "Allow patients to read their clinical notes",
+        "patientCanViewClinicalNotesHelp": "When off, patients see appointments and home program only; treatment plans and session notes stay clinical-only."
+      },
+      "days": {
+        "sun": "Sunday",
+        "mon": "Monday",
+        "tue": "Tuesday",
+        "wed": "Wednesday",
+        "thu": "Thursday",
+        "fri": "Friday",
+        "sat": "Saturday"
+      },
+      "active": "Active",
+      "addService": "Add service type",
+      "hoursHint": "The conflict engine uses these hours to flag out-of-hours bookings.",
+      "servicesHint": "At least one active service type must remain.",
+      "saving": "Saving…"
     },
     "audit": {
       "title": "Audit log",
@@ -285,7 +322,30 @@
       "actionCreate": "Created",
       "actionUpdate": "Updated",
       "actionDelete": "Deleted",
-      "actionRead": "Read"
+      "actionRead": "Read",
+      "subtitle": "Every state-changing action in the system, paginated and filterable.",
+      "filters": {
+        "from": "From",
+        "to": "To",
+        "actor": "Actor",
+        "actorPlaceholder": "name or email",
+        "entityType": "Entity type",
+        "entityTypePlaceholder": "Appointment, Patient, …",
+        "actions": "Actions"
+      },
+      "apply": "Apply filters",
+      "count": "{total} rows · page {page} of {totalPages}",
+      "columns": {
+        "timestamp": "When",
+        "actor": "Actor",
+        "action": "Action",
+        "entity": "Entity",
+        "diff": "Diff"
+      },
+      "viewDiff": "View before / after",
+      "empty": "No audit rows match the filters.",
+      "prev": "Previous",
+      "next": "Next"
     },
     "whatsapp": {
       "templatesTitle": "WhatsApp templates",
@@ -324,7 +384,24 @@
       "recipient": "Recipient",
       "template": "Template",
       "body": "Body",
-      "resend": "Resend"
+      "resend": "Resend",
+      "failureReason": {
+        "TEMPLATE_SID_INVALID": "Template Content SID is a placeholder. Replace it with a real Twilio Content SID from your Twilio Console.",
+        "TEMPLATE_SID_INVALID_HINT": "Go to Admin → WhatsApp Templates and update the Content SID for this template.",
+        "TEMPLATE_NOT_CONFIGURED": "This template is not configured for the active provider. Open WhatsApp Templates and add it.",
+        "TEMPLATE_NOT_APPROVED": "This template has not been approved by the provider yet.",
+        "INVALID_RECIPIENT": "The recipient number is not a valid WhatsApp number.",
+        "RECIPIENT_OPTED_OUT": "The recipient opted out of WhatsApp messages from this number.",
+        "NOT_IN_24H_WINDOW": "Outside the 24-hour customer-service window — only approved templates can be sent.",
+        "PROVIDER_RATE_LIMIT": "WhatsApp provider rate limit reached. The message will be retried.",
+        "PROVIDER_AUTH": "WhatsApp provider authentication failed. Check the provider credentials.",
+        "PROVIDER_5XX": "WhatsApp provider returned a server error. Retrying.",
+        "PROVIDER_NETWORK": "Network error reaching the WhatsApp provider. Retrying.",
+        "PROVIDER_UNKNOWN": "Unrecognized WhatsApp provider error.",
+        "INVALID_SIGNATURE": "Incoming webhook signature did not verify.",
+        "WEBHOOK_PARSE": "Could not parse the inbound webhook payload.",
+        "NOT_IMPLEMENTED": "This provider feature is not implemented yet."
+      }
     }
   },
   "appointments": {
@@ -1243,75 +1320,5 @@
     "downloading": "Preparing…",
     "downloaded": "Download started.",
     "downloadFailed": "Could not generate the file."
-  },
-  "admin.settings": {
-    "title": "Clinic settings",
-    "subtitle": "Operational defaults that drive the calendar, the reminder timing, and the patient experience.",
-    "tabs": {
-      "general": "General",
-      "hours": "Business hours",
-      "appointments": "Appointments",
-      "languages": "Languages",
-      "services": "Service types",
-      "privacy": "Clinical privacy"
-    },
-    "fields": {
-      "nameEn": "Clinic name (English)",
-      "nameAr": "Clinic name (Arabic)",
-      "phone": "Contact phone",
-      "addressEn": "Address (English)",
-      "addressAr": "Address (Arabic)",
-      "timezone": "Time zone",
-      "defaultDuration": "Default appointment duration (min)",
-      "reminderOffset": "Reminder offset (min before)",
-      "defaultLanguage": "Default language for new users",
-      "hijriDefault": "Default new users to the Hijri calendar",
-      "patientCanViewClinicalNotes": "Allow patients to read their clinical notes",
-      "patientCanViewClinicalNotesHelp": "When off, patients see appointments and home program only; treatment plans and session notes stay clinical-only."
-    },
-    "days": {
-      "sun": "Sunday",
-      "mon": "Monday",
-      "tue": "Tuesday",
-      "wed": "Wednesday",
-      "thu": "Thursday",
-      "fri": "Friday",
-      "sat": "Saturday"
-    },
-    "open": "Open",
-    "active": "Active",
-    "addService": "Add service type",
-    "hoursHint": "The conflict engine uses these hours to flag out-of-hours bookings.",
-    "servicesHint": "At least one active service type must remain.",
-    "save": "Save changes",
-    "saving": "Saving…",
-    "savedToast": "Clinic settings updated."
-  },
-  "admin.audit": {
-    "title": "Audit log",
-    "subtitle": "Every state-changing action in the system, paginated and filterable.",
-    "exportCsv": "Export CSV",
-    "filters": {
-      "from": "From",
-      "to": "To",
-      "actor": "Actor",
-      "actorPlaceholder": "name or email",
-      "entityType": "Entity type",
-      "entityTypePlaceholder": "Appointment, Patient, …",
-      "actions": "Actions"
-    },
-    "apply": "Apply filters",
-    "count": "{total} rows · page {page} of {totalPages}",
-    "columns": {
-      "timestamp": "When",
-      "actor": "Actor",
-      "action": "Action",
-      "entity": "Entity",
-      "diff": "Diff"
-    },
-    "viewDiff": "View before / after",
-    "empty": "No audit rows match the filters.",
-    "prev": "Previous",
-    "next": "Next"
   }
 }

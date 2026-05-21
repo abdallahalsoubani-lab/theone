@@ -584,7 +584,7 @@
       "defaultAppointmentDuration": "المدة الافتراضية للموعد (دقائق)",
       "defaultReminderOffset": "تذكير قبل الموعد (دقائق)",
       "businessHours": "ساعات العمل",
-      "open": "الفتح",
+      "open": "مفتوح",
       "close": "الإغلاق",
       "closed": "مغلق",
       "serviceTypes": "أنواع الخدمات",
@@ -592,15 +592,52 @@
       "serviceNameEn": "الاسم (إنجليزي)",
       "serviceNameAr": "الاسم (عربي)",
       "serviceDuration": "المدة (دقائق)",
-      "save": "حفظ الإعدادات",
-      "savedToast": "تم حفظ الإعدادات.",
+      "save": "حفظ التغييرات",
+      "savedToast": "تم تحديث إعدادات العيادة.",
       "sunday": "الأحد",
       "monday": "الإثنين",
       "tuesday": "الثلاثاء",
       "wednesday": "الأربعاء",
       "thursday": "الخميس",
       "friday": "الجمعة",
-      "saturday": "السبت"
+      "saturday": "السبت",
+      "subtitle": "الإعدادات التشغيلية التي تتحكم في التقويم وتوقيت التذكيرات وتجربة المريض.",
+      "tabs": {
+        "general": "عام",
+        "hours": "ساعات العمل",
+        "appointments": "المواعيد",
+        "languages": "اللغات",
+        "services": "أنواع الخدمات",
+        "privacy": "خصوصية إكلينيكية"
+      },
+      "fields": {
+        "nameEn": "اسم العيادة (إنجليزي)",
+        "nameAr": "اسم العيادة (عربي)",
+        "phone": "هاتف التواصل",
+        "addressEn": "العنوان (إنجليزي)",
+        "addressAr": "العنوان (عربي)",
+        "timezone": "المنطقة الزمنية",
+        "defaultDuration": "مدة الموعد الافتراضية (دقائق)",
+        "reminderOffset": "تذكير قبل الموعد (دقائق)",
+        "defaultLanguage": "اللغة الافتراضية للمستخدمين الجدد",
+        "hijriDefault": "اعتماد التقويم الهجري افتراضياً للمستخدمين الجدد",
+        "patientCanViewClinicalNotes": "السماح للمرضى بقراءة الملاحظات السريرية",
+        "patientCanViewClinicalNotesHelp": "عند إيقاف الإعداد يرى المرضى المواعيد والبرنامج المنزلي فقط؛ تبقى خطط العلاج وملاحظات الجلسات سريرية فقط."
+      },
+      "days": {
+        "sun": "الأحد",
+        "mon": "الإثنين",
+        "tue": "الثلاثاء",
+        "wed": "الأربعاء",
+        "thu": "الخميس",
+        "fri": "الجمعة",
+        "sat": "السبت"
+      },
+      "active": "نشط",
+      "addService": "إضافة نوع خدمة",
+      "hoursHint": "يستخدم محرك التعارضات هذه الساعات لتنبيه الحجوزات خارج الدوام.",
+      "servicesHint": "يجب أن يبقى نوع خدمة واحد نشط على الأقل.",
+      "saving": "جاري الحفظ…"
     },
     "audit": {
       "title": "سجل التدقيق",
@@ -623,7 +660,30 @@
       "actionCreate": "أُنشئ",
       "actionUpdate": "حُدّث",
       "actionDelete": "حُذف",
-      "actionRead": "قُرئ"
+      "actionRead": "قُرئ",
+      "subtitle": "كل إجراء يغير حالة النظام مع ترقيم وتصفية.",
+      "filters": {
+        "from": "من",
+        "to": "إلى",
+        "actor": "المنفذ",
+        "actorPlaceholder": "الاسم أو البريد",
+        "entityType": "نوع الكيان",
+        "entityTypePlaceholder": "Appointment, Patient, …",
+        "actions": "الإجراءات"
+      },
+      "apply": "تطبيق الفلاتر",
+      "count": "{total} صف · صفحة {page} من {totalPages}",
+      "columns": {
+        "timestamp": "متى",
+        "actor": "المنفذ",
+        "action": "الإجراء",
+        "entity": "الكيان",
+        "diff": "الفرق"
+      },
+      "viewDiff": "عرض قبل / بعد",
+      "empty": "لا توجد سجلات تطابق الفلاتر.",
+      "prev": "السابق",
+      "next": "التالي"
     },
     "whatsapp": {
       "templatesTitle": "قوالب واتساب",
@@ -662,7 +722,24 @@
       "recipient": "المستلم",
       "template": "القالب",
       "body": "النص",
-      "resend": "إعادة إرسال"
+      "resend": "إعادة إرسال",
+      "failureReason": {
+        "TEMPLATE_SID_INVALID": "معرّف القالب (Content SID) قيمة تجريبية. استبدله بمعرّف Twilio حقيقي من لوحة Twilio.",
+        "TEMPLATE_SID_INVALID_HINT": "افتح الإدارة ← قوالب واتساب وحدّث Content SID لهذا القالب.",
+        "TEMPLATE_NOT_CONFIGURED": "هذا القالب غير مهيّأ للمزوّد الحالي. افتح قوالب واتساب وأضِفه.",
+        "TEMPLATE_NOT_APPROVED": "لم يتم اعتماد هذا القالب من المزوّد بعد.",
+        "INVALID_RECIPIENT": "رقم المستلم ليس رقم واتساب صالحاً.",
+        "RECIPIENT_OPTED_OUT": "انسحب المستلم من استقبال رسائل واتساب من هذا الرقم.",
+        "NOT_IN_24H_WINDOW": "خارج نافذة الـ 24 ساعة لخدمة العملاء — يمكن إرسال القوالب المعتمدة فقط.",
+        "PROVIDER_RATE_LIMIT": "تجاوز حد الإرسال لدى مزوّد واتساب. ستُعاد المحاولة.",
+        "PROVIDER_AUTH": "فشل توثيق مزوّد واتساب. تحقّق من بيانات اعتماد المزوّد.",
+        "PROVIDER_5XX": "أرجع مزوّد واتساب خطأ من الخادم. تُعاد المحاولة.",
+        "PROVIDER_NETWORK": "خطأ شبكة عند الوصول إلى مزوّد واتساب. تُعاد المحاولة.",
+        "PROVIDER_UNKNOWN": "خطأ غير معروف من مزوّد واتساب.",
+        "INVALID_SIGNATURE": "فشل التحقق من توقيع الـ webhook الوارد.",
+        "WEBHOOK_PARSE": "تعذّر تحليل حمولة الـ webhook الوارد.",
+        "NOT_IMPLEMENTED": "ميزة المزوّد هذه غير مُنفّذة بعد."
+      }
     }
   },
   "styleGuide": {
@@ -1243,75 +1320,5 @@
     "downloading": "جاري التحضير…",
     "downloaded": "بدأ التحميل.",
     "downloadFailed": "تعذر إنشاء الملف."
-  },
-  "admin.settings": {
-    "title": "إعدادات العيادة",
-    "subtitle": "الإعدادات التشغيلية التي تتحكم في التقويم وتوقيت التذكيرات وتجربة المريض.",
-    "tabs": {
-      "general": "عام",
-      "hours": "ساعات العمل",
-      "appointments": "المواعيد",
-      "languages": "اللغات",
-      "services": "أنواع الخدمات",
-      "privacy": "خصوصية إكلينيكية"
-    },
-    "fields": {
-      "nameEn": "اسم العيادة (إنجليزي)",
-      "nameAr": "اسم العيادة (عربي)",
-      "phone": "هاتف التواصل",
-      "addressEn": "العنوان (إنجليزي)",
-      "addressAr": "العنوان (عربي)",
-      "timezone": "المنطقة الزمنية",
-      "defaultDuration": "مدة الموعد الافتراضية (دقائق)",
-      "reminderOffset": "تذكير قبل الموعد (دقائق)",
-      "defaultLanguage": "اللغة الافتراضية للمستخدمين الجدد",
-      "hijriDefault": "اعتماد التقويم الهجري افتراضياً للمستخدمين الجدد",
-      "patientCanViewClinicalNotes": "السماح للمرضى بقراءة الملاحظات السريرية",
-      "patientCanViewClinicalNotesHelp": "عند إيقاف الإعداد يرى المرضى المواعيد والبرنامج المنزلي فقط؛ تبقى خطط العلاج وملاحظات الجلسات سريرية فقط."
-    },
-    "days": {
-      "sun": "الأحد",
-      "mon": "الإثنين",
-      "tue": "الثلاثاء",
-      "wed": "الأربعاء",
-      "thu": "الخميس",
-      "fri": "الجمعة",
-      "sat": "السبت"
-    },
-    "open": "مفتوح",
-    "active": "نشط",
-    "addService": "إضافة نوع خدمة",
-    "hoursHint": "يستخدم محرك التعارضات هذه الساعات لتنبيه الحجوزات خارج الدوام.",
-    "servicesHint": "يجب أن يبقى نوع خدمة واحد نشط على الأقل.",
-    "save": "حفظ التغييرات",
-    "saving": "جاري الحفظ…",
-    "savedToast": "تم تحديث إعدادات العيادة."
-  },
-  "admin.audit": {
-    "title": "سجل التدقيق",
-    "subtitle": "كل إجراء يغير حالة النظام مع ترقيم وتصفية.",
-    "exportCsv": "تصدير CSV",
-    "filters": {
-      "from": "من",
-      "to": "إلى",
-      "actor": "المنفذ",
-      "actorPlaceholder": "الاسم أو البريد",
-      "entityType": "نوع الكيان",
-      "entityTypePlaceholder": "Appointment, Patient, …",
-      "actions": "الإجراءات"
-    },
-    "apply": "تطبيق الفلاتر",
-    "count": "{total} صف · صفحة {page} من {totalPages}",
-    "columns": {
-      "timestamp": "متى",
-      "actor": "المنفذ",
-      "action": "الإجراء",
-      "entity": "الكيان",
-      "diff": "الفرق"
-    },
-    "viewDiff": "عرض قبل / بعد",
-    "empty": "لا توجد سجلات تطابق الفلاتر.",
-    "prev": "السابق",
-    "next": "التالي"
   }
 }
