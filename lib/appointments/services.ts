@@ -106,6 +106,51 @@ export const createAppointment = withAudit<
       reminderOffsetMinutes: offset,
     });
 
+    // Best-effort confirmation send via the `appointment_confirmation`
+    // template seeded in Prompt 2. Mirrors the cancel-side fan-out in
+    // shape and failure tolerance: enqueue is fire-and-forget so a
+    // WhatsApp / Twilio outage cannot break the booking flow. The
+    // template takes four placeholders: {patientName, therapistName,
+    // date, time}. Skip when the patient is flagged unreachable —
+    // re-enabled automatically on the next successful delivery
+    // (User.whatsappReachable; see Prompt 8 §4.12).
+    const [patient, therapist] = await Promise.all([
+      db.user.findUnique({
+        where: { id: input.patientId },
+        select: {
+          phone: true,
+          languagePref: true,
+          whatsappReachable: true,
+          fullNameEn: true,
+          fullNameAr: true,
+        },
+      }),
+      db.user.findUnique({
+        where: { id: input.therapistId },
+        select: { fullNameEn: true, fullNameAr: true },
+      }),
+    ]);
+    if (patient && therapist && patient.whatsappReachable) {
+      const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
+      const dateStr = appointment.startsAt.toISOString().slice(0, 10);
+      const timeStr = appointment.startsAt.toISOString().slice(11, 16);
+      const patientName = patient.languagePref === 'AR' ? patient.fullNameAr : patient.fullNameEn;
+      const therapistName =
+        patient.languagePref === 'AR' ? therapist.fullNameAr : therapist.fullNameEn;
+      void enqueueWhatsappOutbound({
+        kind: 'template',
+        templateName: 'appointment_confirmation',
+        language: patient.languagePref,
+        parameters: [patientName, therapistName, dateStr, timeStr],
+        recipientPhone: patient.phone,
+        recipientUserId: input.patientId,
+        appointmentId: appointment.id,
+        source: 'queue',
+      }).catch((err: unknown) => {
+        console.error('[appointments.create] confirmation enqueue failed', err);
+      });
+    }
+
     return {
       appointmentId: appointment.id,
       conflictsOverridden: !conflicts.ok && input.overrideConflicts,
