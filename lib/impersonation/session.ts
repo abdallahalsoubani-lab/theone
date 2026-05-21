@@ -1,4 +1,10 @@
-import 'server-only';
+// NOTE: deliberately no `import 'server-only'` — this module is reached
+// transitively by `withAudit`, which is reached by every audited service,
+// including ones invoked from the BullMQ workers process (a plain Node
+// runtime under `tsx`, where `server-only` throws at import time). The
+// module's runtime-only deps (`auth()`, `cookies()`, the Prisma client)
+// already make accidental client bundling impossible without an explicit
+// allowlist, so the marker package is redundant here.
 
 import type { LanguagePref, UserRole } from '@prisma/client';
 

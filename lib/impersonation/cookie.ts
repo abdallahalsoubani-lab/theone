@@ -1,4 +1,5 @@
-import 'server-only';
+// See lib/impersonation/session.ts for why `server-only` is omitted —
+// this module is reached by withAudit on the worker code path.
 
 import { cookies } from 'next/headers';
 
