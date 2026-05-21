@@ -7,6 +7,7 @@ import { useCallback, useTransition } from 'react';
 import { toast } from 'sonner';
 
 import { DataTable } from '@/components/data-table/DataTable';
+import { ActAsButton } from '@/components/impersonation/ActAsButton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -183,6 +184,18 @@ export function UsersTable({ rows, total, page, pageSize, initialSearch }: Props
             <DropdownMenuItem asChild>
               <Link href={`/admin/users/${user.id}/edit`}>{tCommon('edit')}</Link>
             </DropdownMenuItem>
+            {/* Admin Impersonation entry point. The button itself rejects
+                Admin-on-Admin server-side; here we also hide the menu item
+                so it never appears for fellow admins (a non-Admin user can
+                always be impersonated, archived or not). */}
+            {user.role !== 'ADMIN' ? (
+              <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
+                <ActAsButton
+                  targetUserId={user.id}
+                  targetName={locale === 'ar' ? user.fullNameAr : user.fullNameEn}
+                />
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuSeparator />
             {user.archived ? (
               <DropdownMenuItem onSelect={() => handleRestore(user.id)}>

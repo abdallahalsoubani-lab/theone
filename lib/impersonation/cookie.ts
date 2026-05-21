@@ -5,19 +5,14 @@ import { cookies } from 'next/headers';
 import { env } from '@/lib/env';
 
 import {
+  IMPERSONATION_COOKIE,
   IMPERSONATION_TTL_SECONDS,
   type ImpersonationClaims,
   signImpersonationToken,
   verifyImpersonationToken,
 } from './token';
 
-/**
- * Cookie name. Prefixed with `theone_` to keep it grouped with the rest of
- * the app's cookies when an admin opens DevTools. Not `__Host-` prefixed
- * because dev runs over plain HTTP — production sets `Secure` via the
- * cookie attributes below.
- */
-export const IMPERSONATION_COOKIE = 'theone_impersonation';
+export { IMPERSONATION_COOKIE };
 
 /**
  * Issue a fresh signed token and set it as an HttpOnly cookie. The TTL

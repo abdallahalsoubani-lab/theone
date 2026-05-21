@@ -5,6 +5,7 @@ import { Inter, IBM_Plex_Sans_Arabic } from 'next/font/google';
 import { notFound } from 'next/navigation';
 import type { ReactNode } from 'react';
 
+import { ImpersonationBanner } from '@/components/impersonation/ImpersonationBanner';
 import { SessionProvider } from '@/components/providers/SessionProvider';
 import { Footer } from '@/components/shell/Footer';
 import { Header } from '@/components/shell/Header';
@@ -75,6 +76,7 @@ export default async function LocaleLayout({
             >
               {t('skipToContent')}
             </a>
+            <ImpersonationBanner />
             <Header />
             <main id="main-content" className="flex-1">
               {children}

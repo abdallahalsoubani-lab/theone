@@ -9,6 +9,10 @@ import {
   isPasswordGateAllowed,
   isPublicPath,
 } from '@/lib/auth/routes';
+// Direct import from the Edge-safe token module — the barrel re-exports
+// server-only helpers (cookie.ts uses next/headers, session.ts uses the
+// Prisma client) that would break the Edge bundle.
+import { IMPERSONATION_COOKIE, verifyImpersonationToken } from '@/lib/impersonation/token';
 
 const intlMiddleware = createIntlMiddleware(routing);
 
@@ -80,6 +84,43 @@ export default auth(async (req) => {
     url.pathname = `/${locale}/change-password`;
     url.search = '';
     return NextResponse.redirect(url);
+  }
+
+  // ── Impersonation guard ─────────────────────────────────────────────
+  //
+  // The cookie is the single source of truth for impersonation. Verify it
+  // with jose (Edge-safe) on every protected request so:
+  //   - a tampered cookie can never reach a route handler,
+  //   - if the real session is no longer Admin (logout + login as a
+  //     different role with the cookie still around) we wipe the cookie,
+  //   - while impersonation is active, navigating to /admin/* bounces
+  //     to the impersonated user's role home — the Admin must explicitly
+  //     "Exit impersonation" to come back to the admin area.
+  const impersonationToken = req.cookies.get(IMPERSONATION_COOKIE)?.value;
+  if (impersonationToken) {
+    const claims = await verifyImpersonationToken(impersonationToken);
+    const validForThisSession =
+      !!claims && session.user.role === 'ADMIN' && claims.adminId === session.user.id;
+
+    if (!validForThisSession) {
+      // Tampered cookie OR real session is not the admin that issued the
+      // token (logged out, logged in as someone else, role downgraded…).
+      // Clear it and continue with the request — RBAC will treat the
+      // user as the real session below.
+      const cleared = NextResponse.next();
+      cleared.cookies.delete(IMPERSONATION_COOKIE);
+      return cleared;
+    }
+
+    // Active impersonation → /admin/* is off-limits until the Admin exits.
+    // The role-home for the *impersonated* user is the destination so the
+    // Admin can immediately continue testing as that user.
+    if (barePath.startsWith('/admin')) {
+      const url = req.nextUrl.clone();
+      url.pathname = `/${locale}${ROLE_HOME[claims.targetRole]}`;
+      url.search = '';
+      return NextResponse.redirect(url);
+    }
   }
 
   return intlResponse;

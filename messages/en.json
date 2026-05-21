@@ -1320,5 +1320,28 @@
     "downloading": "Preparing…",
     "downloaded": "Download started.",
     "downloadFailed": "Could not generate the file."
+  },
+  "impersonation": {
+    "banner_acting_as": "You are acting as {name} ({role})",
+    "banner_admin_session": "This is a temporary admin session — all actions are recorded",
+    "banner_exit": "Exit impersonation",
+    "confirm_title": "Act as {name}?",
+    "confirm_description": "You will browse the system as this user. All actions will be recorded in the audit log.",
+    "confirm_button": "Confirm",
+    "act_as": "Act as",
+    "started_toast": "Now acting as {name}",
+    "ended_toast": "Returned to admin session",
+    "exited_via_navigation": "Returned to admin session — impersonation cleared",
+    "via_impersonation": "via impersonation",
+    "audit_filter_label": "Show only impersonation rows",
+    "error_unauthenticated": "Sign-in required.",
+    "error_not_admin": "Only an administrator can impersonate.",
+    "error_cannot_impersonate_admin": "Cannot impersonate another administrator.",
+    "error_already_impersonating": "You are already in an impersonation session. Exit it first.",
+    "error_user_not_found": "The user to impersonate was not found.",
+    "role_PATIENT": "Patient",
+    "role_SECRETARY": "Secretary",
+    "role_DOCTOR": "Doctor",
+    "role_THERAPIST": "Therapist"
   }
 }

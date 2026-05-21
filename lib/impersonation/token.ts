@@ -34,6 +34,13 @@ const ISSUER = 'theone.pt/impersonation';
 const AUDIENCE = 'theone.pt';
 export const IMPERSONATION_TTL_SECONDS = 60 * 60 * 4; // 4 hours
 
+/**
+ * Cookie name. Lives in this Edge-safe module (no `next/headers`, no DB
+ * client) so the middleware can import it without dragging the
+ * `server-only` cookie/session modules into the Edge bundle.
+ */
+export const IMPERSONATION_COOKIE = 'theone_impersonation';
+
 function getSecret(): Uint8Array {
   const secret = env.AUTH_SECRET;
   if (!secret) {

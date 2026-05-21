@@ -1320,5 +1320,28 @@
     "downloading": "جاري التحضير…",
     "downloaded": "بدأ التحميل.",
     "downloadFailed": "تعذر إنشاء الملف."
+  },
+  "impersonation": {
+    "banner_acting_as": "أنت تعمل الآن كـ {name} ({role})",
+    "banner_admin_session": "هذه جلسة إدارية مؤقتة — جميع التصرفات مسجّلة",
+    "banner_exit": "إنهاء الجلسة",
+    "confirm_title": "التصرّف كـ {name}؟",
+    "confirm_description": "ستتصفح النظام كهذا المستخدم. جميع التصرفات ستُحفظ في سجل المراقبة.",
+    "confirm_button": "تأكيد",
+    "act_as": "تصرّف كـ",
+    "started_toast": "تعمل الآن كـ {name}",
+    "ended_toast": "عُدت لجلسة المسؤول",
+    "exited_via_navigation": "عُدت لجلسة المسؤول — تم إنهاء الانتحال",
+    "via_impersonation": "عبر انتحال هوية",
+    "audit_filter_label": "إظهار صفوف الانتحال فقط",
+    "error_unauthenticated": "يلزم تسجيل الدخول.",
+    "error_not_admin": "الانتحال متاح للمسؤول فقط.",
+    "error_cannot_impersonate_admin": "لا يمكن انتحال هوية مسؤول آخر.",
+    "error_already_impersonating": "أنت في جلسة انتحال هوية بالفعل. أنهها أولاً.",
+    "error_user_not_found": "المستخدم المطلوب الانتحال إليه غير موجود.",
+    "role_PATIENT": "مريض",
+    "role_SECRETARY": "سكرتير",
+    "role_DOCTOR": "طبيب",
+    "role_THERAPIST": "معالج طبيعي"
   }
 }
