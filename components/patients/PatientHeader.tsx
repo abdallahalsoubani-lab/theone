@@ -1,6 +1,10 @@
+'use client';
+
 import { useLocale } from 'next-intl';
+import { useSession } from 'next-auth/react';
 
 import { ExportPatientFileButton } from '@/components/exports/ExportPatientFileButton';
+import { ActAsButton } from '@/components/impersonation/ActAsButton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { formatPhone } from '@/lib/format/phone';
@@ -13,6 +17,12 @@ import type { PatientFileData } from '@/lib/patients/queries';
  */
 export function PatientHeader({ patient }: { patient: PatientFileData }) {
   const locale = useLocale();
+  const { data: session } = useSession();
+  // Only render the "Act as patient" entry point for Admins. The server
+  // action behind ActAsButton enforces this independently — the UI gate
+  // is purely to avoid showing a button that would always fail for
+  // Secretary / Doctor / Therapist viewers of the same profile.
+  const viewerIsAdmin = session?.user?.role === 'ADMIN';
   const name = locale === 'ar' ? patient.fullNameAr : patient.fullNameEn;
   const alt = locale === 'ar' ? patient.fullNameEn : patient.fullNameAr;
   const initials = name
@@ -41,7 +51,12 @@ export function PatientHeader({ patient }: { patient: PatientFileData }) {
           </span>
         </div>
       </div>
-      <ExportPatientFileButton patientId={patient.id} locale={locale} />
+      <div className="flex flex-wrap items-center gap-2">
+        {viewerIsAdmin ? (
+          <ActAsButton targetUserId={patient.id} targetName={name} variant="button" />
+        ) : null}
+        <ExportPatientFileButton patientId={patient.id} locale={locale} />
+      </div>
     </div>
   );
 }

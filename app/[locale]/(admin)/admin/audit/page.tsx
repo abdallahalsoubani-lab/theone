@@ -29,6 +29,7 @@ export default async function AuditLogPage({
   setRequestLocale(locale);
   await requirePermission('audit_log.read');
   const t = await getTranslations('admin.audit');
+  const tImp = await getTranslations('impersonation');
   const sp = await searchParams;
 
   const page = Math.max(1, Number.parseInt(typeof sp.page === 'string' ? sp.page : '1', 10) || 1);
@@ -156,7 +157,16 @@ export default async function AuditLogPage({
                   {r.createdAt.toISOString().replace('T', ' ').slice(0, 19)}
                 </td>
                 <td className="px-2 py-2">
-                  {locale === 'ar' ? r.actorFullNameAr : r.actorFullNameEn}
+                  <div className="flex flex-col gap-1">
+                    <span>{locale === 'ar' ? r.actorFullNameAr : r.actorFullNameEn}</span>
+                    {r.impersonatedUserId ? (
+                      <Badge variant="muted" className="w-fit text-[10px]">
+                        {tImp('via_impersonation')}
+                        {': '}
+                        {locale === 'ar' ? r.impersonatedFullNameAr : r.impersonatedFullNameEn}
+                      </Badge>
+                    ) : null}
+                  </div>
                 </td>
                 <td className="px-2 py-2">
                   <Badge variant={badgeVariant(r.action)}>{r.action}</Badge>

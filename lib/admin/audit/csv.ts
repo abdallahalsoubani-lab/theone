@@ -9,6 +9,7 @@ export function auditRowToCsv(row: AuditRow): string {
   return [
     row.createdAt.toISOString(),
     row.actorFullNameEn,
+    row.impersonatedFullNameEn ?? '',
     row.entityType,
     row.entityId,
     row.action,
@@ -19,7 +20,8 @@ export function auditRowToCsv(row: AuditRow): string {
     .join(',');
 }
 
-export const AUDIT_CSV_HEADER = 'createdAt,actor,entityType,entityId,action,before,after';
+export const AUDIT_CSV_HEADER =
+  'createdAt,actor,impersonatedAs,entityType,entityId,action,before,after';
 
 function csvField(v: string): string {
   if (/[",\n\r]/.test(v)) {

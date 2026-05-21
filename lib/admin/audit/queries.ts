@@ -16,6 +16,13 @@ export interface AuditRow {
   actorId: string;
   actorFullNameEn: string;
   actorFullNameAr: string;
+  /** Non-null when the row was written during an Admin impersonation
+   *  session. The Admin remains the `actor`; this is the user the
+   *  Admin was acting as. Used by the audit viewer to render a
+   *  "via impersonation" badge alongside the action chip. */
+  impersonatedUserId: string | null;
+  impersonatedFullNameEn: string | null;
+  impersonatedFullNameAr: string | null;
   entityType: string;
   entityId: string;
   action: AuditAction;
@@ -70,7 +77,10 @@ export async function listAuditLogs(
   const [rows, total] = await Promise.all([
     db.auditLog.findMany({
       where,
-      include: { actor: { select: { fullNameEn: true, fullNameAr: true } } },
+      include: {
+        actor: { select: { fullNameEn: true, fullNameAr: true } },
+        impersonatedUser: { select: { fullNameEn: true, fullNameAr: true } },
+      },
       orderBy: { createdAt: 'desc' },
       take: pagination.pageSize,
       skip: (pagination.page - 1) * pagination.pageSize,
@@ -96,7 +106,10 @@ export async function* streamAuditLogs(
   while (true) {
     const batch = await db.auditLog.findMany({
       where,
-      include: { actor: { select: { fullNameEn: true, fullNameAr: true } } },
+      include: {
+        actor: { select: { fullNameEn: true, fullNameAr: true } },
+        impersonatedUser: { select: { fullNameEn: true, fullNameAr: true } },
+      },
       orderBy: { createdAt: 'desc' },
       take: pageSize,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
@@ -113,6 +126,8 @@ function toRow(r: {
   createdAt: Date;
   actorId: string;
   actor: { fullNameEn: string; fullNameAr: string };
+  impersonatedUserId: string | null;
+  impersonatedUser: { fullNameEn: string; fullNameAr: string } | null;
   entityType: string;
   entityId: string;
   action: AuditAction;
@@ -125,6 +140,9 @@ function toRow(r: {
     actorId: r.actorId,
     actorFullNameEn: r.actor.fullNameEn,
     actorFullNameAr: r.actor.fullNameAr,
+    impersonatedUserId: r.impersonatedUserId,
+    impersonatedFullNameEn: r.impersonatedUser?.fullNameEn ?? null,
+    impersonatedFullNameAr: r.impersonatedUser?.fullNameAr ?? null,
     entityType: r.entityType,
     entityId: r.entityId,
     action: r.action,
