@@ -156,6 +156,8 @@ enum AuditAction {
   UPDATE
   DELETE
   READ_SENSITIVE
+  IMPERSONATION_STARTED
+  IMPERSONATION_ENDED
 }
 
 enum IntakeType {
@@ -310,6 +312,7 @@ model User {
   inboxItems               InboxItem[]            @relation("InboxItemPatient")
   inboxItemsResolved       InboxItem[]            @relation("InboxItemResolvedBy")
   auditLogs                AuditLog[]             @relation("AuditActor")
+  auditLogsAsImpersonated  AuditLog[]             @relation("AuditImpersonated")
   intakesAsPatient         IntakeAssessment[]     @relation("IntakePatient")
   intakesAsAssessor        IntakeAssessment[]     @relation("IntakeAssessor")
   intakesAsReviewer        IntakeAssessment[]     @relation("IntakeReviewer")
@@ -420,10 +423,10 @@ model Appointment {
   // (cancel series, reschedule series) join on this column.
   seriesId             String?
 
-  patient     User         @relation("AppointmentPatient", fields: [patientId], references: [id], onDelete: Restrict)
-  therapist   User         @relation("AppointmentTherapist", fields: [therapistId], references: [id], onDelete: Restrict)
-  room        Room?        @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  createdBy   User         @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  patient      User          @relation("AppointmentPatient", fields: [patientId], references: [id], onDelete: Restrict)
+  therapist    User          @relation("AppointmentTherapist", fields: [therapistId], references: [id], onDelete: Restrict)
+  room         Room?         @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  createdBy    User          @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   // Primary session note + 0..N addenda (Prompt 9 §4.7.3). The partial
   // unique index on SessionNote.appointmentId enforces "at most one
   // primary note per appointment"; addenda share the appointmentId via
@@ -468,9 +471,9 @@ model TreatmentPlan {
   // so they can see why.
   rejectedReason String?
   // Approval audit (set when a PROPOSED row transitions to ACTIVE).
-  approvedAt   DateTime?
-  approvedById String?
-  approvedBy   User?     @relation("PlanApprovals", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt     DateTime?
+  approvedById   String?
+  approvedBy     User?     @relation("PlanApprovals", fields: [approvedById], references: [id], onDelete: SetNull)
 
   patient           User            @relation("PlanPatient", fields: [patientId], references: [id], onDelete: Restrict)
   doctor            User            @relation("PlanDoctor", fields: [doctorId], references: [id], onDelete: Restrict)
@@ -508,37 +511,37 @@ model PlanExercise {
 }
 
 model Exercise {
-  id                String  @id @default(cuid())
-  nameEn            String
-  nameAr            String
-  descriptionEn     String
-  descriptionAr     String
-  category          String
-  anatomicalRegion  String
-  contraindications String?
+  id                   String  @id @default(cuid())
+  nameEn               String
+  nameAr               String
+  descriptionEn        String
+  descriptionAr        String
+  category             String
+  anatomicalRegion     String
+  contraindications    String?
   // Default patient-facing instruction. Per-item overrides land on
   // HomeProgramItem.therapistNote.
   defaultInstructionEn String?
   defaultInstructionAr String?
-  videoUrl          String?
-  videoMimeType     String?
-  videoSizeBytes    Int?
-  imageUrl          String?
-  imageMimeType     String?
-  imageSizeBytes    Int?
-  version           Int     @default(1)
-  createdById       String
+  videoUrl             String?
+  videoMimeType        String?
+  videoSizeBytes       Int?
+  imageUrl             String?
+  imageMimeType        String?
+  imageSizeBytes       Int?
+  version              Int     @default(1)
+  createdById          String
 
   // Version chain (Prompt 10 §4.3.4). Editing creates a new row; the old
   // row gets replacedById set so existing HomeProgramItems continue to
   // reference the version they were assigned, while the library list
   // shows only un-replaced + active rows.
-  replacedById      String?  @unique
-  replacedBy        Exercise? @relation("ExerciseVersions", fields: [replacedById], references: [id], onDelete: SetNull)
-  predecessor       Exercise? @relation("ExerciseVersions")
+  replacedById String?   @unique
+  replacedBy   Exercise? @relation("ExerciseVersions", fields: [replacedById], references: [id], onDelete: SetNull)
+  predecessor  Exercise? @relation("ExerciseVersions")
   // Soft delete — keep historical rows visible only through their existing
   // HomeProgramItem references.
-  active            Boolean  @default(true)
+  active       Boolean   @default(true)
 
   createdBy        User              @relation("ExerciseCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   planExercises    PlanExercise[]
@@ -553,7 +556,7 @@ model Exercise {
 }
 
 model SessionNote {
-  id            String @id @default(cuid())
+  id            String  @id @default(cuid())
   // appointmentId is unique for *primary* notes only — addenda share the
   // appointment with their parent. Enforced by a partial unique index in
   // the Prompt 9 migration: UNIQUE (appointmentId) WHERE parentNoteId IS NULL.
@@ -591,7 +594,7 @@ model SessionNote {
 // ═════════════════════════════════════════════════════════════════════════════
 
 model HomeProgramItem {
-  id              String   @id @default(cuid())
+  id              String  @id @default(cuid())
   patientId       String
   exerciseId      String
   // Days the exercise is scheduled. 0 = Sunday, 6 = Saturday. The
@@ -603,7 +606,7 @@ model HomeProgramItem {
   durationMinutes Int
   setsReps        String?
   therapistNote   String?
-  active          Boolean  @default(true)
+  active          Boolean @default(true)
   // BullMQ repeat-job key returned by Queue.add(). Stored here so the
   // update / delete paths can call removeRepeatableByKey() without
   // re-deriving the cron pattern.
@@ -877,12 +880,19 @@ model AuditLog {
   before     Json?
   after      Json?
 
-  actor User @relation("AuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+  // When the action was performed during an Admin impersonation session,
+  // `actorId` is the real Admin and `impersonatedUserId` is the user the
+  // Admin was acting as. Null when the actor was acting as themselves.
+  impersonatedUserId String?
+
+  actor            User  @relation("AuditActor", fields: [actorId], references: [id], onDelete: Restrict)
+  impersonatedUser User? @relation("AuditImpersonated", fields: [impersonatedUserId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
 
   @@index([entityType, entityId, createdAt(sort: Desc)])
   @@index([actorId, createdAt(sort: Desc)])
+  @@index([impersonatedUserId, createdAt(sort: Desc)])
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
