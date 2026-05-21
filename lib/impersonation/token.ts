@@ -42,7 +42,11 @@ export const IMPERSONATION_TTL_SECONDS = 60 * 60 * 4; // 4 hours
 export const IMPERSONATION_COOKIE = 'theone_impersonation';
 
 function getSecret(): Uint8Array {
-  const secret = env.AUTH_SECRET;
+  // Read live `process.env.AUTH_SECRET` rather than the cached `env`
+  // snapshot — the snapshot is captured at module load and tests need to
+  // be able to swap the secret mid-run. Production hits `env.AUTH_SECRET`
+  // first which has the strict Zod validation.
+  const secret = env.AUTH_SECRET ?? process.env.AUTH_SECRET;
   if (!secret) {
     throw new Error('[impersonation] AUTH_SECRET is required to sign impersonation tokens.');
   }

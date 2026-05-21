@@ -46,7 +46,16 @@ export async function clearImpersonationCookie(): Promise<void> {
  * impersonation session is active.
  */
 export async function readImpersonationCookie(): Promise<ImpersonationClaims | null> {
-  const store = await cookies();
+  // `cookies()` throws outside a request scope (background workers, vitest
+  // suites that exercise audited services directly). Treat any such failure
+  // as "no impersonation" rather than propagating — impersonation must
+  // never break code paths that don't know about it.
+  let store: Awaited<ReturnType<typeof cookies>>;
+  try {
+    store = await cookies();
+  } catch {
+    return null;
+  }
   const token = store.get(IMPERSONATION_COOKIE)?.value;
   if (!token) return null;
   return verifyImpersonationToken(token);

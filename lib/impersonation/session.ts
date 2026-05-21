@@ -63,7 +63,13 @@ export type EffectiveSession =
  * is reflected immediately.
  */
 export async function getEffectiveSession(): Promise<EffectiveSession> {
-  const session = await auth();
+  // `auth()` reads cookies and throws outside a request scope. Background
+  // workers and direct service tests invoke audited code with no scope, so
+  // collapse the throw to "no session" rather than crashing the caller.
+  // The variable is intentionally untyped — Auth.js v5 overloads `auth` as
+  // both a session-reader and a middleware wrapper, and a `let` typed via
+  // `Awaited<ReturnType<typeof auth>>` picks the wrong overload.
+  const session = await auth().catch(() => null);
   if (!session?.user) return null;
 
   const realUser: EffectiveUser = {
