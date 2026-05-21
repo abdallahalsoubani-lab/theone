@@ -1,7 +1,7 @@
 import type { AuditAction } from '@prisma/client';
 
-import { auth } from '@/auth';
 import { db } from '@/lib/db';
+import { getEffectiveSession } from '@/lib/impersonation/session';
 
 /**
  * Audit decorator (Prompt 4 §4.10).
@@ -53,9 +53,17 @@ export function withAudit<TArgs extends unknown[], TResult>(
     const before = config.extractBefore ? await config.extractBefore(args) : undefined;
     const result = await fn(...args);
 
+    // During an Admin impersonation session the *Admin* is the responsible
+    // actor for every mutation — the impersonated user is captured
+    // alongside as `impersonatedUserId` so the audit row preserves the
+    // full "who actually did this" picture.
+    const effective = config.actorOverride ? null : await getEffectiveSession();
     const actorId = config.actorOverride
       ? await config.actorOverride()
-      : ((await auth())?.user?.id ?? null);
+      : effective?.isImpersonating
+        ? effective.adminId
+        : (effective?.user?.id ?? null);
+    const impersonatedUserId = effective?.isImpersonating ? effective.user.id : null;
 
     if (actorId) {
       const entityId = config.extractEntityId(args, result);
@@ -64,6 +72,7 @@ export function withAudit<TArgs extends unknown[], TResult>(
         await db.auditLog.create({
           data: {
             actorId,
+            impersonatedUserId,
             entityType: config.entityType,
             entityId,
             action: config.action,

@@ -1,6 +1,6 @@
-import { auth } from '@/auth';
 import { AUTH_ERRORS } from '@/lib/auth/result';
 import type { LocalizedError } from '@/lib/db';
+import { getEffectiveSession } from '@/lib/impersonation/session';
 
 import { can, type PermissionResource } from './can';
 
@@ -26,7 +26,11 @@ export class ForbiddenError extends Error {
  *                                        { ownerId: plan.doctorId });
  */
 export async function requirePermission(action: string, resource: PermissionResource = {}) {
-  const session = await auth();
+  // Read through the impersonation-aware resolver: when an Admin is acting
+  // as another user, `session.user` is the *target* user — so RBAC enforces
+  // the impersonated role, not Admin's. This is the security invariant
+  // captured in Prompt 13 §3.2: "no privilege escalation".
+  const session = await getEffectiveSession();
   if (!session?.user) throw new ForbiddenError(AUTH_ERRORS.UNAUTHENTICATED);
   if (!can(session.user, action, resource)) throw new ForbiddenError();
   return session.user;
