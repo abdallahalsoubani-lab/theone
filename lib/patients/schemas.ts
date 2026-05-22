@@ -46,7 +46,7 @@ export const patientCreateSchema = z.object({
 });
 
 export const patientUpdateSchema = patientCreateSchema.extend({
-  id: z.string().cuid(),
+  id: z.string().min(1),
 });
 
 /**

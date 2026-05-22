@@ -6,7 +6,7 @@ export const roomCreateSchema = z.object({
 });
 
 export const roomUpdateSchema = roomCreateSchema.extend({
-  id: z.string().cuid(),
+  id: z.string().min(1),
 });
 
 export type RoomCreateInput = z.infer<typeof roomCreateSchema>;

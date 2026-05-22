@@ -41,11 +41,13 @@ describe('appointmentChangeTherapistSchema', () => {
     expect(r.overrideConflicts).toBe(false);
   });
 
-  it('rejects non-cuid therapistId', () => {
+  it('rejects empty therapistId', () => {
+    // The schema accepts any non-empty string (DB foreign-key enforces real
+    // existence). Empty string is still invalid.
     expect(
       appointmentChangeTherapistSchema.safeParse({
         id,
-        therapistId: 'not-a-cuid',
+        therapistId: '',
       }).success,
     ).toBe(false);
   });

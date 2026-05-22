@@ -2,9 +2,9 @@ import { AppointmentStatus, CancellationCategory } from '@prisma/client';
 import { z } from 'zod';
 
 export const appointmentCreateSchema = z.object({
-  patientId: z.string().cuid(),
-  therapistId: z.string().cuid(),
-  roomId: z.string().cuid().optional().nullable(),
+  patientId: z.string().min(1),
+  therapistId: z.string().min(1),
+  roomId: z.string().min(1).optional().nullable(),
   startsAt: z.coerce.date(),
   durationMinutes: z
     .number()
@@ -32,15 +32,15 @@ export const seriesEditModeSchema = z.enum(['ONE', 'FOLLOWING', 'ALL']);
 export type SeriesEditMode = z.infer<typeof seriesEditModeSchema>;
 
 export const appointmentRescheduleSchema = z.object({
-  id: z.string().cuid(),
+  id: z.string().min(1),
   startsAt: z.coerce.date(),
   durationMinutes: z
     .number()
     .int()
     .positive()
     .max(8 * 60),
-  therapistId: z.string().cuid().optional(),
-  roomId: z.string().cuid().optional().nullable(),
+  therapistId: z.string().min(1).optional(),
+  roomId: z.string().min(1).optional().nullable(),
   /**
    * The drag-and-drop path never overrides — the user must reopen the
    * appointment in the modal to confirm an override. The general
@@ -56,8 +56,8 @@ export type AppointmentRescheduleInput = z.input<typeof appointmentRescheduleSch
 export type AppointmentRescheduleParsed = z.infer<typeof appointmentRescheduleSchema>;
 
 export const appointmentChangeTherapistSchema = z.object({
-  id: z.string().cuid(),
-  therapistId: z.string().cuid(),
+  id: z.string().min(1),
+  therapistId: z.string().min(1),
   /** Optional free-form reason logged on the audit row and surfaced
    *  in the assigned/removed notification body when present. */
   reason: z.string().max(500).optional().nullable(),
@@ -69,7 +69,7 @@ export type AppointmentChangeTherapistInput = z.input<typeof appointmentChangeTh
 export type AppointmentChangeTherapistParsed = z.infer<typeof appointmentChangeTherapistSchema>;
 
 export const appointmentCancelSchema = z.object({
-  id: z.string().cuid(),
+  id: z.string().min(1),
   cancellationCategory: z.nativeEnum(CancellationCategory),
   // The category drives Prompt 11 analytics; `cancellationReason`
   // remains as the legacy short-label from Prompt 7 (kept so older
@@ -87,7 +87,7 @@ export type AppointmentCancelInput = z.input<typeof appointmentCancelSchema>;
 export type AppointmentCancelParsed = z.infer<typeof appointmentCancelSchema>;
 
 export const appointmentStatusSchema = z.object({
-  id: z.string().cuid(),
+  id: z.string().min(1),
   to: z.nativeEnum(AppointmentStatus),
 });
 
@@ -122,9 +122,9 @@ export const seriesOccurrenceInputSchema = z.object({
 });
 
 export const seriesPreviewSchema = z.object({
-  patientId: z.string().cuid(),
-  therapistId: z.string().cuid(),
-  roomId: z.string().cuid().optional().nullable(),
+  patientId: z.string().min(1),
+  therapistId: z.string().min(1),
+  roomId: z.string().min(1).optional().nullable(),
   startsAt: z.coerce.date(),
   durationMinutes: z
     .number()
@@ -149,8 +149,8 @@ export const appointmentListFiltersSchema = z.object({
   /** Inclusive UTC range. Defaults to today through 14 days out at the call site. */
   from: z.coerce.date(),
   to: z.coerce.date(),
-  therapistIds: z.array(z.string().cuid()).optional(),
-  patientId: z.string().cuid().optional(),
+  therapistIds: z.array(z.string().min(1)).optional(),
+  patientId: z.string().min(1).optional(),
   status: z.nativeEnum(AppointmentStatus).optional(),
 });
 

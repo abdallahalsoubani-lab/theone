@@ -34,12 +34,12 @@ export type LeaveRequestInput = z.input<typeof leaveRequestSchema>;
 export type LeaveRequestParsed = z.infer<typeof leaveRequestSchema>;
 
 export const leaveApproveSchema = z.object({
-  id: z.string().cuid(),
+  id: z.string().min(1),
 });
 export type LeaveApproveInput = z.infer<typeof leaveApproveSchema>;
 
 export const leaveRejectSchema = z.object({
-  id: z.string().cuid(),
+  id: z.string().min(1),
   reason: z.string().min(5).max(1000),
 });
 export type LeaveRejectInput = z.infer<typeof leaveRejectSchema>;

@@ -19,12 +19,12 @@ export const userCreateSchema = z.object({
   phone: z.string().regex(/^\+9627\d{8}$/, 'phoneJordan'),
   role: z.enum(STAFF_ROLES),
   languagePref: z.nativeEnum(LanguagePref).default(LanguagePref.AR),
-  specialtyIds: z.array(z.string().cuid()).default([]),
+  specialtyIds: z.array(z.string().min(1)).default([]),
   mustChangePassword: z.boolean().default(true),
 });
 
 export const userUpdateSchema = userCreateSchema.extend({
-  id: z.string().cuid(),
+  id: z.string().min(1),
 });
 
 export type UserCreateInput = z.infer<typeof userCreateSchema>;
@@ -34,7 +34,7 @@ export const userListFiltersSchema = z.object({
   search: z.string().optional(),
   role: z.nativeEnum(UserRole).optional(),
   status: z.enum(['active', 'archived', 'all']).default('active'),
-  specialtyId: z.string().cuid().optional(),
+  specialtyId: z.string().min(1).optional(),
   page: z.number().int().positive().default(1),
   pageSize: z.number().int().positive().max(100).default(20),
 });

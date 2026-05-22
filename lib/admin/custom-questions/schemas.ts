@@ -32,7 +32,7 @@ export const customQuestionCreateSchema = z
 
 export const customQuestionUpdateSchema = z
   .object({
-    id: z.string().cuid(),
+    id: z.string().min(1),
     nameEn: z.string().min(2).max(300),
     nameAr: z.string().min(2).max(300),
     type: z.nativeEnum(CustomQuestionType),
@@ -55,7 +55,7 @@ export type CustomQuestionCreateInput = z.infer<typeof customQuestionCreateSchem
 export type CustomQuestionUpdateInput = z.infer<typeof customQuestionUpdateSchema>;
 
 export const customQuestionReorderSchema = z.object({
-  orderedIds: z.array(z.string().cuid()).min(1),
+  orderedIds: z.array(z.string().min(1)).min(1),
 });
 export type CustomQuestionReorderInput = z.infer<typeof customQuestionReorderSchema>;
 

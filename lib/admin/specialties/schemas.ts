@@ -8,7 +8,7 @@ export const specialtyCreateSchema = z.object({
 });
 
 export const specialtyUpdateSchema = specialtyCreateSchema.extend({
-  id: z.string().cuid(),
+  id: z.string().min(1),
 });
 
 export type SpecialtyCreateInput = z.infer<typeof specialtyCreateSchema>;
