@@ -30,12 +30,12 @@ export function Sidebar({ links }: { links: ReadonlyArray<NavLink> }) {
   return (
     <aside
       aria-label={t('primary')}
-      className="hidden w-60 shrink-0 border-e border-brand-border bg-brand-surface py-6 md:flex md:flex-col"
+      className="hidden w-60 shrink-0 border-e border-brand-border/70 bg-brand-surface py-6 md:flex md:flex-col"
     >
       {links.length === 0 ? (
         <p className="px-4 text-sm text-brand-textMuted">{t('empty')}</p>
       ) : (
-        <nav className="flex flex-col gap-1 px-2">
+        <nav className="flex flex-col gap-0.5 px-3">
           {links.map((link) => {
             const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
             return (
@@ -43,18 +43,31 @@ export function Sidebar({ links }: { links: ReadonlyArray<NavLink> }) {
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',
                   active
-                    ? 'bg-brand-bg text-brand-navy'
+                    ? 'bg-brand-cyan/10 text-brand-navy'
                     : 'text-brand-textMuted hover:bg-brand-bg hover:text-brand-navy',
                 )}
                 aria-current={active ? 'page' : undefined}
               >
-                {link.icon}
-                <span className="flex-1">{link.label}</span>
+                {active ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-y-1.5 start-0 w-0.5 rounded-full bg-brand-cyan"
+                  />
+                ) : null}
+                <span
+                  className={cn(
+                    'flex h-5 w-5 items-center justify-center transition-colors',
+                    active ? 'text-brand-blue' : 'text-brand-textMuted group-hover:text-brand-navy',
+                  )}
+                >
+                  {link.icon}
+                </span>
+                <span className="flex-1 truncate">{link.label}</span>
                 {link.badge != null && link.badge > 0 ? (
-                  <span className="ms-auto rounded-full bg-brand-cyan/15 px-2 py-0.5 text-xs font-medium text-brand-cyan">
-                    {link.badge}
+                  <span className="ms-auto rounded-full bg-brand-cyan/20 px-2 py-0.5 text-[11px] font-semibold text-brand-blue ring-1 ring-inset ring-brand-cyan/30">
+                    {link.badge > 99 ? '99+' : link.badge}
                   </span>
                 ) : null}
               </Link>

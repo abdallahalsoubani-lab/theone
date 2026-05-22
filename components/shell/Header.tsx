@@ -46,18 +46,18 @@ export async function Header() {
 
   return (
     <header
-      className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-brand-border bg-brand-surface px-4 sm:px-6"
+      className="header-glass sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-brand-border/70 px-4 sm:px-6"
       aria-label={t('shell.headerLandmark')}
     >
       <MobileNav links={[]} />
 
       <Link
         href="/"
-        className="flex items-center gap-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="group flex items-center gap-3 rounded-md transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         aria-label={t('common.appName')}
       >
         <Logo size={36} />
-        <span className="hidden text-base font-medium text-brand-navy sm:inline">
+        <span className="hidden text-base font-semibold tracking-tight text-brand-navy transition-colors group-hover:text-brand-blue sm:inline">
           {t('common.appName')}
         </span>
       </Link>

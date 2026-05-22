@@ -60,15 +60,28 @@ export function MobileNav({ links }: { links: ReadonlyArray<NavLink> }) {
                   href={link.href}
                   onClick={() => setOpen(false)}
                   className={cn(
-                    'flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                    'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150',
                     active
-                      ? 'bg-brand-bg text-brand-navy'
+                      ? 'bg-brand-cyan/10 text-brand-navy'
                       : 'text-brand-textMuted hover:bg-brand-bg hover:text-brand-navy',
                   )}
                   aria-current={active ? 'page' : undefined}
                 >
-                  {link.icon}
-                  <span>{link.label}</span>
+                  {active ? (
+                    <span
+                      aria-hidden="true"
+                      className="absolute inset-y-1.5 start-0 w-0.5 rounded-full bg-brand-cyan"
+                    />
+                  ) : null}
+                  <span
+                    className={cn(
+                      'flex h-5 w-5 items-center justify-center',
+                      active ? 'text-brand-blue' : 'text-brand-textMuted',
+                    )}
+                  >
+                    {link.icon}
+                  </span>
+                  <span className="truncate">{link.label}</span>
                 </Link>
               );
             })}

@@ -14,7 +14,8 @@
     "next": "Next",
     "yes": "Yes",
     "no": "No",
-    "close": "Close"
+    "close": "Close",
+    "remove": "Remove"
   },
   "shell": {
     "userMenu": "Account",
