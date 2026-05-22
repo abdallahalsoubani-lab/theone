@@ -49,14 +49,33 @@ export function can(
 
   if (!scope) return true;
 
+  // List-intent fallback: when a scoped action (.own / .assigned / .limited)
+  // is checked WITHOUT a concrete resource, treat it as a list-page entry
+  // gate — the role grant alone is sufficient and the query layer is
+  // responsible for narrowing to the user's owned / assigned rows.
+  // This matches how list pages compose:
+  //
+  //   await requirePermission('patients.read.assigned');         // page gate
+  //   const rows = await listPatients({ scope: { kind: 'assigned',
+  //                                              clinicianId: user.id } });
+  //
+  // Single-resource intent always passes a `resource` (ownerId or
+  // assignedClinicianIds) and goes through the strict checks below — so
+  // existing callers that *do* pass a resource keep the same behaviour.
+  const isResourceAbsent =
+    resource.ownerId === undefined && resource.assignedClinicianIds === undefined;
+
   switch (scope) {
     case 'own':
+      if (isResourceAbsent) return true;
       return Boolean(resource.ownerId) && resource.ownerId === user.id;
     case 'assigned':
+      if (isResourceAbsent) return true;
       return Boolean(resource.assignedClinicianIds?.includes(user.id));
     case 'limited':
       // Limited-scope permissions are still owner-bound — the patient sees
       // their own timeline minus clinical detail.
+      if (isResourceAbsent) return true;
       return Boolean(resource.ownerId) && resource.ownerId === user.id;
     // Multi-segment scope codes like 'read.patients' / 'read.therapists' are
     // role-broad (not actor-scoped) — the role-set membership above is enough.

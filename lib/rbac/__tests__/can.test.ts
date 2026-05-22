@@ -255,14 +255,33 @@ describe('RBAC matrix — every (role × permission) pair', () => {
 });
 
 describe('scope edge cases', () => {
-  it('.own denies when ownerId is missing', () => {
-    expect(can(u('PATIENT'), PERMISSIONS.APPOINTMENTS_READ_OWN, {})).toBe(false);
+  // List-intent fallback: when a scoped action is checked without a
+  // concrete resource, the role grant alone is sufficient (list-page
+  // entry gate). The query layer is responsible for narrowing to the
+  // actor's owned / assigned rows. See `lib/rbac/can.ts`.
+  it('.own allows the role grant alone when ownerId is missing (list intent)', () => {
+    expect(can(u('PATIENT'), PERMISSIONS.APPOINTMENTS_READ_OWN, {})).toBe(true);
+  });
+
+  it('.own list intent still denies a role that lacks the grant', () => {
+    // SECRETARY has no APPOINTMENTS_READ_OWN; list-intent fallback must
+    // not skip the role-grant check.
+    expect(can(u('SECRETARY'), PERMISSIONS.APPOINTMENTS_READ_OWN, {})).toBe(false);
   });
 
   it('.own denies when ownerId belongs to someone else', () => {
     expect(can(u('PATIENT', 'u-self'), PERMISSIONS.APPOINTMENTS_READ_OWN, { ownerId: OTHER })).toBe(
       false,
     );
+  });
+
+  it('.assigned allows the role grant alone when no resource is given (list intent)', () => {
+    expect(can(u('THERAPIST', 'u-self'), PERMISSIONS.PATIENTS_READ_ASSIGNED, {})).toBe(true);
+    expect(can(u('DOCTOR', 'u-self'), PERMISSIONS.PATIENTS_READ_ASSIGNED, {})).toBe(true);
+  });
+
+  it('.assigned list intent denies a role that lacks the grant', () => {
+    expect(can(u('PATIENT'), PERMISSIONS.PATIENTS_READ_ASSIGNED, {})).toBe(false);
   });
 
   it('.assigned denies when the actor is not in the list', () => {
