@@ -1,4 +1,4 @@
-import { reminderQueue } from '../queues';
+import { homeProgramQueue } from '../queues';
 
 /**
  * Home-exercise reminder cron computation + BullMQ registration
@@ -96,18 +96,18 @@ export async function registerHomeReminderJob(args: {
     daysOfWeek: args.daysOfWeek,
     offsetMinutes: args.offsetMinutes,
   });
-  const job = await reminderQueue.add(
+  const job = await homeProgramQueue.add(
     'homeExerciseReminder',
     { itemId: args.itemId } satisfies HomeReminderJobData,
     {
       repeat: { pattern: cron.pattern, tz: args.timezone ?? 'Asia/Amman' },
-      jobId: `home-reminder:${args.itemId}`,
+      jobId: `home-reminder-${args.itemId}`,
     },
   );
   // The repeat-job key comes back on the parent job's opts. Different
   // BullMQ versions expose it slightly differently; coalesce.
   const opts = job.opts as { repeatJobKey?: string; repeat?: { key?: string } };
-  return opts.repeatJobKey ?? opts.repeat?.key ?? `home-reminder:${args.itemId}`;
+  return opts.repeatJobKey ?? opts.repeat?.key ?? `home-reminder-${args.itemId}`;
 }
 
 /**
@@ -118,7 +118,7 @@ export async function registerHomeReminderJob(args: {
 export async function removeHomeReminderJob(jobKey: string | null): Promise<void> {
   if (!jobKey) return;
   try {
-    await reminderQueue.removeRepeatableByKey(jobKey);
+    await homeProgramQueue.removeRepeatableByKey(jobKey);
   } catch (err) {
     console.warn('[home-reminder] removeRepeatableByKey failed', err);
   }

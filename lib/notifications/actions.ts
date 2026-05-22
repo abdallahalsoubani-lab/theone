@@ -2,7 +2,6 @@
 
 import { AuditAction } from '@prisma/client';
 import type { NotificationType, Prisma } from '@prisma/client';
-import { revalidatePath } from 'next/cache';
 
 import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
@@ -10,6 +9,21 @@ import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac/guards';
 
 import { NOTIFICATION_TEMPLATES, type NotificationParams } from './templates';
+
+/**
+ * Lazy-loaded `revalidatePath` so workers (which import `createNotification`)
+ * don't pull in `next/cache` at module load. In the Next.js request context
+ * this resolves to the real function; in the worker context (pure Node via
+ * tsx) the import fails and we treat it as a no-op.
+ */
+async function safeRevalidatePath(path: string): Promise<void> {
+  try {
+    const mod = await import('next/cache');
+    mod.revalidatePath(path);
+  } catch {
+    // Worker context — App Router cache invalidation is a no-op here.
+  }
+}
 
 export interface CreateNotificationArgs<T extends NotificationType = NotificationType> {
   recipientId: string;
@@ -106,7 +120,7 @@ export async function markNotificationReadAction(
   await requirePermission('notifications.mark_read.own', {});
   try {
     await markReadInner({ id });
-    revalidatePath('/notifications');
+    await safeRevalidatePath('/notifications');
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };
@@ -124,7 +138,7 @@ export async function markAllNotificationsReadAction(): Promise<
       where: { recipientId: session.user.id, readAt: null },
       data: { readAt: new Date() },
     });
-    revalidatePath('/notifications');
+    await safeRevalidatePath('/notifications');
     return { ok: true, count: res.count };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : String(err) };

@@ -1,4 +1,8 @@
-import 'server-only';
+// Note: this module is intentionally NOT marked `server-only` — it is
+// consumed both by the BullMQ workers process (pure Node, no Next.js
+// bundler) and by server actions. The `server-only` marker would crash
+// the worker at import time because tsx doesn't run the Next.js bundler
+// that swaps the marker for a no-op.
 
 import { db } from '@/lib/db';
 import { createNotification } from '@/lib/notifications/actions';

@@ -1,15 +1,10 @@
 /**
  * Home-exercise reminder worker (Prompt 10 §4.7.3).
  *
- * The reminderQueue runs both appointment reminders (Prompt 7) and
- * home-exercise reminders. Jobs are dispatched by `job.name`:
- *   - 'appointment'           → existing reminder worker
- *   - 'homeExerciseReminder'  → this worker
- *
- * To keep the two workers from racing on the same queue we register
- * THIS worker only for the homeExerciseReminder name via the
- * `processor` filter. The function exits early when the job name
- * differs.
+ * Subscribes to the dedicated `homeProgramReminders` queue. Separate from
+ * `reminders` (appointment reminders) and `complianceChecks` to prevent
+ * the multi-worker-on-same-queue race that BullMQ exhibits when several
+ * workers compete for jobs and only filter by name inside the handler.
  *
  * Send path: re-read the HomeProgramItem to confirm it's still
  * active + the patient is reachable on WhatsApp, then enqueue onto
@@ -24,11 +19,11 @@ import { env } from '@/lib/env';
 import { queueRedis } from '@/lib/queue/client';
 import type { HomeReminderJobData } from '@/lib/queue/jobs/homeExerciseReminder';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
-import { REMINDER_QUEUE } from '@/lib/queue/queues';
+import { HOME_PROGRAM_QUEUE } from '@/lib/queue/queues';
 
 export function startHomeReminderWorker(): Worker {
   const worker = new Worker<HomeReminderJobData>(
-    REMINDER_QUEUE,
+    HOME_PROGRAM_QUEUE,
     async (job) => {
       if (job.name !== 'homeExerciseReminder') return;
       const { itemId } = job.data;

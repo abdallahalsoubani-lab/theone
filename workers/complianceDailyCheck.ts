@@ -15,14 +15,14 @@ import { Worker } from 'bullmq';
 
 import { runLowComplianceCheck } from '@/lib/clinical/compliance/checkLowCompliance';
 import { queueRedis } from '@/lib/queue/client';
-import { REMINDER_QUEUE, reminderQueue } from '@/lib/queue/queues';
+import { COMPLIANCE_QUEUE, complianceQueue } from '@/lib/queue/queues';
 
 const JOB_NAME = 'complianceDailyCheck';
 const JOB_ID = 'compliance-daily-check';
 const CRON_PATTERN = '0 18 * * *'; // 18:00 every day.
 
 export async function ensureComplianceDailyCheckScheduled(): Promise<void> {
-  await reminderQueue.add(
+  await complianceQueue.add(
     JOB_NAME,
     {},
     {
@@ -34,7 +34,7 @@ export async function ensureComplianceDailyCheckScheduled(): Promise<void> {
 
 export function startComplianceDailyCheckWorker(): Worker {
   const worker = new Worker(
-    REMINDER_QUEUE,
+    COMPLIANCE_QUEUE,
     async (job) => {
       if (job.name !== JOB_NAME) return;
       const r = await runLowComplianceCheck();

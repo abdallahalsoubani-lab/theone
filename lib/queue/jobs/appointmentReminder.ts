@@ -9,7 +9,10 @@ import { reminderQueue } from '../queues';
  * without storing the BullMQ id alongside the appointment.
  */
 export function reminderJobId(appointmentId: string): string {
-  return `appointment-reminder:${appointmentId}`;
+  // BullMQ 5.x rejects custom job IDs containing `:` (reserved for internal
+  // key namespacing). Use a dash separator to keep the deterministic-id
+  // contract while staying compatible.
+  return `appointment-reminder-${appointmentId}`;
 }
 
 export interface AppointmentReminderJob {

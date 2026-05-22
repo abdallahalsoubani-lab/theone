@@ -11,15 +11,20 @@
  *          jobs accumulate until a worker picks them up.
  *
  * Queues registered here:
- *   reminders         — appointment 30-min reminder (Prompt 7) +
- *                       home-exercise recurring reminder (Prompt 10).
- *                       Two workers attach to the same queue, each
- *                       filtering on its own job name.
- *   whatsappOutbound  — single chokepoint for every outbound WhatsApp
- *                       message (Prompt 8). The reminder workers enqueue
- *                       here; OTP, credentials, confirmations, cancellations
- *                       and admin resends also enqueue here so retries,
- *                       audit, and rate limiting are uniform.
+ *   reminders             — appointment 30-min reminder (Prompt 7).
+ *   homeProgramReminders  — home-exercise recurring reminder (Prompt 10).
+ *   complianceChecks      — daily 18:00 low-compliance scan (Prompt 10).
+ *   whatsappOutbound      — single chokepoint for every outbound WhatsApp
+ *                           message (Prompt 8). The reminder workers enqueue
+ *                           here; OTP, credentials, confirmations, cancellations
+ *                           and admin resends also enqueue here so retries,
+ *                           audit, and rate limiting are uniform.
+ *
+ * Each worker subscribes to ONE queue. This is deliberate — earlier the
+ * three reminder-class workers all attached to `reminders` and
+ * distinguished by `if (job.name !== '...') return;` early-returns. That
+ * caused a race: a job posted by one worker could be silently consumed
+ * by another worker that early-returned without doing the real work.
  */
 
 import {

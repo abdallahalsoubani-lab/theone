@@ -1,4 +1,6 @@
-import 'server-only';
+// Intentionally NOT `server-only` — imported by the compliance worker
+// chain (pure Node via tsx), which would crash at import time without a
+// Next.js bundler to swap the marker.
 
 import { db } from '@/lib/db';
 
