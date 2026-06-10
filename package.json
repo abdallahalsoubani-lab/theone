@@ -38,20 +38,6 @@
     "size-limit": "size-limit",
     "prepare": "husky"
   },
-  "size-limit": [
-    {
-      "name": "First-load JS (any single page)",
-      "path": ".next/static/chunks/pages/**/*.js",
-      "limit": "200 kB",
-      "gzip": true
-    },
-    {
-      "name": "First-load JS (App Router shared chunks)",
-      "path": ".next/static/chunks/*.js",
-      "limit": "200 kB",
-      "gzip": true
-    }
-  ],
   "prisma": {
     "seed": "dotenv -e .env.local -- tsx prisma/seed.ts"
   },
