@@ -1,5 +1,6 @@
 import {
   BriefcaseMedical,
+  CalendarDays,
   ClipboardList,
   DoorOpen,
   MessageSquare,
@@ -33,6 +34,7 @@ export default async function AdminLayout({
 
   const t = await getTranslations('navigation.admin');
   const links: NavLink[] = [
+    { label: t('calendar'), href: '/admin/calendar', icon: <CalendarDays className="size-4" /> },
     { label: t('users'), href: '/admin/users', icon: <Users className="size-4" /> },
     {
       label: t('specialties'),

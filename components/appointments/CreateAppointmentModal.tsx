@@ -25,7 +25,8 @@ interface Patient {
   id: string;
   fullNameEn: string;
   fullNameAr: string;
-  phone: string;
+  /** Null for Doctor viewers — phone hidden from them (Prompt 15 §1). */
+  phone: string | null;
 }
 
 interface Clinician {
@@ -161,7 +162,8 @@ export function CreateAppointmentModal({
                 <option value="">—</option>
                 {patients.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {locale === 'ar' ? p.fullNameAr : p.fullNameEn} ({p.phone})
+                    {locale === 'ar' ? p.fullNameAr : p.fullNameEn}
+                    {p.phone ? ` (${p.phone})` : ''}
                   </option>
                 ))}
               </select>

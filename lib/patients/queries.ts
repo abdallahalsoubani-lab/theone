@@ -20,7 +20,8 @@ export interface PatientListRow {
   id: string;
   fullNameEn: string;
   fullNameAr: string;
-  phone: string;
+  /** Null for Doctor/Therapist viewers — phone is hidden from them (Prompt 15 §1). */
+  phone: string | null;
   email: string | null;
   dateOfBirth: Date;
   ageYears: number;
@@ -57,6 +58,10 @@ export async function listPatients({
   scope,
   filters,
 }: ListOptions): Promise<{ rows: PatientListRow[]; total: number }> {
+  // Only Secretary/Admin (scope 'all') may see — and therefore search by —
+  // patient phone numbers (Prompt 15 §1). Doctor/Therapist (scope 'assigned')
+  // get the phone nulled out and the phone search term disabled.
+  const canSeePhone = scope.kind === 'all';
   const where: Prisma.UserWhereInput = {
     role: UserRole.PATIENT,
     deletedAt: null,
@@ -72,7 +77,7 @@ export async function listPatients({
           OR: [
             { fullNameEn: { contains: filters.search, mode: 'insensitive' } },
             { fullNameAr: { contains: filters.search } },
-            { phone: { contains: filters.search } },
+            ...(canSeePhone ? [{ phone: { contains: filters.search } }] : []),
             { email: { contains: filters.search, mode: 'insensitive' } },
           ],
         }
@@ -113,7 +118,7 @@ export async function listPatients({
         id: u.id,
         fullNameEn: u.fullNameEn,
         fullNameAr: u.fullNameAr,
-        phone: u.phone,
+        phone: canSeePhone ? u.phone : null,
         email: u.email,
         dateOfBirth: profile.dateOfBirth,
         ageYears,
@@ -164,7 +169,8 @@ export interface PatientFileData {
   id: string;
   fullNameEn: string;
   fullNameAr: string;
-  phone: string;
+  /** Null for Doctor/Therapist viewers — phone is hidden from them (Prompt 15 §1). */
+  phone: string | null;
   email: string | null;
   dateOfBirth: Date;
   gender: 'MALE' | 'FEMALE';
@@ -191,6 +197,12 @@ export async function getPatientFile(id: string): Promise<PatientFileData | null
   const u = await getPatientById(id);
   if (!u || !u.patientProfile) return null;
   const p = u.patientProfile;
+  // Phone numbers are hidden from Doctor/Therapist viewers at the data layer
+  // (Prompt 15 §1) — Secretary/Admin and the patient themself still see them.
+  // Lazy import keeps `@/auth` out of this module's load graph so query
+  // consumers that never call getPatientFile stay test-isolatable.
+  const { viewerCanSeePatientPhone } = await import('./access');
+  const canSeePhone = await viewerCanSeePatientPhone(id);
   // Look up the most recent successful outbound delivery so the profile
   // section can show "Last delivery on …". Cheap because the
   // (recipientPhone, sentAt DESC) index covers it.
@@ -207,7 +219,7 @@ export async function getPatientFile(id: string): Promise<PatientFileData | null
     id: u.id,
     fullNameEn: u.fullNameEn,
     fullNameAr: u.fullNameAr,
-    phone: u.phone,
+    phone: canSeePhone ? u.phone : null,
     email: u.email,
     dateOfBirth: p.dateOfBirth,
     gender: p.gender,
@@ -215,7 +227,7 @@ export async function getPatientFile(id: string): Promise<PatientFileData | null
     address: p.address,
     occupation: p.occupation,
     emergencyContactName: p.emergencyContactName,
-    emergencyContactPhone: p.emergencyContactPhone,
+    emergencyContactPhone: canSeePhone ? p.emergencyContactPhone : null,
     hijriCalendarPref: p.hijriCalendarPref,
     medicalHistorySummary: p.medicalHistorySummary,
     allergies: p.allergies,

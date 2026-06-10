@@ -15,7 +15,8 @@
     "yes": "نعم",
     "no": "لا",
     "close": "إغلاق",
-    "remove": "إزالة"
+    "remove": "إزالة",
+    "hidden": "مخفي"
   },
   "appointments": {
     "title": "التقويم",
@@ -364,10 +365,12 @@
       "settings": "إعدادات العيادة",
       "audit": "سجل التدقيق",
       "whatsappTemplates": "قوالب واتساب",
-      "whatsappMessages": "رسائل واتساب"
+      "whatsappMessages": "رسائل واتساب",
+      "calendar": "التقويم"
     },
     "inbox": "صندوق الوارد",
-    "exerciseLibrary": "مكتبة التمارين"
+    "exerciseLibrary": "مكتبة التمارين",
+    "calendar": "التقويم"
   },
   "shell": {
     "userMenu": "الحساب",

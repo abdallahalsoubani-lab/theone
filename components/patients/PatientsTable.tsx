@@ -44,6 +44,7 @@ export function PatientsTable({
   canEdit,
 }: Props) {
   const t = useTranslations('patients.list');
+  const tCommon = useTranslations('common');
   const router = useRouter();
   const searchParams = useSearchParams();
   const locale = useLocale();
@@ -115,11 +116,15 @@ export function PatientsTable({
           id: 'phone',
           accessorKey: 'phone',
           header: t('columnPhone'),
-          cell: ({ row }) => (
-            <span className="font-mono text-xs" dir="ltr">
-              {formatPhone(row.original.phone)}
-            </span>
-          ),
+          cell: ({ row }) =>
+            row.original.phone ? (
+              <span className="font-mono text-xs" dir="ltr">
+                {formatPhone(row.original.phone)}
+              </span>
+            ) : (
+              // Null for Doctor/Therapist viewers (Prompt 15 §1).
+              <span className="text-xs text-brand-textMuted">{tCommon('hidden')}</span>
+            ),
         },
         {
           id: 'therapist',

@@ -32,6 +32,7 @@ export function PatientProfileTab({
   const t = useTranslations('patients.form');
   const tFile = useTranslations('patients.file');
   const tCareTeam = useTranslations('patients.careTeam');
+  const tCommon = useTranslations('common');
 
   return (
     <div className="space-y-4">
@@ -60,7 +61,10 @@ export function PatientProfileTab({
 
       <Card>
         <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
-          <Field label={t('phone')} value={formatPhone(patient.phone)} />
+          <Field
+            label={t('phone')}
+            value={patient.phone ? formatPhone(patient.phone) : tCommon('hidden')}
+          />
           <Field label={t('email')} value={patient.email} />
           <Field label={t('address')} value={patient.address} className="sm:col-span-2" />
           <Field label={t('occupation')} value={patient.occupation} />

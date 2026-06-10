@@ -46,9 +46,12 @@ export function PatientHeader({ patient }: { patient: PatientFileData }) {
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <Badge variant="muted">{ageYears}y</Badge>
           <Badge variant="muted">{patient.gender}</Badge>
-          <span className="font-mono text-brand-textMuted" dir="ltr">
-            {formatPhone(patient.phone)}
-          </span>
+          {/* Phone is null for Doctor/Therapist viewers (Prompt 15 §1) — omit it. */}
+          {patient.phone ? (
+            <span className="font-mono text-brand-textMuted" dir="ltr">
+              {formatPhone(patient.phone)}
+            </span>
+          ) : null}
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">

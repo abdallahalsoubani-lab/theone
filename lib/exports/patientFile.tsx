@@ -246,7 +246,9 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
         <View style={styles.section}>
           <Text style={styles.h2}>{ar ? 'البيانات الشخصية' : 'Profile'}</Text>
           <Row label={ar ? 'الاسم' : 'Name'} value={name} />
-          <Row label={ar ? 'الهاتف' : 'Phone'} value={patient.phone} />
+          {/* Phone is null in a CLINICAL (Doctor/Therapist) export — getPatientFile
+              hides it at the data layer (Prompt 15 §1); SELF/ADMIN exports keep it. */}
+          <Row label={ar ? 'الهاتف' : 'Phone'} value={patient.phone ?? (ar ? 'مخفي' : 'Hidden')} />
           <Row label={ar ? 'البريد' : 'Email'} value={patient.email ?? '—'} />
           <Row
             label={ar ? 'تاريخ الميلاد' : 'Date of birth'}

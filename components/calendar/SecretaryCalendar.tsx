@@ -13,6 +13,8 @@ import {
   type Event as RbcEvent,
   type View,
 } from 'react-big-calendar';
+import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
+import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { cn } from '@/lib/utils';
@@ -39,9 +41,19 @@ export interface SecretaryCalendarProps {
   onSelectSlot?: (slot: { start: Date; end: Date; resourceId?: string }) => void;
   /** Called when an existing event is clicked. Commit 5 wires this to the side panel. */
   onSelectEvent?: (appointmentId: string) => void;
-  /** Called when an event is dragged to a new slot/resource. Commit 5 wires this. */
+  /** Called when an event is dragged to a new slot/resource (reschedule). */
   onEventDrop?: (args: { appointmentId: string; start: Date; resourceId?: string }) => void;
+  /**
+   * When true (Secretary / Admin / Doctor — Prompt 15 §2), events are
+   * drag-to-reschedule and empty slots are click-to-book. When false the
+   * calendar is read-only.
+   */
+  editable?: boolean;
 }
+
+// react-big-calendar drag-and-drop addon, wrapped once at module scope so the
+// HOC isn't re-created on every render.
+const DnDCalendar = withDragAndDrop<AppointmentEvent, CalendarResource>(Calendar);
 
 interface AppointmentEvent extends RbcEvent {
   id: string;
@@ -106,7 +118,8 @@ export function SecretaryCalendar({
   maxHour,
   onSelectSlot,
   onSelectEvent,
-  onEventDrop: _onEventDrop,
+  onEventDrop,
+  editable = true,
 }: SecretaryCalendarProps) {
   const locale = useLocale();
   const t = useTranslations('appointments');
@@ -196,7 +209,7 @@ export function SecretaryCalendar({
         onToday={() => setDate(new Date())}
       />
       <div className={cn('h-[calc(100vh-16rem)] min-h-[640px]')}>
-        <Calendar<AppointmentEvent, CalendarResource>
+        <DnDCalendar
           localizer={localizer}
           events={events}
           resources={rbcResources.length > 0 ? rbcResources : undefined}
@@ -213,7 +226,23 @@ export function SecretaryCalendar({
           timeslots={2}
           min={minTime}
           max={maxTime}
-          selectable
+          selectable={editable}
+          // Drag-to-reschedule is gated on `editable` and never applies to the
+          // leave background overlays (which have no underlying appointment).
+          draggableAccessor={(event) =>
+            Boolean(editable && (event as AppointmentEvent).appointment)
+          }
+          resizable={false}
+          onEventDrop={
+            editable
+              ? ({ event, start, resourceId }) =>
+                  onEventDrop?.({
+                    appointmentId: (event as AppointmentEvent).id,
+                    start: start as Date,
+                    resourceId: typeof resourceId === 'string' ? resourceId : undefined,
+                  })
+              : undefined
+          }
           onSelectSlot={(s) => {
             onSelectSlot?.({
               start: s.start as Date,
@@ -221,7 +250,7 @@ export function SecretaryCalendar({
               resourceId: typeof s.resourceId === 'string' ? s.resourceId : undefined,
             });
           }}
-          onSelectEvent={(e) => onSelectEvent?.(e.id)}
+          onSelectEvent={(e) => onSelectEvent?.((e as AppointmentEvent).id)}
           messages={{
             allDay: t('allDay'),
             previous: t('previous'),

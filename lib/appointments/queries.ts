@@ -79,15 +79,20 @@ export async function getAppointmentById(id: string) {
 
 /**
  * Used by the appointment form's "patient picker" to populate the searchable
- * select. Returns active patients only, name + phone for display.
+ * select. Returns active patients only, name + phone for display. Phone is
+ * nulled out for Doctor viewers (Prompt 15 §1) — the picker shows name only
+ * for them; Secretary/Admin keep the phone to disambiguate same-name patients.
  */
 export async function listActivePatientsBrief(limit = 200) {
-  return db.user.findMany({
+  const { viewerCanSeePatientPhone } = await import('@/lib/patients/access');
+  const canSeePhone = await viewerCanSeePatientPhone();
+  const rows = await db.user.findMany({
     where: { role: 'PATIENT', deletedAt: null },
     select: { id: true, fullNameEn: true, fullNameAr: true, phone: true },
     orderBy: { fullNameEn: 'asc' },
     take: limit,
   });
+  return rows.map((r) => ({ ...r, phone: canSeePhone ? r.phone : null }));
 }
 
 /**
