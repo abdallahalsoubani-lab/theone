@@ -3,11 +3,8 @@ import { redirect } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { PatientHomeProgramView } from '@/components/home-program/PatientHomeProgramView';
+import { getVisibleHomeProgram, getVisibleTodayItems } from '@/lib/clinical/home-program/approval';
 import { calculateStreak } from '@/lib/clinical/compliance/calculate';
-import {
-  listHomeProgramForPatient,
-  listTodayItemsForPatient,
-} from '@/lib/clinical/home-program/queries';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac/guards';
 
@@ -26,9 +23,11 @@ export default async function PatientHomeProgramPage({
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
 
+  // Patient sees APPROVED content only (Prompt 16) — getVisible* returns the
+  // live items when approved, else the last approved snapshot, else nothing.
   const [todayItems, fullProgram, todayCompletionRows, streak] = await Promise.all([
-    listTodayItemsForPatient(patientId, today),
-    listHomeProgramForPatient(patientId),
+    getVisibleTodayItems(patientId, today),
+    getVisibleHomeProgram(patientId),
     db.homeProgramCompletion.findMany({
       where: {
         item: { patientId },

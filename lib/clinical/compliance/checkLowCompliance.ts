@@ -6,6 +6,7 @@
 
 import { CareTeamRole } from '@prisma/client';
 
+import { programApproved } from '@/lib/clinical/home-program/visibility';
 import { db } from '@/lib/db';
 import { createNotification } from '@/lib/notifications/actions';
 
@@ -78,6 +79,9 @@ export async function runLowComplianceCheck(
 
   for (const membership of memberships) {
     if (membership.patient.user.deletedAt) continue;
+    // Prompt 16: only nudge on APPROVED programs — a draft/pending revision
+    // isn't the patient's live program.
+    if (!(await programApproved(membership.patientId))) continue;
     checkedPatients.add(membership.patientId);
 
     let rate = complianceCache.get(membership.patientId);

@@ -10,7 +10,13 @@ import { db } from '@/lib/db';
 import { ensureCanReadPatient } from '@/lib/patients/access';
 import { requirePermission } from '@/lib/rbac/guards';
 
-export default async function TherapistHomeProgramEditPage({
+/**
+ * Doctor home-program builder (Prompt 16). The doctor authors plans AND can
+ * build home programs directly — their edits auto-approve (the doctor is the
+ * approver), so there's no Submit button (canSubmit=false); the reminders
+ * toggle is still available.
+ */
+export default async function DoctorHomeProgramEditPage({
   params,
 }: {
   params: Promise<{ locale: string; id: string }>;
@@ -47,7 +53,7 @@ export default async function TherapistHomeProgramEditPage({
         status={approval.status}
         remindersEnabled={approval.remindersEnabled}
         changesComment={approval.changesComment}
-        canSubmit
+        canSubmit={false}
       />
       <HomeProgramBuilder patientId={patient.id} items={items} exerciseOptions={exerciseOptions} />
     </section>

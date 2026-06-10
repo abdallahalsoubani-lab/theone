@@ -28,6 +28,10 @@ vi.mock('@/lib/db', () => {
   return {
     __state: state,
     db: {
+      // Prompt 16: compliance only runs for APPROVED programs.
+      homeProgramApproval: {
+        findUnique: vi.fn(async () => ({ status: 'APPROVED', remindersEnabled: true })),
+      },
       careTeamMember: {
         findMany: vi.fn(async () => state.members),
       },

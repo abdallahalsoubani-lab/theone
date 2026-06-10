@@ -2,10 +2,19 @@
 
 import { revalidatePath } from 'next/cache';
 
-import type { Result } from '@/lib/auth/result';
+import { auth } from '@/auth';
+import { AUTH_ERRORS, type Result } from '@/lib/auth/result';
 import type { LocalizedError } from '@/lib/db';
+import { isClinicianAssignedTo } from '@/lib/patients/assignment';
 import { requirePermission } from '@/lib/rbac/guards';
 
+import {
+  approveHomeProgram,
+  homeProgramApprovalToLocalized,
+  requestHomeProgramChanges,
+  setHomeProgramReminders,
+  submitHomeProgram,
+} from './approval';
 import {
   homeProgramItemCreateSchema,
   homeProgramItemSetActiveSchema,
@@ -133,5 +142,91 @@ export async function markHomeExerciseDoneAction(
     return { ok: true, data };
   } catch (err) {
     return { ok: false, error: homeProgramToLocalized(err) };
+  }
+}
+
+// ─── Approval workflow (Prompt 16) ──────────────────────────────────────────
+
+const forbidden: LocalizedError = AUTH_ERRORS.FORBIDDEN;
+
+/** A reviewer must be an Admin or a DOCTOR on the patient's care team. */
+async function isCareTeamReviewer(patientId: string): Promise<boolean> {
+  const session = await auth();
+  if (!session?.user) return false;
+  if (session.user.role === 'ADMIN') return true;
+  if (session.user.role === 'DOCTOR') return isClinicianAssignedTo(session.user.id, patientId);
+  return false;
+}
+
+function approvalError(err: unknown): LocalizedError {
+  return homeProgramApprovalToLocalized(err) ?? homeProgramToLocalized(err);
+}
+
+function revalidateProgram(patientId: string): void {
+  revalidatePath(`/therapist/patients/${patientId}/home-program/edit`);
+  revalidatePath(`/therapist/patients/${patientId}`);
+  revalidatePath(`/doctor/patients/${patientId}`);
+  revalidatePath('/doctor/approvals');
+  revalidatePath('/patient/home-program');
+}
+
+export async function submitHomeProgramAction(
+  patientId: string,
+): Promise<Result<{ patientId: string }, LocalizedError>> {
+  await requirePermission('home_program.submit');
+  const session = await auth();
+  // The submitting therapist must be on the patient's care team.
+  if (!session?.user?.id || !(await isClinicianAssignedTo(session.user.id, patientId))) {
+    return { ok: false, error: forbidden };
+  }
+  try {
+    await submitHomeProgram(patientId);
+    revalidateProgram(patientId);
+    return { ok: true, data: { patientId } };
+  } catch (err) {
+    return { ok: false, error: approvalError(err) };
+  }
+}
+
+export async function approveHomeProgramAction(
+  patientId: string,
+): Promise<Result<{ patientId: string }, LocalizedError>> {
+  await requirePermission('home_program.approve');
+  if (!(await isCareTeamReviewer(patientId))) return { ok: false, error: forbidden };
+  try {
+    await approveHomeProgram(patientId);
+    revalidateProgram(patientId);
+    return { ok: true, data: { patientId } };
+  } catch (err) {
+    return { ok: false, error: approvalError(err) };
+  }
+}
+
+export async function requestHomeProgramChangesAction(
+  patientId: string,
+  comment: string,
+): Promise<Result<{ patientId: string }, LocalizedError>> {
+  await requirePermission('home_program.request_changes');
+  if (!(await isCareTeamReviewer(patientId))) return { ok: false, error: forbidden };
+  try {
+    await requestHomeProgramChanges(patientId, comment);
+    revalidateProgram(patientId);
+    return { ok: true, data: { patientId } };
+  } catch (err) {
+    return { ok: false, error: approvalError(err) };
+  }
+}
+
+export async function setHomeProgramRemindersAction(
+  patientId: string,
+  enabled: boolean,
+): Promise<Result<{ patientId: string; remindersEnabled: boolean }, LocalizedError>> {
+  await requirePermission('home_program.update');
+  try {
+    const data = await setHomeProgramReminders(patientId, enabled);
+    revalidateProgram(patientId);
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: approvalError(err) };
   }
 }

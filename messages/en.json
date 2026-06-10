@@ -758,7 +758,8 @@
     },
     "inbox": "Inbox",
     "exerciseLibrary": "Exercise library",
-    "calendar": "Calendar"
+    "calendar": "Calendar",
+    "approvals": "Approvals"
   },
   "styleGuide": {
     "title": "Style guide",
@@ -887,6 +888,18 @@
       "LEAVE_REJECTED": {
         "title": "Leave rejected",
         "body": "Your leave request for {dateRange} was rejected: {reason}"
+      },
+      "HOME_PROGRAM_SUBMITTED": {
+        "title": "Home program awaiting approval",
+        "body": "{therapistName} submitted a home program for {patientName} for your review."
+      },
+      "HOME_PROGRAM_APPROVED": {
+        "title": "Home program approved",
+        "body": "Dr. {doctorName} approved the home program for {patientName}."
+      },
+      "HOME_PROGRAM_CHANGES_REQUESTED": {
+        "title": "Home program changes requested",
+        "body": "Dr. {doctorName} requested changes to the home program for {patientName}."
       }
     }
   },
@@ -1145,6 +1158,31 @@
       "delete": "Delete",
       "errors": {
         "daysRequired": "Select at least one day."
+      },
+      "approval": {
+        "statusLabel": "Status",
+        "statusDraft": "Draft",
+        "statusPending": "Pending approval",
+        "statusApproved": "Approved",
+        "statusChanges": "Changes requested",
+        "submit": "Submit for approval",
+        "submittedToast": "Submitted for approval",
+        "changesRequestedTitle": "Changes requested by the doctor",
+        "remindersLabel": "Send exercise reminders to the patient via WhatsApp",
+        "queueTitle": "Home program approvals",
+        "queueSubtitle": "Programs awaiting your review.",
+        "queueEmpty": "No programs awaiting approval.",
+        "submittedBy": "By {name}",
+        "itemCount": "{count} exercises",
+        "reviewLink": "Review program",
+        "approve": "Approve",
+        "requestChanges": "Request changes",
+        "sendChanges": "Send",
+        "cancel": "Cancel",
+        "commentPlaceholder": "Describe the changes needed…",
+        "commentRequired": "A comment is required.",
+        "approvedToast": "Program approved",
+        "changesRequestedToast": "Changes requested"
       }
     },
     "compliance": {

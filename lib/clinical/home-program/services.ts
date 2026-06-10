@@ -11,6 +11,7 @@ import {
   removeHomeReminderJob,
 } from '@/lib/queue/jobs/homeExerciseReminder';
 
+import { onHomeProgramEdited } from './approval';
 import type {
   HomeProgramItemCreateInput,
   HomeProgramItemUpdateInput,
@@ -153,6 +154,10 @@ export const addHomeProgramItem = withAudit<
       console.error('[home-program] reminder registration failed', err);
     }
 
+    // Drive the approval state machine (Prompt 16): doctor edit → auto-approve;
+    // therapist edit of an approved program → back to pending.
+    await onHomeProgramEdited(input.patientId);
+
     return { itemId: row.id };
   },
 );
@@ -208,6 +213,8 @@ export const updateHomeProgramItem = withAudit<
       console.error('[home-program] reminder re-registration failed', err);
     }
 
+    await onHomeProgramEdited(existing.patientId);
+
     return { itemId: input.id };
   },
 );
@@ -253,6 +260,7 @@ export const setHomeProgramItemActive = withAudit<
     } catch (err) {
       console.error('[home-program] setActive cron sync failed', err);
     }
+    await onHomeProgramEdited(existing.patientId);
     return { itemId: id, active };
   },
 );
@@ -283,6 +291,7 @@ export const deleteHomeProgramItem = withAudit<
     }
     // Cascade deletes the HomeProgramCompletion rows (FK Cascade).
     await db.homeProgramItem.delete({ where: { id } });
+    await onHomeProgramEdited(existing.patientId);
     return { itemId: id };
   },
 );

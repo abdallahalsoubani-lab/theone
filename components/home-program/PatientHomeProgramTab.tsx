@@ -18,6 +18,8 @@ interface Props {
   lastCompletedById: Map<string, Date>;
   /** True when the viewer is the patient's assigned therapist (or Doctor/Admin). */
   canEdit: boolean;
+  /** Role-scoped builder link (Doctor vs Therapist route). */
+  editHref?: string;
   locale: 'en' | 'ar';
 }
 
@@ -37,6 +39,7 @@ export async function PatientHomeProgramTab({
   streak,
   lastCompletedById,
   canEdit,
+  editHref,
   locale,
 }: Props) {
   const t = await getTranslations('clinical.compliance');
@@ -53,7 +56,11 @@ export async function PatientHomeProgramTab({
           <h3 className="text-sm font-semibold text-brand-navy">{tHp('currentProgram')}</h3>
           {canEdit ? (
             <Button asChild size="sm" variant="outline">
-              <Link href={`/therapist/patients/${patientId}/home-program/edit`}>
+              <Link
+                href={
+                  (editHref ?? `/therapist/patients/${patientId}/home-program/edit`) as `/${string}`
+                }
+              >
                 <Pencil className="me-1 size-4" />
                 {tHp('edit')}
               </Link>

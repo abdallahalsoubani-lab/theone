@@ -47,6 +47,11 @@ vi.mock('@/lib/db', () => {
   return {
     __state: state,
     db: {
+      // Prompt 16: item mutations call onHomeProgramEdited → approval state.
+      homeProgramApproval: {
+        findUnique: vi.fn(async () => null),
+        upsert: vi.fn(async () => ({})),
+      },
       homeProgramItem: {
         findUnique: vi.fn(
           async ({ where }: { where: { id: string } }) =>

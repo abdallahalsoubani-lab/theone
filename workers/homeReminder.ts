@@ -14,6 +14,7 @@
 
 import { Worker } from 'bullmq';
 
+import { remindersActive } from '@/lib/clinical/home-program/visibility';
 import { db } from '@/lib/db';
 import { env } from '@/lib/env';
 import { queueRedis } from '@/lib/queue/client';
@@ -54,6 +55,13 @@ export function startHomeReminderWorker(): Worker {
       }
       if (!item.active) {
         console.warn(`[home-reminder] item ${itemId} is paused — skipping`);
+        return;
+      }
+      // Prompt 16: only remind on APPROVED programs with reminders enabled.
+      if (!(await remindersActive(item.patient.id))) {
+        console.warn(
+          `[home-reminder] program for patient ${item.patient.id} not approved or reminders off — skipping`,
+        );
         return;
       }
       if (!item.patient.whatsappReachable) {

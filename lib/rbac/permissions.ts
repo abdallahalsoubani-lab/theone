@@ -96,6 +96,12 @@ export const PERMISSIONS = {
   HOME_PROGRAM_UPDATE: 'home_program.update',
   HOME_PROGRAM_DELETE: 'home_program.delete',
   HOME_PROGRAM_COMPLETE_OWN: 'home_program.complete.own',
+  // ── Home-program approval workflow (Prompt 16) ──────────────────────
+  //   - submit: Therapist sends a DRAFT/CHANGES_REQUESTED program for review.
+  //   - approve / request_changes: Doctor (on the care team) or Admin reviews.
+  HOME_PROGRAM_SUBMIT: 'home_program.submit',
+  HOME_PROGRAM_APPROVE: 'home_program.approve',
+  HOME_PROGRAM_REQUEST_CHANGES: 'home_program.request_changes',
 
   // ── Exercise media (uploaded files) ──────────────────────────────────
   EXERCISE_MEDIA_CREATE: 'exercise_media.create',
@@ -280,6 +286,8 @@ const DOCTOR_PERMS = new Set<PermissionCode>([
   PERMISSIONS.HOME_PROGRAM_CREATE,
   PERMISSIONS.HOME_PROGRAM_UPDATE,
   PERMISSIONS.HOME_PROGRAM_DELETE,
+  PERMISSIONS.HOME_PROGRAM_APPROVE,
+  PERMISSIONS.HOME_PROGRAM_REQUEST_CHANGES,
   PERMISSIONS.EXERCISES_CREATE,
   PERMISSIONS.EXERCISES_READ,
   PERMISSIONS.EXERCISES_UPDATE,
@@ -303,7 +311,9 @@ const THERAPIST_PERMS = new Set<PermissionCode>([
   PERMISSIONS.APPOINTMENTS_READ_ASSIGNED,
   PERMISSIONS.APPOINTMENTS_STATUS_COMPLETE,
   PERMISSIONS.TREATMENT_PLANS_READ_ASSIGNED,
-  PERMISSIONS.TREATMENT_PLANS_UPDATE_ASSIGNED,
+  // Prompt 16: the Therapist authors the home program only — NOT plans. Direct
+  // plan editing (treatment_plans.update.assigned) is removed; the doctor-gated
+  // proposal flow (treatment_plans.propose) stays.
   PERMISSIONS.TREATMENT_PLANS_PROPOSE,
   PERMISSIONS.SESSION_NOTES_CREATE_OWN,
   PERMISSIONS.SESSION_NOTES_READ_ASSIGNED,
@@ -317,6 +327,7 @@ const THERAPIST_PERMS = new Set<PermissionCode>([
   PERMISSIONS.HOME_PROGRAM_CREATE,
   PERMISSIONS.HOME_PROGRAM_UPDATE,
   PERMISSIONS.HOME_PROGRAM_DELETE,
+  PERMISSIONS.HOME_PROGRAM_SUBMIT,
   PERMISSIONS.EXERCISES_CREATE,
   PERMISSIONS.EXERCISES_READ,
   PERMISSIONS.EXERCISES_UPDATE,
@@ -352,6 +363,8 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.HOME_PROGRAM_CREATE,
   PERMISSIONS.HOME_PROGRAM_UPDATE,
   PERMISSIONS.HOME_PROGRAM_DELETE,
+  PERMISSIONS.HOME_PROGRAM_APPROVE,
+  PERMISSIONS.HOME_PROGRAM_REQUEST_CHANGES,
   PERMISSIONS.EXERCISES_CREATE,
   PERMISSIONS.EXERCISES_READ,
   PERMISSIONS.EXERCISES_UPDATE,

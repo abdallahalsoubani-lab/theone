@@ -72,6 +72,7 @@ export default async function DoctorPatientFilePage({
           streak={homeProgramData.streak}
           lastCompletedById={homeProgramData.lastCompletedById}
           canEdit
+          editHref={`/doctor/patients/${patient.id}/home-program/edit`}
           locale={locale === 'ar' ? 'ar' : 'en'}
         />
       }

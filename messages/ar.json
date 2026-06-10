@@ -371,7 +371,8 @@
     },
     "inbox": "صندوق الوارد",
     "exerciseLibrary": "مكتبة التمارين",
-    "calendar": "التقويم"
+    "calendar": "التقويم",
+    "approvals": "الموافقات"
   },
   "shell": {
     "userMenu": "الحساب",
@@ -887,6 +888,18 @@
       "LEAVE_REJECTED": {
         "title": "تم رفض الإجازة",
         "body": "تم رفض طلب إجازتك للفترة {dateRange}: {reason}"
+      },
+      "HOME_PROGRAM_SUBMITTED": {
+        "title": "برنامج منزلي بانتظار الموافقة",
+        "body": "أرسل {therapistName} برنامجاً منزلياً للمراجع {patientName} لمراجعتك."
+      },
+      "HOME_PROGRAM_APPROVED": {
+        "title": "تمت الموافقة على البرنامج المنزلي",
+        "body": "وافق د. {doctorName} على البرنامج المنزلي للمراجع {patientName}."
+      },
+      "HOME_PROGRAM_CHANGES_REQUESTED": {
+        "title": "مطلوب تعديلات على البرنامج المنزلي",
+        "body": "طلب د. {doctorName} تعديلات على البرنامج المنزلي للمراجع {patientName}."
       }
     }
   },
@@ -1145,6 +1158,31 @@
       "delete": "حذف",
       "errors": {
         "daysRequired": "اختر يوماً واحداً على الأقل."
+      },
+      "approval": {
+        "statusLabel": "الحالة",
+        "statusDraft": "مسودة",
+        "statusPending": "بانتظار الموافقة",
+        "statusApproved": "تمت الموافقة",
+        "statusChanges": "مطلوب تعديلات",
+        "submit": "إرسال للموافقة",
+        "submittedToast": "تم الإرسال للموافقة",
+        "changesRequestedTitle": "تعديلات مطلوبة من الطبيب",
+        "remindersLabel": "إرسال تذكيرات التمارين للمراجع عبر واتساب",
+        "queueTitle": "موافقات البرامج المنزلية",
+        "queueSubtitle": "برامج بانتظار مراجعتك.",
+        "queueEmpty": "لا توجد برامج بانتظار الموافقة.",
+        "submittedBy": "بواسطة {name}",
+        "itemCount": "{count} تمارين",
+        "reviewLink": "مراجعة البرنامج",
+        "approve": "موافقة",
+        "requestChanges": "طلب تعديلات",
+        "sendChanges": "إرسال",
+        "cancel": "إلغاء",
+        "commentPlaceholder": "صف التعديلات المطلوبة…",
+        "commentRequired": "التعليق مطلوب.",
+        "approvedToast": "تمت الموافقة على البرنامج",
+        "changesRequestedToast": "تم طلب التعديلات"
       }
     },
     "compliance": {

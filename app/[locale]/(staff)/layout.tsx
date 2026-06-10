@@ -1,4 +1,4 @@
-import { Calendar, ClipboardList, Dumbbell, Inbox, Users } from 'lucide-react';
+import { Calendar, ClipboardCheck, ClipboardList, Dumbbell, Inbox, Users } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -72,6 +72,11 @@ export default async function StaffLayout({
         label: tNav('treatmentPlans'),
         href: '/doctor/plans',
         icon: <ClipboardList className="size-4" />,
+      },
+      {
+        label: tNav('approvals'),
+        href: '/doctor/approvals',
+        icon: <ClipboardCheck className="size-4" />,
       },
       {
         label: tNav('exerciseLibrary'),

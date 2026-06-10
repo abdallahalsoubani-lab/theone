@@ -78,6 +78,18 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationType, NotificationTempla
     titleKey: 'notifications.types.LEAVE_REJECTED.title',
     bodyKey: 'notifications.types.LEAVE_REJECTED.body',
   },
+  HOME_PROGRAM_SUBMITTED: {
+    titleKey: 'notifications.types.HOME_PROGRAM_SUBMITTED.title',
+    bodyKey: 'notifications.types.HOME_PROGRAM_SUBMITTED.body',
+  },
+  HOME_PROGRAM_APPROVED: {
+    titleKey: 'notifications.types.HOME_PROGRAM_APPROVED.title',
+    bodyKey: 'notifications.types.HOME_PROGRAM_APPROVED.body',
+  },
+  HOME_PROGRAM_CHANGES_REQUESTED: {
+    titleKey: 'notifications.types.HOME_PROGRAM_CHANGES_REQUESTED.title',
+    bodyKey: 'notifications.types.HOME_PROGRAM_CHANGES_REQUESTED.body',
+  },
 };
 
 /**
@@ -100,4 +112,7 @@ export type NotificationParams = {
   LEAVE_REQUESTED: { requesterName: string; dateRange: string };
   LEAVE_APPROVED: { dateRange: string };
   LEAVE_REJECTED: { reason: string; dateRange: string };
+  HOME_PROGRAM_SUBMITTED: { therapistName: string; patientName: string };
+  HOME_PROGRAM_APPROVED: { doctorName: string; patientName: string };
+  HOME_PROGRAM_CHANGES_REQUESTED: { doctorName: string; patientName: string };
 };
