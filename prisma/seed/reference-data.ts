@@ -41,86 +41,129 @@ type SeedTemplate = {
   contentPreview: string;
   metaTemplateName: string;
   metaApprovalStatus: WaTemplateApprovalStatus;
-  twilioContentSid: string;
+  active: boolean;
+  twilioContentSid: string | null;
   twilioApproved: boolean;
 };
 
 /**
  * Reference templates. The `name` column is the canonical logical identifier
- * (e.g., `appointment_reminder_30min`) that call sites reference via
- * `whatsapp.sendTemplate({ name, language, … })`. The provider-specific
- * identifiers (`metaTemplateName`, `twilioContentSid`) are backfilled here
- * with dev placeholders so the seeded clinic works end-to-end against the
- * Twilio Sandbox without the operator hand-creating each one. Production
- * provisioning is described in `docs/whatsapp/setup-meta.md` and
- * `docs/whatsapp/setup-twilio.md`.
+ * (e.g., `appointment_reminder_v2`) that call sites reference via
+ * `whatsapp.sendTemplate({ name, language, … })`. `metaTemplateName` is the
+ * exact template name registered in Meta WhatsApp Manager (kept identical to
+ * the logical name on purpose). `contentPreview` mirrors the **real** body
+ * registered in Meta and — critically — the placeholder count must match the
+ * arguments the call site passes (see the inventory in
+ * `docs/whatsapp/templates.md`).
+ *
+ * Provider state is deliberately NOT overwritten on re-seed (see the upsert
+ * below): `metaApprovalStatus`, `active`, `twilioContentSid`, and
+ * `twilioApproved` are only set on first create. This keeps a later manual
+ * APPROVED flip (and any real Twilio ContentSid) from being clobbered by
+ * `pnpm db:seed`.
+ *
+ * Per-template state seeded on create:
+ *   - The five active Meta templates start PENDING (in review) + active.
+ *   - `patient_account_credentials` is REJECTED by Meta and deferred to phase
+ *     two → seeded inactive (the send path skips when inactive).
+ *   - `otp_login` is not yet created in Meta and deferred → seeded inactive
+ *     (the WhatsApp OTP sender falls back to console when inactive).
+ *
+ * Twilio is the dormant backup provider; no dev ContentSid placeholders are
+ * seeded anymore (they were the old `HX_DEV_*` values). Real Twilio SIDs, if
+ * ever added by hand, survive re-seeds untouched.
  */
-const WHATSAPP_TEMPLATES: ReadonlyArray<SeedTemplate> = [
+type SeedTemplateSource = [
+  name: string,
+  category: WaTemplateCategory,
+  en: string,
+  ar: string,
+  metaApprovalStatus: WaTemplateApprovalStatus,
+  active: boolean,
+];
+
+const WHATSAPP_TEMPLATES: ReadonlyArray<SeedTemplate> = (
   [
-    'appointment_confirmation',
-    WaTemplateCategory.APPOINTMENT,
-    'Hi {{1}}, your appointment with {{2}} is confirmed for {{3}} at {{4}}.',
-    'مرحباً {{1}}، تم تأكيد موعدك مع {{2}} يوم {{3}} الساعة {{4}}.',
-  ],
-  [
-    'appointment_reminder_30min',
-    WaTemplateCategory.APPOINTMENT,
-    'Reminder: your appointment with {{1}} is in 30 minutes at {{2}}.',
-    'تذكير: موعدك مع {{1}} بعد 30 دقيقة في {{2}}.',
-  ],
-  [
-    'appointment_rescheduled',
-    WaTemplateCategory.APPOINTMENT,
-    'Your appointment has been moved to {{1}} at {{2}} with {{3}}.',
-    'تم نقل موعدك إلى {{1}} الساعة {{2}} مع {{3}}.',
-  ],
-  [
-    'appointment_cancelled',
-    WaTemplateCategory.APPOINTMENT,
-    'Your appointment on {{1}} at {{2}} has been cancelled. Reason: {{3}}.',
-    'تم إلغاء موعدك بتاريخ {{1}} الساعة {{2}}. السبب: {{3}}.',
-  ],
-  [
-    'home_exercise_reminder',
-    WaTemplateCategory.HOME_PROGRAM,
-    'Time for exercise "{{1}}". Therapist note: {{2}}. Watch: {{3}}.',
-    'حان وقت تمرين «{{1}}». ملاحظة المعالج: {{2}}. شاهد الفيديو: {{3}}.',
-  ],
-  [
-    'otp_login',
-    WaTemplateCategory.OTP,
-    'Your Theone.pt login code is {{1}}. It expires in 5 minutes.',
-    'رمز الدخول إلى Theone.pt هو {{1}}. ينتهي خلال 5 دقائق.',
-  ],
-  [
-    'patient_account_credentials',
-    WaTemplateCategory.CREDENTIALS,
-    'Welcome to Theone.pt. Login: {{1}}, temporary password: {{2}}. Please change it on first sign-in.',
-    'مرحباً بك في Theone.pt. الدخول: {{1}}، كلمة مرور مؤقتة: {{2}}. يرجى تغييرها عند أول تسجيل دخول.',
-  ],
-].flatMap(([name, category, en, ar]): SeedTemplate[] => {
-  const logicalName = name as string;
-  const cat = category as WaTemplateCategory;
+    [
+      'appointment_confirmation_v2',
+      WaTemplateCategory.APPOINTMENT,
+      'Hi {{1}}, your appointment with {{2}} on {{3}} at {{4}} is confirmed. See you soon.',
+      'مرحباً {{1}}، تم تأكيد موعدك مع {{2}} بتاريخ {{3}} الساعة {{4}}. نراك قريباً.',
+      WaTemplateApprovalStatus.PENDING,
+      true,
+    ],
+    [
+      'appointment_reminder_v2',
+      WaTemplateCategory.APPOINTMENT,
+      'Reminder: your appointment with {{1}} is in 30 minutes at {{2}}. Please arrive on time.',
+      'تذكير: موعدك مع {{1}} بعد 30 دقيقة الساعة {{2}}. نرجو الحضور في الوقت المحدد.',
+      WaTemplateApprovalStatus.PENDING,
+      true,
+    ],
+    [
+      'appointment_rescheduled',
+      WaTemplateCategory.APPOINTMENT,
+      'Hi {{1}}, your appointment has been rescheduled to {{2}} at {{3}}. See you then.',
+      'مرحباً {{1}}، تم تعديل موعدك إلى تاريخ {{2}} الساعة {{3}}. بانتظارك.',
+      WaTemplateApprovalStatus.PENDING,
+      true,
+    ],
+    [
+      'appointment_cancelled_v2',
+      WaTemplateCategory.APPOINTMENT,
+      'Your appointment on {{1}} at {{2}} was cancelled. Reason: {{3}}. You can rebook anytime.',
+      'نأسف، تم إلغاء موعدك بتاريخ {{1}} الساعة {{2}}. السبب: {{3}}. يمكنك حجز موعد جديد في أي وقت.',
+      WaTemplateApprovalStatus.PENDING,
+      true,
+    ],
+    [
+      'home_exercise_reminder_v2',
+      WaTemplateCategory.HOME_PROGRAM,
+      'Time for your exercise "{{1}}". Therapist note: {{2}}. Watch the video here: {{3}} and keep it up.',
+      'حان وقت تمرينك «{{1}}». ملاحظة المعالج: {{2}}. شاهد الفيديو عبر الرابط: {{3}} وواصل تمارينك.',
+      WaTemplateApprovalStatus.PENDING,
+      true,
+    ],
+    [
+      'otp_login',
+      WaTemplateCategory.OTP,
+      'Your Theone.pt login code is {{1}} and expires in 5 minutes. Do not share it.',
+      'رمز الدخول إلى Theone.pt هو {{1}} وينتهي خلال 5 دقائق. لا تشاركه مع أحد.',
+      WaTemplateApprovalStatus.NOT_SUBMITTED,
+      false,
+    ],
+    [
+      'patient_account_credentials',
+      WaTemplateCategory.CREDENTIALS,
+      'Welcome to Theone.pt. Your username is {{1}} and temporary password is {{2}}. Please change it on first sign-in.',
+      'مرحباً بك في Theone.pt. اسم المستخدم: {{1}} وكلمة المرور المؤقتة: {{2}}. يرجى تغييرها عند أول تسجيل دخول.',
+      WaTemplateApprovalStatus.REJECTED,
+      false,
+    ],
+  ] satisfies ReadonlyArray<SeedTemplateSource>
+).flatMap(([name, category, en, ar, metaApprovalStatus, active]): SeedTemplate[] => {
   return [
     {
-      name: logicalName,
+      name,
       language: LanguagePref.EN,
-      category: cat,
-      contentPreview: en as string,
-      metaTemplateName: logicalName,
-      metaApprovalStatus: WaTemplateApprovalStatus.NOT_SUBMITTED,
-      twilioContentSid: `HX_DEV_${logicalName}_en`,
-      twilioApproved: true,
+      category,
+      contentPreview: en,
+      metaTemplateName: name,
+      metaApprovalStatus,
+      active,
+      twilioContentSid: null,
+      twilioApproved: false,
     },
     {
-      name: logicalName,
+      name,
       language: LanguagePref.AR,
-      category: cat,
-      contentPreview: ar as string,
-      metaTemplateName: logicalName,
-      metaApprovalStatus: WaTemplateApprovalStatus.NOT_SUBMITTED,
-      twilioContentSid: `HX_DEV_${logicalName}_ar`,
-      twilioApproved: true,
+      category,
+      contentPreview: ar,
+      metaTemplateName: name,
+      metaApprovalStatus,
+      active,
+      twilioContentSid: null,
+      twilioApproved: false,
     },
   ];
 });
@@ -146,16 +189,17 @@ export async function seedReference(db: PrismaClient): Promise<void> {
     WHATSAPP_TEMPLATES.map((t) =>
       db.whatsAppTemplate.upsert({
         where: { name_language: { name: t.name, language: t.language } },
+        // On re-seed we refresh only the content-preview / category / Meta
+        // template name. Provider *state* — metaApprovalStatus, active, the
+        // Twilio ContentSid, and twilioApproved — is intentionally left
+        // untouched so a manual APPROVED flip / activation toggle (post Meta
+        // review) and any real Twilio SID survive `pnpm db:seed`.
         update: {
           contentPreview: t.contentPreview,
           category: t.category,
           metaTemplateName: t.metaTemplateName,
-          metaApprovalStatus: t.metaApprovalStatus,
-          twilioContentSid: t.twilioContentSid,
-          twilioApproved: t.twilioApproved,
-          active: true,
         },
-        create: { ...t, active: true },
+        create: { ...t },
       }),
     ),
   );

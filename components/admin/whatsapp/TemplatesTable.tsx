@@ -19,9 +19,9 @@ interface Props {
  * Admin templates table.
  *
  * Inline edits are kept minimal: toggle active, edit Meta template name +
- * approval status, edit Twilio ContentSid + approval, and a "Send test"
- * button that prompts for a phone number. A future enhancement could move
- * this into a side panel with a richer form; v1 keeps the surface tight.
+ * approval status, and a "Send test" button that prompts for a phone number.
+ * A future enhancement could move this into a side panel with a richer form;
+ * v1 keeps the surface tight.
  */
 export function TemplatesTable({ rows }: Props) {
   const t = useTranslations('admin.whatsapp');
@@ -54,8 +54,6 @@ export function TemplatesTable({ rows }: Props) {
           | 'APPROVED'
           | 'REJECTED'
           | 'PAUSED',
-        twilioContentSid: draft.twilioContentSid,
-        twilioApproved: draft.twilioApproved,
         active: draft.active,
       });
       if (!r.ok) {
@@ -110,7 +108,6 @@ export function TemplatesTable({ rows }: Props) {
               {t('preview')}
             </th>
             <th className="px-3 py-2 text-start font-medium text-brand-textMuted">Meta</th>
-            <th className="px-3 py-2 text-start font-medium text-brand-textMuted">Twilio</th>
             <th className="px-3 py-2 text-start font-medium text-brand-textMuted">{t('active')}</th>
             <th className="px-3 py-2 text-end font-medium text-brand-textMuted">{t('actions')}</th>
           </tr>
@@ -157,40 +154,6 @@ export function TemplatesTable({ rows }: Props) {
                         {row.metaTemplateName ?? '—'}
                       </div>
                       <ApprovalBadge status={row.metaApprovalStatus} />
-                    </div>
-                  )}
-                </td>
-                <td className="px-3 py-3">
-                  {isEditing ? (
-                    <div className="space-y-1">
-                      <Input
-                        value={current.twilioContentSid ?? ''}
-                        onChange={(e) =>
-                          setDraft({ ...current, twilioContentSid: e.target.value || null })
-                        }
-                        className="h-7 text-xs"
-                      />
-                      <label className="flex items-center gap-2 text-xs text-brand-textMuted">
-                        <input
-                          type="checkbox"
-                          checked={current.twilioApproved}
-                          onChange={(e) =>
-                            setDraft({ ...current, twilioApproved: e.target.checked })
-                          }
-                        />
-                        {t('approved')}
-                      </label>
-                    </div>
-                  ) : (
-                    <div className="space-y-1">
-                      <div className="font-mono text-xs text-brand-textMuted">
-                        {row.twilioContentSid ?? '—'}
-                      </div>
-                      {row.twilioApproved ? (
-                        <Badge variant="default">{t('approved')}</Badge>
-                      ) : (
-                        <Badge variant="muted">{t('notApproved')}</Badge>
-                      )}
                     </div>
                   )}
                 </td>

@@ -36,14 +36,20 @@ vi.mock('@/lib/db', () => {
       order: number;
     }>,
     users: [
-      { id: 'doctor-1', fullNameEn: 'Doc One', fullNameAr: 'دكتور' },
-      { id: 'therapist-1', fullNameEn: 'Therapist One', fullNameAr: 'معالج' },
-      { id: 'therapist-2', fullNameEn: 'Other Therapist', fullNameAr: 'معالج آخر' },
-      { id: 'patient-1', fullNameEn: 'Patient One', fullNameAr: 'مريض' },
-      { id: 'patient-2', fullNameEn: 'Patient Two', fullNameAr: 'مريض ثانٍ' },
-    ] as Array<{ id: string; fullNameEn: string; fullNameAr: string }>,
+      { id: 'doctor-1', fullNameEn: 'Doc One', fullNameAr: 'دكتور', role: 'DOCTOR' },
+      { id: 'therapist-1', fullNameEn: 'Therapist One', fullNameAr: 'معالج', role: 'THERAPIST' },
+      {
+        id: 'therapist-2',
+        fullNameEn: 'Other Therapist',
+        fullNameAr: 'معالج آخر',
+        role: 'THERAPIST',
+      },
+      { id: 'patient-1', fullNameEn: 'Patient One', fullNameAr: 'مريض', role: 'PATIENT' },
+      { id: 'patient-2', fullNameEn: 'Patient Two', fullNameAr: 'مريض ثانٍ', role: 'PATIENT' },
+    ] as Array<{ id: string; fullNameEn: string; fullNameAr: string; role: string }>,
     notifications: [] as Array<Record<string, unknown>>,
     auditLogs: [] as Array<Record<string, unknown>>,
+    careTeamUpserts: [] as Array<Record<string, unknown>>,
     counter: 0,
   };
   return {
@@ -109,6 +115,21 @@ vi.mock('@/lib/db', () => {
                 });
               }
               return { count: data.length };
+            }),
+          },
+          // Prompt 14: createTreatmentPlan adds the doctor to the patient's
+          // care team (FR-PAT-3) via addCareTeamMemberTx → resolveClinicianRole
+          // (tx.user.findFirst) + tx.careTeamMember.upsert.
+          user: {
+            findFirst: vi.fn(async ({ where }: { where: { id: string } }) => {
+              const u = state.users.find((x) => x.id === where.id);
+              return u ? { role: u.role } : null;
+            }),
+          },
+          careTeamMember: {
+            upsert: vi.fn(async ({ create }: { create: Record<string, unknown> }) => {
+              state.careTeamUpserts.push(create);
+              return { id: 'ctm-1', ...create };
             }),
           },
         }),
@@ -209,6 +230,7 @@ const state = (
       exercises: Array<{ planId: string }>;
       notifications: Array<Record<string, unknown>>;
       auditLogs: Array<Record<string, unknown>>;
+      careTeamUpserts: Array<Record<string, unknown>>;
       counter: number;
     };
   }
@@ -255,6 +277,14 @@ describe('createTreatmentPlan', () => {
       parentPlanId: null,
     });
     expect(state.exercises).toHaveLength(1);
+    // Prompt 14 / FR-PAT-3: the authoring doctor is added to the patient's
+    // care team so they appear in the doctor's "My patients" list.
+    expect(state.careTeamUpserts).toContainEqual({
+      patientId: 'patient-1',
+      clinicianId: 'doctor-1',
+      role: 'DOCTOR',
+      assignedBy: 'doctor-1',
+    });
     expect(state.notifications[0]).toMatchObject({
       recipientId: 'therapist-1',
       type: 'PLAN_ASSIGNED',

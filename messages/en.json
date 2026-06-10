@@ -181,6 +181,7 @@
       "newRoom": "New room",
       "editRoom": "Edit room",
       "name": "Name",
+      "active": "Active",
       "activeAppointments": "Future appointments",
       "noRooms": "No rooms yet.",
       "createdToast": "Room created.",
@@ -350,7 +351,7 @@
     },
     "whatsapp": {
       "templatesTitle": "WhatsApp templates",
-      "templatesSubtitle": "Manage Meta + Twilio identifiers and approval status. Templates are created in the provider dashboards; this page tracks the metadata the app uses to send them.",
+      "templatesSubtitle": "Manage Meta template identifiers and approval status. Templates are created in the Meta WhatsApp Manager; this page tracks the metadata the app uses to send them.",
       "messagesTitle": "WhatsApp messages",
       "messagesSubtitle": "Audit log of every outbound and inbound WhatsApp message. Use the filters to narrow; FAILED outbound rows can be resent up to 3 times.",
       "name": "Name",
@@ -387,8 +388,6 @@
       "body": "Body",
       "resend": "Resend",
       "failureReason": {
-        "TEMPLATE_SID_INVALID": "Template Content SID is a placeholder. Replace it with a real Twilio Content SID from your Twilio Console.",
-        "TEMPLATE_SID_INVALID_HINT": "Go to Admin → WhatsApp Templates and update the Content SID for this template.",
         "TEMPLATE_NOT_CONFIGURED": "This template is not configured for the active provider. Open WhatsApp Templates and add it.",
         "TEMPLATE_NOT_APPROVED": "This template has not been approved by the provider yet.",
         "INVALID_RECIPIENT": "The recipient number is not a valid WhatsApp number.",
@@ -545,7 +544,9 @@
       "currentMedications": "Current medications",
       "submit": "Save patient",
       "cancel": "Cancel",
-      "phoneIsUsername": "Changing the phone will change the patient's login username."
+      "phoneIsUsername": "Changing the phone will change the patient's login username.",
+      "sectionAssignment": "Care team",
+      "assignmentHelp": "Add any number of therapists and doctors responsible for this patient. You can also change this later from the patient’s edit page."
     },
     "created": {
       "title": "Patient created",
@@ -584,6 +585,18 @@
       "created": "Patient created.",
       "updated": "Patient updated.",
       "selfUpdated": "Your profile is updated."
+    },
+    "careTeam": {
+      "title": "Care team",
+      "help": "Add the therapists and doctors responsible for this patient. Changes save immediately.",
+      "therapists": "Therapists",
+      "doctors": "Doctors",
+      "addTherapist": "Add a therapist…",
+      "addDoctor": "Add a doctor…",
+      "none": "No one assigned yet",
+      "remove": "Remove",
+      "addedToast": "Care-team member added",
+      "removedToast": "Care-team member removed"
     }
   },
   "intake": {
@@ -944,6 +957,22 @@
       "errors": {
         "exercisesRequired": "A plan must include at least one exercise.",
         "rejectReason": "Rejection reason must be at least 5 characters."
+      },
+      "list": {
+        "title": "Treatment plans",
+        "filterByStatus": "Filter by status",
+        "statusAll": "All",
+        "searchPlaceholder": "Search by patient name…",
+        "searchAction": "Search",
+        "empty": "No treatment plans match these filters.",
+        "schedule": "{freq}×/week × {weeks} weeks",
+        "createdOn": "Created {date}",
+        "proposalReason": "Reason",
+        "open": "Open",
+        "pagination": "Pagination",
+        "pageOf": "Page {page} of {total}",
+        "previous": "Previous",
+        "next": "Next"
       }
     },
     "notes": {

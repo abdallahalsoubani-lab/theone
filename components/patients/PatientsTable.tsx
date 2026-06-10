@@ -123,13 +123,17 @@ export function PatientsTable({
         },
         {
           id: 'therapist',
-          accessorKey: 'assignedTherapist',
+          accessorKey: 'therapists',
           header: t('columnAssignedTherapist'),
           enableSorting: false,
           cell: ({ row }) => {
-            const th = row.original.assignedTherapist;
-            return th ? (
-              <span>{locale === 'ar' ? th.fullNameAr : th.fullNameEn}</span>
+            const therapists = row.original.therapists;
+            return therapists.length > 0 ? (
+              <span>
+                {therapists
+                  .map((th) => (locale === 'ar' ? th.fullNameAr : th.fullNameEn))
+                  .join('، ')}
+              </span>
             ) : (
               <span className="text-brand-textMuted">—</span>
             );

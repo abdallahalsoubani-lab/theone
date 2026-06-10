@@ -1,7 +1,9 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
+import { PatientCareTeamCard } from '@/components/patients/PatientCareTeamCard';
 import { PatientForm } from '@/components/patients/PatientForm';
+import { listActiveClinicians } from '@/lib/appointments/queries';
 import { getPatientFile } from '@/lib/patients/queries';
 import { requirePermission } from '@/lib/rbac/guards';
 
@@ -16,9 +18,23 @@ export default async function SecretaryPatientEditPage({
   const patient = await getPatientFile(id);
   if (!patient) notFound();
   const t = await getTranslations('patients.form');
+  const clinicians = await listActiveClinicians();
+  const therapistOptions = clinicians
+    .filter((c) => c.role === 'THERAPIST')
+    .map((c) => ({ id: c.id, fullNameEn: c.fullNameEn, fullNameAr: c.fullNameAr }));
+  const doctorOptions = clinicians
+    .filter((c) => c.role === 'DOCTOR')
+    .map((c) => ({ id: c.id, fullNameEn: c.fullNameEn, fullNameAr: c.fullNameAr }));
   return (
     <section className="mx-auto max-w-4xl space-y-6 p-6">
       <h1 className="text-2xl font-medium text-brand-navy">{t('editTitle')}</h1>
+      <PatientCareTeamCard
+        patientId={patient.id}
+        initialTherapists={patient.careTeam.therapists}
+        initialDoctors={patient.careTeam.doctors}
+        therapistOptions={therapistOptions}
+        doctorOptions={doctorOptions}
+      />
       <PatientForm
         mode="edit"
         initial={{

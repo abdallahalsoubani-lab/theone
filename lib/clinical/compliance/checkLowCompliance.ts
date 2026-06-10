@@ -4,6 +4,8 @@
 // the worker at import time because tsx doesn't run the Next.js bundler
 // that swaps the marker for a no-op.
 
+import { CareTeamRole } from '@prisma/client';
+
 import { db } from '@/lib/db';
 import { createNotification } from '@/lib/notifications/actions';
 
@@ -52,15 +54,16 @@ export async function runLowComplianceCheck(
   const cooldownDays = args.cooldownDays ?? DEFAULT_COOLDOWN_DAYS;
   const now = args.now ?? new Date();
 
-  // Walk every patient with an assigned therapist + at least one active
-  // home-program item. Patients without active programs can't have low
-  // compliance — calculateCompliance returns rate=null for them.
-  const profiles = await db.patientProfile.findMany({
-    where: { assignedTherapistId: { not: null } },
+  // Walk every (therapist → patient) care-team link. A patient with two
+  // therapists is checked once per therapist so each gets nudged. Patients
+  // without active programs can't have low compliance — calculateCompliance
+  // returns rate=null for them.
+  const memberships = await db.careTeamMember.findMany({
+    where: { role: CareTeamRole.THERAPIST },
     select: {
-      userId: true,
-      assignedTherapistId: true,
-      user: { select: { fullNameEn: true, fullNameAr: true, deletedAt: true } },
+      clinicianId: true,
+      patientId: true,
+      patient: { select: { user: { select: { fullNameEn: true, deletedAt: true } } } },
     },
   });
 
@@ -69,28 +72,30 @@ export async function runLowComplianceCheck(
 
   let notificationsCreated = 0;
   let notificationsSkippedByCooldown = 0;
-  let patientsChecked = 0;
+  const checkedPatients = new Set<string>();
+  // Memoize compliance per patient so a multi-therapist patient is computed once.
+  const complianceCache = new Map<string, number | null>();
 
-  for (const profile of profiles) {
-    if (!profile.assignedTherapistId) continue;
-    if (profile.user.deletedAt) continue;
-    patientsChecked += 1;
+  for (const membership of memberships) {
+    if (membership.patient.user.deletedAt) continue;
+    checkedPatients.add(membership.patientId);
 
-    const result = await calculateCompliance({
-      patientId: profile.userId,
-      windowDays: 7,
-      now,
-    });
-    if (result.rate === null || result.rate >= threshold) continue;
+    let rate = complianceCache.get(membership.patientId);
+    if (rate === undefined) {
+      rate = (await calculateCompliance({ patientId: membership.patientId, windowDays: 7, now }))
+        .rate;
+      complianceCache.set(membership.patientId, rate);
+    }
+    if (rate === null || rate >= threshold) continue;
 
     // Cooldown check — has any LOW_COMPLIANCE notification for this
     // (recipient, patient) pair been created in the last N days?
     const recent = await db.notification.findFirst({
       where: {
-        recipientId: profile.assignedTherapistId,
+        recipientId: membership.clinicianId,
         type: 'LOW_COMPLIANCE',
         relatedEntityType: 'User',
-        relatedEntityId: profile.userId,
+        relatedEntityId: membership.patientId,
         createdAt: { gte: cooldownCutoff },
       },
       select: { id: true },
@@ -101,20 +106,24 @@ export async function runLowComplianceCheck(
     }
 
     await createNotification({
-      recipientId: profile.assignedTherapistId,
+      recipientId: membership.clinicianId,
       type: 'LOW_COMPLIANCE',
       params: {
-        patientName: profile.user.fullNameEn,
-        rate: Math.round(result.rate * 100).toString(),
+        patientName: membership.patient.user.fullNameEn,
+        rate: Math.round(rate * 100).toString(),
       },
-      linkPath: `/therapist/patients/${profile.userId}`,
+      linkPath: `/therapist/patients/${membership.patientId}`,
       relatedEntityType: 'User',
-      relatedEntityId: profile.userId,
+      relatedEntityId: membership.patientId,
     }).catch((err: unknown) => {
       console.error('[low-compliance] notification fan-out failed', err);
     });
     notificationsCreated += 1;
   }
 
-  return { patientsChecked, notificationsCreated, notificationsSkippedByCooldown };
+  return {
+    patientsChecked: checkedPatients.size,
+    notificationsCreated,
+    notificationsSkippedByCooldown,
+  };
 }

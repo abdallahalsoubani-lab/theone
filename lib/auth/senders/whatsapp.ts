@@ -1,8 +1,30 @@
-import { LanguagePref } from '@prisma/client';
+import { LanguagePref, WaTemplateApprovalStatus } from '@prisma/client';
 
+import { db } from '@/lib/db';
+import { env } from '@/lib/env';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 
+import { ConsoleOtpSender } from './console';
 import type { OtpSender } from './types';
+
+const OTP_TEMPLATE_NAME = 'otp_login';
+
+/**
+ * Is the `otp_login` template usable on the active provider right now?
+ * Requires the row to exist and be active; on Meta it must also be APPROVED.
+ * Returns false (rather than throwing) so the caller can fall back cleanly.
+ */
+async function isOtpTemplateSendable(): Promise<boolean> {
+  const template = await db.whatsAppTemplate.findUnique({
+    where: { name_language: { name: OTP_TEMPLATE_NAME, language: LanguagePref.EN } },
+    select: { active: true, metaApprovalStatus: true },
+  });
+  if (!template || !template.active) return false;
+  if (env.WHATSAPP_PROVIDER === 'meta') {
+    return template.metaApprovalStatus === WaTemplateApprovalStatus.APPROVED;
+  }
+  return true;
+}
 
 /**
  * Production OTP sender.
@@ -25,9 +47,22 @@ import type { OtpSender } from './types';
 export const WhatsAppOtpSender: OtpSender = {
   id: 'whatsapp',
   async sendOtp(phone, otp) {
+    // Phase-two deferral: `otp_login` is not yet a live Meta template. If it
+    // isn't sendable on the active provider, fall back to the console sender
+    // so login still works (and the code is never silently lost) instead of
+    // enqueuing a job the worker can only fail. Re-enabling is a single
+    // `active` toggle once the template is approved in Meta.
+    if (!(await isOtpTemplateSendable())) {
+      console.warn(
+        `[auth] ${OTP_TEMPLATE_NAME} template unavailable on provider=${env.WHATSAPP_PROVIDER} — falling back to console OTP`,
+      );
+      await ConsoleOtpSender.sendOtp(phone, otp);
+      return;
+    }
+
     await enqueueWhatsappOutbound({
       kind: 'template',
-      templateName: 'otp_login',
+      templateName: OTP_TEMPLATE_NAME,
       language: LanguagePref.EN,
       parameters: [otp],
       recipientPhone: phone,

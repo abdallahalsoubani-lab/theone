@@ -18,8 +18,7 @@ import type {
  * Meta WhatsApp Cloud API provider.
  *
  * Direct fetch against Graph API v20.0 — no SDK dependency. Used in
- * production at scale; cheaper per conversation than Twilio and avoids
- * the middleman. Requires Meta Business verification (1–2 weeks) and a
+ * production at scale. Requires Meta Business verification (1–2 weeks) and a
  * dedicated phone number that is not active in personal WhatsApp.
  *
  * Two Meta-specific rules baked into this module:
@@ -166,8 +165,8 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
 
   constructor(opts: MetaWhatsAppProviderOptions = {}) {
     this.fetchImpl = opts.fetchImpl ?? (fetch as unknown as FetchLike);
-    this.phoneId = opts.phoneId ?? env.META_WHATSAPP_PHONE_ID ?? '';
-    this.token = opts.token ?? env.META_WHATSAPP_TOKEN ?? '';
+    this.phoneId = opts.phoneId ?? env.META_WHATSAPP_PHONE_NUMBER_ID ?? '';
+    this.token = opts.token ?? env.META_WHATSAPP_ACCESS_TOKEN ?? '';
     this.appSecret = opts.appSecret ?? env.META_WHATSAPP_APP_SECRET ?? '';
     const version = opts.graphVersion ?? DEFAULT_GRAPH_VERSION;
     this.base = `https://graph.facebook.com/${version}/${this.phoneId}`;
@@ -177,7 +176,8 @@ export class MetaWhatsAppProvider implements WhatsAppProvider {
     if (!this.token || !this.phoneId) {
       throw new WhatsAppError({
         code: 'PROVIDER_AUTH',
-        message: 'Meta credentials missing — set META_WHATSAPP_PHONE_ID + META_WHATSAPP_TOKEN.',
+        message:
+          'Meta credentials missing — set META_WHATSAPP_PHONE_NUMBER_ID + META_WHATSAPP_ACCESS_TOKEN.',
         retryable: false,
         provider: 'meta',
       });

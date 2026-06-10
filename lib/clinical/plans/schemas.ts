@@ -1,3 +1,4 @@
+import { PlanStatus } from '@prisma/client';
 import { z } from 'zod';
 
 /**
@@ -56,3 +57,21 @@ export type PlanCreateInput = z.infer<typeof planCreateSchema>;
 export type PlanProposeInput = z.infer<typeof planProposeSchema>;
 export type PlanExerciseInput = z.infer<typeof planExerciseSchema>;
 export type PlanRejectInput = z.infer<typeof planRejectSchema>;
+
+export const PLAN_LIST_STATUS_VALUES = ['ALL', ...Object.values(PlanStatus)] as const;
+export type PlanListStatus = (typeof PLAN_LIST_STATUS_VALUES)[number];
+
+export const planListFiltersSchema = z.object({
+  status: z.enum(PLAN_LIST_STATUS_VALUES).default('ALL'),
+  search: z
+    .string()
+    .trim()
+    .max(100)
+    .transform((v) => (v.length === 0 ? null : v))
+    .nullable()
+    .default(null),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+});
+
+export type PlanListFiltersInput = z.infer<typeof planListFiltersSchema>;

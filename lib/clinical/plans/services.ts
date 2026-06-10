@@ -5,6 +5,7 @@ import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
 import { createNotification } from '@/lib/notifications/actions';
+import { addCareTeamMemberTx } from '@/lib/patients/assignment';
 
 import type { PlanCreateInput, PlanProposeInput } from './schemas';
 
@@ -129,6 +130,10 @@ export const createTreatmentPlan = withAudit<
           order: e.order,
         })),
       });
+      // FR-PAT-3: authoring a plan adds this doctor to the patient's care team
+      // so they appear in the doctor's "My patients" list / dashboard.
+      // Idempotent — never removes or replaces other members.
+      await addCareTeamMemberTx(tx, input.patientId, ctx.doctorId, ctx.doctorId);
       return created;
     });
 

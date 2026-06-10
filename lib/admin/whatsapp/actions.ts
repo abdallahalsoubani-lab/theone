@@ -15,8 +15,6 @@ interface UpdateTemplateInput {
   id: string;
   metaTemplateName: string | null;
   metaApprovalStatus: WaTemplateApprovalStatus;
-  twilioContentSid: string | null;
-  twilioApproved: boolean;
   active: boolean;
 }
 
@@ -42,8 +40,6 @@ const updateTemplateInner = withAudit<[UpdateTemplateInput], { id: string }>(
         metaTemplateName: input.metaTemplateName,
         metaApprovalStatus: input.metaApprovalStatus,
         metaApprovedAt: input.metaApprovalStatus === 'APPROVED' ? new Date() : null,
-        twilioContentSid: input.twilioContentSid,
-        twilioApproved: input.twilioApproved,
         active: input.active,
       },
     });

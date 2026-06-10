@@ -195,9 +195,6 @@ function FailureReason({ reason }: { reason: string | null }) {
   return (
     <div className="mt-1 space-y-0.5 text-xs">
       <div className="text-brand-text">{t(`failureReason.${code}`)}</div>
-      {code === 'TEMPLATE_SID_INVALID' ? (
-        <div className="text-brand-textMuted">{t('failureReason.TEMPLATE_SID_INVALID_HINT')}</div>
-      ) : null}
     </div>
   );
 }

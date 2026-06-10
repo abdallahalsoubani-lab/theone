@@ -65,7 +65,7 @@ export default async function StaffLayout({
       },
       {
         label: tNav('treatmentPlans'),
-        href: '/doctor/dashboard',
+        href: '/doctor/plans',
         icon: <ClipboardList className="size-4" />,
       },
       {

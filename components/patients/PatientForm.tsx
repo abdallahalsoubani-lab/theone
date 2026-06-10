@@ -7,10 +7,12 @@ import type { z } from 'zod';
 
 import { AppForm } from '@/components/forms/AppForm';
 import { SelectField, SwitchField, TextField, TextareaField } from '@/components/forms/FormFields';
+import { CareTeamEditor } from '@/components/patients/CareTeamEditor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { createPatientAction, updatePatientAction } from '@/lib/patients/actions';
+import type { ClinicianRef } from '@/lib/patients/assignment';
 import {
   patientCreateSchema,
   patientUpdateSchema,
@@ -19,6 +21,9 @@ import {
 
 interface CreateProps {
   mode: 'create';
+  /** Full clinician option lists for the care-team multi-select. */
+  therapists: ClinicianRef[];
+  doctors: ClinicianRef[];
 }
 
 interface EditProps {
@@ -56,6 +61,8 @@ export function PatientForm(props: Props) {
         medicalHistorySummary: null,
         allergies: null,
         currentMedications: null,
+        therapistIds: [],
+        doctorIds: [],
       };
   const defaultValues = isEdit ? { id: props.initial.id, ...defaults } : defaults;
 
@@ -209,6 +216,51 @@ export function PatientForm(props: Props) {
                 />
               </CardContent>
             </Card>
+
+            {props.mode === 'create' ? (
+              <Card>
+                <CardContent className="space-y-4 p-6">
+                  <h2 className="text-lg font-medium text-brand-navy">{t('sectionAssignment')}</h2>
+                  <p className="text-sm text-brand-textMuted">{t('assignmentHelp')}</p>
+                  <CareTeamEditor
+                    therapistOptions={props.therapists}
+                    doctorOptions={props.doctors}
+                    therapists={props.therapists.filter((c) =>
+                      (
+                        form.watch('therapistIds' as never) as unknown as string[] | undefined
+                      )?.includes(c.id),
+                    )}
+                    doctors={props.doctors.filter((c) =>
+                      (
+                        form.watch('doctorIds' as never) as unknown as string[] | undefined
+                      )?.includes(c.id),
+                    )}
+                    onAdd={(clinicianId) => {
+                      const isTherapist = props.therapists.some((c) => c.id === clinicianId);
+                      const field = isTherapist ? 'therapistIds' : 'doctorIds';
+                      const current =
+                        (form.getValues(field as never) as unknown as string[] | undefined) ?? [];
+                      if (!current.includes(clinicianId)) {
+                        form.setValue(field as never, [...current, clinicianId] as never, {
+                          shouldDirty: true,
+                        });
+                      }
+                    }}
+                    onRemove={(clinicianId) => {
+                      const isTherapist = props.therapists.some((c) => c.id === clinicianId);
+                      const field = isTherapist ? 'therapistIds' : 'doctorIds';
+                      const current =
+                        (form.getValues(field as never) as unknown as string[] | undefined) ?? [];
+                      form.setValue(
+                        field as never,
+                        current.filter((id) => id !== clinicianId) as never,
+                        { shouldDirty: true },
+                      );
+                    }}
+                  />
+                </CardContent>
+              </Card>
+            ) : null}
 
             <div className="flex items-center justify-end gap-2">
               <Button asChild variant="outline" type="button">

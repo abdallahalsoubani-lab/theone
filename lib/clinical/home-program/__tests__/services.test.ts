@@ -37,9 +37,9 @@ vi.mock('@/lib/db', () => {
       { id: 'ex-1', active: true, replacedById: null },
       { id: 'ex-archived', active: false, replacedById: null },
     ] as Array<{ id: string; active: boolean; replacedById: string | null }>,
-    profiles: [{ userId: 'patient-1', assignedTherapistId: 'therapist-1' }] as Array<{
-      userId: string;
-      assignedTherapistId: string;
+    careTeam: [{ patientId: 'patient-1', clinicianId: 'therapist-1' }] as Array<{
+      patientId: string;
+      clinicianId: string;
     }>,
     auditLogs: [] as Array<Record<string, unknown>>,
     counter: 0,
@@ -128,10 +128,19 @@ vi.mock('@/lib/db', () => {
             state.exercises.find((e) => e.id === where.id) ?? null,
         ),
       },
-      patientProfile: {
+      careTeamMember: {
         findUnique: vi.fn(
-          async ({ where }: { where: { userId: string } }) =>
-            state.profiles.find((p) => p.userId === where.userId) ?? null,
+          async ({
+            where,
+          }: {
+            where: { patientId_clinicianId: { patientId: string; clinicianId: string } };
+          }) => {
+            const { patientId, clinicianId } = where.patientId_clinicianId;
+            const m = state.careTeam.find(
+              (x) => x.patientId === patientId && x.clinicianId === clinicianId,
+            );
+            return m ? { id: 'ctm-1' } : null;
+          },
         ),
       },
       auditLog: {

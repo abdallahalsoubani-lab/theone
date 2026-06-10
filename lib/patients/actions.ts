@@ -6,6 +6,7 @@ import { auth } from '@/auth';
 import { AUTH_ERRORS, fail, ok, type Result } from '@/lib/auth/result';
 import { requirePermission } from '@/lib/rbac/guards';
 
+import { addCareTeamMember, removeCareTeamMember } from './assignment';
 import {
   createPatient,
   patientToLocalized,
@@ -34,10 +35,12 @@ export async function createPatientAction(input: PatientCreateInput): Promise<
   }>
 > {
   await requirePermission('patients.create');
+  const session = await auth();
+  if (!session?.user?.id) return fail(AUTH_ERRORS.UNAUTHENTICATED);
   const parsed = patientCreateSchema.safeParse(input);
   if (!parsed.success) return fail(patientToLocalized(parsed.error));
   try {
-    const data = await createPatient(parsed.data);
+    const data = await createPatient(parsed.data, session.user.id);
     revalidate();
     return ok({
       patientId: data.patientId,
@@ -58,6 +61,40 @@ export async function updatePatientAction(
   try {
     const data = await updatePatient(parsed.data);
     revalidate();
+    return ok(data);
+  } catch (err) {
+    return fail(patientToLocalized(err));
+  }
+}
+
+export async function addCareTeamMemberAction(
+  patientId: string,
+  clinicianId: string,
+): Promise<Result<{ patientId: string; clinicianId: string }>> {
+  await requirePermission('patients.update');
+  const session = await auth();
+  if (!session?.user?.id) return fail(AUTH_ERRORS.UNAUTHENTICATED);
+  try {
+    const member = await addCareTeamMember(patientId, clinicianId, session.user.id);
+    revalidate();
+    revalidatePath('/[locale]/(staff)/secretary/patients/[id]/edit', 'page');
+    return ok({ patientId: member.patientId, clinicianId: member.clinicianId });
+  } catch (err) {
+    return fail(patientToLocalized(err));
+  }
+}
+
+export async function removeCareTeamMemberAction(
+  patientId: string,
+  clinicianId: string,
+): Promise<Result<{ patientId: string; clinicianId: string }>> {
+  await requirePermission('patients.update');
+  const session = await auth();
+  if (!session?.user?.id) return fail(AUTH_ERRORS.UNAUTHENTICATED);
+  try {
+    const data = await removeCareTeamMember(patientId, clinicianId, session.user.id);
+    revalidate();
+    revalidatePath('/[locale]/(staff)/secretary/patients/[id]/edit', 'page');
     return ok(data);
   } catch (err) {
     return fail(patientToLocalized(err));

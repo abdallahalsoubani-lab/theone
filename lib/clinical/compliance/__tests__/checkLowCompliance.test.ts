@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/db', () => {
   const state = {
-    profiles: [] as Array<{
-      userId: string;
-      assignedTherapistId: string | null;
-      user: { fullNameEn: string; fullNameAr: string; deletedAt: Date | null };
+    // One row per (therapist → patient) care-team link, as the scan now reads.
+    members: [] as Array<{
+      clinicianId: string;
+      patientId: string;
+      patient: { user: { fullNameEn: string; deletedAt: Date | null } };
     }>,
     items: [] as Array<{
       id: string;
@@ -27,8 +28,8 @@ vi.mock('@/lib/db', () => {
   return {
     __state: state,
     db: {
-      patientProfile: {
-        findMany: vi.fn(async () => state.profiles),
+      careTeamMember: {
+        findMany: vi.fn(async () => state.members),
       },
       homeProgramItem: {
         findMany: vi.fn(async ({ where }: { where: { patientId: string; active: boolean } }) =>
@@ -99,10 +100,10 @@ import { runLowComplianceCheck } from '../checkLowCompliance';
 const state = (
   dbModule as unknown as {
     __state: {
-      profiles: Array<{
-        userId: string;
-        assignedTherapistId: string | null;
-        user: { fullNameEn: string; fullNameAr: string; deletedAt: Date | null };
+      members: Array<{
+        clinicianId: string;
+        patientId: string;
+        patient: { user: { fullNameEn: string; deletedAt: Date | null } };
       }>;
       items: Array<{
         id: string;
@@ -132,7 +133,7 @@ function daysAgo(n: number): Date {
 }
 
 beforeEach(() => {
-  state.profiles.length = 0;
+  state.members.length = 0;
   state.items.length = 0;
   state.completions.length = 0;
   state.notifications.length = 0;
@@ -140,10 +141,10 @@ beforeEach(() => {
 });
 
 function seedLowCompliancePatient() {
-  state.profiles.push({
-    userId: 'patient-low',
-    assignedTherapistId: 'therapist-1',
-    user: { fullNameEn: 'Patient Low', fullNameAr: 'مريض', deletedAt: null },
+  state.members.push({
+    clinicianId: 'therapist-1',
+    patientId: 'patient-low',
+    patient: { user: { fullNameEn: 'Patient Low', deletedAt: null } },
   });
   // Daily item with no completions → rate 0.
   state.items.push({
@@ -170,10 +171,10 @@ describe('runLowComplianceCheck', () => {
   });
 
   it('skips when 7-day rate is at the threshold or above', async () => {
-    state.profiles.push({
-      userId: 'patient-ok',
-      assignedTherapistId: 'therapist-1',
-      user: { fullNameEn: 'Patient OK', fullNameAr: 'مريض', deletedAt: null },
+    state.members.push({
+      clinicianId: 'therapist-1',
+      patientId: 'patient-ok',
+      patient: { user: { fullNameEn: 'Patient OK', deletedAt: null } },
     });
     state.items.push({
       id: 'i-ok',
@@ -191,10 +192,10 @@ describe('runLowComplianceCheck', () => {
   });
 
   it('skips when rate is null (no active items)', async () => {
-    state.profiles.push({
-      userId: 'patient-no-program',
-      assignedTherapistId: 'therapist-1',
-      user: { fullNameEn: 'No program', fullNameAr: 'بدون', deletedAt: null },
+    state.members.push({
+      clinicianId: 'therapist-1',
+      patientId: 'patient-no-program',
+      patient: { user: { fullNameEn: 'No program', deletedAt: null } },
     });
     const r = await runLowComplianceCheck({ now: FIXED_NOW });
     expect(r.notificationsCreated).toBe(0);
@@ -232,10 +233,10 @@ describe('runLowComplianceCheck', () => {
   });
 
   it('skips soft-deleted patients', async () => {
-    state.profiles.push({
-      userId: 'patient-deleted',
-      assignedTherapistId: 'therapist-1',
-      user: { fullNameEn: 'Deleted', fullNameAr: '', deletedAt: new Date() },
+    state.members.push({
+      clinicianId: 'therapist-1',
+      patientId: 'patient-deleted',
+      patient: { user: { fullNameEn: 'Deleted', deletedAt: new Date() } },
     });
     state.items.push({
       id: 'i-d',
@@ -248,13 +249,11 @@ describe('runLowComplianceCheck', () => {
     expect(r.patientsChecked).toBe(0);
   });
 
-  it('skips patients without an assigned therapist', async () => {
-    state.profiles.push({
-      userId: 'patient-no-therapist',
-      assignedTherapistId: null,
-      user: { fullNameEn: 'Orphan', fullNameAr: '', deletedAt: null },
-    });
+  it('skips patients with no therapist on the care team', async () => {
+    // A patient with no THERAPIST care-team link produces no membership row,
+    // so the scan never sees them.
     const r = await runLowComplianceCheck({ now: FIXED_NOW });
+    expect(r.patientsChecked).toBe(0);
     expect(r.notificationsCreated).toBe(0);
   });
 });

@@ -40,6 +40,11 @@ export async function generateMetadata({
   return {
     title: { default: t('appName'), template: `%s · ${t('appName')}` },
     icons: { icon: '/logo.svg' },
+    verification: {
+      other: {
+        'facebook-domain-verification': '553n2qaortqj1fsudi3bte5fthrz5',
+      },
+    },
   };
 }
 

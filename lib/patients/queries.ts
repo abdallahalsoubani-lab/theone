@@ -1,8 +1,20 @@
-import { UserRole, type Gender, type LanguagePref, type Prisma } from '@prisma/client';
+import {
+  CareTeamRole,
+  UserRole,
+  type Gender,
+  type LanguagePref,
+  type Prisma,
+} from '@prisma/client';
 
 import { db } from '@/lib/db';
 
+import { type CareTeam, type ClinicianRef } from './assignment';
 import { computeAgeYears, isPediatric, type PatientListFilters } from './schemas';
+
+// Re-export so the patient-file gate and can() resource check keep importing
+// the assignment check from one place (`@/lib/patients/queries`) even though
+// the implementation now lives in the care-team module.
+export { isClinicianAssignedTo } from './assignment';
 
 export interface PatientListRow {
   id: string;
@@ -15,10 +27,21 @@ export interface PatientListRow {
   gender: Gender;
   languagePref: LanguagePref;
   archived: boolean;
-  assignedTherapist: { id: string; fullNameEn: string; fullNameAr: string } | null;
-  responsibleDoctor: { id: string; fullNameEn: string; fullNameAr: string } | null;
+  therapists: ClinicianRef[];
+  doctors: ClinicianRef[];
   intakeCount: number;
   hasCompletedIntake: boolean;
+}
+
+const careTeamInclude = {
+  select: { role: true, clinician: { select: { id: true, fullNameEn: true, fullNameAr: true } } },
+} as const;
+
+function splitCareTeam(members: Array<{ role: CareTeamRole; clinician: ClinicianRef }>): CareTeam {
+  return {
+    therapists: members.filter((m) => m.role === CareTeamRole.THERAPIST).map((m) => m.clinician),
+    doctors: members.filter((m) => m.role === CareTeamRole.DOCTOR).map((m) => m.clinician),
+  };
 }
 
 export type PatientScope =
@@ -40,10 +63,7 @@ export async function listPatients({
     ...(scope.kind === 'assigned'
       ? {
           patientProfile: {
-            OR: [
-              { assignedTherapistId: scope.clinicianId },
-              { responsibleDoctorId: scope.clinicianId },
-            ],
+            careTeam: { some: { clinicianId: scope.clinicianId } },
           },
         }
       : {}),
@@ -58,12 +78,8 @@ export async function listPatients({
         }
       : {}),
     ...(filters.language ? { languagePref: filters.language } : {}),
-    ...(filters.assignment === 'assigned'
-      ? { patientProfile: { assignedTherapistId: { not: null } } }
-      : {}),
-    ...(filters.assignment === 'unassigned'
-      ? { patientProfile: { assignedTherapistId: null } }
-      : {}),
+    ...(filters.assignment === 'assigned' ? { patientProfile: { careTeam: { some: {} } } } : {}),
+    ...(filters.assignment === 'unassigned' ? { patientProfile: { careTeam: { none: {} } } } : {}),
   };
 
   const [users, total] = await Promise.all([
@@ -75,8 +91,7 @@ export async function listPatients({
       include: {
         patientProfile: {
           include: {
-            assignedTherapist: { select: { id: true, fullNameEn: true, fullNameAr: true } },
-            responsibleDoctor: { select: { id: true, fullNameEn: true, fullNameAr: true } },
+            careTeam: careTeamInclude,
           },
         },
         intakesAsPatient: {
@@ -93,6 +108,7 @@ export async function listPatients({
       const profile = u.patientProfile!;
       const ageYears = computeAgeYears(profile.dateOfBirth);
       const hasCompleted = u.intakesAsPatient.some((i) => i.status !== 'IN_PROGRESS');
+      const careTeam = splitCareTeam(profile.careTeam);
       return {
         id: u.id,
         fullNameEn: u.fullNameEn,
@@ -104,8 +120,8 @@ export async function listPatients({
         gender: profile.gender,
         languagePref: u.languagePref,
         archived: u.deletedAt !== null,
-        assignedTherapist: profile.assignedTherapist,
-        responsibleDoctor: profile.responsibleDoctor,
+        therapists: careTeam.therapists,
+        doctors: careTeam.doctors,
         intakeCount: u.intakesAsPatient.length,
         hasCompletedIntake: hasCompleted,
       };
@@ -136,8 +152,7 @@ export async function getPatientById(id: string) {
     include: {
       patientProfile: {
         include: {
-          assignedTherapist: { select: { id: true, fullNameEn: true, fullNameAr: true } },
-          responsibleDoctor: { select: { id: true, fullNameEn: true, fullNameAr: true } },
+          careTeam: careTeamInclude,
         },
       },
     },
@@ -165,8 +180,7 @@ export interface PatientFileData {
   languagePref: 'EN' | 'AR';
   archived: boolean;
   mustChangePassword: boolean;
-  assignedTherapist: { id: string; fullNameEn: string; fullNameAr: string } | null;
-  responsibleDoctor: { id: string; fullNameEn: string; fullNameAr: string } | null;
+  careTeam: CareTeam;
   whatsappReachable: boolean;
   whatsappLastFailureAt: Date | null;
   whatsappLastFailureReason: string | null;
@@ -209,28 +223,10 @@ export async function getPatientFile(id: string): Promise<PatientFileData | null
     languagePref: u.languagePref,
     archived: u.deletedAt !== null,
     mustChangePassword: u.mustChangePassword,
-    assignedTherapist: p.assignedTherapist,
-    responsibleDoctor: p.responsibleDoctor,
+    careTeam: splitCareTeam(p.careTeam),
     whatsappReachable: u.whatsappReachable,
     whatsappLastFailureAt: u.whatsappLastFailureAt,
     whatsappLastFailureReason: u.whatsappLastFailureReason,
     whatsappLastDeliveryAt: lastDelivered?.deliveredAt ?? lastDelivered?.sentAt ?? null,
   };
-}
-
-/**
- * For Doctor / Therapist scope: returns true when the actor is assigned to
- * the patient (as primary therapist or responsible doctor) — used by the
- * patient-file gate and the can() resource check.
- */
-export async function isClinicianAssignedTo(
-  clinicianId: string,
-  patientId: string,
-): Promise<boolean> {
-  const profile = await db.patientProfile.findUnique({
-    where: { userId: patientId },
-    select: { assignedTherapistId: true, responsibleDoctorId: true },
-  });
-  if (!profile) return false;
-  return profile.assignedTherapistId === clinicianId || profile.responsibleDoctorId === clinicianId;
 }

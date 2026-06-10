@@ -31,6 +31,7 @@ export function PatientProfileTab({
 }: Props) {
   const t = useTranslations('patients.form');
   const tFile = useTranslations('patients.file');
+  const tCareTeam = useTranslations('patients.careTeam');
 
   return (
     <div className="space-y-4">
@@ -68,6 +69,31 @@ export function PatientProfileTab({
             label={t('emergencyContactPhone')}
             value={
               patient.emergencyContactPhone ? formatPhone(patient.emergencyContactPhone) : null
+            }
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
+          <Field
+            label={tCareTeam('therapists')}
+            value={
+              patient.careTeam.therapists.length
+                ? patient.careTeam.therapists
+                    .map((c) => (locale === 'ar' ? c.fullNameAr : c.fullNameEn))
+                    .join('، ')
+                : null
+            }
+          />
+          <Field
+            label={tCareTeam('doctors')}
+            value={
+              patient.careTeam.doctors.length
+                ? patient.careTeam.doctors
+                    .map((c) => (locale === 'ar' ? c.fullNameAr : c.fullNameEn))
+                    .join('، ')
+                : null
             }
           />
         </CardContent>

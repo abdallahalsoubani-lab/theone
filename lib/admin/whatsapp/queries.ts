@@ -12,8 +12,6 @@ export interface TemplateListRow {
   metaTemplateName: string | null;
   metaApprovalStatus: string;
   metaApprovedAt: Date | null;
-  twilioContentSid: string | null;
-  twilioApproved: boolean;
   updatedAt: Date;
 }
 
@@ -31,8 +29,6 @@ export async function listTemplates(): Promise<TemplateListRow[]> {
     metaTemplateName: r.metaTemplateName,
     metaApprovalStatus: r.metaApprovalStatus,
     metaApprovedAt: r.metaApprovedAt,
-    twilioContentSid: r.twilioContentSid,
-    twilioApproved: r.twilioApproved,
     updatedAt: r.updatedAt,
   }));
 }

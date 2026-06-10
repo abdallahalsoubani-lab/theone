@@ -43,6 +43,12 @@ export const patientCreateSchema = z.object({
   medicalHistorySummary: z.string().max(2000).optional().or(z.literal('')).nullable(),
   allergies: z.string().max(1000).optional().or(z.literal('')).nullable(),
   currentMedications: z.string().max(1000).optional().or(z.literal('')).nullable(),
+  // Initial care team (Prompt 14). Any number of therapists + doctors chosen
+  // on the create form; role validity is enforced in lib/patients/assignment.ts
+  // (it requires a DB lookup). On edit the care team is managed by the live
+  // care-team card, not this schema.
+  therapistIds: z.array(z.string()).optional(),
+  doctorIds: z.array(z.string()).optional(),
 });
 
 export const patientUpdateSchema = patientCreateSchema.extend({

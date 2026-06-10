@@ -49,8 +49,10 @@ interface AppointmentEvent extends RbcEvent {
   start: Date;
   end: Date;
   resourceId: string;
-  status: CalendarAppointment['status'];
-  appointment: CalendarAppointment;
+  status?: CalendarAppointment['status'];
+  // Optional because backgroundEvents (leave overlays) share this type
+  // but carry no underlying appointment.
+  appointment?: CalendarAppointment;
 }
 
 /**
@@ -234,9 +236,9 @@ export function SecretaryCalendar({
           }}
           eventPropGetter={(event) => {
             const base: { className: string; style?: React.CSSProperties } = {
-              className: `rbc-event-status-${event.status}`,
+              className: `rbc-event-status-${event.status ?? 'leave'}`,
             };
-            if (TINT_STATUSES.has(event.status)) {
+            if (event.status && TINT_STATUSES.has(event.status)) {
               const tint = therapistTint(event.resourceId);
               base.style = {
                 backgroundColor: tint.bg,
@@ -278,6 +280,16 @@ export function SecretaryCalendar({
 
 function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
   const locale = useLocale();
+  // react-big-calendar reuses `components.event` for backgroundEvents too,
+  // which are leave overlays without an `appointment` field — render just
+  // the title for those.
+  if (!event.appointment) {
+    return (
+      <div className="flex h-full items-center px-2 text-[11px] font-medium opacity-80">
+        <span className="truncate">{event.title}</span>
+      </div>
+    );
+  }
   const startLabel = `${pad(event.start.getHours())}:${pad(event.start.getMinutes())}`;
   const endLabel = `${pad(event.end.getHours())}:${pad(event.end.getMinutes())}`;
   const therapist =

@@ -108,8 +108,12 @@ export async function loadFixtures(db: PrismaClient): Promise<FixtureIds> {
       userId: ids.patient,
       dateOfBirth: new Date('1990-01-01'),
       gender: 'FEMALE',
-      assignedTherapistId: ids.therapist,
-      responsibleDoctorId: ids.doctor,
+      careTeam: {
+        create: [
+          { clinicianId: ids.therapist, role: 'THERAPIST', assignedBy: ids.admin },
+          { clinicianId: ids.doctor, role: 'DOCTOR', assignedBy: ids.admin },
+        ],
+      },
     },
   });
 

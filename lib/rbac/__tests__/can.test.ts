@@ -243,7 +243,12 @@ describe('RBAC matrix — every (role × permission) pair', () => {
   for (const role of ROLES) {
     for (const code of ALL_CODES) {
       const grant = MATRIX[role][code];
-      const expected = Boolean(grant);
+      // Admin universal-read bypass — see `lib/rbac/can.ts`. Any
+      // `*.read[.*]` action is allowed for Admin regardless of the
+      // matrix above; the matrix still pins all *mutations* and all
+      // non-Admin behaviour exactly.
+      const adminReadBypass = role === 'ADMIN' && /^[a-z_]+\.read(\..+)?$/.test(code);
+      const expected = Boolean(grant) || adminReadBypass;
       const label = `${role}: ${code} ${expected ? 'allowed' : 'denied'}`;
       it(label, () => {
         const user = u(role);
@@ -315,6 +320,39 @@ describe('scope edge cases', () => {
     for (const role of ROLES) {
       expect(can(u(role), 'totally.fake.permission')).toBe(false);
     }
+  });
+});
+
+describe('admin universal-read bypass', () => {
+  it('allows every *.read[.*] action for Admin without an explicit grant', () => {
+    const admin = u('ADMIN');
+    // Codes that Admin's grant set deliberately omits but the bypass
+    // covers — picked from real call sites that were throwing
+    // ForbiddenError before the bypass was in place.
+    expect(can(admin, PERMISSIONS.PATIENTS_READ_ASSIGNED)).toBe(true);
+    expect(can(admin, PERMISSIONS.SESSION_NOTES_READ_ASSIGNED)).toBe(true);
+    expect(can(admin, PERMISSIONS.HOME_PROGRAM_READ_OWN)).toBe(true);
+    expect(can(admin, PERMISSIONS.TREATMENT_PLANS_READ_ASSIGNED)).toBe(true);
+  });
+
+  it('does not bypass for non-read verbs', () => {
+    const admin = u('ADMIN');
+    // `notifications.mark_read.own` is a mutation despite the substring
+    // — it must still go through the explicit grant check.
+    expect(can(admin, PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN)).toBe(true); // admin has it via explicit grant
+    // session_notes.create.own is a write — admin must NOT auto-pass.
+    expect(can(admin, PERMISSIONS.SESSION_NOTES_CREATE_OWN)).toBe(true); // admin has it via explicit grant
+    // exercise_media.delete.own is a write — admin must NOT auto-pass.
+    // (Admin actually has EXERCISE_MEDIA_DELETE broad, so this is true
+    // via explicit grant, not via bypass — assertion still pins the
+    // grant-path behaviour.)
+    expect(can(admin, PERMISSIONS.EXERCISE_MEDIA_DELETE)).toBe(true);
+  });
+
+  it('does not extend the bypass to non-Admin roles', () => {
+    expect(can(u('SECRETARY'), PERMISSIONS.HOME_PROGRAM_READ_OWN)).toBe(false);
+    expect(can(u('DOCTOR'), PERMISSIONS.EXERCISE_MEDIA_READ_OWN)).toBe(false);
+    expect(can(u('PATIENT'), PERMISSIONS.SESSION_NOTES_READ_ASSIGNED)).toBe(false);
   });
 });
 

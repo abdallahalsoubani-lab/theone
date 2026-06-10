@@ -5,6 +5,7 @@ import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
 import { env } from '@/lib/env';
+import { isClinicianAssignedTo } from '@/lib/patients/assignment';
 import {
   registerHomeReminderJob,
   removeHomeReminderJob,
@@ -79,11 +80,8 @@ async function ensureClinicalActorCanManage(args: {
   if (!session?.user) throw new HomeProgramError(unauthenticated);
   if (session.user.role === UserRole.ADMIN || session.user.role === UserRole.DOCTOR) return;
   if (session.user.role === UserRole.THERAPIST) {
-    const profile = await db.patientProfile.findUnique({
-      where: { userId: args.patientId },
-      select: { assignedTherapistId: true },
-    });
-    if (profile?.assignedTherapistId !== args.actorId) {
+    const onCareTeam = await isClinicianAssignedTo(args.actorId, args.patientId);
+    if (!onCareTeam) {
       throw new HomeProgramError(forbidden);
     }
     return;

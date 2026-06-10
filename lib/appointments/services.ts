@@ -106,10 +106,10 @@ export const createAppointment = withAudit<
       reminderOffsetMinutes: offset,
     });
 
-    // Best-effort confirmation send via the `appointment_confirmation`
+    // Best-effort confirmation send via the `appointment_confirmation_v2`
     // template seeded in Prompt 2. Mirrors the cancel-side fan-out in
     // shape and failure tolerance: enqueue is fire-and-forget so a
-    // WhatsApp / Twilio outage cannot break the booking flow. The
+    // WhatsApp outage cannot break the booking flow. The
     // template takes four placeholders: {patientName, therapistName,
     // date, time}. Skip when the patient is flagged unreachable —
     // re-enabled automatically on the next successful delivery
@@ -139,7 +139,7 @@ export const createAppointment = withAudit<
         patient.languagePref === 'AR' ? therapist.fullNameAr : therapist.fullNameEn;
       void enqueueWhatsappOutbound({
         kind: 'template',
-        templateName: 'appointment_confirmation',
+        templateName: 'appointment_confirmation_v2',
         language: patient.languagePref,
         parameters: [patientName, therapistName, dateStr, timeStr],
         recipientPhone: patient.phone,
@@ -476,7 +476,7 @@ export const cancelAppointment = withAudit<
       const timeStr = existing.startsAt.toISOString().slice(11, 16);
       void enqueueWhatsappOutbound({
         kind: 'template',
-        templateName: 'appointment_cancelled',
+        templateName: 'appointment_cancelled_v2',
         language: existing.patient.languagePref,
         parameters: [
           dateStr,
@@ -615,7 +615,7 @@ export const cancelAppointmentSeries = withAudit<
         const timeStr = row.startsAt.toISOString().slice(11, 16);
         void enqueueWhatsappOutbound({
           kind: 'template',
-          templateName: 'appointment_cancelled',
+          templateName: 'appointment_cancelled_v2',
           language: row.patient.languagePref,
           parameters: [
             dateStr,

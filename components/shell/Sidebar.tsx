@@ -40,7 +40,7 @@ export function Sidebar({ links }: { links: ReadonlyArray<NavLink> }) {
             const active = pathname === link.href || pathname.startsWith(`${link.href}/`);
             return (
               <Link
-                key={link.href}
+                key={`${link.label}:${link.href}`}
                 href={link.href}
                 className={cn(
                   'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150',

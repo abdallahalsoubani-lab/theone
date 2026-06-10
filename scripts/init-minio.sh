@@ -55,8 +55,9 @@ echo "[init-minio] ensuring bucket '${BUCKET}' exists + applying exercises/* rea
 docker run --rm --network host \
   -v "${POLICY_FILE}:/policy.json:ro" \
   -e MC_HOST_local="http://${ACCESS_KEY}:${SECRET_KEY}@${ENDPOINT#http://}" \
+  --entrypoint /bin/sh \
   minio/mc:latest \
-  sh -c "mc mb --ignore-existing local/${BUCKET} && (mc anonymous set-json /policy.json local/${BUCKET} >/dev/null 2>&1 || mc anonymous set download local/${BUCKET} >/dev/null 2>&1 || true)"
+  -c "mc mb --ignore-existing local/${BUCKET} && (mc anonymous set-json /policy.json local/${BUCKET} >/dev/null 2>&1 || mc anonymous set download local/${BUCKET} >/dev/null 2>&1 || true)"
 
 rm -f "${POLICY_FILE}"
 echo "[init-minio] done"

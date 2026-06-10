@@ -74,13 +74,22 @@ DROP TYPE IF EXISTS "HomeProgramFrequency";
 ALTER TABLE "HomeProgramItem"
     ALTER COLUMN "daysOfWeek" DROP DEFAULT;
 
--- Length 1-7, values 0-6, no duplicates. Enforced at write time so a
--- broken schedule can't slip in through a server bug or a manual
--- ALTER from the DB CLI.
+-- Length 1-7, values 0-6, no duplicates. PostgreSQL rejects subqueries
+-- inside CHECK constraints (SQLSTATE 0A000), so validation lives in an
+-- immutable SQL function the constraint calls instead.
+CREATE OR REPLACE FUNCTION home_program_days_of_week_valid(days integer[])
+RETURNS boolean
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT
+    array_length(days, 1) BETWEEN 1 AND 7
+    AND days <@ ARRAY[0, 1, 2, 3, 4, 5, 6]::integer[]
+    AND array_length(days, 1) = (
+      SELECT count(DISTINCT d) FROM unnest(days) AS d
+    );
+$$;
+
 ALTER TABLE "HomeProgramItem"
     ADD CONSTRAINT "home_program_items_days_of_week_check"
-    CHECK (
-        array_length("daysOfWeek", 1) BETWEEN 1 AND 7
-        AND "daysOfWeek" <@ ARRAY[0,1,2,3,4,5,6]
-        AND "daysOfWeek" = (SELECT array_agg(DISTINCT d ORDER BY d) FROM unnest("daysOfWeek") d)
-    );
+    CHECK (home_program_days_of_week_valid("daysOfWeek"));

@@ -6,6 +6,7 @@ import { hashPassword } from '@/lib/auth/password';
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
 import { sendPatientCredentials } from '@/lib/whatsapp/templates/sendCredentials';
 
+import { addCareTeamMemberTx, PatientAssignmentError } from './assignment';
 import type { PatientCreateInput, PatientSelfEditInput, PatientUpdateInput } from './schemas';
 
 export class PatientAdminError extends Error {
@@ -41,7 +42,7 @@ interface CreatePatientResult {
   whatsappError?: string;
 }
 
-export const createPatient = withAudit<[PatientCreateInput], CreatePatientResult>(
+export const createPatient = withAudit<[PatientCreateInput, string], CreatePatientResult>(
   {
     entityType: 'User',
     action: AuditAction.CREATE,
@@ -52,7 +53,10 @@ export const createPatient = withAudit<[PatientCreateInput], CreatePatientResult
       whatsappStatus: result.whatsappStatus,
     }),
   },
-  async function createPatientInner(input: PatientCreateInput): Promise<CreatePatientResult> {
+  async function createPatientInner(
+    input: PatientCreateInput,
+    actorId: string,
+  ): Promise<CreatePatientResult> {
     // Pre-check identifier uniqueness scoped to non-deleted rows for friendly errors.
     const conflicts = await db.user.findMany({
       where: {
@@ -100,6 +104,15 @@ export const createPatient = withAudit<[PatientCreateInput], CreatePatientResult
           hijriCalendarPref: input.hijriCalendarPref,
         },
       });
+      // Seed the initial care team in the same transaction. Each id is
+      // role-validated by addCareTeamMemberTx; the whole create rolls back if
+      // an invalid clinician is supplied. Covered by this CREATE audit row.
+      for (const therapistId of input.therapistIds ?? []) {
+        await addCareTeamMemberTx(tx, user.id, therapistId, actorId);
+      }
+      for (const doctorId of input.doctorIds ?? []) {
+        await addCareTeamMemberTx(tx, user.id, doctorId, actorId);
+      }
       return user;
     });
 
@@ -167,6 +180,8 @@ export const updatePatient = withAudit<[PatientUpdateInput], { patientId: string
       }
     }
 
+    // Care-team membership is managed separately via the live care-team card
+    // (addCareTeamMember / removeCareTeamMember) so it is not touched here.
     await db.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: input.id },
@@ -292,5 +307,6 @@ export const resetPatientPassword = withAudit<[string], ResetPasswordResult>(
 
 export function patientToLocalized(err: unknown): LocalizedError {
   if (err instanceof PatientAdminError) return err.error;
+  if (err instanceof PatientAssignmentError) return err.error;
   return toLocalizedError(err);
 }

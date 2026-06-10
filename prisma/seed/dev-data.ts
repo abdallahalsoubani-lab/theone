@@ -48,6 +48,16 @@ type StaffIds = {
   therapists: { ahmad: string; layan: string; omar: string };
 };
 
+/**
+ * Staff accounts only — for VM / staging deploys that need real logins without
+ * demo patients, appointments, or clinical fixtures. Requires reference seed
+ * (specialties) first.
+ */
+export async function seedStaffOnly(db: PrismaClient): Promise<void> {
+  const specialties = await loadSpecialties(db);
+  await seedStaff(db, specialties);
+}
+
 export async function seedDevData(db: PrismaClient): Promise<void> {
   const specialties = await loadSpecialties(db);
   const staff = await seedStaff(db, specialties);
@@ -323,26 +333,45 @@ async function seedPatients(db: PrismaClient, staff: StaffIds) {
         mustChangePassword: true,
       },
     });
-    const assignedTherapistId = p.isPediatric
-      ? staff.therapists.layan
-      : [staff.therapists.ahmad, staff.therapists.omar][PATIENT_DEFS.indexOf(p) % 2]!;
     await db.patientProfile.upsert({
       where: { userId: p.id },
       update: {
         dateOfBirth: p.dateOfBirth,
         gender: p.gender,
-        assignedTherapistId,
-        responsibleDoctorId: staff.doctor,
       },
       create: {
         userId: p.id,
         dateOfBirth: p.dateOfBirth,
         gender: p.gender,
         address: 'Amman, Jordan',
-        assignedTherapistId,
-        responsibleDoctorId: staff.doctor,
       },
     });
+
+    // Care team (Prompt 14): one therapist + the doctor for everyone, plus a
+    // second therapist on the first adult patient to exercise the M2M model.
+    const patientIndex = PATIENT_DEFS.indexOf(p);
+    const primaryTherapist = p.isPediatric
+      ? staff.therapists.layan
+      : [staff.therapists.ahmad, staff.therapists.omar][patientIndex % 2]!;
+    const careTeam: Array<{ clinicianId: string; role: 'THERAPIST' | 'DOCTOR' }> = [
+      { clinicianId: primaryTherapist, role: 'THERAPIST' },
+      { clinicianId: staff.doctor, role: 'DOCTOR' },
+    ];
+    if (!p.isPediatric && patientIndex === 0) {
+      careTeam.push({ clinicianId: staff.therapists.layan, role: 'THERAPIST' });
+    }
+    for (const member of careTeam) {
+      await db.careTeamMember.upsert({
+        where: { patientId_clinicianId: { patientId: p.id, clinicianId: member.clinicianId } },
+        update: {},
+        create: {
+          patientId: p.id,
+          clinicianId: member.clinicianId,
+          role: member.role,
+          assignedBy: staff.admin,
+        },
+      });
+    }
   }
   return PATIENT_DEFS;
 }

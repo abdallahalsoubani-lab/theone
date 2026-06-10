@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { PlanStatus } from '@prisma/client';
+import { PlanStatus, type Prisma } from '@prisma/client';
 
 import { db } from '@/lib/db';
 
@@ -177,4 +177,102 @@ export async function listPendingProposalsForDoctor(doctorId: string): Promise<P
     select: planSelect(),
   });
   return rows.map(shape);
+}
+
+export interface PlanListRow {
+  id: string;
+  patientId: string;
+  patientFullNameEn: string;
+  patientFullNameAr: string;
+  diagnosisPrimary: string;
+  status: PlanStatus;
+  version: number;
+  frequencyPerWeek: number;
+  durationWeeks: number;
+  createdAt: Date;
+  approvedAt: Date | null;
+  proposalReason: string | null;
+}
+
+export interface PlanListResult {
+  rows: PlanListRow[];
+  total: number;
+  countsByStatus: Record<PlanStatus, number>;
+}
+
+/**
+ * Paged, filterable plan list scoped to one doctor (own authored plans).
+ * Powers /doctor/plans — the index view that complements the per-plan
+ * detail page and the dashboard's pending-proposal widget.
+ */
+export async function listPlansForDoctor(args: {
+  doctorId: string;
+  filters: {
+    status: PlanStatus | 'ALL';
+    search: string | null;
+    page: number;
+    pageSize: number;
+  };
+}): Promise<PlanListResult> {
+  const { doctorId, filters } = args;
+  const where: Prisma.TreatmentPlanWhereInput = { doctorId };
+  if (filters.status !== 'ALL') where.status = filters.status;
+  if (filters.search) {
+    where.patient = {
+      OR: [
+        { fullNameEn: { contains: filters.search, mode: 'insensitive' } },
+        { fullNameAr: { contains: filters.search } },
+      ],
+    };
+  }
+  const [rows, total, counts] = await Promise.all([
+    db.treatmentPlan.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      skip: (filters.page - 1) * filters.pageSize,
+      take: filters.pageSize,
+      select: {
+        id: true,
+        patientId: true,
+        diagnosisPrimary: true,
+        status: true,
+        version: true,
+        frequencyPerWeek: true,
+        durationWeeks: true,
+        createdAt: true,
+        approvedAt: true,
+        proposalReason: true,
+        patient: { select: { fullNameEn: true, fullNameAr: true } },
+      },
+    }),
+    db.treatmentPlan.count({ where }),
+    db.treatmentPlan.groupBy({
+      by: ['status'],
+      where: { doctorId },
+      _count: { _all: true },
+    }),
+  ]);
+  const countsByStatus = Object.fromEntries(Object.values(PlanStatus).map((s) => [s, 0])) as Record<
+    PlanStatus,
+    number
+  >;
+  for (const c of counts) countsByStatus[c.status] = c._count._all;
+  return {
+    rows: rows.map((r) => ({
+      id: r.id,
+      patientId: r.patientId,
+      patientFullNameEn: r.patient.fullNameEn,
+      patientFullNameAr: r.patient.fullNameAr,
+      diagnosisPrimary: r.diagnosisPrimary,
+      status: r.status,
+      version: r.version,
+      frequencyPerWeek: r.frequencyPerWeek,
+      durationWeeks: r.durationWeeks,
+      createdAt: r.createdAt,
+      approvedAt: r.approvedAt,
+      proposalReason: r.proposalReason,
+    })),
+    total,
+    countsByStatus,
+  };
 }
