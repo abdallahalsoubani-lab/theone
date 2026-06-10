@@ -7,8 +7,9 @@
  * only one Redis connection.
  *
  * Job lifecycle:
- *   1. enqueueAppointmentReminder schedules a delayed job at
- *      (startsAt - reminderOffsetMinutes)
+ *   1. enqueueAppointmentReminder schedules ONE delayed job (Prompt 17): the
+ *      appointment start minus the configured offset (default 24h), clamped to
+ *      the clinic's 08:00–18:00 local reminder window.
  *   2. When the delay elapses, this worker fires
  *   3. The handler re-reads the appointment from the DB to confirm it's
  *      still active (SCHEDULED or CONFIRMED) — terminal/cancelled

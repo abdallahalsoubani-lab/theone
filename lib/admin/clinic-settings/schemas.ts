@@ -54,6 +54,8 @@ export const clinicSettingsUpdateSchema = z.object({
     .int()
     .min(5)
     .max(60 * 24),
+  reminderWindowStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:MM'),
+  reminderWindowEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:MM'),
   defaultLanguage: z.nativeEnum(LanguagePref),
   hijriDefault: z.boolean(),
   patientCanViewClinicalNotes: z.boolean(),

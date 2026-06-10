@@ -32,6 +32,8 @@ export default async function ClinicSettingsPage({
           addressAr: settings.addressAr,
           defaultAppointmentDuration: settings.defaultAppointmentDuration,
           defaultReminderOffsetMinutes: settings.defaultReminderOffsetMinutes,
+          reminderWindowStart: settings.reminderWindowStart,
+          reminderWindowEnd: settings.reminderWindowEnd,
           defaultLanguage: settings.defaultLanguage,
           hijriDefault: settings.hijriDefault,
           patientCanViewClinicalNotes: settings.patientCanViewClinicalNotes,

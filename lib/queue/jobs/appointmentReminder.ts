@@ -1,3 +1,5 @@
+import { computeReminderFireAt, type ReminderConfig } from '@/lib/appointments/reminderWindow';
+
 import { reminderQueue } from '../queues';
 
 /**
@@ -20,18 +22,25 @@ export interface AppointmentReminderJob {
 }
 
 /**
- * Enqueue a delayed reminder. Returns null when the fire time is already in
- * the past — caller should treat that as "no reminder scheduled" rather than
- * an error (typical when scheduling an imminent appointment).
+ * Enqueue the single 24h-window reminder (Prompt 17). The fire time is the
+ * appointment start minus the configured offset, clamped to the clinic's
+ * [windowStart, windowEnd] local window (and shifted to the next opening for
+ * late bookings). Returns null when no reminder can fit before the appointment
+ * starts — caller treats that as "no reminder scheduled" (and may log a skip).
  */
 export async function enqueueAppointmentReminder(args: {
   appointmentId: string;
   startsAt: Date;
-  reminderOffsetMinutes: number;
+  config: ReminderConfig;
 }): Promise<string | null> {
-  const fireAt = args.startsAt.getTime() - args.reminderOffsetMinutes * 60_000;
-  const delay = fireAt - Date.now();
-  if (delay <= 0) return null;
+  const fireAt = computeReminderFireAt({
+    startsAt: args.startsAt,
+    now: new Date(),
+    config: args.config,
+  });
+  if (!fireAt) return null;
+  // fireAt may be ~now for an in-window late booking → delay 0 fires immediately.
+  const delay = Math.max(0, fireAt.getTime() - Date.now());
 
   const jobId = reminderJobId(args.appointmentId);
   // Idempotency: remove the existing job before re-adding so the delay window

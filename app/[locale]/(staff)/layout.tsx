@@ -1,4 +1,12 @@
-import { Calendar, ClipboardCheck, ClipboardList, Dumbbell, Inbox, Users } from 'lucide-react';
+import {
+  Calendar,
+  CalendarX,
+  ClipboardCheck,
+  ClipboardList,
+  Dumbbell,
+  Inbox,
+  Users,
+} from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
@@ -40,6 +48,11 @@ export default async function StaffLayout({
         icon: <Calendar className="size-4" />,
       },
       {
+        label: tNav('cancelled'),
+        href: '/secretary/appointments/cancelled',
+        icon: <CalendarX className="size-4" />,
+      },
+      {
         label: tPatients('navTitle'),
         href: '/secretary/patients',
         icon: <Users className="size-4" />,
@@ -62,6 +75,11 @@ export default async function StaffLayout({
         label: tNav('calendar'),
         href: '/doctor/calendar',
         icon: <Calendar className="size-4" />,
+      },
+      {
+        label: tNav('cancelled'),
+        href: '/doctor/appointments/cancelled',
+        icon: <CalendarX className="size-4" />,
       },
       {
         label: tPatients('navTitle'),

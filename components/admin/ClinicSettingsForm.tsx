@@ -182,8 +182,22 @@ export function ClinicSettingsForm({ initial }: Props) {
                 max={24 * 60}
                 value={state.defaultReminderOffsetMinutes}
                 onChange={(e) =>
-                  setField('defaultReminderOffsetMinutes', parseInt(e.target.value || '30', 10))
+                  setField('defaultReminderOffsetMinutes', parseInt(e.target.value || '1440', 10))
                 }
+              />
+            </Field>
+            <Field label={t('fields.reminderWindowStart')}>
+              <Input
+                type="time"
+                value={state.reminderWindowStart}
+                onChange={(e) => setField('reminderWindowStart', e.target.value)}
+              />
+            </Field>
+            <Field label={t('fields.reminderWindowEnd')}>
+              <Input
+                type="time"
+                value={state.reminderWindowEnd}
+                onChange={(e) => setField('reminderWindowEnd', e.target.value)}
               />
             </Field>
           </div>

@@ -323,6 +323,7 @@ model User {
   leaves                   Leave[]                @relation("LeaveUser")
   leavesApproved           Leave[]                @relation("LeaveApprovedBy")
   careTeamMemberships      CareTeamMember[]       @relation("CareTeamClinician")
+  appointmentsCancelled    Appointment[]          @relation("AppointmentCancelledBy")
   whatsappMessages         WhatsAppMessage[]      @relation("WhatsAppRecipient")
   inboxItems               InboxItem[]            @relation("InboxItemPatient")
   inboxItemsResolved       InboxItem[]            @relation("InboxItemResolvedBy")
@@ -463,6 +464,10 @@ model Appointment {
   // The category drives analytics in Prompt 11; this column carries
   // the unstructured context the Secretary wants to keep on the row.
   cancellationNotes    String?
+  // Who cancelled + when (Prompt 17) — surfaced in the cancelled-appointments
+  // view without an audit-log join.
+  cancelledById        String?
+  cancelledAt          DateTime?
   createdById          String
   // Group key for recurring series. Single appointments may leave this null;
   // every occurrence of a series shares the same seriesId. Future features
@@ -473,6 +478,7 @@ model Appointment {
   therapist    User          @relation("AppointmentTherapist", fields: [therapistId], references: [id], onDelete: Restrict)
   room         Room?         @relation(fields: [roomId], references: [id], onDelete: Restrict)
   createdBy    User          @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  cancelledBy  User?         @relation("AppointmentCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
   // Primary session note + 0..N addenda (Prompt 9 §4.7.3). The partial
   // unique index on SessionNote.appointmentId enforces "at most one
   // primary note per appointment"; addenda share the appointmentId via
@@ -489,6 +495,7 @@ model Appointment {
   @@index([patientId, startsAt])
   @@index([status])
   @@index([seriesId])
+  @@index([status, cancelledAt])
 }
 
 model TreatmentPlan {
@@ -1110,7 +1117,12 @@ model ClinicSettings {
   timezone  String @default("Asia/Amman")
 
   defaultAppointmentDuration   Int @default(30)
-  defaultReminderOffsetMinutes Int @default(30)
+  // Reminder timing (Prompt 17): one message `offset` minutes before the
+  // appointment (default 24h = 1440), clamped to the [windowStart, windowEnd]
+  // clinic-local window (HH:MM) so reminders never fire outside working hours.
+  defaultReminderOffsetMinutes Int    @default(1440)
+  reminderWindowStart          String @default("08:00")
+  reminderWindowEnd            String @default("18:00")
 
   // { sun: { open: "09:00", close: "18:00", closed: false }, mon: ..., fri: { closed: true } }
   businessHours Json

@@ -287,7 +287,9 @@
         "defaultLanguage": "Default language for new users",
         "hijriDefault": "Default new users to the Hijri calendar",
         "patientCanViewClinicalNotes": "Allow patients to read their clinical notes",
-        "patientCanViewClinicalNotesHelp": "When off, patients see appointments and home program only; treatment plans and session notes stay clinical-only."
+        "patientCanViewClinicalNotesHelp": "When off, patients see appointments and home program only; treatment plans and session notes stay clinical-only.",
+        "reminderWindowStart": "Reminder window start",
+        "reminderWindowEnd": "Reminder window end"
       },
       "days": {
         "sun": "Sunday",
@@ -487,7 +489,22 @@
       "sessionNoteCta": "Write session note (coming in Prompt 9).",
       "openPatientFile": "Open patient file"
     },
-    "myScheduleTitle": "My schedule"
+    "myScheduleTitle": "My schedule",
+    "cancelledView": {
+      "title": "Cancelled appointments",
+      "subtitle": "Appointments that were cancelled — most recent first.",
+      "filterFrom": "Cancelled from",
+      "filterTo": "Cancelled to",
+      "filterTherapist": "Therapist",
+      "allTherapists": "All therapists",
+      "columnPatient": "Patient",
+      "columnScheduled": "Scheduled for",
+      "columnTherapist": "Therapist",
+      "columnRoom": "Room",
+      "columnReason": "Reason",
+      "columnCancelledBy": "Cancelled by",
+      "empty": "No cancelled appointments in this range."
+    }
   },
   "patients": {
     "navTitle": "Patients",
@@ -759,7 +776,8 @@
     "inbox": "Inbox",
     "exerciseLibrary": "Exercise library",
     "calendar": "Calendar",
-    "approvals": "Approvals"
+    "approvals": "Approvals",
+    "cancelled": "Cancelled"
   },
   "styleGuide": {
     "title": "Style guide",

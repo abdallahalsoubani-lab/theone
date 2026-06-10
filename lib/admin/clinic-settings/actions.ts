@@ -38,6 +38,8 @@ const updateInner = withAudit<[ClinicSettingsUpdateParsed], { id: string }>(
         addressAr: input.addressAr,
         defaultAppointmentDuration: input.defaultAppointmentDuration,
         defaultReminderOffsetMinutes: input.defaultReminderOffsetMinutes,
+        reminderWindowStart: input.reminderWindowStart,
+        reminderWindowEnd: input.reminderWindowEnd,
         defaultLanguage: input.defaultLanguage,
         hijriDefault: input.hijriDefault,
         patientCanViewClinicalNotes: input.patientCanViewClinicalNotes,

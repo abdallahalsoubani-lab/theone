@@ -46,9 +46,20 @@ async function main() {
 
   const settings = await db.clinicSettings.findUnique({
     where: { id: 'default' },
-    select: { defaultReminderOffsetMinutes: true },
+    select: {
+      defaultReminderOffsetMinutes: true,
+      reminderWindowStart: true,
+      reminderWindowEnd: true,
+      timezone: true,
+    },
   });
-  const offsetMinutes = settings?.defaultReminderOffsetMinutes ?? 30;
+  const { parseHhMm } = await import('@/lib/appointments/reminderWindow');
+  const config = {
+    offsetMinutes: settings?.defaultReminderOffsetMinutes ?? 1440,
+    windowStartMinutes: parseHhMm(settings?.reminderWindowStart ?? '08:00'),
+    windowEndMinutes: parseHhMm(settings?.reminderWindowEnd ?? '18:00'),
+    timeZone: settings?.timezone ?? 'Asia/Amman',
+  };
 
   const DAY_MS = 24 * 60 * 60 * 1000;
   const CLOSED_UTC_DAYS = new Set([5]); // Fri
@@ -86,7 +97,7 @@ async function main() {
   const jobId = await enqueueAppointmentReminder({
     appointmentId: appointment.id,
     startsAt: appointment.startsAt,
-    reminderOffsetMinutes: offsetMinutes,
+    config,
   });
   console.log('[book] reminder enqueued jobId=', jobId);
 

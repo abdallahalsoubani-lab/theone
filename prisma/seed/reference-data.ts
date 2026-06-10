@@ -95,8 +95,11 @@ const WHATSAPP_TEMPLATES: ReadonlyArray<SeedTemplate> = (
     [
       'appointment_reminder_v2',
       WaTemplateCategory.APPOINTMENT,
-      'Reminder: your appointment with {{1}} is in 30 minutes at {{2}}. Please arrive on time.',
-      'تذكير: موعدك مع {{1}} بعد 30 دقيقة الساعة {{2}}. نرجو الحضور في الوقت المحدد.',
+      // Prompt 17: 24h reminder — wording no longer claims "30 minutes". Same
+      // variable structure ({{1}} therapist, {{2}} time). The Meta-hosted
+      // template text must be edited to match (see PR note).
+      'Reminder: you have an appointment with {{1}} at {{2}}. Please arrive on time.',
+      'تذكير: لديك موعد مع {{1}} الساعة {{2}}. نرجو الحضور في الوقت المحدد.',
       WaTemplateApprovalStatus.PENDING,
       true,
     ],
@@ -218,7 +221,10 @@ export async function seedReference(db: PrismaClient): Promise<void> {
       addressAr: 'عمّان، الأردن',
       timezone: 'Asia/Amman',
       defaultAppointmentDuration: 30,
-      defaultReminderOffsetMinutes: 30,
+      // Prompt 17: one reminder 24h before, clamped to 08:00–18:00 clinic-local.
+      defaultReminderOffsetMinutes: 1440,
+      reminderWindowStart: '08:00',
+      reminderWindowEnd: '18:00',
       hijriDefault: false,
       defaultLanguage: LanguagePref.AR,
       businessHours: {

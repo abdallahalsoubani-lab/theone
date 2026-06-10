@@ -93,6 +93,19 @@ export const appointmentStatusSchema = z.object({
 
 export type AppointmentStatusInput = z.infer<typeof appointmentStatusSchema>;
 
+/** Cancelled-appointments view filters (Prompt 17). Range applies to when the
+ *  appointment was cancelled; default last 30 days, newest first. */
+export const cancelledAppointmentFiltersSchema = z.object({
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  therapistId: z.string().min(1).optional(),
+  search: z.string().optional(),
+  page: z.number().int().positive().default(1),
+  pageSize: z.number().int().positive().max(100).default(20),
+});
+
+export type CancelledAppointmentFilters = z.infer<typeof cancelledAppointmentFiltersSchema>;
+
 // ─── Recurring series (Prompt 7b §4.4) ────────────────────────────────────
 
 const weekdayEnum = z.enum(['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']);

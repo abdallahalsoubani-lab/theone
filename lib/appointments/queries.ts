@@ -1,8 +1,8 @@
-import type { Prisma } from '@prisma/client';
+import { AppointmentStatus, type CancellationCategory, type Prisma } from '@prisma/client';
 
 import { db } from '@/lib/db';
 
-import type { AppointmentListFilters } from './schemas';
+import type { AppointmentListFilters, CancelledAppointmentFilters } from './schemas';
 
 export interface CalendarAppointment {
   id: string;
@@ -105,4 +105,94 @@ export async function listActiveClinicians() {
     select: { id: true, fullNameEn: true, fullNameAr: true, role: true },
     orderBy: { fullNameEn: 'asc' },
   });
+}
+
+export interface CancelledAppointmentRow {
+  id: string;
+  patientFullNameEn: string;
+  patientFullNameAr: string;
+  /** Null for Doctor viewers — phone hidden (Prompt 15 §1). */
+  patientPhone: string | null;
+  startsAt: Date;
+  durationMinutes: number;
+  therapistFullNameEn: string;
+  therapistFullNameAr: string;
+  roomName: string | null;
+  cancellationReason: string | null;
+  cancellationCategory: CancellationCategory | null;
+  cancellationNotes: string | null;
+  cancelledByFullNameEn: string | null;
+  cancelledByFullNameAr: string | null;
+  cancelledAt: Date | null;
+}
+
+/**
+ * Paginated list of cancelled appointments (Prompt 17). Filtered + sorted by
+ * cancellation time (newest first). Phone is nulled for viewers who can't see
+ * it (Doctor) — pass canSeePhone from the page based on the viewer's role.
+ */
+export async function listCancelledAppointments(args: {
+  filters: CancelledAppointmentFilters;
+  canSeePhone: boolean;
+}): Promise<{ rows: CancelledAppointmentRow[]; total: number }> {
+  const { filters, canSeePhone } = args;
+  const where: Prisma.AppointmentWhereInput = {
+    status: AppointmentStatus.CANCELLED,
+    ...(filters.from || filters.to
+      ? {
+          cancelledAt: {
+            ...(filters.from ? { gte: filters.from } : {}),
+            ...(filters.to ? { lte: filters.to } : {}),
+          },
+        }
+      : {}),
+    ...(filters.therapistId ? { therapistId: filters.therapistId } : {}),
+    ...(filters.search
+      ? {
+          patient: {
+            OR: [
+              { fullNameEn: { contains: filters.search, mode: 'insensitive' } },
+              { fullNameAr: { contains: filters.search } },
+            ],
+          },
+        }
+      : {}),
+  };
+
+  const [rows, total] = await Promise.all([
+    db.appointment.findMany({
+      where,
+      orderBy: { cancelledAt: 'desc' },
+      skip: (filters.page - 1) * filters.pageSize,
+      take: filters.pageSize,
+      include: {
+        patient: { select: { fullNameEn: true, fullNameAr: true, phone: true } },
+        therapist: { select: { fullNameEn: true, fullNameAr: true } },
+        room: { select: { name: true } },
+        cancelledBy: { select: { fullNameEn: true, fullNameAr: true } },
+      },
+    }),
+    db.appointment.count({ where }),
+  ]);
+
+  return {
+    total,
+    rows: rows.map((r) => ({
+      id: r.id,
+      patientFullNameEn: r.patient.fullNameEn,
+      patientFullNameAr: r.patient.fullNameAr,
+      patientPhone: canSeePhone ? r.patient.phone : null,
+      startsAt: r.startsAt,
+      durationMinutes: r.durationMinutes,
+      therapistFullNameEn: r.therapist.fullNameEn,
+      therapistFullNameAr: r.therapist.fullNameAr,
+      roomName: r.room?.name ?? null,
+      cancellationReason: r.cancellationReason,
+      cancellationCategory: r.cancellationCategory,
+      cancellationNotes: r.cancellationNotes,
+      cancelledByFullNameEn: r.cancelledBy?.fullNameEn ?? null,
+      cancelledByFullNameAr: r.cancelledBy?.fullNameAr ?? null,
+      cancelledAt: r.cancelledAt,
+    })),
+  };
 }

@@ -12,6 +12,7 @@ import {
 
 import { checkConflicts, type Conflict, type ConflictResult } from './conflicts';
 import { expandRecurrence, MAX_SERIES_OCCURRENCES, type PlannedOccurrence } from './recurrence';
+import { parseHhMm, type ReminderConfig } from './reminderWindow';
 import type {
   AppointmentCancelParsed,
   AppointmentChangeTherapistParsed,
@@ -49,12 +50,22 @@ const notFound: LocalizedError = {
   message_ar: 'لم يتم العثور على الموعد.',
 };
 
-async function getReminderOffsetMinutes(): Promise<number> {
+async function getReminderConfig(): Promise<ReminderConfig> {
   const settings = await db.clinicSettings.findUnique({
     where: { id: 'default' },
-    select: { defaultReminderOffsetMinutes: true },
+    select: {
+      defaultReminderOffsetMinutes: true,
+      reminderWindowStart: true,
+      reminderWindowEnd: true,
+      timezone: true,
+    },
   });
-  return settings?.defaultReminderOffsetMinutes ?? 30;
+  return {
+    offsetMinutes: settings?.defaultReminderOffsetMinutes ?? 1440,
+    windowStartMinutes: parseHhMm(settings?.reminderWindowStart ?? '08:00'),
+    windowEndMinutes: parseHhMm(settings?.reminderWindowEnd ?? '18:00'),
+    timeZone: settings?.timezone ?? 'Asia/Amman',
+  };
 }
 
 export const createAppointment = withAudit<
@@ -108,11 +119,11 @@ export const createAppointment = withAudit<
       return appt;
     });
 
-    const offset = await getReminderOffsetMinutes();
+    const config = await getReminderConfig();
     await enqueueAppointmentReminder({
       appointmentId: appointment.id,
       startsAt: appointment.startsAt,
-      reminderOffsetMinutes: offset,
+      config,
     });
 
     // Best-effort confirmation send via the `appointment_confirmation_v2`
@@ -245,11 +256,11 @@ export const rescheduleAppointment = withAudit<
       existing.status === AppointmentStatus.SCHEDULED ||
       existing.status === AppointmentStatus.CONFIRMED
     ) {
-      const offset = await getReminderOffsetMinutes();
+      const config = await getReminderConfig();
       await enqueueAppointmentReminder({
         appointmentId: input.id,
         startsAt: input.startsAt,
-        reminderOffsetMinutes: offset,
+        config,
       });
     }
 
@@ -484,6 +495,7 @@ export const cancelAppointment = withAudit<
       throw new AppointmentError(STATUS_ERRORS.CANCEL_REASON_REQUIRED);
     }
 
+    const session = await auth();
     const shortNotice = existing.startsAt.getTime() - Date.now() < 2 * 60 * 60 * 1000;
 
     await db.appointment.update({
@@ -493,6 +505,8 @@ export const cancelAppointment = withAudit<
         cancellationReason: input.cancellationReason,
         cancellationCategory: input.cancellationCategory,
         cancellationNotes: input.cancellationNotes ?? null,
+        cancelledById: session?.user?.id ?? null,
+        cancelledAt: new Date(),
       },
     });
     await cancelAppointmentReminder(input.id);
@@ -583,6 +597,7 @@ export const cancelAppointmentSeries = withAudit<
       throw new AppointmentError(STATUS_ERRORS.CANCEL_REASON_REQUIRED);
     }
 
+    const session = await auth();
     const occurrences = await selectSeriesOccurrences({
       appointmentId: input.id,
       mode: input.seriesMode,
@@ -618,6 +633,8 @@ export const cancelAppointmentSeries = withAudit<
             cancellationReason: input.cancellationReason,
             cancellationCategory: input.cancellationCategory,
             cancellationNotes: input.cancellationNotes ?? null,
+            cancelledById: session?.user?.id ?? null,
+            cancelledAt: new Date(),
           },
         });
         updated.push(occ.id);
@@ -765,7 +782,7 @@ export const rescheduleAppointmentSeries = withAudit<
     // Re-enqueue reminders for active occurrences.
     const ids = planned.map((p) => p.occ.id);
     await Promise.all(ids.map((id) => cancelAppointmentReminder(id)));
-    const offset = await getReminderOffsetMinutes();
+    const config = await getReminderConfig();
     await Promise.all(
       planned
         .filter(
@@ -777,7 +794,7 @@ export const rescheduleAppointmentSeries = withAudit<
           enqueueAppointmentReminder({
             appointmentId: p.occ.id,
             startsAt: p.newStartsAt,
-            reminderOffsetMinutes: offset,
+            config,
           }).catch((err: unknown) => {
             console.error('[appointments.rescheduleSeries] reminder enqueue failed', err);
           }),
@@ -1209,13 +1226,13 @@ export const createSeries = withAudit<
 
     // Enqueue reminders best-effort after the transaction commits. If
     // the reminder queue is down the appointments are still booked.
-    const offset = await getReminderOffsetMinutes();
+    const config = await getReminderConfig();
     await Promise.all(
       appointmentIds.map((id, i) =>
         enqueueAppointmentReminder({
           appointmentId: id,
           startsAt: finalOccurrences[i]!.startsAt,
-          reminderOffsetMinutes: offset,
+          config,
         }).catch((err: unknown) => {
           console.error('[series.create] reminder enqueue failed', { id, err });
         }),

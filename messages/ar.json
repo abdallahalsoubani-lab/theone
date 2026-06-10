@@ -100,7 +100,22 @@
       "sessionNoteCta": "كتابة تقرير الجلسة (قادم في المهمة 9).",
       "openPatientFile": "فتح ملف المراجع"
     },
-    "myScheduleTitle": "جدولي"
+    "myScheduleTitle": "جدولي",
+    "cancelledView": {
+      "title": "المواعيد الملغية",
+      "subtitle": "المواعيد التي تم إلغاؤها — الأحدث أولاً.",
+      "filterFrom": "أُلغيت من",
+      "filterTo": "أُلغيت إلى",
+      "filterTherapist": "المعالج",
+      "allTherapists": "كل المعالجين",
+      "columnPatient": "المراجع",
+      "columnScheduled": "موعدها",
+      "columnTherapist": "المعالج",
+      "columnRoom": "الغرفة",
+      "columnReason": "السبب",
+      "columnCancelledBy": "ألغاها",
+      "empty": "لا مواعيد ملغية في هذا النطاق."
+    }
   },
   "patients": {
     "navTitle": "المراجعون",
@@ -372,7 +387,8 @@
     "inbox": "صندوق الوارد",
     "exerciseLibrary": "مكتبة التمارين",
     "calendar": "التقويم",
-    "approvals": "الموافقات"
+    "approvals": "الموافقات",
+    "cancelled": "الملغية"
   },
   "shell": {
     "userMenu": "الحساب",
@@ -643,7 +659,9 @@
         "defaultLanguage": "اللغة الافتراضية للمستخدمين الجدد",
         "hijriDefault": "اعتماد التقويم الهجري افتراضياً للمستخدمين الجدد",
         "patientCanViewClinicalNotes": "السماح للمرضى بقراءة الملاحظات السريرية",
-        "patientCanViewClinicalNotesHelp": "عند إيقاف الإعداد يرى المرضى المواعيد والبرنامج المنزلي فقط؛ تبقى خطط العلاج وملاحظات الجلسات سريرية فقط."
+        "patientCanViewClinicalNotesHelp": "عند إيقاف الإعداد يرى المرضى المواعيد والبرنامج المنزلي فقط؛ تبقى خطط العلاج وملاحظات الجلسات سريرية فقط.",
+        "reminderWindowStart": "بداية نافذة التذكير",
+        "reminderWindowEnd": "نهاية نافذة التذكير"
       },
       "days": {
         "sun": "الأحد",
