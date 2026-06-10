@@ -306,8 +306,7 @@ model User {
   exercisesCreated         Exercise[]             @relation("ExerciseCreatedBy")
   leaves                   Leave[]                @relation("LeaveUser")
   leavesApproved           Leave[]                @relation("LeaveApprovedBy")
-  patientsAsTherapist      PatientProfile[]       @relation("PatientAssignedTherapist")
-  patientsAsDoctor         PatientProfile[]       @relation("PatientResponsibleDoctor")
+  careTeamMemberships      CareTeamMember[]       @relation("CareTeamClinician")
   whatsappMessages         WhatsAppMessage[]      @relation("WhatsAppRecipient")
   inboxItems               InboxItem[]            @relation("InboxItemPatient")
   inboxItemsResolved       InboxItem[]            @relation("InboxItemResolvedBy")
@@ -350,17 +349,48 @@ model PatientProfile {
   currentMedications    String?
   hijriCalendarPref     Boolean  @default(false)
 
-  assignedTherapistId String?
-  assignedTherapist   User?   @relation("PatientAssignedTherapist", fields: [assignedTherapistId], references: [id], onDelete: Restrict)
-
-  responsibleDoctorId String?
-  responsibleDoctor   User?   @relation("PatientResponsibleDoctor", fields: [responsibleDoctorId], references: [id], onDelete: Restrict)
+  // Care team (Prompt 14). Replaces the former single assignedTherapistId /
+  // responsibleDoctorId scalars — a patient now has any number of therapists
+  // and doctors. All assignment read/write funnels through
+  // lib/patients/assignment.ts.
+  careTeam CareTeamMember[] @relation("CareTeamPatient")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
 
-  @@index([assignedTherapistId])
-  @@index([responsibleDoctorId])
+enum CareTeamRole {
+  THERAPIST
+  DOCTOR
+}
+
+/**
+ * Care-team membership (Prompt 14). One row per (patient, clinician). A
+ * patient may have many therapists and many doctors simultaneously; every
+ * member sees the patient exactly as a single assigned clinician did before.
+ *
+ * `role` is denormalized from the clinician's User.role for index-only
+ * filtering ("count my patients as a therapist") — it must always match the
+ * referenced user's actual role; the assignment helpers enforce that.
+ *
+ * This governs patient visibility / responsibility only. The treatment-plan →
+ * doctor and appointment → therapist links are separate concerns and are not
+ * derived from this table.
+ */
+model CareTeamMember {
+  id          String       @id @default(cuid())
+  patientId   String
+  clinicianId String
+  role        CareTeamRole
+  assignedAt  DateTime     @default(now())
+  assignedBy  String
+
+  patient   PatientProfile @relation("CareTeamPatient", fields: [patientId], references: [userId], onDelete: Cascade)
+  clinician User           @relation("CareTeamClinician", fields: [clinicianId], references: [id], onDelete: Restrict)
+
+  @@unique([patientId, clinicianId])
+  @@index([clinicianId, role])
+  @@index([patientId])
 }
 
 model Specialty {

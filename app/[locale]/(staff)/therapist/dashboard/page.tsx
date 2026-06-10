@@ -50,7 +50,7 @@ export default async function TherapistDashboard({
       },
     }),
     listAppointmentsPendingNote(therapistId, 5),
-    db.patientProfile.count({ where: { assignedTherapistId: therapistId } }),
+    db.careTeamMember.count({ where: { clinicianId: therapistId, role: 'THERAPIST' } }),
     countUnreadNotificationsForCurrentUser(),
     getScheduleDensityForTherapist(therapistId),
   ]);

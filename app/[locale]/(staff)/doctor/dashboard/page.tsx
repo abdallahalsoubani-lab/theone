@@ -40,7 +40,7 @@ export default async function DoctorDashboard({ params }: { params: Promise<{ lo
           createdAt: { gte: since7d },
           patient: {
             patientProfile: {
-              OR: [{ assignedTherapistId: doctorId }, { responsibleDoctorId: doctorId }],
+              careTeam: { some: { clinicianId: doctorId } },
             },
           },
         },

@@ -276,7 +276,9 @@ export async function getComplianceTrendForDoctor(
     const completions = await db.homeProgramCompletion.findMany({
       where: {
         completedAt: { gte: since },
-        item: { patient: { patientProfile: { responsibleDoctorId: doctorId } } },
+        item: {
+          patient: { patientProfile: { careTeam: { some: { clinicianId: doctorId } } } },
+        },
       },
       select: { completedAt: true, scheduledDate: true },
     });
