@@ -29,8 +29,8 @@ vi.mock('@/lib/db', () => {
 
 vi.mock('@/lib/env', () => ({
   env: {
-    META_WHATSAPP_PHONE_ID: 'PHONE_ID_TEST',
-    META_WHATSAPP_TOKEN: 'token_test',
+    META_WHATSAPP_PHONE_NUMBER_ID: 'PHONE_ID_TEST',
+    META_WHATSAPP_ACCESS_TOKEN: 'token_test',
     META_WHATSAPP_APP_SECRET: 'app_secret_test',
     NEXT_PUBLIC_APP_URL: 'https://example.com',
   },

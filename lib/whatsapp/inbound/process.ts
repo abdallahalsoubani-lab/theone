@@ -9,10 +9,10 @@ import { parseIntent } from './parser';
 import type { WebhookEvent } from '../provider';
 
 /**
- * Shared inbound webhook event processor. Wired from both
- * `/api/v1/whatsapp/webhook/twilio` and `/api/v1/whatsapp/webhook/meta`.
+ * Shared inbound webhook event processor. Wired from
+ * `/api/v1/whatsapp/webhook/meta`.
  *
- * Three event shapes flow through here, both providers normalized:
+ * Three event shapes flow through here, provider-normalized:
  *
  *   1. Delivery status updates (sent / delivered / read / failed).
  *      Match the outbound WhatsAppMessage by providerMessageId and

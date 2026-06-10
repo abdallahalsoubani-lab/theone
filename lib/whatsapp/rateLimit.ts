@@ -6,9 +6,9 @@ import type { Redis } from 'ioredis';
  *   - per-phone:   max 5 sends / minute / recipient
  *   - global:      max 100 sends / minute across the whole clinic
  *
- * Defensive defaults. Twilio Sandbox and Meta Cloud API both rate-limit
- * upstream; these caps protect us from a runaway loop (e.g., a bug that
- * keeps re-enqueueing the same job) before the provider returns 429.
+ * Defensive defaults. The Meta Cloud API rate-limits upstream; these caps
+ * protect us from a runaway loop (e.g., a bug that keeps re-enqueueing the
+ * same job) before the provider returns 429.
  *
  * The bucket is implemented as a counter with PEXPIRE on first increment
  * of a window. If the limit is exceeded, the worker delays the job by the
