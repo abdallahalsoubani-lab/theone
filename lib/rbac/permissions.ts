@@ -42,6 +42,9 @@ export const PERMISSIONS = {
   APPOINTMENTS_STATUS_COMPLETE: 'appointments.complete', // therapist (own) + secretary/admin
   APPOINTMENTS_STATUS_NOSHOW: 'appointments.noshow',
   APPOINTMENTS_OVERRIDE_CONFLICT: 'appointments.override_conflict',
+  // Arrivals desk (Prompt 18): manual check-in / undo-arrival + the live
+  // "current delay" quick-edit. Held by Secretary + Admin only.
+  ARRIVALS_MANAGE: 'arrivals.manage',
 
   // ── Treatment plans ───────────────────────────────────────────────────
   TREATMENT_PLANS_CREATE: 'treatment_plans.create',
@@ -229,6 +232,7 @@ const SECRETARY_PERMS = new Set<PermissionCode>([
   PERMISSIONS.APPOINTMENTS_STATUS_COMPLETE,
   PERMISSIONS.APPOINTMENTS_STATUS_NOSHOW,
   PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT,
+  PERMISSIONS.ARRIVALS_MANAGE,
   PERMISSIONS.TREATMENT_PLANS_READ,
   PERMISSIONS.SESSION_NOTES_READ,
   PERMISSIONS.PATIENT_TIMELINE_READ,
@@ -416,6 +420,7 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.APPOINTMENTS_STATUS_COMPLETE,
   PERMISSIONS.APPOINTMENTS_STATUS_NOSHOW,
   PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT,
+  PERMISSIONS.ARRIVALS_MANAGE,
   PERMISSIONS.PATIENTS_CREATE,
   PERMISSIONS.PATIENTS_READ,
   PERMISSIONS.PATIENTS_UPDATE,

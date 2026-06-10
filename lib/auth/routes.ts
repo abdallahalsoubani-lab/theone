@@ -30,6 +30,10 @@ export const PUBLIC_PATHS: ReadonlyArray<string> = [
   '/privacy',
   '/terms',
   '/contact',
+  // Arrivals public surfaces (Prompt 18) — no staff session; gated instead by
+  // a per-surface device token validated server-side inside the page itself.
+  '/kiosk',
+  '/display',
 ];
 
 /**

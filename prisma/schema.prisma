@@ -55,6 +55,12 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+// How a patient was checked in / marked as arrived (Prompt 18 arrivals).
+enum CheckInVia {
+  KIOSK
+  STAFF
+}
+
 enum CancellationCategory {
   PATIENT_REQUEST
   PATIENT_NO_SHOW
@@ -468,6 +474,12 @@ model Appointment {
   // view without an audit-log join.
   cancelledById        String?
   cancelledAt          DateTime?
+  // Arrivals (Prompt 18). `checkedInAt` marks the patient as ARRIVED and
+  // WAITING — distinct from IN_PROGRESS (in session). The waiting list is
+  // derived from these columns + status, not a parallel queue table.
+  // `checkedInVia` records whether the kiosk or a staff member checked them in.
+  checkedInAt          DateTime?
+  checkedInVia         CheckInVia?
   createdById          String
   // Group key for recurring series. Single appointments may leave this null;
   // every occurrence of a series shares the same seriesId. Future features
@@ -496,6 +508,7 @@ model Appointment {
   @@index([status])
   @@index([seriesId])
   @@index([status, cancelledAt])
+  @@index([startsAt, checkedInAt])
 }
 
 model TreatmentPlan {
@@ -1123,6 +1136,14 @@ model ClinicSettings {
   defaultReminderOffsetMinutes Int    @default(1440)
   reminderWindowStart          String @default("08:00")
   reminderWindowEnd            String @default("18:00")
+
+  // Arrivals (Prompt 18). `currentDelayMinutes` is the manual "your turn in
+  // ~X minutes" value the kiosk shows — adjusted live by the secretary, no
+  // queue-position math. The two tokens gate the public kiosk + lobby-display
+  // routes (separate trust zones); null = that surface is disabled.
+  currentDelayMinutes Int     @default(10)
+  kioskToken          String? @unique
+  displayToken        String? @unique
 
   // { sun: { open: "09:00", close: "18:00", closed: false }, mon: ..., fri: { closed: true } }
   businessHours Json

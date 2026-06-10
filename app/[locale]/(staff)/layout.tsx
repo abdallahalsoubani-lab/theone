@@ -6,6 +6,7 @@ import {
   Dumbbell,
   Inbox,
   Users,
+  UserCheck,
 } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
@@ -46,6 +47,11 @@ export default async function StaffLayout({
         label: tNav('appointments'),
         href: '/secretary/calendar',
         icon: <Calendar className="size-4" />,
+      },
+      {
+        label: tNav('arrivals'),
+        href: '/secretary/arrivals',
+        icon: <UserCheck className="size-4" />,
       },
       {
         label: tNav('cancelled'),

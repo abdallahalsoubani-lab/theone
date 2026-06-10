@@ -388,7 +388,8 @@
     "exerciseLibrary": "مكتبة التمارين",
     "calendar": "التقويم",
     "approvals": "الموافقات",
-    "cancelled": "الملغية"
+    "cancelled": "الملغية",
+    "arrivals": "قائمة الوصول"
   },
   "shell": {
     "userMenu": "الحساب",
@@ -661,7 +662,8 @@
         "patientCanViewClinicalNotes": "السماح للمرضى بقراءة الملاحظات السريرية",
         "patientCanViewClinicalNotesHelp": "عند إيقاف الإعداد يرى المرضى المواعيد والبرنامج المنزلي فقط؛ تبقى خطط العلاج وملاحظات الجلسات سريرية فقط.",
         "reminderWindowStart": "بداية نافذة التذكير",
-        "reminderWindowEnd": "نهاية نافذة التذكير"
+        "reminderWindowEnd": "نهاية نافذة التذكير",
+        "currentDelayMinutes": "التأخير الحالي (بالدقائق)"
       },
       "days": {
         "sun": "الأحد",
@@ -676,7 +678,24 @@
       "addService": "إضافة نوع خدمة",
       "hoursHint": "يستخدم محرك التعارضات هذه الساعات لتنبيه الحجوزات خارج الدوام.",
       "servicesHint": "يجب أن يبقى نوع خدمة واحد نشط على الأقل.",
-      "saving": "جاري الحفظ…"
+      "saving": "جاري الحفظ…",
+      "arrivalsTokens": {
+        "title": "رموز الوصول للوصول",
+        "subtitle": "روابط محمية برمز لجهاز تسجيل الوصول (آيباد) وشاشة الانتظار للطاقم. أنشئ الرمز وانسخه مرة واحدة، ويمكنك إلغاؤه في أي وقت.",
+        "statusActive": "مُفعّل",
+        "statusDisabled": "معطّل",
+        "generate": "إنشاء",
+        "regenerate": "إعادة الإنشاء",
+        "revoke": "إلغاء",
+        "copyOnce": "انسخ هذا الرابط الآن — لن يُعرض مرة أخرى.",
+        "copied": "تم نسخ الرابط",
+        "kiosk": {
+          "label": "جهاز تسجيل الوصول"
+        },
+        "display": {
+          "label": "شاشة الانتظار"
+        }
+      }
     },
     "audit": {
       "title": "سجل التدقيق",
@@ -1076,7 +1095,8 @@
       "noAppointmentsToday": "لا توجد مواعيد اليوم.",
       "pendingNotesHeading": "جلسات بانتظار ملاحظة",
       "noPendingNotes": "لا توجد ملاحظات جلسة معلقة.",
-      "openEndOfDay": "فتح تقرير نهاية اليوم ←"
+      "openEndOfDay": "فتح تقرير نهاية اليوم ←",
+      "arrived": "وصل"
     },
     "timeline": {
       "search": "بحث",
@@ -1433,5 +1453,51 @@
     "role_SECRETARY": "سكرتير",
     "role_DOCTOR": "طبيب",
     "role_THERAPIST": "معالج طبيعي"
+  },
+  "kiosk": {
+    "clinicName": "المركز الأول للعلاج الطبيعي",
+    "welcome": "أهلاً بكم",
+    "tapToStart": "اضغط لتسجيل الوصول",
+    "enterPhone": "أدخل رقم هاتفك",
+    "submit": "تأكيد",
+    "delete": "حذف",
+    "cancel": "إلغاء",
+    "done": "تم",
+    "checkedIn": "أهلاً {name}! تم تسجيل وصولك.",
+    "turnIn": "دورك بعد حوالي {minutes} دقيقة.",
+    "alreadyCheckedIn": "تم تسجيل وصولك مسبقاً يا {name} ✅",
+    "noAppointment": "ما في موعد مسجّل اليوم — راجع الاستقبال من فضلك.",
+    "rateLimited": "محاولات كثيرة. انتظر قليلاً أو راجع الاستقبال."
+  },
+  "display": {
+    "title": "الوصول",
+    "stale": "إعادة الاتصال…",
+    "waitingNow": "في الانتظار الآن",
+    "inSession": "في الجلسة",
+    "upNext": "التالي",
+    "noneWaiting": "لا أحد في الانتظار",
+    "noneInSession": "لا جلسات جارية",
+    "noneUpNext": "لا مواعيد قادمة",
+    "waitingMinutes": "ينتظر {minutes}د"
+  },
+  "arrivals": {
+    "title": "قائمة الوصول",
+    "subtitle": "قائمة الانتظار لهذا اليوم. سجّل وصول المراجعين، وانقل المرضى عبر الجلسة، واضبط التأخير الحالي الظاهر على الجهاز.",
+    "waiting": "في الانتظار",
+    "inSession": "في الجلسة",
+    "upNext": "التالي",
+    "noneWaiting": "لا أحد في الانتظار.",
+    "noneInSession": "لا جلسات جارية.",
+    "noneUpNext": "لا مزيد من المواعيد اليوم.",
+    "appointmentAt": "الموعد",
+    "arrivedAt": "وصل",
+    "viaKiosk": "الجهاز",
+    "markInSession": "بدء الجلسة",
+    "markDone": "إنهاء",
+    "undoCheckIn": "تراجع",
+    "checkIn": "تسجيل وصول",
+    "currentDelay": "التأخير الحالي",
+    "currentDelayHint": "يظهر على الجهاز كـ «دورك بعد ~X دقيقة».",
+    "minutesValue": "{minutes} دقيقة"
   }
 }

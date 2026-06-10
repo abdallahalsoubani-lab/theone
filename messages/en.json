@@ -289,7 +289,8 @@
         "patientCanViewClinicalNotes": "Allow patients to read their clinical notes",
         "patientCanViewClinicalNotesHelp": "When off, patients see appointments and home program only; treatment plans and session notes stay clinical-only.",
         "reminderWindowStart": "Reminder window start",
-        "reminderWindowEnd": "Reminder window end"
+        "reminderWindowEnd": "Reminder window end",
+        "currentDelayMinutes": "Current delay (minutes)"
       },
       "days": {
         "sun": "Sunday",
@@ -304,7 +305,24 @@
       "addService": "Add service type",
       "hoursHint": "The conflict engine uses these hours to flag out-of-hours bookings.",
       "servicesHint": "At least one active service type must remain.",
-      "saving": "Saving…"
+      "saving": "Saving…",
+      "arrivalsTokens": {
+        "title": "Arrivals access tokens",
+        "subtitle": "Token-gated URLs for the check-in kiosk (iPad) and the staff lobby display. Generate, copy once, and revoke any time.",
+        "statusActive": "Active",
+        "statusDisabled": "Disabled",
+        "generate": "Generate",
+        "regenerate": "Regenerate",
+        "revoke": "Revoke",
+        "copyOnce": "Copy this URL now — it will not be shown again.",
+        "copied": "URL copied",
+        "kiosk": {
+          "label": "Check-in kiosk"
+        },
+        "display": {
+          "label": "Lobby display"
+        }
+      }
     },
     "audit": {
       "title": "Audit log",
@@ -777,7 +795,8 @@
     "exerciseLibrary": "Exercise library",
     "calendar": "Calendar",
     "approvals": "Approvals",
-    "cancelled": "Cancelled"
+    "cancelled": "Cancelled",
+    "arrivals": "Arrivals"
   },
   "styleGuide": {
     "title": "Style guide",
@@ -1076,7 +1095,8 @@
       "noAppointmentsToday": "No appointments today.",
       "pendingNotesHeading": "Sessions awaiting a note",
       "noPendingNotes": "No outstanding session notes.",
-      "openEndOfDay": "Open end-of-day report →"
+      "openEndOfDay": "Open end-of-day report →",
+      "arrived": "Arrived"
     },
     "timeline": {
       "search": "Search",
@@ -1433,5 +1453,51 @@
     "role_SECRETARY": "Secretary",
     "role_DOCTOR": "Doctor",
     "role_THERAPIST": "Therapist"
+  },
+  "kiosk": {
+    "clinicName": "The One for Physiotherapy",
+    "welcome": "Welcome",
+    "tapToStart": "Tap to check in",
+    "enterPhone": "Enter your phone number",
+    "submit": "Confirm",
+    "delete": "Delete",
+    "cancel": "Cancel",
+    "done": "Done",
+    "checkedIn": "Welcome, {name}! You are checked in.",
+    "turnIn": "Your turn in about {minutes} minutes.",
+    "alreadyCheckedIn": "You are already checked in, {name}. ✅",
+    "noAppointment": "No appointment registered today — please see reception.",
+    "rateLimited": "Too many attempts. Please wait a moment or see reception."
+  },
+  "display": {
+    "title": "Arrivals",
+    "stale": "Reconnecting…",
+    "waitingNow": "Waiting now",
+    "inSession": "In session",
+    "upNext": "Up next",
+    "noneWaiting": "No one waiting",
+    "noneInSession": "No sessions in progress",
+    "noneUpNext": "Nothing coming up",
+    "waitingMinutes": "waiting {minutes}m"
+  },
+  "arrivals": {
+    "title": "Arrivals",
+    "subtitle": "Today's waiting list. Check in walk-ups, move patients through, and set the current delay the kiosk shows.",
+    "waiting": "Waiting",
+    "inSession": "In session",
+    "upNext": "Up next",
+    "noneWaiting": "No one waiting.",
+    "noneInSession": "No sessions in progress.",
+    "noneUpNext": "No more appointments today.",
+    "appointmentAt": "Appointment",
+    "arrivedAt": "Arrived",
+    "viaKiosk": "kiosk",
+    "markInSession": "In session",
+    "markDone": "Done",
+    "undoCheckIn": "Undo",
+    "checkIn": "Check in",
+    "currentDelay": "Current delay",
+    "currentDelayHint": "Shown on the kiosk as “your turn in ~X minutes”.",
+    "minutesValue": "{minutes} min"
   }
 }

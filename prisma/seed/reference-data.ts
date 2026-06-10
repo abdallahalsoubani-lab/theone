@@ -225,6 +225,9 @@ export async function seedReference(db: PrismaClient): Promise<void> {
       defaultReminderOffsetMinutes: 1440,
       reminderWindowStart: '08:00',
       reminderWindowEnd: '18:00',
+      // Prompt 18: manual "your turn in ~X minutes" for the kiosk. Tokens are
+      // left null — admin generates them from clinic settings when ready.
+      currentDelayMinutes: 10,
       hijriDefault: false,
       defaultLanguage: LanguagePref.AR,
       businessHours: {

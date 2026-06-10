@@ -1,6 +1,7 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
+import { ArrivalsTokensCard } from '@/components/admin/ArrivalsTokensCard';
 import { ClinicSettingsForm } from '@/components/admin/ClinicSettingsForm';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac/guards';
@@ -34,6 +35,7 @@ export default async function ClinicSettingsPage({
           defaultReminderOffsetMinutes: settings.defaultReminderOffsetMinutes,
           reminderWindowStart: settings.reminderWindowStart,
           reminderWindowEnd: settings.reminderWindowEnd,
+          currentDelayMinutes: settings.currentDelayMinutes,
           defaultLanguage: settings.defaultLanguage,
           hijriDefault: settings.hijriDefault,
           patientCanViewClinicalNotes: settings.patientCanViewClinicalNotes,
@@ -49,6 +51,11 @@ export default async function ClinicSettingsPage({
             active: boolean;
           }>,
         }}
+      />
+      <ArrivalsTokensCard
+        locale={locale}
+        kioskActive={Boolean(settings.kioskToken)}
+        displayActive={Boolean(settings.displayToken)}
       />
     </section>
   );

@@ -47,6 +47,7 @@ export default async function TherapistDashboard({
         startsAt: true,
         durationMinutes: true,
         status: true,
+        checkedInAt: true,
         patientId: true,
         patient: { select: { fullNameEn: true, fullNameAr: true } },
         // Primary session note (if written) so the card can deep-link to it.
@@ -106,7 +107,13 @@ export default async function TherapistDashboard({
                       })}
                     </p>
                     <p className="line-clamp-1 text-sm font-medium text-brand-navy">{name}</p>
-                    <p className="text-xs text-brand-textMuted">{a.status}</p>
+                    {a.checkedInAt ? (
+                      <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-brand-teal/15 px-2 py-0.5 text-xs font-medium text-brand-teal">
+                        ● {t('arrived')}
+                      </span>
+                    ) : (
+                      <p className="text-xs text-brand-textMuted">{a.status}</p>
+                    )}
                   </Link>
                 </li>
               );

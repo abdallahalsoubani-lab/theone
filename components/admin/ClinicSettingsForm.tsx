@@ -200,6 +200,17 @@ export function ClinicSettingsForm({ initial }: Props) {
                 onChange={(e) => setField('reminderWindowEnd', e.target.value)}
               />
             </Field>
+            <Field label={t('fields.currentDelayMinutes')}>
+              <Input
+                type="number"
+                min={0}
+                max={240}
+                value={state.currentDelayMinutes}
+                onChange={(e) =>
+                  setField('currentDelayMinutes', parseInt(e.target.value || '10', 10))
+                }
+              />
+            </Field>
           </div>
         </TabsContent>
 
