@@ -41,7 +41,8 @@ export default async function SecretaryPatientEditPage({
           id: patient.id,
           fullNameEn: patient.fullNameEn,
           fullNameAr: patient.fullNameAr,
-          phone: patient.phone,
+          // Secretary edit form: phone is always visible to Secretary/Admin.
+          phone: patient.phone ?? '',
           email: patient.email,
           dateOfBirth: patient.dateOfBirth,
           gender: patient.gender,

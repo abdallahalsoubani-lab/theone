@@ -41,7 +41,8 @@ export default async function PatientProfilePage({
         readOnly={{
           fullNameEn: patient.fullNameEn,
           fullNameAr: patient.fullNameAr,
-          phone: patient.phone,
+          // Patient viewing their own profile always sees their phone.
+          phone: patient.phone ?? '',
           dateOfBirth: patient.dateOfBirth,
           gender: patient.gender,
         }}

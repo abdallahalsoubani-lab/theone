@@ -36,8 +36,8 @@ describe('Prompt 7b RBAC — appointments.create (series builder)', () => {
   it('PATIENT cannot create', () => {
     expect(can(u(UserRole.PATIENT), 'appointments.create')).toBe(false);
   });
-  it('DOCTOR cannot create (orders to Secretary, not direct booking)', () => {
-    expect(can(u(UserRole.DOCTOR), 'appointments.create')).toBe(false);
+  it('DOCTOR can create (Prompt 15 §2B — full scheduling parity with Secretary)', () => {
+    expect(can(u(UserRole.DOCTOR), 'appointments.create')).toBe(true);
   });
   it('THERAPIST cannot create', () => {
     expect(can(u(UserRole.THERAPIST), 'appointments.create')).toBe(false);
@@ -57,8 +57,8 @@ describe('Prompt 7b RBAC — appointments.update (change-therapist + bulk resche
   it('THERAPIST cannot reassign their own appointment (admin-only)', () => {
     expect(can(u(UserRole.THERAPIST), 'appointments.update')).toBe(false);
   });
-  it('DOCTOR cannot update appointments directly', () => {
-    expect(can(u(UserRole.DOCTOR), 'appointments.update')).toBe(false);
+  it('DOCTOR can update appointments directly (Prompt 15 §2B parity)', () => {
+    expect(can(u(UserRole.DOCTOR), 'appointments.update')).toBe(true);
   });
 });
 
@@ -75,8 +75,8 @@ describe('Prompt 7b RBAC — appointments.cancel (categorized cancel + bulk canc
   it('THERAPIST cannot cancel', () => {
     expect(can(u(UserRole.THERAPIST), 'appointments.cancel')).toBe(false);
   });
-  it('DOCTOR cannot cancel', () => {
-    expect(can(u(UserRole.DOCTOR), 'appointments.cancel')).toBe(false);
+  it('DOCTOR can cancel (Prompt 15 §2B parity)', () => {
+    expect(can(u(UserRole.DOCTOR), 'appointments.cancel')).toBe(true);
   });
 });
 
@@ -93,8 +93,8 @@ describe('Prompt 7b RBAC — appointments.override_conflict (series OVERRIDE)', 
   it('THERAPIST cannot override conflicts (would let them double-book themselves)', () => {
     expect(can(u(UserRole.THERAPIST), 'appointments.override_conflict')).toBe(false);
   });
-  it('DOCTOR cannot override conflicts', () => {
-    expect(can(u(UserRole.DOCTOR), 'appointments.override_conflict')).toBe(false);
+  it('DOCTOR can override conflicts (Prompt 15 §2B parity)', () => {
+    expect(can(u(UserRole.DOCTOR), 'appointments.override_conflict')).toBe(true);
   });
 });
 

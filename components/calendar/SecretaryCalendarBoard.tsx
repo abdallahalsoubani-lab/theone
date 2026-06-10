@@ -23,7 +23,7 @@ interface Props {
   resources: Array<{ id: string; fullNameEn: string; fullNameAr: string }>;
   /** Approved leaves overlapping the visible range (Prompt 11 §4.1.5). */
   leaves?: Array<{ id: string; userId: string; startDate: Date; endDate: Date }>;
-  patients: Array<{ id: string; fullNameEn: string; fullNameAr: string; phone: string }>;
+  patients: Array<{ id: string; fullNameEn: string; fullNameAr: string; phone: string | null }>;
   rooms: Array<{ id: string; name: string }>;
   defaultDurationMinutes: number;
   minHour: number;

@@ -72,6 +72,16 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.OWN_PROFILE_UPDATE]: true,
     [PERMISSIONS.USERS_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.APPOINTMENTS_READ_ASSIGNED]: 'assigned',
+    // Prompt 15 §2B — full appointment-scheduling parity with Secretary.
+    [PERMISSIONS.APPOINTMENTS_CREATE]: true,
+    [PERMISSIONS.APPOINTMENTS_READ]: true,
+    [PERMISSIONS.APPOINTMENTS_UPDATE]: true,
+    [PERMISSIONS.APPOINTMENTS_DELETE]: true,
+    [PERMISSIONS.APPOINTMENTS_CANCEL]: true,
+    [PERMISSIONS.APPOINTMENTS_STATUS_CHECKIN]: true,
+    [PERMISSIONS.APPOINTMENTS_STATUS_COMPLETE]: true,
+    [PERMISSIONS.APPOINTMENTS_STATUS_NOSHOW]: true,
+    [PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT]: true,
     [PERMISSIONS.TREATMENT_PLANS_CREATE]: true,
     [PERMISSIONS.TREATMENT_PLANS_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.TREATMENT_PLANS_UPDATE_OWN]: 'own',
@@ -257,6 +267,40 @@ describe('RBAC matrix — every (role × permission) pair', () => {
       });
     }
   }
+});
+
+describe('Doctor appointment parity (Prompt 15 §2B)', () => {
+  const OTHER_PATIENT = 'patient-not-on-care-team';
+
+  it('Doctor may reschedule / cancel / create ANY appointment (unscoped, even off-care-team)', () => {
+    const doctor = u('DOCTOR', 'dr-1');
+    // Unscoped grants → allowed regardless of the resource's owner/assignee.
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_UPDATE, { ownerId: OTHER_PATIENT })).toBe(true);
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_CANCEL, { ownerId: OTHER_PATIENT })).toBe(true);
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_CREATE)).toBe(true);
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT)).toBe(true);
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_READ)).toBe(true);
+  });
+
+  it('Therapist still cannot edit appointments (permissions unchanged)', () => {
+    const therapist = u('THERAPIST', 'th-1');
+    expect(can(therapist, PERMISSIONS.APPOINTMENTS_UPDATE)).toBe(false);
+    expect(can(therapist, PERMISSIONS.APPOINTMENTS_CANCEL)).toBe(false);
+    expect(can(therapist, PERMISSIONS.APPOINTMENTS_CREATE)).toBe(false);
+  });
+
+  it('Doctor now matches Secretary on the core scheduling permissions', () => {
+    const doctor = u('DOCTOR', 'dr-1');
+    const secretary = u('SECRETARY', 'sec-1');
+    for (const code of [
+      PERMISSIONS.APPOINTMENTS_CREATE,
+      PERMISSIONS.APPOINTMENTS_UPDATE,
+      PERMISSIONS.APPOINTMENTS_CANCEL,
+      PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT,
+    ]) {
+      expect(can(doctor, code)).toBe(can(secretary, code));
+    }
+  });
 });
 
 describe('scope edge cases', () => {

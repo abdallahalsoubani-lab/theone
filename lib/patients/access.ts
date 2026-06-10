@@ -1,7 +1,7 @@
 import { auth } from '@/auth';
 import { ForbiddenError } from '@/lib/rbac/guards';
 
-import { isClinicianAssignedTo } from './queries';
+import { isClinicianAssignedTo } from './assignment';
 
 /**
  * Patient-file access gate.
@@ -27,4 +27,28 @@ export async function ensureCanReadPatient(patientId: string): Promise<void> {
   }
   if (role === 'PATIENT' && session.user.id === patientId) return;
   throw new ForbiddenError();
+}
+
+/**
+ * Patient phone-number visibility (Prompt 15 §1).
+ *
+ * A patient's phone is contact PII visible ONLY to SECRETARY and ADMIN, and
+ * to the patient themself (their own portal/profile). THERAPIST and DOCTOR
+ * must never see it. This is the single source of truth for that rule; the
+ * patient read queries (`getPatientFile`, the appointment side-panel query,
+ * the PDF export) call it and null the phone out at the data layer so it is
+ * never serialized to a clinician's session.
+ *
+ * Fail-closed: with no session, or any role other than the above, returns
+ * false. Server-side senders (WhatsApp jobs, reminder workers) read the phone
+ * directly from Prisma without a viewer session and are intentionally not
+ * routed through here.
+ */
+export async function viewerCanSeePatientPhone(patientId?: string): Promise<boolean> {
+  const session = await auth();
+  const user = session?.user;
+  if (!user) return false;
+  if (user.role === 'ADMIN' || user.role === 'SECRETARY') return true;
+  if (user.role === 'PATIENT' && patientId !== undefined && user.id === patientId) return true;
+  return false;
 }
