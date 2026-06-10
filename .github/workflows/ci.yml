@@ -6,6 +6,10 @@ on:
       - 'dependabot/**'
   pull_request:
     branches: [main]
+  # Callable as a reusable workflow (deploy.yml runs CI before deploying).
+  # Without this trigger, `uses: ./.github/workflows/ci.yml` fails validation
+  # and fails the entire deploy run.
+  workflow_call:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -98,6 +102,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # pnpm 10 blocks dependency build scripts and there is no postinstall
+      # hook, so the Prisma client is never generated automatically. The seed
+      # below imports `@prisma/client`, so generate it explicitly (the quality
+      # job already has its own generate step).
+      - name: Generate Prisma client
+        run: pnpm exec prisma generate
 
       - name: Apply migrations (deploy)
         run: pnpm exec prisma migrate deploy
