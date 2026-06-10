@@ -6,6 +6,7 @@ import { ScheduleDensity } from '@/components/analytics/ScheduleDensity';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { getScheduleDensityForTherapist } from '@/lib/analytics/queries';
+import { therapistAppointmentHref } from '@/lib/appointments/links';
 import { listAppointmentsPendingNote } from '@/lib/clinical/session-notes/queries';
 import { db } from '@/lib/db';
 import { countUnreadNotificationsForCurrentUser } from '@/lib/notifications/queries';
@@ -46,7 +47,10 @@ export default async function TherapistDashboard({
         startsAt: true,
         durationMinutes: true,
         status: true,
+        patientId: true,
         patient: { select: { fullNameEn: true, fullNameAr: true } },
+        // Primary session note (if written) so the card can deep-link to it.
+        sessionNotes: { where: { parentNoteId: null }, select: { id: true }, take: 1 },
       },
     }),
     listAppointmentsPendingNote(therapistId, 5),
@@ -60,7 +64,7 @@ export default async function TherapistDashboard({
       <h1 className="text-2xl font-medium text-brand-navy">{t('therapistTitle')}</h1>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat label={t('todayAppts')} value={todayAppts.length} href="/secretary/calendar" />
+        <Stat label={t('todayAppts')} value={todayAppts.length} />
         <Stat
           label={t('pendingNotes')}
           value={pendingNotes.length}
@@ -82,19 +86,28 @@ export default async function TherapistDashboard({
           <ul className="flex gap-2 overflow-x-auto pb-2 text-sm">
             {todayAppts.map((a) => {
               const name = locale === 'ar' ? a.patient.fullNameAr : a.patient.fullNameEn;
+              // Deep-link to the session note if one exists, else the patient
+              // file (which reaches plan / session reports / home program and
+              // the new-note flow). No more dead-end cards.
+              const href = therapistAppointmentHref({
+                patientId: a.patientId,
+                sessionNoteId: a.sessionNotes[0]?.id,
+              }) as `/${string}`;
               return (
-                <li
-                  key={a.id}
-                  className="min-w-[10rem] rounded-md border border-brand-border bg-brand-surface p-3"
-                >
-                  <p className="text-xs text-brand-textMuted">
-                    {a.startsAt.toLocaleTimeString(locale === 'ar' ? 'ar' : 'en', {
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </p>
-                  <p className="line-clamp-1 text-sm font-medium text-brand-navy">{name}</p>
-                  <p className="text-xs text-brand-textMuted">{a.status}</p>
+                <li key={a.id} className="min-w-[10rem]">
+                  <Link
+                    href={href}
+                    className="block rounded-md border border-brand-border bg-brand-surface p-3 transition-colors hover:border-brand-cyan hover:bg-brand-bg"
+                  >
+                    <p className="text-xs text-brand-textMuted">
+                      {a.startsAt.toLocaleTimeString(locale === 'ar' ? 'ar' : 'en', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                    <p className="line-clamp-1 text-sm font-medium text-brand-navy">{name}</p>
+                    <p className="text-xs text-brand-textMuted">{a.status}</p>
+                  </Link>
                 </li>
               );
             })}

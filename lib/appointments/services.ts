@@ -4,6 +4,7 @@ import type { CancellationCategory } from '@prisma/client';
 import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
+import { addCareTeamMemberTx } from '@/lib/patients/assignment';
 import {
   cancelAppointmentReminder,
   enqueueAppointmentReminder,
@@ -86,17 +87,25 @@ export const createAppointment = withAudit<
       throw new AppointmentError(conflictError(conflicts.conflicts));
     }
 
-    const appointment = await db.appointment.create({
-      data: {
-        patientId: input.patientId,
-        therapistId: input.therapistId,
-        roomId: input.roomId ?? null,
-        startsAt: input.startsAt,
-        durationMinutes: input.durationMinutes,
-        status: AppointmentStatus.SCHEDULED,
-        notes: input.notes ?? null,
-        createdById: session.user.id,
-      },
+    const appointment = await db.$transaction(async (tx) => {
+      const appt = await tx.appointment.create({
+        data: {
+          patientId: input.patientId,
+          therapistId: input.therapistId,
+          roomId: input.roomId ?? null,
+          startsAt: input.startsAt,
+          durationMinutes: input.durationMinutes,
+          status: AppointmentStatus.SCHEDULED,
+          notes: input.notes ?? null,
+          createdById: session.user.id,
+        },
+      });
+      // Booking a patient with a therapist makes that therapist part of the
+      // patient's care team so they appear in "My patients" + dashboard.
+      // Idempotent, add-never-replace (Prompt 15.5 — mirrors the plan-create
+      // doctor back-fill). Covered by this appointment's CREATE audit.
+      await addCareTeamMemberTx(tx, input.patientId, input.therapistId, session.user.id);
+      return appt;
     });
 
     const offset = await getReminderOffsetMinutes();
@@ -183,6 +192,7 @@ export const rescheduleAppointment = withAudit<
   async function rescheduleInner(
     input: AppointmentRescheduleParsed,
   ): Promise<{ appointmentId: string; conflictsOverridden: boolean }> {
+    const session = await auth();
     const existing = await db.appointment.findUnique({
       where: { id: input.id },
       select: {
@@ -208,14 +218,25 @@ export const rescheduleAppointment = withAudit<
       throw new AppointmentError(conflictError(conflicts.conflicts));
     }
 
-    await db.appointment.update({
-      where: { id: input.id },
-      data: {
-        startsAt: input.startsAt,
-        durationMinutes: input.durationMinutes,
+    await db.$transaction(async (tx) => {
+      await tx.appointment.update({
+        where: { id: input.id },
+        data: {
+          startsAt: input.startsAt,
+          durationMinutes: input.durationMinutes,
+          therapistId,
+          roomId: input.roomId ?? null,
+        },
+      });
+      // A reschedule onto a different therapist (e.g. dragging to another
+      // resource column) adds the new therapist to the care team — never
+      // removes the previous one. Idempotent when the therapist is unchanged.
+      await addCareTeamMemberTx(
+        tx,
+        existing.patientId,
         therapistId,
-        roomId: input.roomId ?? null,
-      },
+        session?.user?.id ?? therapistId,
+      );
     });
 
     // Re-enqueue the reminder against the new fire time.
@@ -312,9 +333,20 @@ export const changeAppointmentTherapist = withAudit<
       };
     }
 
-    await db.appointment.update({
-      where: { id: input.id },
-      data: { therapistId: input.therapistId },
+    const session = await auth();
+    await db.$transaction(async (tx) => {
+      await tx.appointment.update({
+        where: { id: input.id },
+        data: { therapistId: input.therapistId },
+      });
+      // Add the new therapist to the patient's care team (add-never-replace —
+      // the previous therapist stays unless removed elsewhere).
+      await addCareTeamMemberTx(
+        tx,
+        existing.patientId,
+        input.therapistId,
+        session?.user?.id ?? input.therapistId,
+      );
     });
 
     // Notification fan-out — two separate types so each side gets a
