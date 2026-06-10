@@ -99,7 +99,8 @@
       "linkedPlan": "الخطة العلاجية المرتبطة: قادمة في المهمة 9.",
       "sessionNoteCta": "كتابة تقرير الجلسة (قادم في المهمة 9).",
       "openPatientFile": "فتح ملف المراجع"
-    }
+    },
+    "myScheduleTitle": "جدولي"
   },
   "patients": {
     "navTitle": "المراجعون",

@@ -77,7 +77,7 @@ interface DayHours {
   closed: boolean;
 }
 
-function deriveDayWindow(hoursPayload: unknown): { minHour: number; maxHour: number } {
+export function deriveDayWindow(hoursPayload: unknown): { minHour: number; maxHour: number } {
   const fallback = { minHour: 8, maxHour: 20 };
   if (!hoursPayload || typeof hoursPayload !== 'object') return fallback;
   const hours = hoursPayload as Record<string, DayHours>;

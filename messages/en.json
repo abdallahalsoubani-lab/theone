@@ -486,7 +486,8 @@
       "linkedPlan": "Linked treatment plan: coming in Prompt 9.",
       "sessionNoteCta": "Write session note (coming in Prompt 9).",
       "openPatientFile": "Open patient file"
-    }
+    },
+    "myScheduleTitle": "My schedule"
   },
   "patients": {
     "navTitle": "Patients",

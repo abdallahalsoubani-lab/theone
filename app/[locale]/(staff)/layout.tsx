@@ -87,6 +87,11 @@ export default async function StaffLayout({
         icon: <Calendar className="size-4" />,
       },
       {
+        label: tNav('calendar'),
+        href: '/therapist/calendar',
+        icon: <Calendar className="size-4" />,
+      },
+      {
         label: tPatients('navTitle'),
         href: '/therapist/patients',
         icon: <Users className="size-4" />,
