@@ -5,13 +5,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ArrivalRow, ArrivalsBoard } from '@/lib/arrivals/queries';
 
-const POLL_MS = 12_000;
-const STALE_AFTER_MS = 40_000; // ~3 missed polls → show the stale badge
+const POLL_MS = 10_000;
+const STALE_AFTER_MS = 35_000; // ~3 missed polls → show the stale badge
+
+const timeFmt = (locale: string, d: Date, withSeconds = false) =>
+  d.toLocaleTimeString(locale === 'ar' ? 'ar-JO' : 'en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    ...(withSeconds ? { second: '2-digit' } : {}),
+  });
 
 /**
  * Staff break-room lobby display (Prompt 18 §4). Standalone, TV-friendly,
  * runs all day with no interaction. Polls the token-gated data feed every
- * ~12s and survives network blips (keeps the last good board, shows a "stale"
+ * ~10s and survives network blips (keeps the last good board, shows a "stale"
  * badge until the next success). Names only — no phone numbers.
  */
 export function LobbyDisplay({ token, locale }: { token: string; locale: string }) {
@@ -19,23 +26,28 @@ export function LobbyDisplay({ token, locale }: { token: string; locale: string 
   const [board, setBoard] = useState<ArrivalsBoard | null>(null);
   const [stale, setStale] = useState(false);
   const [clock, setClock] = useState('');
+  const [lastUpdated, setLastUpdated] = useState('');
   const lastOk = useRef<number>(0);
 
   const poll = useCallback(async () => {
     try {
-      const res = await fetch(`/api/v1/arrivals/display?token=${encodeURIComponent(token)}`, {
-        cache: 'no-store',
-      });
+      // Per-poll cache-buster (`_=<ms>`): a unique URL each cycle defeats any
+      // URL-keyed browser/proxy/CDN cache, so the screen always sees live state.
+      const res = await fetch(
+        `/api/v1/arrivals/display?token=${encodeURIComponent(token)}&_=${Date.now()}`,
+        { cache: 'no-store' },
+      );
       if (!res.ok) throw new Error(String(res.status));
       const data: ArrivalsBoard = await res.json();
       setBoard(data);
       lastOk.current = Date.now();
+      setLastUpdated(timeFmt(locale, new Date(), true));
       setStale(false);
     } catch {
       // Keep the last good board; mark stale once polls have been failing.
       if (lastOk.current && Date.now() - lastOk.current > STALE_AFTER_MS) setStale(true);
     }
-  }, [token]);
+  }, [token, locale]);
 
   useEffect(() => {
     void poll();
@@ -77,7 +89,14 @@ export function LobbyDisplay({ token, locale }: { token: string; locale: string 
               {t('stale')}
             </span>
           )}
-          <span className="text-4xl font-medium tabular-nums">{clock}</span>
+          <div className="text-end">
+            <span className="block text-4xl font-medium tabular-nums">{clock}</span>
+            {lastUpdated && (
+              <span className="block text-sm text-white/50">
+                {t('lastUpdated', { time: lastUpdated })}
+              </span>
+            )}
+          </div>
         </div>
       </header>
 

@@ -1478,7 +1478,8 @@
     "noneWaiting": "No one waiting",
     "noneInSession": "No sessions in progress",
     "noneUpNext": "Nothing coming up",
-    "waitingMinutes": "waiting {minutes}m"
+    "waitingMinutes": "waiting {minutes}m",
+    "lastUpdated": "Updated {time}"
   },
   "arrivals": {
     "title": "Arrivals",

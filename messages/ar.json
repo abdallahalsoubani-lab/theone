@@ -1478,7 +1478,8 @@
     "noneWaiting": "لا أحد في الانتظار",
     "noneInSession": "لا جلسات جارية",
     "noneUpNext": "لا مواعيد قادمة",
-    "waitingMinutes": "ينتظر {minutes}د"
+    "waitingMinutes": "ينتظر {minutes}د",
+    "lastUpdated": "آخر تحديث {time}"
   },
   "arrivals": {
     "title": "قائمة الوصول",
