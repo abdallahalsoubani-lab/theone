@@ -7,6 +7,7 @@ import {
   PASSWORD_GATE_ALLOWLIST,
   ROLE_HOME,
   isPasswordGateAllowed,
+  isPathAllowedForRole,
   isPublicPath,
 } from '@/lib/auth/routes';
 // Direct import from the Edge-safe token module — the barrel re-exports
@@ -82,6 +83,22 @@ export default auth(async (req) => {
   if (session.user.mustChangePassword && !isPasswordGateAllowed(barePath)) {
     const url = req.nextUrl.clone();
     url.pathname = `/${locale}/change-password`;
+    url.search = '';
+    return NextResponse.redirect(url);
+  }
+
+  // ── Role-prefix gate ────────────────────────────────────────────────
+  //
+  // Each top-level role segment (/admin, /secretary, /doctor, /therapist,
+  // /patient) belongs to that role's UI. A clinician clicking a stale
+  // link into a sibling role's surface should silently land on their own
+  // dashboard — not a ForbiddenError page. `requirePermission` at the
+  // page boundary is still the authoritative gate; this is the pre-render
+  // UX redirect that prevents the error class entirely. Admin is allowed
+  // everywhere (see `lib/auth/routes.ts → ROLE_PATH_PREFIXES`).
+  if (!isPathAllowedForRole(barePath, session.user.role)) {
+    const url = req.nextUrl.clone();
+    url.pathname = `/${locale}${ROLE_HOME[session.user.role]}`;
     url.search = '';
     return NextResponse.redirect(url);
   }

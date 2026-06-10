@@ -15,10 +15,9 @@
 --   6. GIN full-text indexes on SessionNote + TreatmentPlan for the
 --      patient timeline search (Prompt 9 §4.11).
 
--- ─── Enum extensions ────────────────────────────────────────────────────────
-ALTER TYPE "PlanStatus" ADD VALUE 'PROPOSED';
-ALTER TYPE "PlanStatus" ADD VALUE 'REJECTED';
-ALTER TYPE "PlanStatus" ADD VALUE 'SUPERSEDED';
+-- PlanStatus enum values (PROPOSED, REJECTED, SUPERSEDED) live in the
+-- preceding migration 20260519095000_plan_status_enum_values so they are
+-- committed before this file references 'PROPOSED' below.
 
 CREATE TYPE "NotificationType" AS ENUM (
     'PLAN_ASSIGNED',

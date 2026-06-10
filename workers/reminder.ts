@@ -71,7 +71,7 @@ export function startReminderWorker(): Worker {
 
       const id = await enqueueWhatsappOutbound({
         kind: 'template',
-        templateName: 'appointment_reminder_30min',
+        templateName: 'appointment_reminder_v2',
         language: lang,
         parameters: [therapistName, timeLabel],
         recipientPhone: appt.patient.phone,

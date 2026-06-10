@@ -29,6 +29,10 @@
     "db:seed": "dotenv -e .env.local -- tsx prisma/seed.ts",
     "db:studio": "dotenv -e .env.local -- prisma studio",
     "i18n:check": "tsx scripts/check-i18n-sync.ts",
+    "test:meta": "dotenv -e .env.local -- tsx scripts/test-meta-whatsapp.ts",
+    "templates:migrate-meta": "dotenv -e .env.local -- tsx scripts/migrate-templates-meta.ts",
+    "templates:approve": "dotenv -e .env.local -- tsx scripts/approve-templates.ts",
+    "seed:vm": "dotenv -e .env.local -- tsx scripts/seed-vm-production.ts",
     "workers:start": "dotenv -e .env.local -- tsx workers/index.ts",
     "bootstrap:admin": "NODE_ENV=production tsx scripts/bootstrap-admin.ts",
     "size-limit": "size-limit",
@@ -86,7 +90,6 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
-    "twilio": "^6.0.2",
     "zod": "^3.24.1"
   },
   "devDependencies": {

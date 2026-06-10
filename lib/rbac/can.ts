@@ -40,6 +40,17 @@ export function can(
   action: string,
   resource: PermissionResource = {},
 ): boolean {
+  // Admin universal-read bypass: any `*.read[.*]` action is permitted
+  // regardless of the per-role grant set or scope. This covers the
+  // observe / troubleshoot surface — Admin can render any clinical
+  // page that any other role can — without giving Admin the ability
+  // to *write* clinical data (mutations still require an explicit
+  // grant). The regex deliberately matches the verb `.read` only
+  // (not `.mark_read` or other read-adjacent verbs).
+  if (user.role === 'ADMIN' && /^[a-z_]+\.read(\..+)?$/.test(action)) {
+    return true;
+  }
+
   const grants = ROLE_PERMISSIONS[user.role];
   if (!grants.has(action as PermissionCode)) return false;
 

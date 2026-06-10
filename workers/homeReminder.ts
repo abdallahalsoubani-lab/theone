@@ -68,11 +68,11 @@ export function startHomeReminderWorker(): Worker {
       const therapistNote = item.therapistNote ?? '';
       const portalLink = `${(env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')}/${language === 'AR' ? 'ar' : 'en'}/patient/home-program`;
 
-      // The seeded `home_exercise_reminder` template takes three params:
+      // The seeded `home_exercise_reminder_v2` template takes three params:
       //   {{1}} = exercise name, {{2}} = therapist note, {{3}} = portal link.
       await enqueueWhatsappOutbound({
         kind: 'template',
-        templateName: 'home_exercise_reminder',
+        templateName: 'home_exercise_reminder_v2',
         language,
         parameters: [exerciseName, therapistNote, portalLink],
         recipientPhone: item.patient.phone,

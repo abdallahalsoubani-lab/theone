@@ -51,3 +51,47 @@ export function isPublicPath(barePath: string): boolean {
 export function isPasswordGateAllowed(barePath: string): boolean {
   return PASSWORD_GATE_ALLOWLIST.includes(barePath);
 }
+
+/**
+ * Each top-level role segment under `/[locale]/...` belongs to exactly
+ * one role's UI surface. Paths under `/staff/...` are explicitly shared
+ * across the three clinical roles; everything else (root, /notifications,
+ * /style-guide, etc.) carries no role gate at this layer.
+ *
+ * Admin is allowed everywhere — the impersonation feature and ops
+ * troubleshooting both depend on it. RBAC at the page/action boundary
+ * (`requirePermission`) is still the authoritative gate; this map is the
+ * pre-render redirect so a clinician clicking a stale link lands on
+ * their own home instead of a ForbiddenError page.
+ */
+const ROLE_PATH_PREFIXES = {
+  '/admin': new Set<UserRole>(['ADMIN']),
+  '/secretary': new Set<UserRole>(['SECRETARY', 'ADMIN']),
+  '/doctor': new Set<UserRole>(['DOCTOR', 'ADMIN']),
+  '/therapist': new Set<UserRole>(['THERAPIST', 'ADMIN']),
+  '/patient': new Set<UserRole>(['PATIENT', 'ADMIN']),
+  '/staff': new Set<UserRole>(['SECRETARY', 'DOCTOR', 'THERAPIST', 'ADMIN']),
+} as const;
+
+/**
+ * Returns the set of roles allowed under the given path's top-level
+ * role prefix, or null when the path carries no role gate.
+ */
+export function getAllowedRolesForPath(barePath: string): ReadonlySet<UserRole> | null {
+  for (const [prefix, allowed] of Object.entries(ROLE_PATH_PREFIXES)) {
+    if (barePath === prefix || barePath.startsWith(`${prefix}/`)) {
+      return allowed;
+    }
+  }
+  return null;
+}
+
+/**
+ * Convenience: true when the role may navigate to the path under the
+ * role-prefix gate. Paths with no gate (root, notifications, …) always
+ * return true.
+ */
+export function isPathAllowedForRole(barePath: string, role: UserRole): boolean {
+  const allowed = getAllowedRolesForPath(barePath);
+  return !allowed || allowed.has(role);
+}
