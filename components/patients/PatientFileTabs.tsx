@@ -1,6 +1,15 @@
 'use client';
 
-import { Activity, Calendar, ClipboardList, FileText, Home, Stethoscope, User } from 'lucide-react';
+import {
+  Activity,
+  Baby,
+  Calendar,
+  ClipboardList,
+  FileText,
+  Home,
+  Stethoscope,
+  User,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
@@ -13,6 +22,7 @@ type TabKey =
   | 'plan'
   | 'notes'
   | 'home'
+  | 'pediatric'
   | 'timeline'
   | 'activity';
 
@@ -29,6 +39,8 @@ interface Props {
   timeline?: ReactNode;
   /** Home program (Prompt 10). Falls back to the placeholder if omitted. */
   homeProgram?: ReactNode;
+  /** Pediatric assessment (Prompt 21). Shown only when the viewer can read it. */
+  pediatric?: ReactNode;
 }
 
 export function PatientFileTabs({
@@ -40,6 +52,7 @@ export function PatientFileTabs({
   notes,
   timeline,
   homeProgram,
+  pediatric,
 }: Props) {
   const t = useTranslations('patients.file');
 
@@ -70,6 +83,12 @@ export function PatientFileTabs({
           <Home className="me-2 size-4" />
           {t('tabHomeProgram')}
         </TabsTrigger>
+        {pediatric ? (
+          <TabsTrigger value="pediatric">
+            <Baby className="me-2 size-4" />
+            {t('tabPediatric')}
+          </TabsTrigger>
+        ) : null}
         <TabsTrigger value="timeline">
           <Activity className="me-2 size-4" />
           {t('tabTimeline')}
@@ -111,6 +130,7 @@ export function PatientFileTabs({
           <Placeholder icon={<Home className="size-6" />} message={t('placeholderHomeProgram')} />
         )}
       </TabsContent>
+      {pediatric ? <TabsContent value="pediatric">{pediatric}</TabsContent> : null}
       <TabsContent value="timeline">
         {timeline ?? (
           <Placeholder icon={<Activity className="size-6" />} message={t('placeholderTimeline')} />

@@ -16,7 +16,9 @@
     "no": "No",
     "close": "Close",
     "remove": "Remove",
-    "hidden": "Hidden"
+    "hidden": "Hidden",
+    "saving": "Saving…",
+    "saved": "Saved."
   },
   "shell": {
     "userMenu": "Account",
@@ -618,7 +620,8 @@
       "confirmResetPassword": "Force a new temporary password? A WhatsApp message with the new credentials will be sent.",
       "resetToast": "Password reset. New temporary password sent.",
       "tabTimeline": "Timeline",
-      "placeholderTimeline": "Clinical timeline arrives in Prompt 9."
+      "placeholderTimeline": "Clinical timeline arrives in Prompt 9.",
+      "tabPediatric": "Pediatric assessment"
     },
     "toasts": {
       "created": "Patient created.",
@@ -1437,7 +1440,8 @@
     "downloadFile": "Download my file",
     "downloading": "Preparing…",
     "downloaded": "Download started.",
-    "downloadFailed": "Could not generate the file."
+    "downloadFailed": "Could not generate the file.",
+    "pdf": "PDF"
   },
   "impersonation": {
     "banner_acting_as": "You are acting as {name} ({role})",
@@ -1534,5 +1538,37 @@
     "currentDelay": "Current delay",
     "currentDelayHint": "Shown on the kiosk as “your turn in ~X minutes”.",
     "minutesValue": "{minutes} min"
+  },
+  "pediatricAssessment": {
+    "subtitle": "Pediatric physiotherapy assessments, newest first.",
+    "newAssessment": "New assessment",
+    "editAssessment": "Edit assessment",
+    "manageFields": "Manage fields",
+    "empty": "No assessments yet.",
+    "edited": "edited",
+    "edit": "Edit",
+    "byLine": "by {name}",
+    "saved": "Assessment saved.",
+    "customSection": "Custom fields",
+    "fields": {
+      "title": "Manage assessment fields",
+      "subtitle": "The core fields are fixed. Add, edit, or deactivate clinic-wide custom fields.",
+      "coreFixedNote": "The 65 core fields are fixed and cannot be edited — this guarantees longitudinal comparison. The custom fields below are flexible.",
+      "customFieldsHeading": "Custom fields",
+      "addField": "Add field",
+      "noCustomFields": "No custom fields yet.",
+      "deactivate": "Deactivate",
+      "deactivated": "Field deactivated.",
+      "inactiveHeading": "Inactive",
+      "labelEn": "Label (English)",
+      "labelAr": "Label (Arabic)",
+      "type": "Type",
+      "section": "Section (optional)",
+      "options": "Options",
+      "optValue": "Value",
+      "optEn": "English",
+      "optAr": "Arabic",
+      "addOption": "Add option"
+    }
   }
 }

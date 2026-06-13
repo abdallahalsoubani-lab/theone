@@ -35,6 +35,8 @@ interface Props {
    * on the server.
    */
   homeProgram?: ReactNode;
+  /** Pediatric assessment tab (Prompt 21). Passed only when the viewer can read it. */
+  pediatric?: ReactNode;
   viewerRole?: 'DOCTOR' | 'THERAPIST' | 'SECRETARY' | 'ADMIN' | 'PATIENT';
   actorId?: string;
 }
@@ -58,6 +60,7 @@ export function PatientFilePage({
   timelinePage = 1,
   timelinePageSize = 25,
   homeProgram,
+  pediatric,
   viewerRole,
   actorId,
 }: Props) {
@@ -113,6 +116,7 @@ export function PatientFilePage({
           ) : undefined
         }
         homeProgram={homeProgram}
+        pediatric={pediatric}
         activity={<PatientActivityTab rows={activity} />}
       />
     </section>

@@ -8,10 +8,13 @@ import { getPatientHomeProgramTabData } from '@/lib/clinical/home-program/patien
 import { getPatientPlanState } from '@/lib/clinical/plans/queries';
 import { listSessionNotesForPatient } from '@/lib/clinical/session-notes/queries';
 import { getPatientTimeline } from '@/lib/clinical/timeline/query';
+import { PediatricAssessmentTab } from '@/components/pediatric-assessment/PediatricAssessmentTab';
 import { listIntakesForPatient } from '@/lib/intake/queries';
 import { ensureCanReadPatient } from '@/lib/patients/access';
+import { listAssessmentsForPatient } from '@/lib/pediatric-assessment/queries';
 import { getPatientFile } from '@/lib/patients/queries';
 import { listPatientActivity } from '@/lib/patients/queries-audit';
+import { can } from '@/lib/rbac/can';
 import { requirePermission } from '@/lib/rbac/guards';
 
 const TIMELINE_PAGE_SIZE = 25;
@@ -49,6 +52,10 @@ export default async function TherapistPatientFilePage({
       getPatientHomeProgramTabData(id),
     ]);
   if (!patient) notFound();
+  const pedRows = await listAssessmentsForPatient(id);
+  const canReadPed = session?.user
+    ? can(session.user, 'pediatric_assessment.read.assigned', {})
+    : false;
   return (
     <PatientFilePage
       patient={patient}
@@ -74,6 +81,17 @@ export default async function TherapistPatientFilePage({
           canEdit
           locale={locale === 'ar' ? 'ar' : 'en'}
         />
+      }
+      pediatric={
+        canReadPed ? (
+          <PediatricAssessmentTab
+            rows={pedRows}
+            canEdit={false}
+            basePath={`/therapist/patients/${patient.id}`}
+            manageFieldsHref={null}
+            locale={locale === 'ar' ? 'ar' : 'en'}
+          />
+        ) : undefined
       }
       viewerRole="THERAPIST"
       actorId={session?.user?.id ?? ''}

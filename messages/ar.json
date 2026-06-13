@@ -16,7 +16,9 @@
     "no": "لا",
     "close": "إغلاق",
     "remove": "إزالة",
-    "hidden": "مخفي"
+    "hidden": "مخفي",
+    "saving": "جارٍ الحفظ…",
+    "saved": "تم الحفظ."
   },
   "appointments": {
     "title": "التقويم",
@@ -211,7 +213,8 @@
       "confirmResetPassword": "إعادة تعيين كلمة المرور؟ ستُرسل رسالة واتساب بكلمة مرور جديدة.",
       "resetToast": "تم تصفير كلمة المرور وإرسال كلمة جديدة.",
       "tabTimeline": "المسار الزمني",
-      "placeholderTimeline": "المسار الزمني السريري قادم في الموجه 9."
+      "placeholderTimeline": "المسار الزمني السريري قادم في الموجه 9.",
+      "tabPediatric": "تقييم الأطفال"
     },
     "toasts": {
       "created": "تم إنشاء المراجع.",
@@ -1437,7 +1440,8 @@
     "downloadFile": "تحميل ملفي",
     "downloading": "جاري التحضير…",
     "downloaded": "بدأ التحميل.",
-    "downloadFailed": "تعذر إنشاء الملف."
+    "downloadFailed": "تعذر إنشاء الملف.",
+    "pdf": "PDF"
   },
   "impersonation": {
     "banner_acting_as": "أنت تعمل الآن كـ {name} ({role})",
@@ -1534,5 +1538,37 @@
     "currentDelay": "التأخير الحالي",
     "currentDelayHint": "يظهر على الجهاز كـ «دورك بعد ~X دقيقة».",
     "minutesValue": "{minutes} دقيقة"
+  },
+  "pediatricAssessment": {
+    "subtitle": "تقييمات العلاج الطبيعي للأطفال، الأحدث أولاً.",
+    "newAssessment": "تقييم جديد",
+    "editAssessment": "تعديل التقييم",
+    "manageFields": "إدارة الحقول",
+    "empty": "لا توجد تقييمات بعد.",
+    "edited": "مُعدّل",
+    "edit": "تعديل",
+    "byLine": "بواسطة {name}",
+    "saved": "تم حفظ التقييم.",
+    "customSection": "حقول مخصصة",
+    "fields": {
+      "title": "إدارة حقول التقييم",
+      "subtitle": "الحقول الأساسية ثابتة. أضف أو عدّل أو ألغِ تفعيل الحقول المخصصة على مستوى العيادة.",
+      "coreFixedNote": "الحقول الأساسية الـ65 ثابتة ولا يمكن تعديلها — لضمان المقارنة عبر الزمن. الحقول المخصصة أدناه مرنة.",
+      "customFieldsHeading": "الحقول المخصصة",
+      "addField": "إضافة حقل",
+      "noCustomFields": "لا حقول مخصصة بعد.",
+      "deactivate": "إلغاء التفعيل",
+      "deactivated": "تم إلغاء تفعيل الحقل.",
+      "inactiveHeading": "غير مفعّلة",
+      "labelEn": "التسمية (إنجليزي)",
+      "labelAr": "التسمية (عربي)",
+      "type": "النوع",
+      "section": "القسم (اختياري)",
+      "options": "الخيارات",
+      "optValue": "القيمة",
+      "optEn": "إنجليزي",
+      "optAr": "عربي",
+      "addOption": "إضافة خيار"
+    }
   }
 }

@@ -8,10 +8,13 @@ import { getPatientHomeProgramTabData } from '@/lib/clinical/home-program/patien
 import { getPatientPlanState } from '@/lib/clinical/plans/queries';
 import { listSessionNotesForPatient } from '@/lib/clinical/session-notes/queries';
 import { getPatientTimeline } from '@/lib/clinical/timeline/query';
+import { PediatricAssessmentTab } from '@/components/pediatric-assessment/PediatricAssessmentTab';
 import { listIntakesForPatient } from '@/lib/intake/queries';
 import { ensureCanReadPatient } from '@/lib/patients/access';
+import { listAssessmentsForPatient } from '@/lib/pediatric-assessment/queries';
 import { getPatientFile } from '@/lib/patients/queries';
 import { listPatientActivity } from '@/lib/patients/queries-audit';
+import { can } from '@/lib/rbac/can';
 import { requirePermission } from '@/lib/rbac/guards';
 
 const TIMELINE_PAGE_SIZE = 25;
@@ -30,7 +33,7 @@ export default async function DoctorPatientFilePage({
   const sp = await searchParams;
   const timelinePage = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
   const session = await auth();
-  const [patient, activity, intakes, planState, notes, timeline, homeProgramData] =
+  const [patient, activity, intakes, planState, notes, timeline, homeProgramData, pedRows] =
     await Promise.all([
       getPatientFile(id),
       listPatientActivity(id),
@@ -47,8 +50,13 @@ export default async function DoctorPatientFilePage({
         { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
       ),
       getPatientHomeProgramTabData(id),
+      listAssessmentsForPatient(id),
     ]);
   if (!patient) notFound();
+  const canReadPed = session?.user
+    ? can(session.user, 'pediatric_assessment.read.assigned', {})
+    : false;
+  const canEditPed = session?.user ? can(session.user, 'pediatric_assessment.create') : false;
   return (
     <PatientFilePage
       patient={patient}
@@ -75,6 +83,17 @@ export default async function DoctorPatientFilePage({
           editHref={`/doctor/patients/${patient.id}/home-program/edit`}
           locale={locale === 'ar' ? 'ar' : 'en'}
         />
+      }
+      pediatric={
+        canReadPed ? (
+          <PediatricAssessmentTab
+            rows={pedRows}
+            canEdit={canEditPed}
+            basePath={`/doctor/patients/${patient.id}`}
+            manageFieldsHref={canEditPed ? '/doctor/pediatric-fields' : null}
+            locale={locale === 'ar' ? 'ar' : 'en'}
+          />
+        ) : undefined
       }
       viewerRole="DOCTOR"
       actorId={session?.user?.id ?? ''}

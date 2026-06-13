@@ -121,6 +121,10 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.ROOMS_READ]: true,
     [PERMISSIONS.PATIENTS_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.INTAKE_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.PEDIATRIC_ASSESSMENT_CREATE]: true,
+    [PERMISSIONS.PEDIATRIC_ASSESSMENT_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.PEDIATRIC_ASSESSMENT_UPDATE]: true,
+    [PERMISSIONS.PEDIATRIC_ASSESSMENT_MANAGE_FIELDS]: true,
     [PERMISSIONS.NOTIFICATIONS_READ_OWN]: 'own',
     [PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN]: 'own',
   },
@@ -159,6 +163,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.ROOMS_READ]: true,
     [PERMISSIONS.PATIENTS_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.INTAKE_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.PEDIATRIC_ASSESSMENT_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.NOTIFICATIONS_READ_OWN]: 'own',
     [PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN]: 'own',
   },
@@ -228,6 +233,10 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.INTAKE_CREATE]: true,
     [PERMISSIONS.INTAKE_READ]: true,
     [PERMISSIONS.INTAKE_UPDATE]: true,
+    [PERMISSIONS.PEDIATRIC_ASSESSMENT_CREATE]: true,
+    [PERMISSIONS.PEDIATRIC_ASSESSMENT_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.PEDIATRIC_ASSESSMENT_UPDATE]: true,
+    [PERMISSIONS.PEDIATRIC_ASSESSMENT_MANAGE_FIELDS]: true,
     [PERMISSIONS.INBOX_READ]: true,
     [PERMISSIONS.INBOX_RESOLVE]: true,
     [PERMISSIONS.WHATSAPP_MESSAGES_READ]: true,
@@ -345,6 +354,36 @@ describe('Booking waitlist (Prompt 19)', () => {
     const patient = u('PATIENT');
     expect(can(patient, PERMISSIONS.WAITLIST_READ)).toBe(false);
     expect(can(patient, PERMISSIONS.WAITLIST_CREATE)).toBe(false);
+  });
+});
+
+describe('Pediatric assessment (Prompt 21)', () => {
+  it('Doctor + Admin create/edit and manage fields', () => {
+    for (const role of ['DOCTOR', 'ADMIN'] as const) {
+      const user = u(role);
+      expect(can(user, PERMISSIONS.PEDIATRIC_ASSESSMENT_CREATE)).toBe(true);
+      expect(can(user, PERMISSIONS.PEDIATRIC_ASSESSMENT_UPDATE)).toBe(true);
+      expect(can(user, PERMISSIONS.PEDIATRIC_ASSESSMENT_MANAGE_FIELDS)).toBe(true);
+      expect(can(user, PERMISSIONS.PEDIATRIC_ASSESSMENT_READ_ASSIGNED, {})).toBe(true);
+    }
+  });
+
+  it('Therapist reads (assigned) but cannot write or manage fields', () => {
+    const th = u('THERAPIST', 'th-1');
+    expect(can(th, PERMISSIONS.PEDIATRIC_ASSESSMENT_READ_ASSIGNED, {})).toBe(true);
+    expect(can(th, PERMISSIONS.PEDIATRIC_ASSESSMENT_CREATE)).toBe(false);
+    expect(can(th, PERMISSIONS.PEDIATRIC_ASSESSMENT_UPDATE)).toBe(false);
+    expect(can(th, PERMISSIONS.PEDIATRIC_ASSESSMENT_MANAGE_FIELDS)).toBe(false);
+  });
+
+  it('Secretary + Patient have NO pediatric-assessment access', () => {
+    for (const role of ['SECRETARY', 'PATIENT'] as const) {
+      const user = u(role);
+      expect(can(user, PERMISSIONS.PEDIATRIC_ASSESSMENT_READ_ASSIGNED, {})).toBe(false);
+      expect(can(user, PERMISSIONS.PEDIATRIC_ASSESSMENT_CREATE)).toBe(false);
+      expect(can(user, PERMISSIONS.PEDIATRIC_ASSESSMENT_UPDATE)).toBe(false);
+      expect(can(user, PERMISSIONS.PEDIATRIC_ASSESSMENT_MANAGE_FIELDS)).toBe(false);
+    }
   });
 });
 

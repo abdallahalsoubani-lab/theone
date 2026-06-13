@@ -353,6 +353,10 @@ model User {
   waitlistEntriesPreferred WaitlistEntry[]        @relation("WaitlistPreferredTherapist")
   waitlistEntriesCreated   WaitlistEntry[]        @relation("WaitlistCreatedBy")
   waitlistEntriesFulfilled WaitlistEntry[]        @relation("WaitlistFulfilledBy")
+  pedAssessmentsAsPatient  PediatricAssessment[]  @relation("PedAssessmentPatient")
+  pedAssessmentsCreated    PediatricAssessment[]  @relation("PedAssessmentCreatedBy")
+  pedAssessmentsUpdated    PediatricAssessment[]  @relation("PedAssessmentUpdatedBy")
+  pedCustomFieldsCreated   PediatricCustomField[] @relation("PedCustomFieldCreatedBy")
 
   // Note: real `phone` and `email` uniqueness scoped to non-deleted rows is enforced
   // by partial unique indexes in the init migration (Prisma can't express them).
@@ -1201,6 +1205,73 @@ model IntakeCustomAnswer {
 
   @@unique([intakeId, questionId])
   @@index([questionId])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Pediatric assessment (Prompt 21) — fixed core + clinic-wide custom fields
+// ═════════════════════════════════════════════════════════════════════════════
+
+enum PediatricCustomFieldType {
+  SINGLE_SELECT
+  MULTI_SELECT
+  TEXT
+  LONG_TEXT
+  SCORE_0_3
+  NUMBER
+  BOOLEAN
+}
+
+/**
+ * A structured pediatric physiotherapy assessment (Prompt 21). Replaces
+ * Dr. Sahar's external Google Forms. `coreData` holds the fixed 65-field core
+ * (validated by lib/pediatric-assessment/coreSchema, with `schemaVersion`);
+ * `customData` is a map of customFieldId → value for the clinic-wide custom
+ * fields. Multiple rows per patient, newest first. DOCTOR/ADMIN write,
+ * THERAPIST reads. Every create/edit is audited.
+ */
+model PediatricAssessment {
+  id          String   @id @default(cuid())
+  patientId   String
+  createdById String
+  updatedById String?
+  coreData    Json
+  customData  Json     @default("{}")
+
+  patient   User  @relation("PedAssessmentPatient", fields: [patientId], references: [id], onDelete: Restrict)
+  createdBy User  @relation("PedAssessmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy User? @relation("PedAssessmentUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patientId, createdAt(sort: Desc)])
+}
+
+/**
+ * Clinic-wide custom field definitions for the pediatric assessment (Prompt 21
+ * §2/§3). A field Dr. Sahar adds appears on EVERY patient's assessment going
+ * forward (clinic-wide, not per-patient — flag if per-patient is ever wanted).
+ * Removal is soft (active=false) so past assessments that stored a value still
+ * render it. Managed by DOCTOR/ADMIN.
+ */
+model PediatricCustomField {
+  id          String                   @id @default(cuid())
+  labelEn     String
+  labelAr     String
+  type        PediatricCustomFieldType
+  // For SINGLE_SELECT / MULTI_SELECT: [{ value, labelEn, labelAr }]. Null otherwise.
+  options     Json?
+  section     String?
+  order       Int                      @default(0)
+  active       Boolean                 @default(true)
+  createdById String
+
+  createdBy User @relation("PedCustomFieldCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, order])
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
