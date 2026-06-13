@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/responsive-modal';
 import { createAppointmentAction, previewConflictsAction } from '@/lib/appointments/actions';
 import type { ConflictResult } from '@/lib/appointments/conflicts';
+import { addWaitlistEntryAction, fulfillWaitlistEntryAction } from '@/lib/waitlist/actions';
 
 import { CreateSeriesModal } from './CreateSeriesModal';
 
@@ -50,6 +51,13 @@ interface Props {
   defaultTherapistId?: string;
   defaultDurationMinutes: number;
   canOverride: boolean;
+  /** Prompt 19 — prefill the patient (one-click placement / add-to-waitlist). */
+  defaultPatientId?: string;
+  /**
+   * Prompt 19 — placement mode. When set, a successful booking also marks this
+   * waitlist entry FULFILLED (linked to the new appointment).
+   */
+  waitlistEntryId?: string;
 }
 
 /**
@@ -69,12 +77,15 @@ export function CreateAppointmentModal({
   defaultTherapistId,
   defaultDurationMinutes,
   canOverride,
+  defaultPatientId,
+  waitlistEntryId,
 }: Props) {
   const t = useTranslations('appointments.form');
   const tCommon = useTranslations('common');
   const tToasts = useTranslations('appointments.toasts');
   const tConflicts = useTranslations('appointments.conflicts');
   const tSeries = useTranslations('calendar.series');
+  const tWaitlist = useTranslations('waitlist');
   const router = useRouter();
   const locale = useLocale();
   const [pending, startTransition] = useTransition();
@@ -83,7 +94,7 @@ export function CreateAppointmentModal({
   // in the same overlay so the Secretary doesn't lose their context.
   const [seriesOpen, setSeriesOpen] = useState(false);
 
-  const [patientId, setPatientId] = useState('');
+  const [patientId, setPatientId] = useState(defaultPatientId ?? '');
   const [therapistId, setTherapistId] = useState(defaultTherapistId ?? '');
   const [roomId, setRoomId] = useState<string>('');
   const [startsAt, setStartsAt] = useState<string>(
@@ -95,10 +106,11 @@ export function CreateAppointmentModal({
 
   useEffect(() => {
     if (!open) return;
+    setPatientId(defaultPatientId ?? '');
     setTherapistId(defaultTherapistId ?? '');
     setStartsAt(defaultStartsAt ? toLocalInput(defaultStartsAt) : '');
     setDuration(defaultDurationMinutes);
-  }, [open, defaultStartsAt, defaultTherapistId, defaultDurationMinutes]);
+  }, [open, defaultStartsAt, defaultTherapistId, defaultDurationMinutes, defaultPatientId]);
 
   // Live conflict preview — debounced.
   useEffect(() => {
@@ -136,7 +148,41 @@ export function CreateAppointmentModal({
         toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
         return;
       }
-      toast.success(tToasts('created'));
+      // Placement mode (Prompt 19): link the freed booking back to the waitlist
+      // entry. The appointment is already committed; a fulfil failure only logs.
+      if (waitlistEntryId) {
+        const fr = await fulfillWaitlistEntryAction({
+          entryId: waitlistEntryId,
+          appointmentId: r.data.appointmentId,
+        });
+        toast[fr.ok ? 'success' : 'error'](
+          fr.ok ? tWaitlist('placed') : locale === 'ar' ? fr.error.message_ar : fr.error.message_en,
+        );
+      } else {
+        toast.success(tToasts('created'));
+      }
+      onClose();
+      router.refresh();
+    });
+
+  // Add-to-waitlist from the conflict path (Prompt 19 §3.1). Parks the patient
+  // for exactly the taken slot ([startsAt, startsAt + duration)), preferring the
+  // chosen therapist. The system suggests on free-up — it never auto-books.
+  const addToWaitlist = () =>
+    startTransition(async () => {
+      const start = new Date(startsAt);
+      const r = await addWaitlistEntryAction({
+        patientId,
+        windowStart: start.toISOString(),
+        windowEnd: new Date(start.getTime() + duration * 60_000).toISOString(),
+        preferredTherapistId: therapistId || null,
+        note: null,
+      });
+      if (!r.ok) {
+        toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
+        return;
+      }
+      toast.success(tWaitlist('added'));
       onClose();
       router.refresh();
     });
@@ -274,20 +320,32 @@ export function CreateAppointmentModal({
               {tCommon('cancel')}
             </Button>
             {hasConflicts ? (
-              canOverride ? (
-                <Button
-                  type="button"
-                  variant="destructive"
-                  disabled={pending || !patientId || !therapistId || !startsAt}
-                  onClick={() => submit(true)}
-                >
-                  {tConflicts('overrideButton')}
-                </Button>
-              ) : (
-                <Button type="button" disabled>
-                  {tConflicts('cancelButton')}
-                </Button>
-              )
+              <>
+                {!waitlistEntryId ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={pending || !patientId || !therapistId || !startsAt}
+                    onClick={addToWaitlist}
+                  >
+                    {tWaitlist('addToWaitlist')}
+                  </Button>
+                ) : null}
+                {canOverride ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    disabled={pending || !patientId || !therapistId || !startsAt}
+                    onClick={() => submit(true)}
+                  >
+                    {tConflicts('overrideButton')}
+                  </Button>
+                ) : (
+                  <Button type="button" disabled>
+                    {tConflicts('cancelButton')}
+                  </Button>
+                )}
+              </>
             ) : (
               <Button
                 type="button"

@@ -5,6 +5,7 @@ import {
   ClipboardList,
   Dumbbell,
   Inbox,
+  ListChecks,
   Users,
   UserCheck,
 } from 'lucide-react';
@@ -15,6 +16,7 @@ import type { ReactNode } from 'react';
 import { auth } from '@/auth';
 import { Sidebar, type NavLink } from '@/components/shell/Sidebar';
 import { countUnresolvedInbox } from '@/lib/inbox/queries';
+import { countActiveWaitlist } from '@/lib/waitlist/queries';
 
 /**
  * Staff route group layout.
@@ -41,7 +43,10 @@ export default async function StaffLayout({
 
   const links: NavLink[] = [];
   if (role === 'SECRETARY' || role === 'ADMIN') {
-    const inboxCount = await countUnresolvedInbox();
+    const [inboxCount, waitlistCount] = await Promise.all([
+      countUnresolvedInbox(),
+      countActiveWaitlist(),
+    ]);
     links.push(
       {
         label: tNav('appointments'),
@@ -52,6 +57,12 @@ export default async function StaffLayout({
         label: tNav('arrivals'),
         href: '/secretary/arrivals',
         icon: <UserCheck className="size-4" />,
+      },
+      {
+        label: tNav('waitlist'),
+        href: '/secretary/waitlist',
+        icon: <ListChecks className="size-4" />,
+        badge: waitlistCount,
       },
       {
         label: tNav('cancelled'),
@@ -81,6 +92,11 @@ export default async function StaffLayout({
         label: tNav('calendar'),
         href: '/doctor/calendar',
         icon: <Calendar className="size-4" />,
+      },
+      {
+        label: tNav('waitlist'),
+        href: '/secretary/waitlist',
+        icon: <ListChecks className="size-4" />,
       },
       {
         label: tNav('cancelled'),

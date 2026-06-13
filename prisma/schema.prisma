@@ -102,6 +102,10 @@ enum NotificationType {
   HOME_PROGRAM_SUBMITTED
   HOME_PROGRAM_APPROVED
   HOME_PROGRAM_CHANGES_REQUESTED
+  // Prompt 19 — a slot a waitlisted patient was waiting for just freed up
+  // (cancellation / no-show). Targets SECRETARY + ADMIN; links to the
+  // waitlist page for one-click placement.
+  BOOKING_WAITLIST_SLOT_FREED
 }
 
 enum LeaveType {
@@ -345,6 +349,10 @@ model User {
   dayReports               DayReport[]            @relation("TherapistDayReports")
   doctorReviewsAsDoctor    DoctorReview[]         @relation("DoctorReviews")
   doctorReviewsAsPatient   DoctorReview[]         @relation("PatientDoctorReviews")
+  waitlistEntriesAsPatient WaitlistEntry[]        @relation("WaitlistPatient")
+  waitlistEntriesPreferred WaitlistEntry[]        @relation("WaitlistPreferredTherapist")
+  waitlistEntriesCreated   WaitlistEntry[]        @relation("WaitlistCreatedBy")
+  waitlistEntriesFulfilled WaitlistEntry[]        @relation("WaitlistFulfilledBy")
 
   // Note: real `phone` and `email` uniqueness scoped to non-deleted rows is enforced
   // by partial unique indexes in the init migration (Prisma can't express them).
@@ -499,6 +507,9 @@ model Appointment {
 
   whatsappMessages WhatsAppMessage[]
   inboxItems       InboxItem[]
+  // Prompt 19 — the booking-waitlist entry (if any) this appointment fulfilled.
+  // Optional 1:1; set when a waitlisted patient was placed into a freed slot.
+  waitlistFulfillment WaitlistEntry? @relation("WaitlistFulfilledAppointment")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -509,6 +520,63 @@ model Appointment {
   @@index([seriesId])
   @@index([status, cancelledAt])
   @@index([startsAt, checkedInAt])
+}
+
+/**
+ * Booking waitlist status (Prompt 19).
+ *   WAITING   — active; eligible to be matched when a slot frees.
+ *   FULFILLED — placed into a freed slot (links the created appointment).
+ *   EXPIRED   — the desired date passed without placement (lazy-flipped on read).
+ *   REMOVED   — manually removed by staff.
+ */
+enum WaitlistStatus {
+  WAITING
+  FULFILLED
+  EXPIRED
+  REMOVED
+}
+
+/**
+ * Booking waitlist entry (Prompt 19) — DISTINCT from the arrivals/check-in
+ * waiting list (Prompt 18). When a desired slot is taken, staff park the
+ * patient here; when the slot frees (cancel / no-show) the matcher notifies
+ * SECRETARY + ADMIN for one-click placement. The system suggests — never
+ * auto-books.
+ *
+ * The desired window is an explicit [windowStart, windowEnd) UTC range (a
+ * freed slot matches when its start falls inside it). `desiredDate` is the
+ * clinic-local day (UTC midnight) the window sits in, kept for the (date,
+ * status) index + management-page grouping.
+ */
+model WaitlistEntry {
+  id          String         @id @default(cuid())
+  patientId   String
+  desiredDate DateTime
+  windowStart DateTime
+  windowEnd   DateTime
+  // Optional therapist preference. When set, only a freed slot with this
+  // therapist matches; when null, any therapist's freed slot matches.
+  preferredTherapistId String?
+  note                 String?
+  status               WaitlistStatus @default(WAITING)
+
+  createdById            String
+  fulfilledById          String?
+  fulfilledAt            DateTime?
+  fulfilledAppointmentId String?   @unique
+
+  patient             User         @relation("WaitlistPatient", fields: [patientId], references: [id], onDelete: Restrict)
+  preferredTherapist  User?        @relation("WaitlistPreferredTherapist", fields: [preferredTherapistId], references: [id], onDelete: SetNull)
+  createdBy           User         @relation("WaitlistCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  fulfilledBy         User?        @relation("WaitlistFulfilledBy", fields: [fulfilledById], references: [id], onDelete: SetNull)
+  fulfilledAppointment Appointment? @relation("WaitlistFulfilledAppointment", fields: [fulfilledAppointmentId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([desiredDate, status])
+  @@index([status])
+  @@index([patientId])
 }
 
 model TreatmentPlan {

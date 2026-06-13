@@ -389,7 +389,8 @@
     "calendar": "التقويم",
     "approvals": "الموافقات",
     "cancelled": "الملغية",
-    "arrivals": "قائمة الوصول"
+    "arrivals": "قائمة الوصول",
+    "waitlist": "قائمة الانتظار"
   },
   "shell": {
     "userMenu": "الحساب",
@@ -937,6 +938,10 @@
       "HOME_PROGRAM_CHANGES_REQUESTED": {
         "title": "مطلوب تعديلات على البرنامج المنزلي",
         "body": "طلب د. {doctorName} تعديلات على البرنامج المنزلي للمراجع {patientName}."
+      },
+      "BOOKING_WAITLIST_SLOT_FREED": {
+        "title": "تحرّر موعد من قائمة الانتظار",
+        "body": "تحرّر موعد الساعة {time} — {patientName} على قائمة الانتظار لنفس الوقت."
       }
     }
   },
@@ -1480,6 +1485,32 @@
     "noneUpNext": "لا مواعيد قادمة",
     "waitingMinutes": "ينتظر {minutes}د",
     "lastUpdated": "آخر تحديث {time}"
+  },
+  "waitlist": {
+    "title": "قائمة انتظار الحجز",
+    "subtitle": "مراجعون ينتظرون موعداً محجوزاً. عند تحرّر الموعد يصلك تنبيه — ضع المراجع المنتظر بنقرة واحدة.",
+    "empty": "لا إدخالات في قائمة الانتظار.",
+    "addToWaitlist": "أضف لقائمة الانتظار",
+    "add": "إضافة",
+    "added": "تمت الإضافة إلى قائمة الانتظار.",
+    "placed": "تم وضع المراجع — حُجز الموعد.",
+    "removed": "تمت الإزالة من قائمة الانتظار.",
+    "remove": "إزالة",
+    "place": "ضع في الموعد",
+    "patient": "المراجع",
+    "desiredDate": "التاريخ",
+    "windowFrom": "من",
+    "windowTo": "إلى",
+    "preferredTherapist": "المعالج المفضّل",
+    "anyTherapist": "أي معالج",
+    "note": "ملاحظة",
+    "status": {
+      "ALL": "الكل",
+      "WAITING": "في الانتظار",
+      "FULFILLED": "تم الحجز",
+      "EXPIRED": "منتهية",
+      "REMOVED": "مُزالة"
+    }
   },
   "arrivals": {
     "title": "قائمة الوصول",

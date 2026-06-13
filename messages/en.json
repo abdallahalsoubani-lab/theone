@@ -796,7 +796,8 @@
     "calendar": "Calendar",
     "approvals": "Approvals",
     "cancelled": "Cancelled",
-    "arrivals": "Arrivals"
+    "arrivals": "Arrivals",
+    "waitlist": "Waitlist"
   },
   "styleGuide": {
     "title": "Style guide",
@@ -937,6 +938,10 @@
       "HOME_PROGRAM_CHANGES_REQUESTED": {
         "title": "Home program changes requested",
         "body": "Dr. {doctorName} requested changes to the home program for {patientName}."
+      },
+      "BOOKING_WAITLIST_SLOT_FREED": {
+        "title": "Waitlist slot freed",
+        "body": "The {time} slot just freed — {patientName} is on the waitlist for it."
       }
     }
   },
@@ -1480,6 +1485,32 @@
     "noneUpNext": "Nothing coming up",
     "waitingMinutes": "waiting {minutes}m",
     "lastUpdated": "Updated {time}"
+  },
+  "waitlist": {
+    "title": "Booking waitlist",
+    "subtitle": "Patients waiting for a taken slot. When a slot frees, you're notified — place the waiting patient in one click.",
+    "empty": "No waitlist entries.",
+    "addToWaitlist": "Add to waitlist",
+    "add": "Add",
+    "added": "Added to the waitlist.",
+    "placed": "Patient placed — appointment booked.",
+    "removed": "Removed from the waitlist.",
+    "remove": "Remove",
+    "place": "Place",
+    "patient": "Patient",
+    "desiredDate": "Date",
+    "windowFrom": "From",
+    "windowTo": "To",
+    "preferredTherapist": "Preferred therapist",
+    "anyTherapist": "Any therapist",
+    "note": "Note",
+    "status": {
+      "ALL": "All",
+      "WAITING": "Waiting",
+      "FULFILLED": "Placed",
+      "EXPIRED": "Expired",
+      "REMOVED": "Removed"
+    }
   },
   "arrivals": {
     "title": "Arrivals",

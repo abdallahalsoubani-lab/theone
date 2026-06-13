@@ -46,6 +46,16 @@ export const PERMISSIONS = {
   // "current delay" quick-edit. Held by Secretary + Admin only.
   ARRIVALS_MANAGE: 'arrivals.manage',
 
+  // ── Booking waitlist (Prompt 19) ─────────────────────────────────────
+  // A booking-time waitlist (distinct from the arrivals list). The
+  // calendar-parity roles (Secretary / Admin / Doctor — see Prompt 15 §2B)
+  // manage it; Therapist gets nothing. `place` performs the one-click
+  // booking of a waitlisted patient into a freed slot.
+  WAITLIST_READ: 'waitlist.read',
+  WAITLIST_CREATE: 'waitlist.create',
+  WAITLIST_REMOVE: 'waitlist.remove',
+  WAITLIST_PLACE: 'waitlist.place',
+
   // ── Treatment plans ───────────────────────────────────────────────────
   TREATMENT_PLANS_CREATE: 'treatment_plans.create',
   TREATMENT_PLANS_READ: 'treatment_plans.read',
@@ -233,6 +243,10 @@ const SECRETARY_PERMS = new Set<PermissionCode>([
   PERMISSIONS.APPOINTMENTS_STATUS_NOSHOW,
   PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT,
   PERMISSIONS.ARRIVALS_MANAGE,
+  PERMISSIONS.WAITLIST_READ,
+  PERMISSIONS.WAITLIST_CREATE,
+  PERMISSIONS.WAITLIST_REMOVE,
+  PERMISSIONS.WAITLIST_PLACE,
   PERMISSIONS.TREATMENT_PLANS_READ,
   PERMISSIONS.SESSION_NOTES_READ,
   PERMISSIONS.PATIENT_TIMELINE_READ,
@@ -274,6 +288,11 @@ const DOCTOR_PERMS = new Set<PermissionCode>([
   PERMISSIONS.APPOINTMENTS_STATUS_COMPLETE,
   PERMISSIONS.APPOINTMENTS_STATUS_NOSHOW,
   PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT,
+  // Booking waitlist — calendar-parity with Secretary (Prompt 19 + Prompt 15 §2B).
+  PERMISSIONS.WAITLIST_READ,
+  PERMISSIONS.WAITLIST_CREATE,
+  PERMISSIONS.WAITLIST_REMOVE,
+  PERMISSIONS.WAITLIST_PLACE,
   PERMISSIONS.TREATMENT_PLANS_CREATE,
   PERMISSIONS.TREATMENT_PLANS_READ_ASSIGNED,
   PERMISSIONS.TREATMENT_PLANS_UPDATE_OWN,
@@ -421,6 +440,10 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.APPOINTMENTS_STATUS_NOSHOW,
   PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT,
   PERMISSIONS.ARRIVALS_MANAGE,
+  PERMISSIONS.WAITLIST_READ,
+  PERMISSIONS.WAITLIST_CREATE,
+  PERMISSIONS.WAITLIST_REMOVE,
+  PERMISSIONS.WAITLIST_PLACE,
   PERMISSIONS.PATIENTS_CREATE,
   PERMISSIONS.PATIENTS_READ,
   PERMISSIONS.PATIENTS_UPDATE,

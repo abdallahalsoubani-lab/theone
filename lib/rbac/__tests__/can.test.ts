@@ -46,6 +46,10 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.APPOINTMENTS_STATUS_NOSHOW]: true,
     [PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT]: true,
     [PERMISSIONS.ARRIVALS_MANAGE]: true,
+    [PERMISSIONS.WAITLIST_READ]: true,
+    [PERMISSIONS.WAITLIST_CREATE]: true,
+    [PERMISSIONS.WAITLIST_REMOVE]: true,
+    [PERMISSIONS.WAITLIST_PLACE]: true,
     [PERMISSIONS.TREATMENT_PLANS_READ]: true,
     [PERMISSIONS.SESSION_NOTES_READ]: true,
     [PERMISSIONS.PATIENT_TIMELINE_READ]: true,
@@ -83,6 +87,10 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.APPOINTMENTS_STATUS_COMPLETE]: true,
     [PERMISSIONS.APPOINTMENTS_STATUS_NOSHOW]: true,
     [PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT]: true,
+    [PERMISSIONS.WAITLIST_READ]: true,
+    [PERMISSIONS.WAITLIST_CREATE]: true,
+    [PERMISSIONS.WAITLIST_REMOVE]: true,
+    [PERMISSIONS.WAITLIST_PLACE]: true,
     [PERMISSIONS.TREATMENT_PLANS_CREATE]: true,
     [PERMISSIONS.TREATMENT_PLANS_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.TREATMENT_PLANS_UPDATE_OWN]: 'own',
@@ -208,6 +216,10 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.APPOINTMENTS_STATUS_NOSHOW]: true,
     [PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT]: true,
     [PERMISSIONS.ARRIVALS_MANAGE]: true,
+    [PERMISSIONS.WAITLIST_READ]: true,
+    [PERMISSIONS.WAITLIST_CREATE]: true,
+    [PERMISSIONS.WAITLIST_REMOVE]: true,
+    [PERMISSIONS.WAITLIST_PLACE]: true,
     [PERMISSIONS.PATIENTS_CREATE]: true,
     [PERMISSIONS.PATIENTS_READ]: true,
     [PERMISSIONS.PATIENTS_UPDATE]: true,
@@ -307,6 +319,32 @@ describe('Doctor appointment parity (Prompt 15 §2B)', () => {
     ]) {
       expect(can(doctor, code)).toBe(can(secretary, code));
     }
+  });
+});
+
+describe('Booking waitlist (Prompt 19)', () => {
+  it('Secretary, Admin, Doctor can read / create / remove / place', () => {
+    for (const role of ['SECRETARY', 'ADMIN', 'DOCTOR'] as const) {
+      const user = u(role);
+      expect(can(user, PERMISSIONS.WAITLIST_READ)).toBe(true);
+      expect(can(user, PERMISSIONS.WAITLIST_CREATE)).toBe(true);
+      expect(can(user, PERMISSIONS.WAITLIST_REMOVE)).toBe(true);
+      expect(can(user, PERMISSIONS.WAITLIST_PLACE)).toBe(true);
+    }
+  });
+
+  it('Therapist cannot add or remove waitlist entries (§5)', () => {
+    const therapist = u('THERAPIST');
+    expect(can(therapist, PERMISSIONS.WAITLIST_CREATE)).toBe(false);
+    expect(can(therapist, PERMISSIONS.WAITLIST_REMOVE)).toBe(false);
+    expect(can(therapist, PERMISSIONS.WAITLIST_PLACE)).toBe(false);
+    expect(can(therapist, PERMISSIONS.WAITLIST_READ)).toBe(false);
+  });
+
+  it('Patient has no waitlist access', () => {
+    const patient = u('PATIENT');
+    expect(can(patient, PERMISSIONS.WAITLIST_READ)).toBe(false);
+    expect(can(patient, PERMISSIONS.WAITLIST_CREATE)).toBe(false);
   });
 });
 

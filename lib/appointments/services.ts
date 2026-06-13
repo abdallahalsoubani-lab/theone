@@ -9,6 +9,7 @@ import {
   cancelAppointmentReminder,
   enqueueAppointmentReminder,
 } from '@/lib/queue/jobs/appointmentReminder';
+import { notifyWaitlistForFreedSlot } from '@/lib/waitlist/services';
 
 import { checkConflicts, type Conflict, type ConflictResult } from './conflicts';
 import { expandRecurrence, MAX_SERIES_OCCURRENCES, type PlannedOccurrence } from './recurrence';
@@ -473,6 +474,7 @@ export const cancelAppointment = withAudit<
         id: true,
         status: true,
         startsAt: true,
+        therapistId: true,
         patientId: true,
         patient: {
           select: {
@@ -510,6 +512,13 @@ export const cancelAppointment = withAudit<
       },
     });
     await cancelAppointmentReminder(input.id);
+
+    // Prompt 19 — the slot just freed; suggest it to anyone on the booking
+    // waitlist whose window covers it. Best-effort: never blocks the cancel.
+    await notifyWaitlistForFreedSlot({
+      startsAt: existing.startsAt,
+      therapistId: existing.therapistId,
+    });
 
     // Optional patient notification via the existing
     // `appointment_cancellation` template seeded in Prompt 2. The
@@ -644,6 +653,15 @@ export const cancelAppointmentSeries = withAudit<
 
     // Side effects after commit.
     await Promise.all(ids.map((id) => cancelAppointmentReminder(id)));
+
+    // Prompt 19 — every freed occurrence may match a waitlisted patient.
+    const freed = await db.appointment.findMany({
+      where: { id: { in: ids } },
+      select: { startsAt: true, therapistId: true },
+    });
+    for (const f of freed) {
+      await notifyWaitlistForFreedSlot({ startsAt: f.startsAt, therapistId: f.therapistId });
+    }
 
     if (input.notifyPatient) {
       const enriched = await db.appointment.findMany({
@@ -986,6 +1004,15 @@ export const updateAppointmentStatus = withAudit<
     // completed, or any terminal state).
     if (to !== AppointmentStatus.SCHEDULED && to !== AppointmentStatus.CONFIRMED) {
       await cancelAppointmentReminder(id);
+    }
+
+    // Prompt 19 — a no-show frees the slot exactly like a cancellation does;
+    // route it through the same waitlist matcher (no duplicated logic).
+    if (to === AppointmentStatus.NO_SHOW) {
+      await notifyWaitlistForFreedSlot({
+        startsAt: existing.startsAt,
+        therapistId: existing.therapistId,
+      });
     }
 
     return { appointmentId: id };
