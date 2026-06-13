@@ -95,7 +95,9 @@ export function CreateAppointmentModal({
   const [seriesOpen, setSeriesOpen] = useState(false);
 
   const [patientId, setPatientId] = useState(defaultPatientId ?? '');
-  const [therapistId, setTherapistId] = useState(defaultTherapistId ?? '');
+  const [therapistIds, setTherapistIds] = useState<string[]>(
+    defaultTherapistId ? [defaultTherapistId] : [],
+  );
   const [roomId, setRoomId] = useState<string>('');
   const [startsAt, setStartsAt] = useState<string>(
     defaultStartsAt ? toLocalInput(defaultStartsAt) : '',
@@ -107,21 +109,23 @@ export function CreateAppointmentModal({
   useEffect(() => {
     if (!open) return;
     setPatientId(defaultPatientId ?? '');
-    setTherapistId(defaultTherapistId ?? '');
+    setTherapistIds(defaultTherapistId ? [defaultTherapistId] : []);
     setStartsAt(defaultStartsAt ? toLocalInput(defaultStartsAt) : '');
     setDuration(defaultDurationMinutes);
   }, [open, defaultStartsAt, defaultTherapistId, defaultDurationMinutes, defaultPatientId]);
 
+  const therapistKey = therapistIds.join(',');
+
   // Live conflict preview — debounced.
   useEffect(() => {
-    if (!patientId || !therapistId || !startsAt) {
+    if (!patientId || therapistIds.length === 0 || !startsAt) {
       setConflicts(null);
       return;
     }
     const handle = setTimeout(() => {
       void previewConflictsAction({
         patientId,
-        therapistId,
+        therapistIds,
         startsAt: new Date(startsAt).toISOString(),
         durationMinutes: duration,
       }).then((r) => {
@@ -129,15 +133,20 @@ export function CreateAppointmentModal({
       });
     }, 300);
     return () => clearTimeout(handle);
-  }, [patientId, therapistId, startsAt, duration]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patientId, therapistKey, startsAt, duration]);
 
   const hasConflicts = conflicts && !conflicts.ok;
+  const canSubmit = patientId && therapistIds.length > 0 && startsAt;
+
+  const toggleTherapist = (id: string) =>
+    setTherapistIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   const submit = (override: boolean) =>
     startTransition(async () => {
       const r = await createAppointmentAction({
         patientId,
-        therapistId,
+        therapistIds,
         roomId: roomId || null,
         startsAt: new Date(startsAt),
         durationMinutes: duration,
@@ -175,7 +184,7 @@ export function CreateAppointmentModal({
         patientId,
         windowStart: start.toISOString(),
         windowEnd: new Date(start.getTime() + duration * 60_000).toISOString(),
-        preferredTherapistId: therapistId || null,
+        preferredTherapistId: therapistIds[0] ?? null,
         note: null,
       });
       if (!r.ok) {
@@ -215,39 +224,48 @@ export function CreateAppointmentModal({
               </select>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1">
-                <Label htmlFor="appt-therapist">{t('therapist')}</Label>
-                <select
-                  id="appt-therapist"
-                  value={therapistId}
-                  onChange={(e) => setTherapistId(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">—</option>
-                  {clinicians.map((c) => (
-                    <option key={c.id} value={c.id}>
+            <div className="space-y-1">
+              <Label>{t('therapists')}</Label>
+              <div className="flex flex-wrap gap-1.5 rounded-md border border-input bg-background p-2">
+                {clinicians.map((c) => {
+                  const selected = therapistIds.includes(c.id);
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => toggleTherapist(c.id)}
+                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                        selected
+                          ? 'bg-brand-cyan text-white'
+                          : 'bg-brand-bg text-brand-navy hover:bg-brand-cyan/10'
+                      }`}
+                    >
                       {locale === 'ar' ? c.fullNameAr : c.fullNameEn}
-                    </option>
-                  ))}
-                </select>
+                    </button>
+                  );
+                })}
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="appt-room">{t('room')}</Label>
-                <select
-                  id="appt-room"
-                  value={roomId}
-                  onChange={(e) => setRoomId(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">—</option>
-                  {rooms.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {therapistIds.length === 0 ? (
+                <p className="text-xs text-brand-textMuted">{t('therapistsHint')}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="appt-room">{t('room')}</Label>
+              <select
+                id="appt-room"
+                value={roomId}
+                onChange={(e) => setRoomId(e.target.value)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="">—</option>
+                {rooms.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
@@ -325,7 +343,7 @@ export function CreateAppointmentModal({
                   <Button
                     type="button"
                     variant="outline"
-                    disabled={pending || !patientId || !therapistId || !startsAt}
+                    disabled={pending || !canSubmit}
                     onClick={addToWaitlist}
                   >
                     {tWaitlist('addToWaitlist')}
@@ -335,7 +353,7 @@ export function CreateAppointmentModal({
                   <Button
                     type="button"
                     variant="destructive"
-                    disabled={pending || !patientId || !therapistId || !startsAt}
+                    disabled={pending || !canSubmit}
                     onClick={() => submit(true)}
                   >
                     {tConflicts('overrideButton')}
@@ -347,11 +365,7 @@ export function CreateAppointmentModal({
                 )}
               </>
             ) : (
-              <Button
-                type="button"
-                disabled={pending || !patientId || !therapistId || !startsAt}
-                onClick={() => submit(false)}
-              >
+              <Button type="button" disabled={pending || !canSubmit} onClick={() => submit(false)}>
                 {t('save')}
               </Button>
             )}
@@ -385,18 +399,27 @@ function toLocalInput(d: Date): string {
   return `${y}-${m}-${day}T${hr}:${min}`;
 }
 
+interface Person {
+  fullNameEn: string;
+  fullNameAr: string;
+}
 type ConflictType =
   | {
       kind: 'THERAPIST_OVERLAP';
-      appointment: { patient: { fullNameEn: string; fullNameAr: string }; startsAt: Date };
+      therapist: Person;
+      appointment: { patient: Person; startsAt: Date };
     }
   | {
       kind: 'PATIENT_OVERLAP';
-      appointment: { therapist: { fullNameEn: string; fullNameAr: string }; startsAt: Date };
+      appointment: { therapists: Person[]; startsAt: Date };
     }
-  | { kind: 'THERAPIST_ON_LEAVE' }
+  | { kind: 'THERAPIST_ON_LEAVE'; therapist: Person }
   | { kind: 'OUTSIDE_BUSINESS_HOURS'; openTime: string; closeTime: string }
   | { kind: 'CLINIC_CLOSED_THIS_DAY' };
+
+function nm(p: Person, locale: string): string {
+  return locale === 'ar' ? p.fullNameAr : p.fullNameEn;
+}
 
 function describeConflict(
   c: unknown,
@@ -405,28 +428,21 @@ function describeConflict(
 ): string {
   const conflict = c as ConflictType;
   switch (conflict.kind) {
-    case 'THERAPIST_OVERLAP': {
-      const name =
-        locale === 'ar'
-          ? conflict.appointment.patient.fullNameAr
-          : conflict.appointment.patient.fullNameEn;
+    case 'THERAPIST_OVERLAP':
       return t('therapistOverlap', {
-        patient: name,
+        therapist: nm(conflict.therapist, locale),
+        patient: nm(conflict.appointment.patient, locale),
         time: new Date(conflict.appointment.startsAt).toISOString(),
       });
-    }
-    case 'PATIENT_OVERLAP': {
-      const name =
-        locale === 'ar'
-          ? conflict.appointment.therapist.fullNameAr
-          : conflict.appointment.therapist.fullNameEn;
+    case 'PATIENT_OVERLAP':
       return t('patientOverlap', {
-        therapist: name,
+        therapist: conflict.appointment.therapists
+          .map((th) => nm(th, locale))
+          .join(locale === 'ar' ? '، ' : ', '),
         time: new Date(conflict.appointment.startsAt).toISOString(),
       });
-    }
     case 'THERAPIST_ON_LEAVE':
-      return t('therapistOnLeave');
+      return t('therapistOnLeave', { therapist: nm(conflict.therapist, locale) });
     case 'OUTSIDE_BUSINESS_HOURS':
       return t('outsideBusinessHours', {
         open: conflict.openTime,

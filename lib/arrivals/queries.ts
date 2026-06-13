@@ -49,7 +49,10 @@ const ROW_SELECT = {
   checkedInVia: true,
   status: true,
   patient: { select: { fullNameEn: true, fullNameAr: true } },
-  therapist: { select: { fullNameEn: true, fullNameAr: true } },
+  therapists: {
+    orderBy: { createdAt: 'asc' },
+    include: { therapist: { select: { fullNameEn: true, fullNameAr: true } } },
+  },
   room: { select: { name: true } },
 } satisfies Prisma.AppointmentSelect;
 
@@ -61,8 +64,9 @@ function toRow(a: RawRow): ArrivalRow {
     patientId: a.patientId,
     patientNameEn: a.patient.fullNameEn,
     patientNameAr: a.patient.fullNameAr,
-    therapistNameEn: a.therapist.fullNameEn,
-    therapistNameAr: a.therapist.fullNameAr,
+    // Show every assigned therapist on the board (Prompt 20).
+    therapistNameEn: a.therapists.map((t) => t.therapist.fullNameEn).join(', '),
+    therapistNameAr: a.therapists.map((t) => t.therapist.fullNameAr).join('، '),
     roomName: a.room?.name ?? null,
     startsAt: a.startsAt.toISOString(),
     checkedInAt: a.checkedInAt ? a.checkedInAt.toISOString() : null,

@@ -116,10 +116,12 @@ vi.mock('@/lib/db', () => {
         ),
       },
       appointment: {
-        findUnique: vi.fn(
-          async ({ where }: { where: { id: string } }) =>
-            state.appointments.find((a) => a.id === where.id) ?? null,
-        ),
+        findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
+          const a = state.appointments.find((x) => x.id === where.id);
+          if (!a) return null;
+          // Project the M2M therapists join (Prompt 20) the permission read uses.
+          return { ...a, therapists: [{ therapistId: a.therapistId }] };
+        }),
       },
       auditLog: {
         create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {

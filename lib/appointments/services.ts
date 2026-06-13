@@ -1,5 +1,5 @@
 import { AppointmentStatus, AuditAction, UserRole } from '@prisma/client';
-import type { CancellationCategory } from '@prisma/client';
+import type { CancellationCategory, Prisma } from '@prisma/client';
 
 import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
@@ -51,6 +51,44 @@ const notFound: LocalizedError = {
   message_ar: 'لم يتم العثور على الموعد.',
 };
 
+// ─── Multi-therapist helpers (Prompt 20) ──────────────────────────────────
+
+/** Current therapist ids assigned to an appointment. */
+async function getAppointmentTherapistIds(appointmentId: string): Promise<string[]> {
+  const rows = await db.appointmentTherapist.findMany({
+    where: { appointmentId },
+    select: { therapistId: true },
+  });
+  return rows.map((r) => r.therapistId);
+}
+
+/**
+ * Replace the therapist set on an appointment inside a transaction — drops
+ * removed rows, adds missing ones (idempotent; the @@unique guards dupes).
+ */
+async function setAppointmentTherapistsTx(
+  tx: Prisma.TransactionClient,
+  appointmentId: string,
+  therapistIds: string[],
+): Promise<void> {
+  const desired = [...new Set(therapistIds)];
+  const current = await tx.appointmentTherapist.findMany({
+    where: { appointmentId },
+    select: { therapistId: true },
+  });
+  const currentSet = new Set(current.map((r) => r.therapistId));
+  const toRemove = [...currentSet].filter((id) => !desired.includes(id));
+  const toAdd = desired.filter((id) => !currentSet.has(id));
+  if (toRemove.length > 0) {
+    await tx.appointmentTherapist.deleteMany({
+      where: { appointmentId, therapistId: { in: toRemove } },
+    });
+  }
+  for (const therapistId of toAdd) {
+    await tx.appointmentTherapist.create({ data: { appointmentId, therapistId } });
+  }
+}
+
 async function getReminderConfig(): Promise<ReminderConfig> {
   const settings = await db.clinicSettings.findUnique({
     where: { id: 'default' },
@@ -90,7 +128,7 @@ export const createAppointment = withAudit<
 
     const conflicts = await checkConflicts({
       patientId: input.patientId,
-      therapistId: input.therapistId,
+      therapistIds: input.therapistIds,
       startsAt: input.startsAt,
       durationMinutes: input.durationMinutes,
     });
@@ -99,24 +137,27 @@ export const createAppointment = withAudit<
       throw new AppointmentError(conflictError(conflicts.conflicts));
     }
 
+    const therapistIds = [...new Set(input.therapistIds)];
     const appointment = await db.$transaction(async (tx) => {
       const appt = await tx.appointment.create({
         data: {
           patientId: input.patientId,
-          therapistId: input.therapistId,
           roomId: input.roomId ?? null,
           startsAt: input.startsAt,
           durationMinutes: input.durationMinutes,
           status: AppointmentStatus.SCHEDULED,
           notes: input.notes ?? null,
           createdById: session.user.id,
+          therapists: { create: therapistIds.map((therapistId) => ({ therapistId })) },
         },
       });
-      // Booking a patient with a therapist makes that therapist part of the
+      // Booking a patient with therapists makes EACH of them part of the
       // patient's care team so they appear in "My patients" + dashboard.
-      // Idempotent, add-never-replace (Prompt 15.5 — mirrors the plan-create
-      // doctor back-fill). Covered by this appointment's CREATE audit.
-      await addCareTeamMemberTx(tx, input.patientId, input.therapistId, session.user.id);
+      // Idempotent, add-never-replace (Prompt 15.5; extended to the set in
+      // Prompt 20). Covered by this appointment's CREATE audit.
+      for (const therapistId of therapistIds) {
+        await addCareTeamMemberTx(tx, input.patientId, therapistId, session.user.id);
+      }
       return appt;
     });
 
@@ -147,7 +188,7 @@ export const createAppointment = withAudit<
         },
       }),
       db.user.findUnique({
-        where: { id: input.therapistId },
+        where: { id: therapistIds[0] },
         select: { fullNameEn: true, fullNameAr: true },
       }),
     ]);
@@ -193,7 +234,6 @@ export const rescheduleAppointment = withAudit<
         select: {
           startsAt: true,
           durationMinutes: true,
-          therapistId: true,
           roomId: true,
         },
       }),
@@ -207,21 +247,20 @@ export const rescheduleAppointment = withAudit<
     const session = await auth();
     const existing = await db.appointment.findUnique({
       where: { id: input.id },
-      select: {
-        id: true,
-        patientId: true,
-        therapistId: true,
-        status: true,
-      },
+      select: { id: true, patientId: true, status: true },
     });
     if (!existing) throw new AppointmentError(notFound);
 
-    const therapistId = input.therapistId ?? existing.therapistId;
+    // Omitted therapistIds → keep the existing set (pure time/room move, e.g.
+    // dragging a multi-therapist session). Provided → replace it (e.g. dragging
+    // a single-therapist appointment into another therapist's lane).
+    const existingTherapistIds = await getAppointmentTherapistIds(input.id);
+    const therapistIds = input.therapistIds ?? existingTherapistIds;
 
     const conflicts = await checkConflicts({
       appointmentId: input.id,
       patientId: existing.patientId,
-      therapistId,
+      therapistIds,
       startsAt: input.startsAt,
       durationMinutes: input.durationMinutes,
     });
@@ -236,19 +275,22 @@ export const rescheduleAppointment = withAudit<
         data: {
           startsAt: input.startsAt,
           durationMinutes: input.durationMinutes,
-          therapistId,
           roomId: input.roomId ?? null,
         },
       });
-      // A reschedule onto a different therapist (e.g. dragging to another
-      // resource column) adds the new therapist to the care team — never
-      // removes the previous one. Idempotent when the therapist is unchanged.
-      await addCareTeamMemberTx(
-        tx,
-        existing.patientId,
-        therapistId,
-        session?.user?.id ?? therapistId,
-      );
+      if (input.therapistIds) {
+        await setAppointmentTherapistsTx(tx, input.id, therapistIds);
+      }
+      // Adding a therapist (e.g. dragging to another resource column) adds them
+      // to the care team — add-never-replace, idempotent when unchanged.
+      for (const therapistId of therapistIds) {
+        await addCareTeamMemberTx(
+          tx,
+          existing.patientId,
+          therapistId,
+          session?.user?.id ?? therapistId,
+        );
+      }
     });
 
     // Re-enqueue the reminder against the new fire time.
@@ -272,13 +314,19 @@ export const rescheduleAppointment = withAudit<
   },
 );
 
+/**
+ * Manage the therapist SET on an appointment (Prompt 20 — was "change
+ * therapist"). Diffs the requested set against the current one, adds/removes
+ * the join rows in a transaction, adds new therapists to the care team, and
+ * notifies added + removed therapists. Min 1 therapist (Zod-enforced).
+ */
 export const changeAppointmentTherapist = withAudit<
   [AppointmentChangeTherapistParsed],
   {
     appointmentId: string;
     conflictsOverridden: boolean;
-    previousTherapistId: string;
-    newTherapistId: string;
+    previousTherapistIds: string[];
+    newTherapistIds: string[];
     reason: string | null;
   }
 >(
@@ -286,23 +334,21 @@ export const changeAppointmentTherapist = withAudit<
     entityType: 'Appointment',
     action: AuditAction.UPDATE,
     extractEntityId: (args) => args[0].id,
-    extractBefore: async (args) =>
-      db.appointment.findUnique({
-        where: { id: args[0].id },
-        select: { therapistId: true },
-      }),
+    extractBefore: async (args) => ({
+      therapistIds: await getAppointmentTherapistIds(args[0].id),
+    }),
     extractAfter: (result) => ({
-      event: result.conflictsOverridden ? 'OVERRIDE_CONFLICT' : 'THERAPIST_CHANGED',
-      previousTherapistId: result.previousTherapistId,
-      newTherapistId: result.newTherapistId,
+      event: result.conflictsOverridden ? 'OVERRIDE_CONFLICT' : 'THERAPISTS_CHANGED',
+      previousTherapistIds: result.previousTherapistIds,
+      newTherapistIds: result.newTherapistIds,
       reason: result.reason,
     }),
   },
   async function changeTherapistInner(input): Promise<{
     appointmentId: string;
     conflictsOverridden: boolean;
-    previousTherapistId: string;
-    newTherapistId: string;
+    previousTherapistIds: string[];
+    newTherapistIds: string[];
     reason: string | null;
   }> {
     const existing = await db.appointment.findUnique({
@@ -310,7 +356,6 @@ export const changeAppointmentTherapist = withAudit<
       select: {
         id: true,
         patientId: true,
-        therapistId: true,
         startsAt: true,
         durationMinutes: true,
         status: true,
@@ -319,13 +364,16 @@ export const changeAppointmentTherapist = withAudit<
     });
     if (!existing) throw new AppointmentError(notFound);
 
-    // Re-run the conflict engine at submit time. The availability
-    // dots in the UI are advisory; the slot may have filled in
+    const previousTherapistIds = await getAppointmentTherapistIds(input.id);
+    const newTherapistIds = [...new Set(input.therapistIds)];
+
+    // Re-run the conflict engine at submit time for the NEW set. The
+    // availability dots in the UI are advisory; the slot may have filled in
     // between render and click. This is the authoritative check.
     const conflicts = await checkConflicts({
       appointmentId: input.id,
       patientId: existing.patientId,
-      therapistId: input.therapistId,
+      therapistIds: newTherapistIds,
       startsAt: existing.startsAt,
       durationMinutes: existing.durationMinutes,
     });
@@ -333,66 +381,72 @@ export const changeAppointmentTherapist = withAudit<
       throw new AppointmentError(conflictError(conflicts.conflicts));
     }
 
-    // No-op when the user picks the same therapist (e.g. closed +
-    // reopened the modal). Avoid the notification fan-out in that case.
-    if (existing.therapistId === input.therapistId) {
+    const prevSet = new Set(previousTherapistIds);
+    const nextSet = new Set(newTherapistIds);
+    const added = newTherapistIds.filter((id) => !prevSet.has(id));
+    const removed = previousTherapistIds.filter((id) => !nextSet.has(id));
+
+    // No-op when the set is unchanged — avoid the notification fan-out.
+    if (added.length === 0 && removed.length === 0) {
       return {
         appointmentId: input.id,
         conflictsOverridden: false,
-        previousTherapistId: existing.therapistId,
-        newTherapistId: input.therapistId,
+        previousTherapistIds,
+        newTherapistIds,
         reason: input.reason ?? null,
       };
     }
 
     const session = await auth();
     await db.$transaction(async (tx) => {
-      await tx.appointment.update({
-        where: { id: input.id },
-        data: { therapistId: input.therapistId },
-      });
-      // Add the new therapist to the patient's care team (add-never-replace —
-      // the previous therapist stays unless removed elsewhere).
-      await addCareTeamMemberTx(
-        tx,
-        existing.patientId,
-        input.therapistId,
-        session?.user?.id ?? input.therapistId,
-      );
+      await setAppointmentTherapistsTx(tx, input.id, newTherapistIds);
+      // Add the newly-assigned therapists to the care team (add-never-replace
+      // — removed therapists stay on the care team unless removed elsewhere).
+      for (const therapistId of added) {
+        await addCareTeamMemberTx(
+          tx,
+          existing.patientId,
+          therapistId,
+          session?.user?.id ?? therapistId,
+        );
+      }
     });
 
-    // Notification fan-out — two separate types so each side gets a
-    // focused message (Prompt 7b §4.6). Fire-and-forget; the audit
-    // row already captured the change above.
+    // Notify each added + removed therapist (Prompt 7b §4.6, extended to the
+    // set in Prompt 20). Fire-and-forget; the audit row already captured it.
     const { createNotification } = await import('@/lib/notifications/actions');
     const dateStr = existing.startsAt.toISOString().slice(0, 10);
     const patientName = existing.patient.fullNameEn;
-    void createNotification({
-      recipientId: existing.therapistId,
-      type: 'APPOINTMENT_THERAPIST_REMOVED',
-      params: { patientName, date: dateStr },
-      linkPath: `/therapist/schedule`,
-      relatedEntityType: 'Appointment',
-      relatedEntityId: input.id,
-    }).catch((err: unknown) => {
-      console.error('[appointments.changeTherapist] removed notification failed', err);
-    });
-    void createNotification({
-      recipientId: input.therapistId,
-      type: 'APPOINTMENT_THERAPIST_ASSIGNED',
-      params: { patientName, date: dateStr },
-      linkPath: `/therapist/schedule`,
-      relatedEntityType: 'Appointment',
-      relatedEntityId: input.id,
-    }).catch((err: unknown) => {
-      console.error('[appointments.changeTherapist] assigned notification failed', err);
-    });
+    for (const therapistId of removed) {
+      void createNotification({
+        recipientId: therapistId,
+        type: 'APPOINTMENT_THERAPIST_REMOVED',
+        params: { patientName, date: dateStr },
+        linkPath: `/therapist/schedule`,
+        relatedEntityType: 'Appointment',
+        relatedEntityId: input.id,
+      }).catch((err: unknown) => {
+        console.error('[appointments.changeTherapist] removed notification failed', err);
+      });
+    }
+    for (const therapistId of added) {
+      void createNotification({
+        recipientId: therapistId,
+        type: 'APPOINTMENT_THERAPIST_ASSIGNED',
+        params: { patientName, date: dateStr },
+        linkPath: `/therapist/schedule`,
+        relatedEntityType: 'Appointment',
+        relatedEntityId: input.id,
+      }).catch((err: unknown) => {
+        console.error('[appointments.changeTherapist] assigned notification failed', err);
+      });
+    }
 
     return {
       appointmentId: input.id,
       conflictsOverridden: !conflicts.ok && input.overrideConflicts,
-      previousTherapistId: existing.therapistId,
-      newTherapistId: input.therapistId,
+      previousTherapistIds,
+      newTherapistIds,
       reason: input.reason ?? null,
     };
   },
@@ -438,7 +492,7 @@ export async function getTherapistAvailabilityForTimeSlot(args: {
       const r = await checkConflicts({
         appointmentId: args.appointmentId,
         patientId: args.patientId,
-        therapistId,
+        therapistIds: [therapistId],
         startsAt: args.startsAt,
         durationMinutes: args.durationMinutes,
       });
@@ -474,7 +528,7 @@ export const cancelAppointment = withAudit<
         id: true,
         status: true,
         startsAt: true,
-        therapistId: true,
+        therapists: { select: { therapistId: true } },
         patientId: true,
         patient: {
           select: {
@@ -514,11 +568,11 @@ export const cancelAppointment = withAudit<
     await cancelAppointmentReminder(input.id);
 
     // Prompt 19 — the slot just freed; suggest it to anyone on the booking
-    // waitlist whose window covers it. Best-effort: never blocks the cancel.
-    await notifyWaitlistForFreedSlot({
-      startsAt: existing.startsAt,
-      therapistId: existing.therapistId,
-    });
+    // waitlist whose window covers it. A multi-therapist session frees the slot
+    // for EACH assigned therapist (Prompt 20). Best-effort: never blocks cancel.
+    for (const { therapistId } of existing.therapists) {
+      await notifyWaitlistForFreedSlot({ startsAt: existing.startsAt, therapistId });
+    }
 
     // Optional patient notification via the existing
     // `appointment_cancellation` template seeded in Prompt 2. The
@@ -654,13 +708,16 @@ export const cancelAppointmentSeries = withAudit<
     // Side effects after commit.
     await Promise.all(ids.map((id) => cancelAppointmentReminder(id)));
 
-    // Prompt 19 — every freed occurrence may match a waitlisted patient.
+    // Prompt 19 — every freed occurrence may match a waitlisted patient; a
+    // multi-therapist occurrence frees the slot per assigned therapist (P20).
     const freed = await db.appointment.findMany({
       where: { id: { in: ids } },
-      select: { startsAt: true, therapistId: true },
+      select: { startsAt: true, therapists: { select: { therapistId: true } } },
     });
     for (const f of freed) {
-      await notifyWaitlistForFreedSlot({ startsAt: f.startsAt, therapistId: f.therapistId });
+      for (const { therapistId } of f.therapists) {
+        await notifyWaitlistForFreedSlot({ startsAt: f.startsAt, therapistId });
+      }
     }
 
     if (input.notifyPatient) {
@@ -732,7 +789,7 @@ export const rescheduleAppointmentSeries = withAudit<
   }> {
     const target = await db.appointment.findUnique({
       where: { id: input.id },
-      select: { id: true, startsAt: true, therapistId: true, status: true },
+      select: { id: true, startsAt: true, status: true },
     });
     if (!target) throw new AppointmentError(notFound);
 
@@ -747,17 +804,17 @@ export const rescheduleAppointmentSeries = withAudit<
       occ: SeriesOccurrenceRow;
       newStartsAt: Date;
       newDurationMinutes: number;
-      newTherapistId: string;
+      newTherapistIds: string[];
     }
     const planned: Planned[] = occurrences.map((occ) => ({
       occ,
       newStartsAt: new Date(occ.startsAt.getTime() + deltaMs),
-      // For the single-appointment path the user may have changed
-      // duration / therapist / room. For the bulk path we keep those
-      // per-occurrence (each row keeps its own duration + therapist).
+      // The bulk path keeps each occurrence's own duration + therapist set;
+      // only the explicitly-targeted occurrence may also change duration /
+      // therapists / room (the values from the reschedule modal).
       newDurationMinutes: occ.id === target.id ? input.durationMinutes : occ.durationMinutes,
-      newTherapistId:
-        occ.id === target.id ? (input.therapistId ?? occ.therapistId) : occ.therapistId,
+      newTherapistIds:
+        occ.id === target.id ? (input.therapistIds ?? occ.therapistIds) : occ.therapistIds,
     }));
 
     const failures: BulkFailure[] = [];
@@ -766,7 +823,7 @@ export const rescheduleAppointmentSeries = withAudit<
         const conflicts = await checkConflicts({
           appointmentId: p.occ.id,
           patientId: p.occ.patientId,
-          therapistId: p.newTherapistId,
+          therapistIds: p.newTherapistIds,
           startsAt: p.newStartsAt,
           durationMinutes: p.newDurationMinutes,
         });
@@ -788,12 +845,14 @@ export const rescheduleAppointmentSeries = withAudit<
           data: {
             startsAt: p.newStartsAt,
             durationMinutes: p.newDurationMinutes,
-            therapistId: p.newTherapistId,
             ...(p.occ.id === target.id && input.roomId !== undefined
               ? { roomId: input.roomId }
               : {}),
           },
         });
+        if (p.occ.id === target.id && input.therapistIds) {
+          await setAppointmentTherapistsTx(tx, p.occ.id, p.newTherapistIds);
+        }
       }
     });
 
@@ -834,8 +893,8 @@ export const changeAppointmentTherapistSeries = withAudit<
   [AppointmentChangeTherapistParsed],
   {
     appointmentIds: string[];
-    previousTherapistId: string;
-    newTherapistId: string;
+    previousTherapistIds: string[];
+    newTherapistIds: string[];
     reason: string | null;
     conflictsOverridden: boolean;
   }
@@ -849,15 +908,15 @@ export const changeAppointmentTherapistSeries = withAudit<
         ? 'OVERRIDE_CONFLICT'
         : 'APPOINTMENT_SERIES_THERAPIST_CHANGED',
       appointmentIds: result.appointmentIds,
-      previousTherapistId: result.previousTherapistId,
-      newTherapistId: result.newTherapistId,
+      previousTherapistIds: result.previousTherapistIds,
+      newTherapistIds: result.newTherapistIds,
       reason: result.reason,
     }),
   },
   async function changeTherapistSeriesInner(input): Promise<{
     appointmentIds: string[];
-    previousTherapistId: string;
-    newTherapistId: string;
+    previousTherapistIds: string[];
+    newTherapistIds: string[];
     reason: string | null;
     conflictsOverridden: boolean;
   }> {
@@ -866,7 +925,10 @@ export const changeAppointmentTherapistSeries = withAudit<
       mode: input.seriesMode,
     });
     if (occurrences.length === 0) throw new AppointmentError(notFound);
-    const previousTherapistId = occurrences[0]!.therapistId;
+    // The target occurrence's set is the "previous" reference for notifications.
+    const previousTherapistIds =
+      occurrences.find((o) => o.id === input.id)?.therapistIds ?? occurrences[0]!.therapistIds;
+    const newTherapistIds = [...new Set(input.therapistIds)];
 
     const failures: BulkFailure[] = [];
     await db.$transaction(async (tx) => {
@@ -874,7 +936,7 @@ export const changeAppointmentTherapistSeries = withAudit<
         const conflicts = await checkConflicts({
           appointmentId: occ.id,
           patientId: occ.patientId,
-          therapistId: input.therapistId,
+          therapistIds: newTherapistIds,
           startsAt: occ.startsAt,
           durationMinutes: occ.durationMinutes,
         });
@@ -891,17 +953,17 @@ export const changeAppointmentTherapistSeries = withAudit<
         throw new BulkAppointmentError(failures);
       }
       for (const occ of occurrences) {
-        if (occ.therapistId === input.therapistId) continue;
-        await tx.appointment.update({
-          where: { id: occ.id },
-          data: { therapistId: input.therapistId },
-        });
+        await setAppointmentTherapistsTx(tx, occ.id, newTherapistIds);
       }
     });
 
-    // Single summary notification per side (Prompt 7b §4.7 — don't
-    // spam the therapist with N rows).
-    if (previousTherapistId !== input.therapistId) {
+    // Single summary notification per added/removed therapist (Prompt 7b §4.7
+    // — don't spam with N rows). Diff against the target occurrence's old set.
+    const prevSet = new Set(previousTherapistIds);
+    const nextSet = new Set(newTherapistIds);
+    const added = newTherapistIds.filter((id) => !prevSet.has(id));
+    const removed = previousTherapistIds.filter((id) => !nextSet.has(id));
+    if (added.length > 0 || removed.length > 0) {
       const patient = await db.appointment
         .findUnique({
           where: { id: input.id },
@@ -910,32 +972,36 @@ export const changeAppointmentTherapistSeries = withAudit<
         .then((r) => r?.patient.fullNameEn ?? '');
       const firstStart = occurrences[0]!.startsAt.toISOString().slice(0, 10);
       const { createNotification } = await import('@/lib/notifications/actions');
-      void createNotification({
-        recipientId: previousTherapistId,
-        type: 'APPOINTMENT_THERAPIST_REMOVED',
-        params: { patientName: patient, date: firstStart },
-        linkPath: `/therapist/schedule`,
-        relatedEntityType: 'Appointment',
-        relatedEntityId: input.id,
-      }).catch((err: unknown) => {
-        console.error('[appointments.changeTherapistSeries] removed notif failed', err);
-      });
-      void createNotification({
-        recipientId: input.therapistId,
-        type: 'APPOINTMENT_THERAPIST_ASSIGNED',
-        params: { patientName: patient, date: firstStart },
-        linkPath: `/therapist/schedule`,
-        relatedEntityType: 'Appointment',
-        relatedEntityId: input.id,
-      }).catch((err: unknown) => {
-        console.error('[appointments.changeTherapistSeries] assigned notif failed', err);
-      });
+      for (const therapistId of removed) {
+        void createNotification({
+          recipientId: therapistId,
+          type: 'APPOINTMENT_THERAPIST_REMOVED',
+          params: { patientName: patient, date: firstStart },
+          linkPath: `/therapist/schedule`,
+          relatedEntityType: 'Appointment',
+          relatedEntityId: input.id,
+        }).catch((err: unknown) => {
+          console.error('[appointments.changeTherapistSeries] removed notif failed', err);
+        });
+      }
+      for (const therapistId of added) {
+        void createNotification({
+          recipientId: therapistId,
+          type: 'APPOINTMENT_THERAPIST_ASSIGNED',
+          params: { patientName: patient, date: firstStart },
+          linkPath: `/therapist/schedule`,
+          relatedEntityType: 'Appointment',
+          relatedEntityId: input.id,
+        }).catch((err: unknown) => {
+          console.error('[appointments.changeTherapistSeries] assigned notif failed', err);
+        });
+      }
     }
 
     return {
       appointmentIds: occurrences.map((o) => o.id),
-      previousTherapistId,
-      newTherapistId: input.therapistId,
+      previousTherapistIds,
+      newTherapistIds,
       reason: input.reason ?? null,
       conflictsOverridden: false,
     };
@@ -978,19 +1044,26 @@ export const updateAppointmentStatus = withAudit<
 
     const existing = await db.appointment.findUnique({
       where: { id },
-      select: { id: true, status: true, therapistId: true, startsAt: true },
+      select: {
+        id: true,
+        status: true,
+        startsAt: true,
+        therapists: { select: { therapistId: true } },
+      },
     });
     if (!existing) throw new AppointmentError(notFound);
+    const therapistIds = existing.therapists.map((t) => t.therapistId);
 
     if (!canTransition(existing.status, to)) {
       throw new AppointmentError(STATUS_ERRORS.INVALID_TRANSITION(existing.status, to));
     }
 
-    // Therapist may only complete THEIR OWN in-progress appointment.
+    // A therapist may only complete an in-session appointment they are ON
+    // (any of the assigned therapists — Prompt 20).
     if (
       session.user.role === UserRole.THERAPIST &&
       to === AppointmentStatus.COMPLETED &&
-      existing.therapistId !== session.user.id
+      !therapistIds.includes(session.user.id)
     ) {
       throw new AppointmentError(STATUS_ERRORS.FORBIDDEN);
     }
@@ -1007,12 +1080,12 @@ export const updateAppointmentStatus = withAudit<
     }
 
     // Prompt 19 — a no-show frees the slot exactly like a cancellation does;
-    // route it through the same waitlist matcher (no duplicated logic).
+    // route it through the same waitlist matcher (no duplicated logic). One
+    // freed slot per assigned therapist (Prompt 20).
     if (to === AppointmentStatus.NO_SHOW) {
-      await notifyWaitlistForFreedSlot({
-        startsAt: existing.startsAt,
-        therapistId: existing.therapistId,
-      });
+      for (const therapistId of therapistIds) {
+        await notifyWaitlistForFreedSlot({ startsAt: existing.startsAt, therapistId });
+      }
     }
 
     return { appointmentId: id };
@@ -1050,7 +1123,7 @@ export async function previewSeries(
       durationMinutes: p.durationMinutes,
       conflicts: await checkConflicts({
         patientId: input.patientId,
-        therapistId: input.therapistId,
+        therapistIds: input.therapistIds,
         startsAt: p.startsAt,
         durationMinutes: p.durationMinutes,
       }),
@@ -1066,13 +1139,13 @@ export async function previewSeries(
  */
 export async function previewSingleOccurrence(input: {
   patientId: string;
-  therapistId: string;
+  therapistIds: string[];
   startsAt: Date;
   durationMinutes: number;
 }): Promise<ConflictResult> {
   return checkConflicts({
     patientId: input.patientId,
-    therapistId: input.therapistId,
+    therapistIds: input.therapistIds,
     startsAt: input.startsAt,
     durationMinutes: input.durationMinutes,
   });
@@ -1196,7 +1269,7 @@ export const createSeries = withAudit<
         for (const occ of finalOccurrences) {
           const conflicts = await checkConflicts({
             patientId: input.patientId,
-            therapistId: input.therapistId,
+            therapistIds: input.therapistIds,
             startsAt: occ.startsAt,
             durationMinutes: occ.durationMinutes,
           });
@@ -1224,7 +1297,6 @@ export const createSeries = withAudit<
           const created = await tx.appointment.create({
             data: {
               patientId: input.patientId,
-              therapistId: input.therapistId,
               roomId: input.roomId ?? null,
               startsAt: occ.startsAt,
               durationMinutes: occ.durationMinutes,
@@ -1232,10 +1304,17 @@ export const createSeries = withAudit<
               notes: input.notes ?? null,
               createdById: session.user!.id!,
               seriesId,
+              therapists: {
+                create: [...new Set(input.therapistIds)].map((therapistId) => ({ therapistId })),
+              },
             },
             select: { id: true, startsAt: true },
           });
           ids.push(created.id);
+        }
+        // Booking adds every assigned therapist to the patient's care team.
+        for (const therapistId of new Set(input.therapistIds)) {
+          await addCareTeamMemberTx(tx, input.patientId, therapistId, session.user!.id!);
         }
         return ids;
       });

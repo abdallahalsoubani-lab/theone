@@ -26,7 +26,7 @@ export interface SeriesOccurrenceRow {
   startsAt: Date;
   durationMinutes: number;
   patientId: string;
-  therapistId: string;
+  therapistIds: string[];
   status: AppointmentStatus;
   seriesId: string | null;
 }
@@ -36,10 +36,24 @@ const SELECT = {
   startsAt: true,
   durationMinutes: true,
   patientId: true,
-  therapistId: true,
+  therapists: { select: { therapistId: true } },
   status: true,
   seriesId: true,
 } satisfies Prisma.AppointmentSelect;
+
+type RawOccurrence = Prisma.AppointmentGetPayload<{ select: typeof SELECT }>;
+
+function toRow(r: RawOccurrence): SeriesOccurrenceRow {
+  return {
+    id: r.id,
+    startsAt: r.startsAt,
+    durationMinutes: r.durationMinutes,
+    patientId: r.patientId,
+    therapistIds: r.therapists.map((t) => t.therapistId),
+    status: r.status,
+    seriesId: r.seriesId,
+  };
+}
 
 export async function selectSeriesOccurrences(args: {
   appointmentId: string;
@@ -56,7 +70,7 @@ export async function selectSeriesOccurrences(args: {
       where: { id: args.appointmentId },
       select: SELECT,
     });
-    return row ? [row] : [];
+    return row ? [toRow(row)] : [];
   }
 
   const where: Prisma.AppointmentWhereInput = {
@@ -65,9 +79,10 @@ export async function selectSeriesOccurrences(args: {
     ...(args.mode === 'FOLLOWING' ? { startsAt: { gte: target.startsAt } } : {}),
   };
 
-  return db.appointment.findMany({
+  const rows = await db.appointment.findMany({
     where,
     select: SELECT,
     orderBy: { startsAt: 'asc' },
   });
+  return rows.map(toRow);
 }

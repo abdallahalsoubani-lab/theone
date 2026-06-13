@@ -6,10 +6,15 @@ import { DAY_KEYS, type DayKey } from './conflicts-time';
 
 /**
  * Conflict detection engine — the SINGLE source of truth for whether a
- * proposed appointment slot is valid (Prompt 7 §4.3).
+ * proposed appointment slot is valid (Prompt 7 §4.3, extended for multiple
+ * therapists per session in Prompt 20).
  *
  * Every server action that creates or moves an appointment routes through
  * `checkConflicts`. Do not scatter conflict logic across pages.
+ *
+ * A session may have several therapists; the slot is invalid if it clashes for
+ * ANY of them. THERAPIST_OVERLAP / THERAPIST_ON_LEAVE conflicts therefore name
+ * the specific therapist who is busy so the UI can say who.
  *
  * Pure read; safe to call concurrently from the live-preview endpoint.
  */
@@ -18,10 +23,17 @@ export interface ConflictCheckInput {
   /** When updating an existing appointment, exclude it from overlap calc. */
   appointmentId?: string;
   patientId: string;
-  therapistId: string;
+  /** One or more therapists assigned to the session (min 1). */
+  therapistIds: string[];
   /** UTC start. Timezone display is the locale layer's concern. */
   startsAt: Date;
   durationMinutes: number;
+}
+
+export interface PersonName {
+  id: string;
+  fullNameEn: string;
+  fullNameAr: string;
 }
 
 export interface AppointmentSummary {
@@ -30,7 +42,8 @@ export interface AppointmentSummary {
   durationMinutes: number;
   status: AppointmentStatus;
   patient: { id: string; fullNameEn: string; fullNameAr: string };
-  therapist: { id: string; fullNameEn: string; fullNameAr: string };
+  /** Therapists on the clashing appointment (for PATIENT_OVERLAP display). */
+  therapists: PersonName[];
 }
 
 export interface LeaveSummary {
@@ -41,9 +54,9 @@ export interface LeaveSummary {
 }
 
 export type Conflict =
-  | { kind: 'THERAPIST_OVERLAP'; appointment: AppointmentSummary }
+  | { kind: 'THERAPIST_OVERLAP'; therapist: PersonName; appointment: AppointmentSummary }
   | { kind: 'PATIENT_OVERLAP'; appointment: AppointmentSummary }
-  | { kind: 'THERAPIST_ON_LEAVE'; leave: LeaveSummary }
+  | { kind: 'THERAPIST_ON_LEAVE'; therapist: PersonName; leave: LeaveSummary }
   | { kind: 'OUTSIDE_BUSINESS_HOURS'; openTime: string; closeTime: string; dayKey: DayKey }
   | { kind: 'CLINIC_CLOSED_THIS_DAY'; dayKey: DayKey };
 
@@ -60,8 +73,7 @@ interface ClinicHoursPayload {
 }
 
 // Statuses considered "active" — terminal statuses (COMPLETED / CANCELLED /
-// NO_SHOW) never collide with new bookings. This matches the partial index
-// in the appointment_indexes migration.
+// NO_SHOW) never collide with new bookings.
 const ACTIVE_STATUSES: AppointmentStatus[] = [
   AppointmentStatus.SCHEDULED,
   AppointmentStatus.CONFIRMED,
@@ -74,23 +86,37 @@ export async function checkConflicts(
 ): Promise<ConflictResult> {
   const conflicts: Conflict[] = [];
   const endsAt = new Date(input.startsAt.getTime() + input.durationMinutes * 60_000);
+  const therapistIds = [...new Set(input.therapistIds)];
 
-  // ── 1. Therapist overlap ──────────────────────────────────────────────
-  const therapistOverlaps = await findOverlappingAppointments({
-    field: 'therapistId',
-    id: input.therapistId,
-    startsAt: input.startsAt,
-    endsAt,
-    excludeId: input.appointmentId,
+  // Names for the assigned therapists, so overlap/leave conflicts can say who.
+  const people = await db.user.findMany({
+    where: { id: { in: therapistIds } },
+    select: { id: true, fullNameEn: true, fullNameAr: true },
   });
-  for (const a of therapistOverlaps) {
-    conflicts.push({ kind: 'THERAPIST_OVERLAP', appointment: a });
+  const personById = new Map<string, PersonName>(people.map((p) => [p.id, p]));
+  const personFor = (id: string): PersonName =>
+    personById.get(id) ?? { id, fullNameEn: id, fullNameAr: id };
+
+  // ── 1. Therapist overlap (per assigned therapist) ─────────────────────
+  for (const therapistId of therapistIds) {
+    const overlaps = await findOverlappingAppointments({
+      scope: { therapistId },
+      startsAt: input.startsAt,
+      endsAt,
+      excludeId: input.appointmentId,
+    });
+    for (const a of overlaps) {
+      conflicts.push({
+        kind: 'THERAPIST_OVERLAP',
+        therapist: personFor(therapistId),
+        appointment: a,
+      });
+    }
   }
 
   // ── 2. Patient overlap ────────────────────────────────────────────────
   const patientOverlaps = await findOverlappingAppointments({
-    field: 'patientId',
-    id: input.patientId,
+    scope: { patientId: input.patientId },
     startsAt: input.startsAt,
     endsAt,
     excludeId: input.appointmentId,
@@ -99,12 +125,12 @@ export async function checkConflicts(
     conflicts.push({ kind: 'PATIENT_OVERLAP', appointment: a });
   }
 
-  // ── 3. Therapist on approved leave ────────────────────────────────────
+  // ── 3. Therapist(s) on approved leave ─────────────────────────────────
   const leaveStart = startOfUtcDay(input.startsAt);
   const leaveEnd = startOfUtcDay(endsAt);
   const leaves = await db.leave.findMany({
     where: {
-      userId: input.therapistId,
+      userId: { in: therapistIds },
       status: 'APPROVED',
       startDate: { lte: leaveEnd },
       endDate: { gte: leaveStart },
@@ -112,7 +138,7 @@ export async function checkConflicts(
     select: { id: true, userId: true, startDate: true, endDate: true },
   });
   for (const leave of leaves) {
-    conflicts.push({ kind: 'THERAPIST_ON_LEAVE', leave });
+    conflicts.push({ kind: 'THERAPIST_ON_LEAVE', therapist: personFor(leave.userId), leave });
   }
 
   // ── 4. Business hours ─────────────────────────────────────────────────
@@ -142,8 +168,7 @@ export async function checkConflicts(
 }
 
 async function findOverlappingAppointments(args: {
-  field: 'therapistId' | 'patientId';
-  id: string;
+  scope: { therapistId: string } | { patientId: string };
   startsAt: Date;
   endsAt: Date;
   excludeId?: string;
@@ -151,21 +176,27 @@ async function findOverlappingAppointments(args: {
   // Two appointments overlap iff: a.startsAt < b.endsAt AND a.endsAt > b.startsAt.
   // Prisma can't express "computed endsAt" in a where clause without a raw
   // query, so we use a generous window (startsAt within +/- 12h of target)
-  // and apply the precise overlap filter in JS. Combined with the partial
-  // index, this is fast enough for clinical workloads.
+  // and apply the precise overlap filter in JS.
   const windowStart = new Date(args.startsAt.getTime() - 12 * 60 * 60 * 1000);
   const windowEnd = new Date(args.endsAt.getTime() + 12 * 60 * 60 * 1000);
 
+  const scopeWhere =
+    'therapistId' in args.scope
+      ? { therapists: { some: { therapistId: args.scope.therapistId } } }
+      : { patientId: args.scope.patientId };
+
   const candidates = await db.appointment.findMany({
     where: {
-      ...(args.field === 'therapistId' ? { therapistId: args.id } : { patientId: args.id }),
+      ...scopeWhere,
       status: { in: ACTIVE_STATUSES },
       startsAt: { gte: windowStart, lte: windowEnd },
       ...(args.excludeId ? { id: { not: args.excludeId } } : {}),
     },
     include: {
       patient: { select: { id: true, fullNameEn: true, fullNameAr: true } },
-      therapist: { select: { id: true, fullNameEn: true, fullNameAr: true } },
+      therapists: {
+        include: { therapist: { select: { id: true, fullNameEn: true, fullNameAr: true } } },
+      },
     },
   });
 
@@ -183,7 +214,7 @@ async function findOverlappingAppointments(args: {
       durationMinutes: c.durationMinutes,
       status: c.status,
       patient: c.patient,
-      therapist: c.therapist,
+      therapists: c.therapists.map((t) => t.therapist),
     }));
 }
 
@@ -207,11 +238,6 @@ function toHm(d: Date): string {
   return `${h}:${m}`;
 }
 
-/**
- * Test-only export of the hours-loading interface so unit tests can stub
- * ClinicSettings without hitting the DB. Production code calls
- * `checkConflicts(input)` and lets the function load hours from Prisma.
- */
 export type { DayHours };
 export { DAY_KEYS, type DayKey };
 export type LocalizedConflictLabel = (c: Conflict, language: LanguagePref) => string;

@@ -34,32 +34,28 @@ interface Props {
   onClose: () => void;
   appointmentId: string;
   patientId: string;
-  currentTherapistId: string;
+  /** The appointment's current therapist set (Prompt 20). */
+  currentTherapistIds: string[];
   startsAt: Date;
   durationMinutes: number;
-  /** When set the modal shows the "single-occurrence only" notice
-   *  (Prompt 7b §4.6). Bulk series-edit modes land in commit 4. */
+  /** When set the modal shows the series-scope picker (Prompt 7b §4.6). */
   seriesId?: string | null;
   clinicians: Clinician[];
 }
 
 /**
- * Change-therapist picker — Prompt 7b §4.6.
- *
- * Renders the candidate clinician list with an availability dot per
- * row. The dots reuse the conflict engine via
- * `previewTherapistAvailabilityAction`, batched in parallel.
- *
- * Advisory only: the eventual save calls `changeTherapistAction`,
- * which re-runs the conflict engine server-side and rejects if a
- * conflict has emerged between render and click.
+ * Manage-therapists picker — Prompt 20 (was the single "change therapist"
+ * picker, Prompt 7b §4.6). Multi-select: toggle the therapists on this session
+ * (min 1). Each row shows an availability dot from the conflict engine
+ * (advisory; the save re-checks server-side). Saving sets the full set; the
+ * service diffs add/remove and notifies.
  */
 export function ChangeTherapistModal({
   open,
   onClose,
   appointmentId,
   patientId,
-  currentTherapistId,
+  currentTherapistIds,
   startsAt,
   durationMinutes,
   seriesId,
@@ -70,19 +66,21 @@ export function ChangeTherapistModal({
   const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [picked, setPicked] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[]>(currentTherapistIds);
   const [reason, setReason] = useState('');
   const [rows, setRows] = useState<TherapistAvailabilityRow[]>([]);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
   const [seriesMode, setSeriesMode] = useState<SeriesEditMode>('ONE');
 
+  const currentKey = [...currentTherapistIds].sort().join(',');
+
   useEffect(() => {
     if (!open) {
-      setPicked(null);
       setReason('');
       setRows([]);
       return;
     }
+    setSelected(currentTherapistIds);
     setLoadingAvailability(true);
     void previewTherapistAvailabilityAction({
       appointmentId,
@@ -90,7 +88,6 @@ export function ChangeTherapistModal({
       startsAt: startsAt.toISOString(),
       durationMinutes,
       therapistIds: clinicians.map((c) => c.id),
-      excludeTherapistId: currentTherapistId,
     })
       .then((r) => {
         if (!r.ok) {
@@ -100,27 +97,26 @@ export function ChangeTherapistModal({
         setRows(r.data.rows);
       })
       .finally(() => setLoadingAvailability(false));
-  }, [
-    open,
-    appointmentId,
-    patientId,
-    startsAt,
-    durationMinutes,
-    clinicians,
-    currentTherapistId,
-    locale,
-  ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, appointmentId, patientId, startsAt, durationMinutes, clinicians, currentKey, locale]);
+
+  const toggle = (id: string) =>
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
   function submit() {
-    if (!picked) return;
-    if (picked === currentTherapistId) {
+    if (selected.length === 0) {
+      toast.error(t('minOneError'));
+      return;
+    }
+    const selKey = [...selected].sort().join(',');
+    if (selKey === currentKey) {
       toast.error(t('noChangeError'));
       return;
     }
     startTransition(async () => {
       const r = await changeTherapistAction({
         id: appointmentId,
-        therapistId: picked,
+        therapistIds: selected,
         reason: reason || null,
         overrideConflicts: false,
         seriesMode: seriesId ? seriesMode : 'ONE',
@@ -136,8 +132,6 @@ export function ChangeTherapistModal({
   }
 
   const byTherapist = new Map(rows.map((r) => [r.therapistId, r]));
-  const others = clinicians.filter((c) => c.id !== currentTherapistId);
-  const current = clinicians.find((c) => c.id === currentTherapistId);
 
   return (
     <ResponsiveModal open={open} onOpenChange={(o) => (o ? null : onClose())}>
@@ -147,57 +141,47 @@ export function ChangeTherapistModal({
           <ResponsiveModalDescription>{t('subtitle')}</ResponsiveModalDescription>
         </ResponsiveModalHeader>
 
-        {current ? (
-          <div className="rounded-md border border-brand-border bg-brand-bg p-2 text-sm">
-            <span className="text-xs uppercase tracking-wide text-brand-textMuted">
-              {t('currentLabel')}
-            </span>
-            <p className="font-medium text-brand-navy">
-              {locale === 'ar' ? current.fullNameAr : current.fullNameEn}
-            </p>
-          </div>
-        ) : null}
-
         {seriesId ? <SeriesScopePicker value={seriesMode} onChange={setSeriesMode} /> : null}
 
-        <ul className="max-h-72 space-y-1 overflow-y-auto" role="radiogroup">
-          {others.map((c) => {
+        <ul className="max-h-72 space-y-1 overflow-y-auto" role="group" aria-label={t('title')}>
+          {clinicians.map((c) => {
             const row = byTherapist.get(c.id);
             const available = row?.available ?? false;
-            const selected = picked === c.id;
+            const isSelected = selected.includes(c.id);
             return (
               <li key={c.id}>
                 <label
                   className={`flex cursor-pointer items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm transition-colors ${
-                    selected
+                    isSelected
                       ? 'border-brand-cyan bg-brand-cyan/10 text-brand-navy'
                       : 'border-brand-border bg-brand-surface text-brand-text hover:bg-brand-bg'
                   }`}
                 >
                   <div className="flex items-center gap-2">
                     <input
-                      type="radio"
-                      name="therapist-pick"
+                      type="checkbox"
                       value={c.id}
-                      checked={selected}
-                      onChange={() => setPicked(c.id)}
+                      checked={isSelected}
+                      onChange={() => toggle(c.id)}
                     />
                     <span
                       aria-hidden
                       className={`inline-block size-2.5 rounded-full ${
                         loadingAvailability
                           ? 'bg-brand-textMuted/40'
-                          : available
+                          : available || isSelected
                             ? 'bg-emerald-500'
                             : 'bg-red-500'
                       }`}
                     />
                     <span>{locale === 'ar' ? c.fullNameAr : c.fullNameEn}</span>
                   </div>
-                  <span className={`text-xs ${available ? 'text-emerald-700' : 'text-red-700'}`}>
+                  <span
+                    className={`text-xs ${available || isSelected ? 'text-emerald-700' : 'text-red-700'}`}
+                  >
                     {loadingAvailability
                       ? '…'
-                      : available
+                      : available || isSelected
                         ? t('availableBadge')
                         : row && row.conflictKinds.length > 0
                           ? t(`conflictKinds.${row.conflictKinds[0]!}`)
@@ -226,7 +210,7 @@ export function ChangeTherapistModal({
           <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
             {tCommon('cancel')}
           </Button>
-          <Button type="button" disabled={!picked || pending} onClick={submit}>
+          <Button type="button" disabled={selected.length === 0 || pending} onClick={submit}>
             {pending ? t('saving') : t('save')}
           </Button>
         </ResponsiveModalFooter>

@@ -580,7 +580,7 @@ async function seedAppointments(
       create: {
         id,
         patientId: patient.id,
-        therapistId,
+        therapists: { create: [{ therapistId }] },
         roomId: room?.id ?? null,
         startsAt,
         durationMinutes: 30,

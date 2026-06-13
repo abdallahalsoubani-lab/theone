@@ -73,7 +73,7 @@ async function main() {
 
   const conflicts = await checkConflicts({
     patientId: patient.id,
-    therapistId: therapist.id,
+    therapistIds: [therapist.id],
     startsAt,
     durationMinutes: 45,
   });
@@ -85,7 +85,7 @@ async function main() {
   const appointment = await db.appointment.create({
     data: {
       patientId: patient.id,
-      therapistId: therapist.id,
+      therapists: { create: [{ therapistId: therapist.id }] },
       startsAt,
       durationMinutes: 45,
       status: AppointmentStatus.SCHEDULED,

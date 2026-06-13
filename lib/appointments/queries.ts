@@ -4,14 +4,20 @@ import { db } from '@/lib/db';
 
 import type { AppointmentListFilters, CancelledAppointmentFilters } from './schemas';
 
+export interface PersonRef {
+  id: string;
+  fullNameEn: string;
+  fullNameAr: string;
+}
+
 export interface CalendarAppointment {
   id: string;
   patientId: string;
   patientFullNameEn: string;
   patientFullNameAr: string;
-  therapistId: string;
-  therapistFullNameEn: string;
-  therapistFullNameAr: string;
+  /** All therapists on this session (Prompt 20) — the calendar renders the
+   *  appointment in each one's resource column. */
+  therapists: PersonRef[];
   roomId: string | null;
   roomName: string | null;
   startsAt: Date;
@@ -31,7 +37,7 @@ export async function listAppointmentsForCalendar(
   const where: Prisma.AppointmentWhereInput = {
     startsAt: { gte: filters.from, lte: filters.to },
     ...(filters.therapistIds && filters.therapistIds.length > 0
-      ? { therapistId: { in: filters.therapistIds } }
+      ? { therapists: { some: { therapistId: { in: filters.therapistIds } } } }
       : {}),
     ...(filters.patientId ? { patientId: filters.patientId } : {}),
     ...(filters.status ? { status: filters.status } : {}),
@@ -42,7 +48,10 @@ export async function listAppointmentsForCalendar(
     orderBy: { startsAt: 'asc' },
     include: {
       patient: { select: { id: true, fullNameEn: true, fullNameAr: true } },
-      therapist: { select: { id: true, fullNameEn: true, fullNameAr: true } },
+      therapists: {
+        orderBy: { createdAt: 'asc' },
+        include: { therapist: { select: { id: true, fullNameEn: true, fullNameAr: true } } },
+      },
       room: { select: { id: true, name: true } },
     },
   });
@@ -52,9 +61,7 @@ export async function listAppointmentsForCalendar(
     patientId: r.patient.id,
     patientFullNameEn: r.patient.fullNameEn,
     patientFullNameAr: r.patient.fullNameAr,
-    therapistId: r.therapist.id,
-    therapistFullNameEn: r.therapist.fullNameEn,
-    therapistFullNameAr: r.therapist.fullNameAr,
+    therapists: r.therapists.map((t) => t.therapist),
     roomId: r.room?.id ?? null,
     roomName: r.room?.name ?? null,
     startsAt: r.startsAt,
@@ -70,7 +77,10 @@ export async function getAppointmentById(id: string) {
     where: { id },
     include: {
       patient: { select: { id: true, fullNameEn: true, fullNameAr: true, phone: true } },
-      therapist: { select: { id: true, fullNameEn: true, fullNameAr: true } },
+      therapists: {
+        orderBy: { createdAt: 'asc' },
+        include: { therapist: { select: { id: true, fullNameEn: true, fullNameAr: true } } },
+      },
       room: { select: { id: true, name: true } },
       createdBy: { select: { id: true, fullNameEn: true, fullNameAr: true } },
     },
@@ -115,8 +125,7 @@ export interface CancelledAppointmentRow {
   patientPhone: string | null;
   startsAt: Date;
   durationMinutes: number;
-  therapistFullNameEn: string;
-  therapistFullNameAr: string;
+  therapists: { fullNameEn: string; fullNameAr: string }[];
   roomName: string | null;
   cancellationReason: string | null;
   cancellationCategory: CancellationCategory | null;
@@ -146,7 +155,7 @@ export async function listCancelledAppointments(args: {
           },
         }
       : {}),
-    ...(filters.therapistId ? { therapistId: filters.therapistId } : {}),
+    ...(filters.therapistId ? { therapists: { some: { therapistId: filters.therapistId } } } : {}),
     ...(filters.search
       ? {
           patient: {
@@ -167,7 +176,10 @@ export async function listCancelledAppointments(args: {
       take: filters.pageSize,
       include: {
         patient: { select: { fullNameEn: true, fullNameAr: true, phone: true } },
-        therapist: { select: { fullNameEn: true, fullNameAr: true } },
+        therapists: {
+          orderBy: { createdAt: 'asc' },
+          include: { therapist: { select: { fullNameEn: true, fullNameAr: true } } },
+        },
         room: { select: { name: true } },
         cancelledBy: { select: { fullNameEn: true, fullNameAr: true } },
       },
@@ -184,8 +196,7 @@ export async function listCancelledAppointments(args: {
       patientPhone: canSeePhone ? r.patient.phone : null,
       startsAt: r.startsAt,
       durationMinutes: r.durationMinutes,
-      therapistFullNameEn: r.therapist.fullNameEn,
-      therapistFullNameAr: r.therapist.fullNameAr,
+      therapists: r.therapists.map((t) => t.therapist),
       roomName: r.room?.name ?? null,
       cancellationReason: r.cancellationReason,
       cancellationCategory: r.cancellationCategory,

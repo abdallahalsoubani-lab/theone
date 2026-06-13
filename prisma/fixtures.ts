@@ -123,7 +123,7 @@ export async function loadFixtures(db: PrismaClient): Promise<FixtureIds> {
     create: {
       id: ids.appointment,
       patientId: ids.patient,
-      therapistId: ids.therapist,
+      therapists: { create: [{ therapistId: ids.therapist }] },
       startsAt: new Date('2099-01-01T10:00:00Z'),
       durationMinutes: 30,
       createdById: ids.secretary,

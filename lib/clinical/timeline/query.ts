@@ -143,7 +143,7 @@ async function loadAppointments(
       durationMinutes: true,
       status: true,
       notes: true,
-      therapist: { select: { fullNameEn: true } },
+      therapists: { include: { therapist: { select: { fullNameEn: true } } } },
     },
   });
   return rows
@@ -154,7 +154,7 @@ async function loadAppointments(
       occurredAt: r.startsAt,
       title: `Appointment — ${r.status}`,
       body: r.notes ?? undefined,
-      author: r.therapist.fullNameEn,
+      author: r.therapists.map((t) => t.therapist.fullNameEn).join(', '),
       linkPath: '/secretary/calendar',
       sourceId: r.id,
     }));

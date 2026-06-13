@@ -63,6 +63,7 @@ vi.mock('@/lib/db', () => {
       },
     ],
     appointments: [] as Array<Record<string, unknown>>,
+    appointmentTherapists: [] as Array<{ appointmentId: string; therapistId: string }>,
     members: [] as Member[],
     auditLogs: [] as Array<Record<string, unknown>>,
     counter: 0,
@@ -72,8 +73,16 @@ vi.mock('@/lib/db', () => {
     appointment: {
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
         state.counter += 1;
-        const row = { id: `appt-${state.counter}`, ...data };
+        const id = `appt-${state.counter}`;
+        const row = { id, ...data };
         state.appointments.push(row);
+        // Mirror the nested `therapists: { create: [...] }` write (Prompt 20).
+        const nested =
+          (data as { therapists?: { create?: Array<{ therapistId: string }> } }).therapists
+            ?.create ?? [];
+        for (const t of nested) {
+          state.appointmentTherapists.push({ appointmentId: id, therapistId: t.therapistId });
+        }
         return row;
       }),
       update: vi.fn(
@@ -95,6 +104,30 @@ vi.mock('@/lib/db', () => {
             : null,
         };
       }),
+    },
+    appointmentTherapist: {
+      findMany: vi.fn(async ({ where }: { where: { appointmentId: string } }) =>
+        state.appointmentTherapists
+          .filter((t) => t.appointmentId === where.appointmentId)
+          .map((t) => ({ therapistId: t.therapistId })),
+      ),
+      create: vi.fn(async ({ data }: { data: { appointmentId: string; therapistId: string } }) => {
+        state.appointmentTherapists.push(data);
+        return data;
+      }),
+      deleteMany: vi.fn(
+        async ({
+          where,
+        }: {
+          where: { appointmentId: string; therapistId?: { in?: string[] } };
+        }) => {
+          const remove = where.therapistId?.in ?? [];
+          state.appointmentTherapists = state.appointmentTherapists.filter(
+            (t) => !(t.appointmentId === where.appointmentId && remove.includes(t.therapistId)),
+          );
+          return { count: remove.length };
+        },
+      ),
     },
     careTeamMember: {
       upsert: vi.fn(
@@ -147,6 +180,7 @@ import { createAppointment, rescheduleAppointment, changeAppointmentTherapist } 
 const { __state } = (await import('@/lib/db')) as unknown as {
   __state: {
     appointments: Array<Record<string, unknown>>;
+    appointmentTherapists: Array<{ appointmentId: string; therapistId: string }>;
     members: Array<{ patientId: string; clinicianId: string; role: string; assignedBy: string }>;
     counter: number;
   };
@@ -154,7 +188,7 @@ const { __state } = (await import('@/lib/db')) as unknown as {
 
 const baseCreate = {
   patientId: 'patient-1',
-  therapistId: 'therapist-1',
+  therapistIds: ['therapist-1'],
   startsAt: new Date('2026-07-01T10:00:00Z'),
   durationMinutes: 30,
   roomId: null,
@@ -164,6 +198,7 @@ const baseCreate = {
 
 beforeEach(() => {
   __state.appointments.length = 0;
+  __state.appointmentTherapists.length = 0;
   __state.members.length = 0;
   __state.counter = 0;
 });
@@ -185,6 +220,15 @@ describe('booking adds the therapist to the care team', () => {
     await createAppointment(baseCreate);
     expect(__state.members.filter((m) => m.clinicianId === 'therapist-1')).toHaveLength(1);
   });
+
+  it('booking a two-therapist session adds BOTH to the care team (Prompt 20)', async () => {
+    await createAppointment({
+      ...baseCreate,
+      therapistIds: ['therapist-1', 'therapist-2'],
+    } as Parameters<typeof createAppointment>[0]);
+    const ids = __state.members.map((m) => m.clinicianId).sort();
+    expect(ids).toEqual(['therapist-1', 'therapist-2']);
+  });
 });
 
 describe('reschedule / change-therapist add the new therapist (never remove)', () => {
@@ -194,7 +238,7 @@ describe('reschedule / change-therapist add the new therapist (never remove)', (
       id: appointmentId,
       startsAt: new Date('2026-07-01T11:00:00Z'),
       durationMinutes: 30,
-      therapistId: 'therapist-2',
+      therapistIds: ['therapist-2'],
       roomId: null,
       overrideConflicts: false,
     } as Parameters<typeof rescheduleAppointment>[0]);
@@ -207,7 +251,7 @@ describe('reschedule / change-therapist add the new therapist (never remove)', (
     const { appointmentId } = await createAppointment(baseCreate);
     await changeAppointmentTherapist({
       id: appointmentId,
-      therapistId: 'therapist-2',
+      therapistIds: ['therapist-2'],
       reason: 'cover',
       overrideConflicts: false,
     } as Parameters<typeof changeAppointmentTherapist>[0]);

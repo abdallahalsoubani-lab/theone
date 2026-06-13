@@ -327,7 +327,7 @@ export async function getScheduleDensityForTherapist(
 
       const rows = await db.appointment.findMany({
         where: {
-          therapistId,
+          therapists: { some: { therapistId } },
           startsAt: { gte: start, lt: end },
           status: {
             in: [

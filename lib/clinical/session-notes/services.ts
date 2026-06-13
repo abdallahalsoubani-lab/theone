@@ -93,12 +93,15 @@ export const createSessionNote = withAudit<
       select: {
         id: true,
         patientId: true,
-        therapistId: true,
+        therapists: { select: { therapistId: true } },
         status: true,
       },
     });
     if (!appt) throw new SessionNoteError(apptNotFound);
-    if (appt.therapistId !== ctx.therapistId) {
+    // Any therapist assigned to the session may write its one shared note
+    // (Prompt 20). The note's author is recorded separately as ctx.therapistId.
+    const assignedTherapistIds = appt.therapists.map((t) => t.therapistId);
+    if (!assignedTherapistIds.includes(ctx.therapistId)) {
       // Admin override path still uses session.user.role check at the
       // facade; the service-level binding stays narrow.
       const session = await auth();

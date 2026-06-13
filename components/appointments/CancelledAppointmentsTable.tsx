@@ -125,13 +125,12 @@ export function CancelledAppointmentsTable({
           },
           {
             id: 'therapist',
-            accessorKey: 'therapistFullNameEn',
             header: t('columnTherapist'),
             enableSorting: false,
             cell: ({ row }) =>
-              localeTag === 'ar'
-                ? row.original.therapistFullNameAr
-                : row.original.therapistFullNameEn,
+              row.original.therapists
+                .map((th) => (localeTag === 'ar' ? th.fullNameAr : th.fullNameEn))
+                .join(localeTag === 'ar' ? '، ' : ', '),
           },
           {
             id: 'room',

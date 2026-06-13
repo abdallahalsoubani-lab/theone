@@ -138,17 +138,23 @@ export function SecretaryCalendar({
     [intlLocale],
   );
 
+  // A session with N therapists renders as N events — one in each therapist's
+  // resource column (Prompt 20). They share the same underlying appointment;
+  // the composite id keeps React keys unique per lane while handlers recover
+  // the real appointment via `event.appointment.id`.
   const events = useMemo<AppointmentEvent[]>(
     () =>
-      appointments.map((a) => ({
-        id: a.id,
-        title: locale === 'ar' ? a.patientFullNameAr : a.patientFullNameEn,
-        start: a.startsAt,
-        end: addMinutes(a.startsAt, a.durationMinutes),
-        resourceId: a.therapistId,
-        status: a.status,
-        appointment: a,
-      })),
+      appointments.flatMap((a) =>
+        a.therapists.map((th) => ({
+          id: `${a.id}::${th.id}`,
+          title: locale === 'ar' ? a.patientFullNameAr : a.patientFullNameEn,
+          start: a.startsAt,
+          end: addMinutes(a.startsAt, a.durationMinutes),
+          resourceId: th.id,
+          status: a.status,
+          appointment: a,
+        })),
+      ),
     [appointments, locale],
   );
 
@@ -235,12 +241,15 @@ export function SecretaryCalendar({
           resizable={false}
           onEventDrop={
             editable
-              ? ({ event, start, resourceId }) =>
+              ? ({ event, start, resourceId }) => {
+                  const appt = (event as AppointmentEvent).appointment;
+                  if (!appt) return;
                   onEventDrop?.({
-                    appointmentId: (event as AppointmentEvent).id,
+                    appointmentId: appt.id,
                     start: start as Date,
                     resourceId: typeof resourceId === 'string' ? resourceId : undefined,
-                  })
+                  });
+                }
               : undefined
           }
           onSelectSlot={(s) => {
@@ -250,7 +259,10 @@ export function SecretaryCalendar({
               resourceId: typeof s.resourceId === 'string' ? s.resourceId : undefined,
             });
           }}
-          onSelectEvent={(e) => onSelectEvent?.((e as AppointmentEvent).id)}
+          onSelectEvent={(e) => {
+            const appt = (e as AppointmentEvent).appointment;
+            if (appt) onSelectEvent?.(appt.id);
+          }}
           messages={{
             allDay: t('allDay'),
             previous: t('previous'),
@@ -321,8 +333,16 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
   }
   const startLabel = `${pad(event.start.getHours())}:${pad(event.start.getMinutes())}`;
   const endLabel = `${pad(event.end.getHours())}:${pad(event.end.getMinutes())}`;
-  const therapist =
-    locale === 'ar' ? event.appointment.therapistFullNameAr : event.appointment.therapistFullNameEn;
+  // Show the therapist whose lane this is; a co-therapist count hints that the
+  // same session also appears in another column (Prompt 20).
+  const laneTherapist = event.appointment.therapists.find((th) => th.id === event.resourceId);
+  const coTherapists = event.appointment.therapists.length - 1;
+  const therapistName = laneTherapist
+    ? locale === 'ar'
+      ? laneTherapist.fullNameAr
+      : laneTherapist.fullNameEn
+    : '';
+  const therapist = coTherapists > 0 ? `${therapistName} +${coTherapists}` : therapistName;
   const tint = therapistTint(event.resourceId);
   return (
     <div className="flex h-full flex-col gap-0.5 overflow-hidden">

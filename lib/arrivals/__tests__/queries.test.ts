@@ -41,7 +41,7 @@ function row(over: {
     checkedInVia: over.via ?? null,
     status: over.status,
     patient: { fullNameEn: `Patient ${over.id}`, fullNameAr: `مريض ${over.id}` },
-    therapist: { fullNameEn: 'Layan', fullNameAr: 'ليان' },
+    therapists: [{ therapist: { fullNameEn: 'Layan', fullNameAr: 'ليان' } }],
     room: { name: 'Room 1' },
   };
 }

@@ -452,15 +452,15 @@
       "complete": "Mark completed",
       "cancel": "Cancel",
       "noShow": "Mark no-show",
-      "changeTherapist": "Change therapist",
+      "changeTherapist": "Manage therapists",
       "edit": "Edit",
       "openInCalendar": "Open in calendar"
     },
     "conflicts": {
       "title": "Conflicts detected",
-      "therapistOverlap": "The therapist already has an appointment with {patient} at {time}.",
+      "therapistOverlap": "{therapist} already has an appointment with {patient} at {time}.",
       "patientOverlap": "This patient already has an appointment with {therapist} at {time}.",
-      "therapistOnLeave": "The therapist is on approved leave on this date.",
+      "therapistOnLeave": "{therapist} is on approved leave on this date.",
       "outsideBusinessHours": "Outside clinic hours ({open}–{close}).",
       "clinicClosedThisDay": "The clinic is closed on this day.",
       "overrideConfirmTitle": "Override conflict?",
@@ -471,6 +471,8 @@
     "form": {
       "patient": "Patient",
       "therapist": "Therapist",
+      "therapists": "Therapists",
+      "therapistsHint": "Pick at least one therapist.",
       "room": "Room",
       "startsAt": "Start time",
       "duration": "Duration (minutes)",
@@ -1283,7 +1285,8 @@
       "save": "Reassign",
       "saving": "Reassigning…",
       "reassignedToast": "Appointment reassigned.",
-      "noChangeError": "Pick a therapist different from the current one.",
+      "noChangeError": "Pick a different set of therapists.",
+      "minOneError": "Pick at least one therapist.",
       "conflictKinds": {
         "THERAPIST_OVERLAP": "Already booked",
         "PATIENT_OVERLAP": "Patient busy",

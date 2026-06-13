@@ -56,11 +56,17 @@ async function main() {
     select: { id: true },
   });
 
-  // Distinct (patient, therapist) pairs across every appointment.
-  const pairs = await db.appointment.findMany({
-    distinct: ['patientId', 'therapistId'],
-    select: { patientId: true, therapistId: true },
+  // Distinct (patient, therapist) pairs across every appointment. Therapists
+  // are a many-to-many join now (Prompt 20), so dedupe over the join table.
+  const pairRows = await db.appointmentTherapist.findMany({
+    select: { therapistId: true, appointment: { select: { patientId: true } } },
   });
+  const pairMap = new Map<string, { patientId: string; therapistId: string }>();
+  for (const r of pairRows) {
+    const patientId = r.appointment.patientId;
+    pairMap.set(`${patientId}:${r.therapistId}`, { patientId, therapistId: r.therapistId });
+  }
+  const pairs = [...pairMap.values()];
 
   // Existing memberships → skip set ("patientId:clinicianId").
   const existing = await db.careTeamMember.findMany({

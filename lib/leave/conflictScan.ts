@@ -38,7 +38,7 @@ export async function scanLeaveConflicts(
 
   const rows = await db.appointment.findMany({
     where: {
-      therapistId: leave.userId,
+      therapists: { some: { therapistId: leave.userId } },
       status: {
         in: [
           AppointmentStatus.SCHEDULED,

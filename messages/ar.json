@@ -45,15 +45,15 @@
       "complete": "إنهاء الجلسة",
       "cancel": "إلغاء",
       "noShow": "تسجيل عدم حضور",
-      "changeTherapist": "تغيير المعالج",
+      "changeTherapist": "إدارة المعالجين",
       "edit": "تعديل",
       "openInCalendar": "فتح في التقويم"
     },
     "conflicts": {
       "title": "تم اكتشاف تعارضات",
-      "therapistOverlap": "المعالج لديه موعد مع {patient} في {time}.",
+      "therapistOverlap": "{therapist} لديه موعد مع {patient} في {time}.",
       "patientOverlap": "للمراجع موعد آخر مع {therapist} في {time}.",
-      "therapistOnLeave": "المعالج في إجازة موافق عليها هذا التاريخ.",
+      "therapistOnLeave": "{therapist} في إجازة موافق عليها هذا التاريخ.",
       "outsideBusinessHours": "خارج ساعات العيادة ({open}–{close}).",
       "clinicClosedThisDay": "العيادة مغلقة في هذا اليوم.",
       "overrideConfirmTitle": "تجاوز التعارض؟",
@@ -64,6 +64,8 @@
     "form": {
       "patient": "المراجع",
       "therapist": "المعالج",
+      "therapists": "المعالجون",
+      "therapistsHint": "اختر معالجاً واحداً على الأقل.",
       "room": "الغرفة",
       "startsAt": "وقت البدء",
       "duration": "المدة (دقائق)",
@@ -1283,7 +1285,8 @@
       "save": "إعادة التعيين",
       "saving": "جاري إعادة التعيين…",
       "reassignedToast": "تمت إعادة تعيين الموعد.",
-      "noChangeError": "اختر معالجاً مختلفاً عن الحالي.",
+      "noChangeError": "اختر مجموعة معالجين مختلفة.",
+      "minOneError": "اختر معالجاً واحداً على الأقل.",
       "conflictKinds": {
         "THERAPIST_OVERLAP": "محجوز",
         "PATIENT_OVERLAP": "المريض مشغول",

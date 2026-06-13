@@ -1,9 +1,12 @@
 import { AppointmentStatus, CancellationCategory } from '@prisma/client';
 import { z } from 'zod';
 
+/** At least one therapist per appointment (Prompt 20). */
+const therapistIdsSchema = z.array(z.string().min(1)).min(1).max(10);
+
 export const appointmentCreateSchema = z.object({
   patientId: z.string().min(1),
-  therapistId: z.string().min(1),
+  therapistIds: therapistIdsSchema,
   roomId: z.string().min(1).optional().nullable(),
   startsAt: z.coerce.date(),
   durationMinutes: z
@@ -39,7 +42,13 @@ export const appointmentRescheduleSchema = z.object({
     .int()
     .positive()
     .max(8 * 60),
-  therapistId: z.string().min(1).optional(),
+  /**
+   * Optional therapist set for this slot (Prompt 20). Omitted → keep the
+   * existing therapists (pure time/room move, e.g. dragging a multi-therapist
+   * session). Provided → replace the set (e.g. dragging a single-therapist
+   * appointment into another therapist's lane).
+   */
+  therapistIds: z.array(z.string().min(1)).min(1).max(10).optional(),
   roomId: z.string().min(1).optional().nullable(),
   /**
    * The drag-and-drop path never overrides — the user must reopen the
@@ -55,9 +64,14 @@ export const appointmentRescheduleSchema = z.object({
 export type AppointmentRescheduleInput = z.input<typeof appointmentRescheduleSchema>;
 export type AppointmentRescheduleParsed = z.infer<typeof appointmentRescheduleSchema>;
 
+/**
+ * "Manage therapists" (Prompt 20 — was "change therapist"). Sets the full
+ * therapist set for an appointment; the service diffs against the current set
+ * to add/remove and notify. Min 1 therapist.
+ */
 export const appointmentChangeTherapistSchema = z.object({
   id: z.string().min(1),
-  therapistId: z.string().min(1),
+  therapistIds: z.array(z.string().min(1)).min(1).max(10),
   /** Optional free-form reason logged on the audit row and surfaced
    *  in the assigned/removed notification body when present. */
   reason: z.string().max(500).optional().nullable(),
@@ -136,7 +150,7 @@ export const seriesOccurrenceInputSchema = z.object({
 
 export const seriesPreviewSchema = z.object({
   patientId: z.string().min(1),
-  therapistId: z.string().min(1),
+  therapistIds: therapistIdsSchema,
   roomId: z.string().min(1).optional().nullable(),
   startsAt: z.coerce.date(),
   durationMinutes: z

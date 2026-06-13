@@ -38,7 +38,7 @@ export default async function TherapistDashboard({
   const [todayAppts, pendingNotes, assignedCount, unread, scheduleDensity] = await Promise.all([
     db.appointment.findMany({
       where: {
-        therapistId,
+        therapists: { some: { therapistId } },
         startsAt: { gte: today, lt: tomorrow },
       },
       orderBy: { startsAt: 'asc' },

@@ -77,7 +77,7 @@ describe('seriesPreviewSchema', () => {
     expect(
       seriesPreviewSchema.safeParse({
         patientId: validId,
-        therapistId: validId,
+        therapistIds: [validId],
         startsAt: new Date(),
         durationMinutes: 30,
         rule: {
@@ -95,7 +95,7 @@ describe('seriesCreateSchema', () => {
   it('requires at least one resolution row', () => {
     const r = seriesCreateSchema.safeParse({
       patientId: validId,
-      therapistId: validId,
+      therapistIds: [validId],
       startsAt: new Date(),
       durationMinutes: 30,
       rule: { frequency: 'WEEKLY', interval: 1, byWeekday: ['SUN'], count: 4 },
@@ -107,7 +107,7 @@ describe('seriesCreateSchema', () => {
   it('caps resolutions at 52 rows (matches the expansion cap)', () => {
     const r = seriesCreateSchema.safeParse({
       patientId: validId,
-      therapistId: validId,
+      therapistIds: [validId],
       startsAt: new Date(),
       durationMinutes: 30,
       rule: { frequency: 'WEEKLY', interval: 1, byWeekday: ['SUN'], count: 4 },
@@ -123,7 +123,7 @@ describe('seriesCreateSchema', () => {
   it('accepts an OVERRIDE resolution (action layer enforces the permission)', () => {
     const r = seriesCreateSchema.safeParse({
       patientId: validId,
-      therapistId: validId,
+      therapistIds: [validId],
       startsAt: new Date(),
       durationMinutes: 30,
       rule: { frequency: 'WEEKLY', interval: 1, byWeekday: ['SUN'], count: 2 },

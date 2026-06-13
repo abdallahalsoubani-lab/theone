@@ -30,9 +30,7 @@ export interface SidePanelAppointment {
   patientFullNameEn: string;
   patientFullNameAr: string;
   patientPhone: string;
-  therapistId: string;
-  therapistFullNameEn: string;
-  therapistFullNameAr: string;
+  therapists: { id: string; fullNameEn: string; fullNameAr: string }[];
   roomName: string | null;
   startsAt: Date;
   durationMinutes: number;
@@ -93,8 +91,9 @@ export function AppointmentSidePanel({
 
   const patientName =
     locale === 'ar' ? appointment.patientFullNameAr : appointment.patientFullNameEn;
-  const therapistName =
-    locale === 'ar' ? appointment.therapistFullNameAr : appointment.therapistFullNameEn;
+  const therapistName = appointment.therapists
+    .map((th) => (locale === 'ar' ? th.fullNameAr : th.fullNameEn))
+    .join(locale === 'ar' ? '، ' : ', ');
 
   const handleStatus = (to: AppointmentStatus, successKey: string) =>
     startTransition(async () => {

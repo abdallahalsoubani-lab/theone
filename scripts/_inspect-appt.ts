@@ -5,7 +5,13 @@ async function main() {
   if (!id) throw new Error('pass appointmentId');
   const appt = await db.appointment.findUnique({
     where: { id },
-    select: { id: true, startsAt: true, status: true, patientId: true, therapistId: true },
+    select: {
+      id: true,
+      startsAt: true,
+      status: true,
+      patientId: true,
+      therapists: { select: { therapistId: true } },
+    },
   });
   console.log('APPT:', JSON.stringify(appt, null, 2));
   const msgs = await db.whatsAppMessage.findMany({

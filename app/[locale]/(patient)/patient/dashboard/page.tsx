@@ -45,7 +45,10 @@ export default async function PatientDashboard({
       select: {
         startsAt: true,
         durationMinutes: true,
-        therapist: { select: { fullNameEn: true, fullNameAr: true } },
+        therapists: {
+          orderBy: { createdAt: 'asc' },
+          include: { therapist: { select: { fullNameEn: true, fullNameAr: true } } },
+        },
       },
     }),
     // Approved-visible active items only (Prompt 16).
@@ -92,9 +95,9 @@ export default async function PatientDashboard({
             <p className="text-sm text-brand-navy">
               {formatDate(nextAppointment.startsAt, intlLocale)} ·{' '}
               {formatTime(nextAppointment.startsAt, intlLocale)} ·{' '}
-              {locale === 'ar'
-                ? nextAppointment.therapist.fullNameAr
-                : nextAppointment.therapist.fullNameEn}
+              {nextAppointment.therapists
+                .map((t) => (locale === 'ar' ? t.therapist.fullNameAr : t.therapist.fullNameEn))
+                .join('، ')}
             </p>
           ) : (
             <p className="text-sm text-brand-textMuted">{t('nextAppointmentPlaceholder')}</p>

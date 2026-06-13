@@ -79,7 +79,9 @@ export function SecretaryCalendarBoard({
   const [pendingDrop, setPendingDrop] = useState<{
     appointmentId: string;
     start: Date;
-    therapistId: string;
+    /** Set only when a single-therapist drag reassigns to a new lane; omitted
+     *  for a multi-therapist time-only move (Prompt 20). */
+    therapistIds?: string[];
     durationMinutes: number;
     seriesId: string | null;
   } | null>(null);
@@ -100,9 +102,7 @@ export function SecretaryCalendarBoard({
       // Phone is fetched lazily; the calendar list query is lean. For now,
       // leave blank and Prompt 7b can fetch on open if needed.
       patientPhone: '',
-      therapistId: found.therapistId,
-      therapistFullNameEn: found.therapistFullNameEn,
-      therapistFullNameAr: found.therapistFullNameAr,
+      therapists: found.therapists,
       roomName: found.roomName,
       startsAt: found.startsAt,
       durationMinutes: found.durationMinutes,
@@ -117,7 +117,7 @@ export function SecretaryCalendarBoard({
     args: {
       appointmentId: string;
       start: Date;
-      therapistId: string;
+      therapistIds?: string[];
       durationMinutes: number;
     },
     seriesMode: SeriesEditMode,
@@ -127,7 +127,9 @@ export function SecretaryCalendarBoard({
         id: args.appointmentId,
         startsAt: args.start,
         durationMinutes: args.durationMinutes,
-        therapistId: args.therapistId,
+        // Omitted → keep the existing therapist set (multi-therapist time-only
+        // move); set → reassign (single-therapist lane change). Prompt 20.
+        ...(args.therapistIds ? { therapistIds: args.therapistIds } : {}),
         overrideConflicts: false,
         seriesMode,
       });
@@ -144,10 +146,21 @@ export function SecretaryCalendarBoard({
   const handleEventDrop = (args: { appointmentId: string; start: Date; resourceId?: string }) => {
     const existing = appointments.find((a) => a.id === args.appointmentId);
     if (!existing) return;
+    // Drag interaction (Prompt 20, decision #2):
+    //  - single-therapist appointment dropped into another lane → reassign it
+    //    to that lane's therapist (today's behavior preserved);
+    //  - multi-therapist session dragged → time-only move, ALL therapists kept,
+    //    no reassignment from the target lane (to change WHO is on it, use
+    //    "Manage therapists" in the side panel).
+    const isMulti = existing.therapists.length > 1;
+    const therapistIds =
+      !isMulti && args.resourceId && args.resourceId !== existing.therapists[0]?.id
+        ? [args.resourceId]
+        : undefined;
     const drop = {
       appointmentId: args.appointmentId,
       start: args.start,
-      therapistId: args.resourceId ?? existing.therapistId,
+      therapistIds,
       durationMinutes: existing.durationMinutes,
       seriesId: existing.seriesId,
     };
@@ -223,7 +236,7 @@ export function SecretaryCalendarBoard({
           onClose={() => setChangeTherapistOpen(false)}
           appointmentId={panelAppt.id}
           patientId={panelAppt.patientId}
-          currentTherapistId={panelAppt.therapistId}
+          currentTherapistIds={panelAppt.therapists.map((th) => th.id)}
           startsAt={panelAppt.startsAt}
           durationMinutes={panelAppt.durationMinutes}
           seriesId={panelAppt.seriesId}

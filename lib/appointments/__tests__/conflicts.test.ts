@@ -5,16 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // every test below; each test resets them via the helpers exported at the
 // bottom of this file.
 vi.mock('@/lib/db', () => {
+  const NM = { fullNameEn: 'X', fullNameAr: 'س' };
   const state = {
     appointments: [] as Array<{
       id: string;
       patientId: string;
-      therapistId: string;
+      therapistIds: string[];
       startsAt: Date;
       durationMinutes: number;
       status: AppointmentStatus;
-      patient: { id: string; fullNameEn: string; fullNameAr: string };
-      therapist: { id: string; fullNameEn: string; fullNameAr: string };
     }>,
     leaves: [] as Array<{
       id: string;
@@ -28,24 +27,40 @@ vi.mock('@/lib/db', () => {
     __state: state,
     db: {
       appointment: {
+        // Mirrors the M2M query (Prompt 20): therapist scope is
+        // `therapists: { some: { therapistId } }`; the include projects join
+        // rows the engine maps via `c.therapists.map(t => t.therapist)`.
         findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
-          return state.appointments.filter((a) => {
-            if ('therapistId' in where && a.therapistId !== where.therapistId) return false;
-            if ('patientId' in where && a.patientId !== where.patientId) return false;
-            const statusWhere = where.status as { in?: AppointmentStatus[] } | undefined;
-            if (statusWhere?.in && !statusWhere.in.includes(a.status)) return false;
-            const idWhere = where.id as { not?: string } | undefined;
-            if (idWhere?.not && a.id === idWhere.not) return false;
-            return true;
-          });
+          const therapistScope = (where as { therapists?: { some?: { therapistId?: string } } })
+            .therapists?.some?.therapistId;
+          return state.appointments
+            .filter((a) => {
+              if (therapistScope && !a.therapistIds.includes(therapistScope)) return false;
+              if ('patientId' in where && a.patientId !== where.patientId) return false;
+              const statusWhere = where.status as { in?: AppointmentStatus[] } | undefined;
+              if (statusWhere?.in && !statusWhere.in.includes(a.status)) return false;
+              const idWhere = where.id as { not?: string } | undefined;
+              if (idWhere?.not && a.id === idWhere.not) return false;
+              return true;
+            })
+            .map((a) => ({
+              ...a,
+              patient: { id: a.patientId, ...NM },
+              therapists: a.therapistIds.map((id) => ({ therapist: { id, ...NM } })),
+            }));
+        }),
+      },
+      user: {
+        findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+          const ids = (where as { id?: { in?: string[] } }).id?.in ?? [];
+          return ids.map((id) => ({ id, ...NM }));
         }),
       },
       leave: {
         findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+          const userIn = (where.userId as { in?: string[] } | undefined)?.in;
           return state.leaves.filter((l) => {
-            if (l.userId !== where.userId) return false;
-            // The conflict engine queries leaves whose range overlaps the
-            // appointment's date window; the fake mirrors that intent.
+            if (userIn && !userIn.includes(l.userId)) return false;
             const start = (where.startDate as { lte?: Date } | undefined)?.lte;
             const end = (where.endDate as { gte?: Date } | undefined)?.gte;
             if (start && l.startDate > start) return false;
@@ -81,11 +96,9 @@ const HOURS_M_TO_F_9_TO_18 = {
   sat: { open: '10:00', close: '14:00', closed: false },
 };
 
-const NAME = { fullNameEn: 'X', fullNameAr: 'س' };
-
 function addExistingAppt(args: {
   id?: string;
-  therapistId: string;
+  therapistIds: string[];
   patientId: string;
   startsAt: string; // ISO
   durationMinutes: number;
@@ -93,13 +106,11 @@ function addExistingAppt(args: {
 }) {
   state.appointments.push({
     id: args.id ?? `appt-${state.appointments.length + 1}`,
-    therapistId: args.therapistId,
+    therapistIds: args.therapistIds,
     patientId: args.patientId,
     startsAt: new Date(args.startsAt),
     durationMinutes: args.durationMinutes,
     status: args.status ?? AppointmentStatus.SCHEDULED,
-    patient: { id: args.patientId, ...NAME },
-    therapist: { id: args.therapistId, ...NAME },
   } as never);
 }
 
@@ -118,7 +129,7 @@ describe('checkConflicts — happy paths', () => {
   it('ok when no other appointments exist and within hours', async () => {
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -127,14 +138,14 @@ describe('checkConflicts — happy paths', () => {
 
   it('ok when adjacent appointment ends exactly at start (boundary)', async () => {
     addExistingAppt({
-      therapistId: 't1',
+      therapistIds: ['t1'],
       patientId: 'p2',
       startsAt: `${MONDAY}T09:30:00Z`,
       durationMinutes: 30,
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -143,14 +154,14 @@ describe('checkConflicts — happy paths', () => {
 
   it('ok when adjacent appointment starts exactly at end (boundary)', async () => {
     addExistingAppt({
-      therapistId: 't1',
+      therapistIds: ['t1'],
       patientId: 'p2',
       startsAt: `${MONDAY}T10:30:00Z`,
       durationMinutes: 30,
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -159,7 +170,7 @@ describe('checkConflicts — happy paths', () => {
 
   it('ignores COMPLETED appointments for overlap', async () => {
     addExistingAppt({
-      therapistId: 't1',
+      therapistIds: ['t1'],
       patientId: 'p2',
       startsAt: `${MONDAY}T10:00:00Z`,
       durationMinutes: 30,
@@ -167,7 +178,7 @@ describe('checkConflicts — happy paths', () => {
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -176,7 +187,7 @@ describe('checkConflicts — happy paths', () => {
 
   it('ignores CANCELLED appointments for overlap', async () => {
     addExistingAppt({
-      therapistId: 't1',
+      therapistIds: ['t1'],
       patientId: 'p2',
       startsAt: `${MONDAY}T10:00:00Z`,
       durationMinutes: 30,
@@ -184,7 +195,7 @@ describe('checkConflicts — happy paths', () => {
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -193,7 +204,7 @@ describe('checkConflicts — happy paths', () => {
 
   it('ignores NO_SHOW appointments for overlap', async () => {
     addExistingAppt({
-      therapistId: 't1',
+      therapistIds: ['t1'],
       patientId: 'p2',
       startsAt: `${MONDAY}T10:00:00Z`,
       durationMinutes: 30,
@@ -201,7 +212,7 @@ describe('checkConflicts — happy paths', () => {
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -212,14 +223,14 @@ describe('checkConflicts — happy paths', () => {
 describe('checkConflicts — therapist overlap', () => {
   it('detects exact-same-time overlap with another patient', async () => {
     addExistingAppt({
-      therapistId: 't1',
+      therapistIds: ['t1'],
       patientId: 'p2',
       startsAt: `${MONDAY}T10:00:00Z`,
       durationMinutes: 30,
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -231,14 +242,14 @@ describe('checkConflicts — therapist overlap', () => {
 
   it('detects partial overlap from before', async () => {
     addExistingAppt({
-      therapistId: 't1',
+      therapistIds: ['t1'],
       patientId: 'p2',
       startsAt: `${MONDAY}T09:45:00Z`,
       durationMinutes: 30, // 09:45 - 10:15
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -247,14 +258,14 @@ describe('checkConflicts — therapist overlap', () => {
 
   it('detects partial overlap from after', async () => {
     addExistingAppt({
-      therapistId: 't1',
+      therapistIds: ['t1'],
       patientId: 'p2',
       startsAt: `${MONDAY}T10:15:00Z`,
       durationMinutes: 30, // 10:15 - 10:45
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -263,14 +274,14 @@ describe('checkConflicts — therapist overlap', () => {
 
   it('detects an existing appointment fully containing the new one', async () => {
     addExistingAppt({
-      therapistId: 't1',
+      therapistIds: ['t1'],
       patientId: 'p2',
       startsAt: `${MONDAY}T09:00:00Z`,
       durationMinutes: 120, // 09:00 - 11:00
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -280,7 +291,7 @@ describe('checkConflicts — therapist overlap', () => {
   it('excludes the same appointment id when editing', async () => {
     addExistingAppt({
       id: 'self',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       patientId: 'p1',
       startsAt: `${MONDAY}T10:00:00Z`,
       durationMinutes: 30,
@@ -288,7 +299,7 @@ describe('checkConflicts — therapist overlap', () => {
     const result = await checkConflicts({
       appointmentId: 'self',
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -297,14 +308,14 @@ describe('checkConflicts — therapist overlap', () => {
 
   it('no overlap when the existing appointment belongs to a different therapist', async () => {
     addExistingAppt({
-      therapistId: 't2',
+      therapistIds: ['t2'],
       patientId: 'p2',
       startsAt: `${MONDAY}T10:00:00Z`,
       durationMinutes: 30,
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -315,14 +326,14 @@ describe('checkConflicts — therapist overlap', () => {
 describe('checkConflicts — patient overlap', () => {
   it('detects same patient with another therapist at the same time', async () => {
     addExistingAppt({
-      therapistId: 't2',
+      therapistIds: ['t2'],
       patientId: 'p1',
       startsAt: `${MONDAY}T10:00:00Z`,
       durationMinutes: 30,
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -334,14 +345,14 @@ describe('checkConflicts — patient overlap', () => {
 
   it('reports both therapist and patient conflicts when both apply', async () => {
     addExistingAppt({
-      therapistId: 't1',
+      therapistIds: ['t1'],
       patientId: 'p1',
       startsAt: `${MONDAY}T10:00:00Z`,
       durationMinutes: 30,
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -364,7 +375,7 @@ describe('checkConflicts — therapist leave', () => {
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -383,7 +394,7 @@ describe('checkConflicts — therapist leave', () => {
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -399,7 +410,7 @@ describe('checkConflicts — therapist leave', () => {
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -411,7 +422,7 @@ describe('checkConflicts — business hours', () => {
   it('detects appointment starting before open time', async () => {
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T08:00:00Z`),
       durationMinutes: 30,
     });
@@ -425,7 +436,7 @@ describe('checkConflicts — business hours', () => {
   it('detects appointment ending after close time', async () => {
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T17:45:00Z`),
       durationMinutes: 30, // ends 18:15, after 18:00 close
     });
@@ -435,7 +446,7 @@ describe('checkConflicts — business hours', () => {
   it('allows appointment starting exactly at open time', async () => {
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T09:00:00Z`),
       durationMinutes: 30,
     });
@@ -445,7 +456,7 @@ describe('checkConflicts — business hours', () => {
   it('allows appointment ending exactly at close time', async () => {
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T17:30:00Z`),
       durationMinutes: 30,
     });
@@ -455,7 +466,7 @@ describe('checkConflicts — business hours', () => {
   it('rejects appointment on closed day (Friday in fixture)', async () => {
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${FRIDAY}T10:00:00Z`),
       durationMinutes: 30,
     });
@@ -469,7 +480,7 @@ describe('checkConflicts — business hours', () => {
     state.clinicHours = null;
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T03:00:00Z`),
       durationMinutes: 30,
     });
@@ -480,7 +491,7 @@ describe('checkConflicts — business hours', () => {
 describe('checkConflicts — aggregate behaviour', () => {
   it('returns ALL conflicts found, not just the first', async () => {
     addExistingAppt({
-      therapistId: 't1',
+      therapistIds: ['t1'],
       patientId: 'p1',
       startsAt: `${MONDAY}T10:00:00Z`,
       durationMinutes: 30,
@@ -493,7 +504,7 @@ describe('checkConflicts — aggregate behaviour', () => {
     });
     const result = await checkConflicts({
       patientId: 'p1',
-      therapistId: 't1',
+      therapistIds: ['t1'],
       startsAt: new Date(`${MONDAY}T08:00:00Z`), // also outside hours
       durationMinutes: 30,
     });
@@ -503,5 +514,41 @@ describe('checkConflicts — aggregate behaviour', () => {
       expect(kinds.has('THERAPIST_ON_LEAVE')).toBe(true);
       expect(kinds.has('OUTSIDE_BUSINESS_HOURS')).toBe(true);
     }
+  });
+});
+
+describe('checkConflicts — multiple therapists (Prompt 20)', () => {
+  it('blocks when ANY assigned therapist overlaps, and names that therapist', async () => {
+    // t2 is busy at the slot; t1 is free. The two-therapist session must clash.
+    addExistingAppt({
+      therapistIds: ['t2'],
+      patientId: 'pX',
+      startsAt: `${MONDAY}T10:00:00Z`,
+      durationMinutes: 30,
+    });
+    const result = await checkConflicts({
+      patientId: 'p1',
+      therapistIds: ['t1', 't2'],
+      startsAt: new Date(`${MONDAY}T10:00:00Z`),
+      durationMinutes: 30,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const overlap = result.conflicts.find((c) => c.kind === 'THERAPIST_OVERLAP');
+      expect(overlap).toBeDefined();
+      if (overlap && overlap.kind === 'THERAPIST_OVERLAP') {
+        expect(overlap.therapist.id).toBe('t2');
+      }
+    }
+  });
+
+  it('is OK when both assigned therapists are free', async () => {
+    const result = await checkConflicts({
+      patientId: 'p1',
+      therapistIds: ['t1', 't2'],
+      startsAt: new Date(`${MONDAY}T10:00:00Z`),
+      durationMinutes: 30,
+    });
+    expect(result.ok).toBe(true);
   });
 });

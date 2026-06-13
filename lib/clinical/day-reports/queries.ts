@@ -83,7 +83,7 @@ export async function buildDayReportDraft(args: { therapistId: string; date: Dat
 
   const appts = await db.appointment.findMany({
     where: {
-      therapistId: args.therapistId,
+      therapists: { some: { therapistId: args.therapistId } },
       status: AppointmentStatus.COMPLETED,
       startsAt: { gte: start, lt: end },
     },

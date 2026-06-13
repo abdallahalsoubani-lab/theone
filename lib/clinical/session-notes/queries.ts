@@ -148,7 +148,7 @@ export async function listAppointmentsPendingNote(
 > {
   const rows = await db.appointment.findMany({
     where: {
-      therapistId,
+      therapists: { some: { therapistId } },
       status: 'COMPLETED',
       sessionNotes: { none: { parentNoteId: null } },
     },

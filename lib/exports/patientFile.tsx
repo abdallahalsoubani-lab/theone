@@ -92,7 +92,10 @@ const generatePatientFilePdfInner = async ({
         startsAt: true,
         durationMinutes: true,
         status: true,
-        therapist: { select: { fullNameEn: true, fullNameAr: true } },
+        therapists: {
+          orderBy: { createdAt: 'asc' },
+          include: { therapist: { select: { fullNameEn: true, fullNameAr: true } } },
+        },
       },
     }),
     db.intakeAssessment
@@ -137,8 +140,8 @@ const generatePatientFilePdfInner = async ({
       startsAt: a.startsAt,
       durationMinutes: a.durationMinutes,
       status: a.status,
-      therapistFullNameEn: a.therapist.fullNameEn,
-      therapistFullNameAr: a.therapist.fullNameAr,
+      therapistFullNameEn: a.therapists.map((t) => t.therapist.fullNameEn).join(', '),
+      therapistFullNameAr: a.therapists.map((t) => t.therapist.fullNameAr).join('، '),
     })),
     intake,
     plans,

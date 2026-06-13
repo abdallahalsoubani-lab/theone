@@ -56,7 +56,7 @@ const revalidate = () => {
 export async function previewConflictsAction(input: {
   appointmentId?: string;
   patientId: string;
-  therapistId: string;
+  therapistIds: string[];
   startsAt: string;
   durationMinutes: number;
 }): Promise<Result<ConflictResult>> {
@@ -122,8 +122,8 @@ export async function changeTherapistAction(input: AppointmentChangeTherapistInp
     appointmentId?: string;
     appointmentIds?: string[];
     conflictsOverridden: boolean;
-    previousTherapistId: string;
-    newTherapistId: string;
+    previousTherapistIds: string[];
+    newTherapistIds: string[];
     reason: string | null;
   }>
 > {
@@ -219,7 +219,7 @@ export async function previewSeriesAction(
  */
 export async function previewSeriesSlotAction(input: {
   patientId: string;
-  therapistId: string;
+  therapistIds: string[];
   startsAt: string;
   durationMinutes: number;
 }): Promise<Result<ConflictResult>> {

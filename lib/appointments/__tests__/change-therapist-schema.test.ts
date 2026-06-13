@@ -9,7 +9,7 @@ describe('appointmentChangeTherapistSchema', () => {
     expect(
       appointmentChangeTherapistSchema.safeParse({
         id,
-        therapistId: id,
+        therapistIds: [id],
       }).success,
     ).toBe(true);
   });
@@ -17,7 +17,7 @@ describe('appointmentChangeTherapistSchema', () => {
   it('accepts an optional reason', () => {
     const r = appointmentChangeTherapistSchema.parse({
       id,
-      therapistId: id,
+      therapistIds: [id],
       reason: 'patient requested male therapist',
     });
     expect(r.reason).toBe('patient requested male therapist');
@@ -27,7 +27,7 @@ describe('appointmentChangeTherapistSchema', () => {
     expect(
       appointmentChangeTherapistSchema.safeParse({
         id,
-        therapistId: id,
+        therapistIds: [id],
         reason: 'x'.repeat(501),
       }).success,
     ).toBe(false);
@@ -36,18 +36,27 @@ describe('appointmentChangeTherapistSchema', () => {
   it('defaults overrideConflicts to false', () => {
     const r = appointmentChangeTherapistSchema.parse({
       id,
-      therapistId: id,
+      therapistIds: [id],
     });
     expect(r.overrideConflicts).toBe(false);
   });
 
-  it('rejects empty therapistId', () => {
+  it('rejects an empty therapist id', () => {
     // The schema accepts any non-empty string (DB foreign-key enforces real
     // existence). Empty string is still invalid.
     expect(
       appointmentChangeTherapistSchema.safeParse({
         id,
-        therapistId: '',
+        therapistIds: [''],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects zero therapists (min 1 — Prompt 20)', () => {
+    expect(
+      appointmentChangeTherapistSchema.safeParse({
+        id,
+        therapistIds: [],
       }).success,
     ).toBe(false);
   });

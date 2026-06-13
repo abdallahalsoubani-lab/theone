@@ -50,7 +50,10 @@ export function startReminderWorker(): Worker {
               languagePref: true,
             },
           },
-          therapist: { select: { fullNameEn: true, fullNameAr: true } },
+          therapists: {
+            orderBy: { createdAt: 'asc' },
+            include: { therapist: { select: { fullNameEn: true, fullNameAr: true } } },
+          },
         },
       });
       if (!appt) {
@@ -67,7 +70,11 @@ export function startReminderWorker(): Worker {
       }
 
       const lang = appt.patient.languagePref;
-      const therapistName = lang === 'AR' ? appt.therapist.fullNameAr : appt.therapist.fullNameEn;
+      // One reminder to the patient (Prompt 20). The template already names a
+      // therapist; keep naming the first-assigned one rather than listing all.
+      const firstTherapist = appt.therapists[0]?.therapist;
+      const therapistName =
+        (lang === 'AR' ? firstTherapist?.fullNameAr : firstTherapist?.fullNameEn) ?? '';
       const timeLabel = appt.startsAt.toISOString();
 
       const id = await enqueueWhatsappOutbound({

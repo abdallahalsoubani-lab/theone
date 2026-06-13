@@ -18,8 +18,11 @@ vi.mock('@/lib/db', () => {
     db: {
       appointment: {
         findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+          // Therapist scope is the M2M join now (Prompt 20).
+          const scope = (where as { therapists?: { some?: { therapistId?: string } } }).therapists
+            ?.some?.therapistId;
           return state.appointments.filter((a) => {
-            if (a.therapistId !== (where.therapistId as string)) return false;
+            if (scope && a.therapistId !== scope) return false;
             const statusIn = (where.status as { in?: AppointmentStatus[] } | undefined)?.in;
             if (statusIn && !statusIn.includes(a.status)) return false;
             const startsAt = where.startsAt as { gte?: Date; lte?: Date } | undefined;

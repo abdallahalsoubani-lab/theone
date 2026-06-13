@@ -98,7 +98,9 @@ export function CreateSeriesModal({
   const [pending, startTransition] = useTransition();
 
   const [patientId, setPatientId] = useState('');
-  const [therapistId, setTherapistId] = useState(defaultTherapistId ?? '');
+  const [therapistIds, setTherapistIds] = useState<string[]>(
+    defaultTherapistId ? [defaultTherapistId] : [],
+  );
   const [roomId, setRoomId] = useState('');
   const [startsAt, setStartsAt] = useState(defaultStartsAt ? toLocalInput(defaultStartsAt) : '');
   const [duration, setDuration] = useState(defaultDurationMinutes);
@@ -126,14 +128,18 @@ export function CreateSeriesModal({
   // doesn't bleed in.
   useEffect(() => {
     if (!open) return;
-    setTherapistId(defaultTherapistId ?? '');
+    setTherapistIds(defaultTherapistId ? [defaultTherapistId] : []);
     setStartsAt(defaultStartsAt ? toLocalInput(defaultStartsAt) : '');
     setDuration(defaultDurationMinutes);
     setSlots([]);
     setByWeekday(defaultStartsAt ? [WEEKDAYS[defaultStartsAt.getUTCDay()]!] : ['SUN']);
   }, [open, defaultStartsAt, defaultTherapistId, defaultDurationMinutes]);
 
-  const canPreview = patientId && therapistId && startsAt && byWeekday.length > 0 && count > 0;
+  const therapistKey = therapistIds.join(',');
+  const toggleTherapist = (id: string) =>
+    setTherapistIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  const canPreview =
+    patientId && therapistIds.length > 0 && startsAt && byWeekday.length > 0 && count > 0;
 
   // Run the initial preview when the pattern + actors are settled.
   useEffect(() => {
@@ -145,7 +151,7 @@ export function CreateSeriesModal({
       setPreviewing(true);
       void previewSeriesAction({
         patientId,
-        therapistId,
+        therapistIds,
         roomId: roomId || null,
         startsAt: new Date(startsAt),
         durationMinutes: duration,
@@ -177,11 +183,12 @@ export function CreateSeriesModal({
         .finally(() => setPreviewing(false));
     }, 400);
     return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     open,
     canPreview,
     patientId,
-    therapistId,
+    therapistKey,
     roomId,
     startsAt,
     duration,
@@ -197,7 +204,7 @@ export function CreateSeriesModal({
       const shifted = new Date(slot.startsAt.getTime() + offsetMs);
       const r = await previewSeriesSlotAction({
         patientId,
-        therapistId,
+        therapistIds,
         startsAt: shifted.toISOString(),
         durationMinutes: slot.durationMinutes,
       });
@@ -221,7 +228,8 @@ export function CreateSeriesModal({
         ),
       );
     },
-    [locale, patientId, therapistId],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [locale, patientId, therapistKey],
   );
 
   function setSlotResolution(slot: SlotState, resolution: SeriesResolution) {
@@ -249,7 +257,7 @@ export function CreateSeriesModal({
     startTransition(async () => {
       const r = await createSeriesAction({
         patientId,
-        therapistId,
+        therapistIds,
         roomId: roomId || null,
         startsAt: new Date(startsAt),
         durationMinutes: duration,
@@ -315,20 +323,27 @@ export function CreateSeriesModal({
             </select>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="series-therapist">{tForm('therapist')}</Label>
-            <select
-              id="series-therapist"
-              value={therapistId}
-              onChange={(e) => setTherapistId(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">—</option>
-              {clinicians.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {locale === 'ar' ? c.fullNameAr : c.fullNameEn}
-                </option>
-              ))}
-            </select>
+            <Label>{tForm('therapists')}</Label>
+            <div className="flex flex-wrap gap-1.5 rounded-md border border-input bg-background p-2">
+              {clinicians.map((c) => {
+                const selected = therapistIds.includes(c.id);
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => toggleTherapist(c.id)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                      selected
+                        ? 'bg-brand-cyan text-white'
+                        : 'bg-brand-bg text-brand-navy hover:bg-brand-cyan/10'
+                    }`}
+                  >
+                    {locale === 'ar' ? c.fullNameAr : c.fullNameEn}
+                  </button>
+                );
+              })}
+            </div>
           </div>
           <div className="space-y-1">
             <Label htmlFor="series-room">{tForm('room')}</Label>

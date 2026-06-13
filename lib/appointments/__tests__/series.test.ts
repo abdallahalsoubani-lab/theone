@@ -21,7 +21,8 @@ vi.mock('@/lib/db', () => {
           const row = state.appointments.find((a) => a.id === where.id);
           if (!row) return null;
           void select; // we always return the whole row in the fake
-          return row;
+          // Project the M2M therapists join the way selectSeriesOccurrences reads it.
+          return { ...row, therapists: [{ therapistId: row.therapistId }] };
         }),
         findMany: vi.fn(
           async ({
@@ -42,7 +43,7 @@ vi.mock('@/lib/db', () => {
             if (orderBy?.startsAt === 'asc') {
               rows = rows.slice().sort((x, y) => x.startsAt.getTime() - y.startsAt.getTime());
             }
-            return rows;
+            return rows.map((a) => ({ ...a, therapists: [{ therapistId: a.therapistId }] }));
           },
         ),
       },

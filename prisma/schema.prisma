@@ -318,7 +318,7 @@ model User {
   // tables reference User multiple times (e.g. Appointment has patientId, therapistId,
   // createdById) and Prisma needs disambiguation.
   appointmentsAsPatient    Appointment[]          @relation("AppointmentPatient")
-  appointmentsAsTherapist  Appointment[]          @relation("AppointmentTherapist")
+  appointmentTherapists    AppointmentTherapist[] @relation("AppointmentTherapistTherapist")
   appointmentsCreatedBy    Appointment[]          @relation("AppointmentCreatedBy")
   treatmentPlansAsPatient  TreatmentPlan[]        @relation("PlanPatient")
   treatmentPlansAsDoctor   TreatmentPlan[]        @relation("PlanDoctor")
@@ -466,7 +466,10 @@ model Room {
 model Appointment {
   id                   String                @id @default(cuid())
   patientId            String
-  therapistId          String
+  // Therapists are a many-to-many via AppointmentTherapist (Prompt 20) — a
+  // single session can have two or more therapists at the same time. There is
+  // no single `therapistId` column anymore; at least one therapist is required
+  // (enforced in the Zod schema + service, not the DB).
   roomId               String?
   startsAt             DateTime
   durationMinutes      Int                   @default(30)
@@ -495,7 +498,7 @@ model Appointment {
   seriesId             String?
 
   patient      User          @relation("AppointmentPatient", fields: [patientId], references: [id], onDelete: Restrict)
-  therapist    User          @relation("AppointmentTherapist", fields: [therapistId], references: [id], onDelete: Restrict)
+  therapists   AppointmentTherapist[] @relation("AppointmentTherapists")
   room         Room?         @relation(fields: [roomId], references: [id], onDelete: Restrict)
   createdBy    User          @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   cancelledBy  User?         @relation("AppointmentCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
@@ -514,12 +517,31 @@ model Appointment {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([therapistId, startsAt])
   @@index([patientId, startsAt])
   @@index([status])
   @@index([seriesId])
   @@index([status, cancelledAt])
   @@index([startsAt, checkedInAt])
+}
+
+/**
+ * Therapists assigned to a single appointment (Prompt 20). A session can need
+ * two or more therapists at the same time (e.g. a pediatric session). This is
+ * physical session staffing — distinct from the patient's long-term care team
+ * (CareTeamMember, Prompt 14). The session's SOAP note is shared (one per
+ * appointment); any assigned therapist may write/edit it.
+ */
+model AppointmentTherapist {
+  id            String      @id @default(cuid())
+  appointmentId String
+  therapistId   String
+  appointment   Appointment @relation("AppointmentTherapists", fields: [appointmentId], references: [id], onDelete: Cascade)
+  therapist     User        @relation("AppointmentTherapistTherapist", fields: [therapistId], references: [id], onDelete: Restrict)
+  createdAt     DateTime    @default(now())
+
+  @@unique([appointmentId, therapistId])
+  @@index([therapistId])
+  @@index([appointmentId])
 }
 
 /**

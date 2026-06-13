@@ -14,8 +14,8 @@ const {
   waitlistUpdateMany: vi.fn(),
   waitlistFindUnique: vi.fn(),
   userFindMany: vi.fn(),
-  settingsFindUnique: vi.fn(async () => ({ timezone: 'Asia/Amman' })),
-  auditCreate: vi.fn(async () => ({})),
+  settingsFindUnique: vi.fn(async (..._a: unknown[]) => ({ timezone: 'Asia/Amman' })),
+  auditCreate: vi.fn(async (..._a: unknown[]) => ({})),
 }));
 
 vi.mock('@/auth', () => ({ auth: vi.fn(async () => ({ user: { id: 'sec-1' } })) }));
