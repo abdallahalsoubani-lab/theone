@@ -67,6 +67,8 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.INTAKE_CREATE]: true,
     [PERMISSIONS.INTAKE_READ]: true,
     [PERMISSIONS.INTAKE_UPDATE]: true,
+    [PERMISSIONS.INTAKE_SUBMISSION_READ]: true,
+    [PERMISSIONS.INTAKE_SUBMISSION_REVIEW]: true,
     [PERMISSIONS.PATIENT_DOCUMENTS_READ]: true,
     [PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD]: true,
     [PERMISSIONS.PATIENT_DOCUMENTS_DELETE]: true,
@@ -240,6 +242,8 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.INTAKE_CREATE]: true,
     [PERMISSIONS.INTAKE_READ]: true,
     [PERMISSIONS.INTAKE_UPDATE]: true,
+    [PERMISSIONS.INTAKE_SUBMISSION_READ]: true,
+    [PERMISSIONS.INTAKE_SUBMISSION_REVIEW]: true,
     [PERMISSIONS.PEDIATRIC_ASSESSMENT_CREATE]: true,
     [PERMISSIONS.PEDIATRIC_ASSESSMENT_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.PEDIATRIC_ASSESSMENT_UPDATE]: true,
@@ -434,6 +438,27 @@ describe('Patient documents (Prompt 22)', () => {
   it('Patient has no document access', () => {
     expect(can(u('PATIENT'), PERMISSIONS.PATIENT_DOCUMENTS_READ_ASSIGNED, {})).toBe(false);
     expect(can(u('PATIENT'), PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD)).toBe(false);
+  });
+});
+
+describe('Public intake submissions review (Prompt 23)', () => {
+  it('Secretary + Admin: read + review the pending queue', () => {
+    for (const role of ['SECRETARY', 'ADMIN'] as const) {
+      const user = u(role);
+      expect(can(user, PERMISSIONS.INTAKE_SUBMISSION_READ)).toBe(true);
+      expect(can(user, PERMISSIONS.INTAKE_SUBMISSION_REVIEW)).toBe(true);
+    }
+  });
+
+  it('Doctor / Therapist / Patient: no access to the review queue', () => {
+    for (const role of ['DOCTOR', 'THERAPIST', 'PATIENT'] as const) {
+      const user = u(role);
+      expect(can(user, PERMISSIONS.INTAKE_SUBMISSION_REVIEW)).toBe(false);
+    }
+    // .read is a mutation-free verb but still ungranted for clinicians;
+    // the Admin universal-read bypass intentionally does NOT extend to them.
+    expect(can(u('THERAPIST'), PERMISSIONS.INTAKE_SUBMISSION_READ)).toBe(false);
+    expect(can(u('PATIENT'), PERMISSIONS.INTAKE_SUBMISSION_READ)).toBe(false);
   });
 });
 

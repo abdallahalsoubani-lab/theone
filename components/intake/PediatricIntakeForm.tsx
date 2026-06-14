@@ -2,10 +2,10 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
+import type { FieldValues, UseFormReturn } from 'react-hook-form';
 
 import { AppForm } from '@/components/forms/AppForm';
-import { TextField } from '@/components/forms/FormFields';
-import { CustomQuestionField } from '@/components/intake/CustomQuestionField';
+import { PediatricIntakeFields } from '@/components/intake/PediatricIntakeFields';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
@@ -21,13 +21,11 @@ interface Props {
 }
 
 /**
- * Pediatric intake — Prompt 6 §4.5. Two pediatric-specific fields
- * (numberOfSiblings, birthOrder) plus active Custom Questions whose
- * `appliesTo` is PEDIATRIC or BOTH. Section A is read-only profile
- * crosscheck identical to the Adult form.
+ * Pediatric intake form — Prompt 6 §4.5. Section A is the read-only profile
+ * crosscheck; the question fields are rendered by the shared
+ * <PediatricIntakeFields/> (also used by the public form, Prompt 23).
  */
 export function PediatricIntakeForm({ patient, customQuestions }: Props) {
-  const t = useTranslations('intake.pediatric');
   const tIntake = useTranslations('intake');
   const tCommon = useTranslations('common');
   const tPatients = useTranslations('patients.form');
@@ -84,47 +82,11 @@ export function PediatricIntakeForm({ patient, customQuestions }: Props) {
             </CardContent>
           </Card>
 
-          {/* Section B — pediatric-specific */}
-          <Card>
-            <CardContent className="space-y-4 p-6">
-              <h2 className="text-lg font-medium text-brand-navy">{t('sectionFamily')}</h2>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <TextField
-                  form={form}
-                  name={'numberOfSiblings' as never}
-                  label={t('numberOfSiblings')}
-                  type="number"
-                  inputMode="numeric"
-                />
-                <TextField
-                  form={form}
-                  name={'birthOrder' as never}
-                  label={t('birthOrder')}
-                  type="number"
-                  inputMode="numeric"
-                  description={t('birthOrderHelp')}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Section C — custom questions */}
-          {customQuestions.length > 0 ? (
-            <Card>
-              <CardContent className="space-y-4 p-6">
-                <h2 className="text-lg font-medium text-brand-navy">{t('sectionCustom')}</h2>
-                {customQuestions.map((q) => (
-                  <CustomQuestionField
-                    key={q.id}
-                    form={form}
-                    question={q}
-                    locale={intlLocale}
-                    name={`customAnswers.${q.id}` as never}
-                  />
-                ))}
-              </CardContent>
-            </Card>
-          ) : null}
+          <PediatricIntakeFields
+            form={form as unknown as UseFormReturn<FieldValues>}
+            customQuestions={customQuestions}
+            locale={intlLocale}
+          />
 
           <div className="sticky bottom-2 flex items-center justify-end gap-2 rounded-md border border-brand-border bg-brand-surface/95 p-3 backdrop-blur">
             <Button asChild variant="outline" type="button">

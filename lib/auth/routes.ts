@@ -34,6 +34,10 @@ export const PUBLIC_PATHS: ReadonlyArray<string> = [
   // a per-surface device token validated server-side inside the page itself.
   '/kiosk',
   '/display',
+  // Public self-service intake (Prompt 23) — unauthenticated + write-only.
+  // The page can only create a PENDING submission; it never reads patient
+  // data or creates a patient. Abuse is bounded by IP rate-limit + honeypot.
+  '/intake',
 ];
 
 /**
