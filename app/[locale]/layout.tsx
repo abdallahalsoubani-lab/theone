@@ -7,7 +7,6 @@ import type { ReactNode } from 'react';
 
 import { ImpersonationBanner } from '@/components/impersonation/ImpersonationBanner';
 import { SessionProvider } from '@/components/providers/SessionProvider';
-import { ChromeGate } from '@/components/shell/ChromeGate';
 import { Footer } from '@/components/shell/Footer';
 import { Header } from '@/components/shell/Header';
 import { Toaster } from '@/components/ui/sonner';
@@ -83,15 +82,11 @@ export default async function LocaleLayout({
               {t('skipToContent')}
             </a>
             <ImpersonationBanner />
-            <ChromeGate>
-              <Header />
-            </ChromeGate>
+            <Header />
             <main id="main-content" className="flex-1">
               {children}
             </main>
-            <ChromeGate>
-              <Footer />
-            </ChromeGate>
+            <Footer />
             <Toaster />
           </SessionProvider>
         </NextIntlClientProvider>

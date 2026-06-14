@@ -40,6 +40,19 @@
   --ff-ar: var(--font-ar), system-ui, sans-serif;
 }
 
+/*
+ * Suppress the app shell on the landing route. This stylesheet is only loaded
+ * on `/` (imported by the landing component), so these rules never affect the
+ * rest of the app. The landing brings its own nav + footer; the app
+ * Header/Footer are direct children of <body>, while the landing's own
+ * footer is nested under <main>, so `body > footer` hits only the app one.
+ * Done in CSS (not a client gate) so there's no hydration mismatch or flash.
+ */
+body > header.header-glass,
+body > footer {
+  display: none !important;
+}
+
 .theone-landing * {
   box-sizing: border-box;
   margin: 0;
