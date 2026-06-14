@@ -37,6 +37,8 @@ interface Props {
   homeProgram?: ReactNode;
   /** Pediatric assessment tab (Prompt 21). Passed only when the viewer can read it. */
   pediatric?: ReactNode;
+  /** Documents + reports tab (Prompt 22). Passed only for staff viewers. */
+  documents?: ReactNode;
   viewerRole?: 'DOCTOR' | 'THERAPIST' | 'SECRETARY' | 'ADMIN' | 'PATIENT';
   actorId?: string;
 }
@@ -61,6 +63,7 @@ export function PatientFilePage({
   timelinePageSize = 25,
   homeProgram,
   pediatric,
+  documents,
   viewerRole,
   actorId,
 }: Props) {
@@ -117,6 +120,7 @@ export function PatientFilePage({
         }
         homeProgram={homeProgram}
         pediatric={pediatric}
+        documents={documents}
         activity={<PatientActivityTab rows={activity} />}
       />
     </section>

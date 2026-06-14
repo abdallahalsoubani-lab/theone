@@ -357,6 +357,8 @@ model User {
   pedAssessmentsCreated    PediatricAssessment[]  @relation("PedAssessmentCreatedBy")
   pedAssessmentsUpdated    PediatricAssessment[]  @relation("PedAssessmentUpdatedBy")
   pedCustomFieldsCreated   PediatricCustomField[] @relation("PedCustomFieldCreatedBy")
+  patientDocumentsAsPatient  PatientDocument[]    @relation("PatientDocumentPatient")
+  patientDocumentsUploaded   PatientDocument[]    @relation("PatientDocumentUploadedBy")
 
   // Note: real `phone` and `email` uniqueness scoped to non-deleted rows is enforced
   // by partial unique indexes in the init migration (Prisma can't express them).
@@ -1272,6 +1274,58 @@ model PediatricCustomField {
   updatedAt DateTime @updatedAt
 
   @@index([active, order])
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//  Patient documents (Prompt 22) — external uploads (X-rays, labs, reports)
+// ═════════════════════════════════════════════════════════════════════════════
+
+enum DocumentCategory {
+  XRAY
+  LAB
+  CONSULT
+  REPORT
+  OTHER
+}
+
+/**
+ * Upload lifecycle (Prompt 22). A document is PENDING until a server-side
+ * magic-byte sniff of the stored object confirms its declared type; only then
+ * does it become READY (visible/downloadable). A failed sniff deletes both the
+ * row and the object, so a malicious/failed upload never appears in the list.
+ */
+enum DocumentStatus {
+  PENDING
+  READY
+}
+
+/**
+ * An external document attached to a patient's file (Prompt 22) — X-rays, lab
+ * results, outside consultant reports (PDF / images). Stored in S3/MinIO under
+ * an opaque patient-scoped key; the original filename is never used for the
+ * key. Visibility follows the patient file (secretary/admin + assigned
+ * clinicians). Soft-delete via `active=false`; the object is kept (recoverable).
+ */
+model PatientDocument {
+  id           String           @id @default(cuid())
+  patientId    String
+  fileName     String
+  storageKey   String           @unique
+  mimeType     String
+  sizeBytes    Int
+  category     DocumentCategory  @default(OTHER)
+  status       DocumentStatus    @default(PENDING)
+  note         String?
+  uploadedById String
+  active       Boolean           @default(true)
+
+  patient    User @relation("PatientDocumentPatient", fields: [patientId], references: [id], onDelete: Restrict)
+  uploadedBy User @relation("PatientDocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([patientId, active, status])
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

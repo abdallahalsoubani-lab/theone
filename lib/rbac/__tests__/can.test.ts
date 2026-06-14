@@ -67,6 +67,9 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.INTAKE_CREATE]: true,
     [PERMISSIONS.INTAKE_READ]: true,
     [PERMISSIONS.INTAKE_UPDATE]: true,
+    [PERMISSIONS.PATIENT_DOCUMENTS_READ]: true,
+    [PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD]: true,
+    [PERMISSIONS.PATIENT_DOCUMENTS_DELETE]: true,
     [PERMISSIONS.INBOX_READ]: true,
     [PERMISSIONS.INBOX_RESOLVE]: true,
     [PERMISSIONS.NOTIFICATIONS_READ_OWN]: 'own',
@@ -125,6 +128,9 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.PEDIATRIC_ASSESSMENT_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.PEDIATRIC_ASSESSMENT_UPDATE]: true,
     [PERMISSIONS.PEDIATRIC_ASSESSMENT_MANAGE_FIELDS]: true,
+    [PERMISSIONS.PATIENT_DOCUMENTS_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD]: true,
+    [PERMISSIONS.PATIENT_DOCUMENTS_DELETE]: true,
     [PERMISSIONS.NOTIFICATIONS_READ_OWN]: 'own',
     [PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN]: 'own',
   },
@@ -164,6 +170,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.PATIENTS_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.INTAKE_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.PEDIATRIC_ASSESSMENT_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.PATIENT_DOCUMENTS_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.NOTIFICATIONS_READ_OWN]: 'own',
     [PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN]: 'own',
   },
@@ -237,6 +244,10 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.PEDIATRIC_ASSESSMENT_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.PEDIATRIC_ASSESSMENT_UPDATE]: true,
     [PERMISSIONS.PEDIATRIC_ASSESSMENT_MANAGE_FIELDS]: true,
+    [PERMISSIONS.PATIENT_DOCUMENTS_READ]: true,
+    [PERMISSIONS.PATIENT_DOCUMENTS_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD]: true,
+    [PERMISSIONS.PATIENT_DOCUMENTS_DELETE]: true,
     [PERMISSIONS.INBOX_READ]: true,
     [PERMISSIONS.INBOX_RESOLVE]: true,
     [PERMISSIONS.WHATSAPP_MESSAGES_READ]: true,
@@ -384,6 +395,45 @@ describe('Pediatric assessment (Prompt 21)', () => {
       expect(can(user, PERMISSIONS.PEDIATRIC_ASSESSMENT_UPDATE)).toBe(false);
       expect(can(user, PERMISSIONS.PEDIATRIC_ASSESSMENT_MANAGE_FIELDS)).toBe(false);
     }
+  });
+});
+
+describe('Patient documents (Prompt 22)', () => {
+  it('Secretary + Admin: read + upload + delete (unscoped)', () => {
+    for (const role of ['SECRETARY', 'ADMIN'] as const) {
+      const user = u(role);
+      expect(can(user, PERMISSIONS.PATIENT_DOCUMENTS_READ)).toBe(true);
+      expect(can(user, PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD)).toBe(true);
+      expect(can(user, PERMISSIONS.PATIENT_DOCUMENTS_DELETE)).toBe(true);
+    }
+  });
+
+  it('Doctor: read assigned + upload + delete', () => {
+    const dr = u('DOCTOR', 'dr-1');
+    expect(can(dr, PERMISSIONS.PATIENT_DOCUMENTS_READ_ASSIGNED, {})).toBe(true);
+    expect(can(dr, PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD)).toBe(true);
+    expect(can(dr, PERMISSIONS.PATIENT_DOCUMENTS_DELETE)).toBe(true);
+  });
+
+  it('Therapist: read assigned only — no upload/delete', () => {
+    const th = u('THERAPIST', 'th-1');
+    expect(can(th, PERMISSIONS.PATIENT_DOCUMENTS_READ_ASSIGNED, {})).toBe(true);
+    expect(can(th, PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD)).toBe(false);
+    expect(can(th, PERMISSIONS.PATIENT_DOCUMENTS_DELETE)).toBe(false);
+  });
+
+  it('an unassigned therapist cannot read a specific patient document', () => {
+    const th = u('THERAPIST', 'th-1');
+    expect(
+      can(th, PERMISSIONS.PATIENT_DOCUMENTS_READ_ASSIGNED, {
+        assignedClinicianIds: ['someone-else'],
+      }),
+    ).toBe(false);
+  });
+
+  it('Patient has no document access', () => {
+    expect(can(u('PATIENT'), PERMISSIONS.PATIENT_DOCUMENTS_READ_ASSIGNED, {})).toBe(false);
+    expect(can(u('PATIENT'), PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD)).toBe(false);
   });
 });
 

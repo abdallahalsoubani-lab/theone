@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { PatientHomeProgramTab } from '@/components/home-program/PatientHomeProgramTab';
+import { PatientDocumentsTab } from '@/components/patients/PatientDocumentsTab';
 import { PatientFilePage } from '@/components/patients/PatientFilePage';
+import { listDocuments } from '@/lib/patient-documents/queries';
 import { getPatientHomeProgramTabData } from '@/lib/clinical/home-program/patient-tab';
 import { getPatientPlanState } from '@/lib/clinical/plans/queries';
 import { listSessionNotesForPatient } from '@/lib/clinical/session-notes/queries';
@@ -30,7 +32,7 @@ export default async function SecretaryPatientFilePage({
   const sp = await searchParams;
   const timelinePage = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
   const session = await auth();
-  const [patient, activity, intakes, planState, notes, timeline, homeProgramData] =
+  const [patient, activity, intakes, planState, notes, timeline, homeProgramData, documents] =
     await Promise.all([
       getPatientFile(id),
       listPatientActivity(id),
@@ -47,6 +49,7 @@ export default async function SecretaryPatientFilePage({
         { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
       ),
       getPatientHomeProgramTabData(id),
+      listDocuments(id),
     ]);
   if (!patient) notFound();
   return (
@@ -73,6 +76,21 @@ export default async function SecretaryPatientFilePage({
           lastCompletedById={homeProgramData.lastCompletedById}
           canEdit={false}
           locale={locale === 'ar' ? 'ar' : 'en'}
+        />
+      }
+      documents={
+        <PatientDocumentsTab
+          patientId={patient.id}
+          locale={locale === 'ar' ? 'ar' : 'en'}
+          documents={documents}
+          canUpload
+          canDelete
+          reports={{
+            patientId: patient.id,
+            planId: planState.active?.id ?? null,
+            pediatricId: null,
+            noteId: notes[0]?.id ?? null,
+          }}
         />
       }
       viewerRole="SECRETARY"

@@ -30,6 +30,26 @@ export async function ensureCanReadPatient(patientId: string): Promise<void> {
 }
 
 /**
+ * Staff-only clinical-read gate (Prompt 22 §2). Same shape as
+ * `ensureCanReadPatient` MINUS the patient self-read branch — used by the
+ * clinical report downloads (session report, treatment plan) which are a staff
+ * surface: SECRETARY/ADMIN any patient, DOCTOR/THERAPIST only assigned, and the
+ * patient portal has no access. Throws ForbiddenError otherwise.
+ */
+export async function ensureCanReadPatientStaff(patientId: string): Promise<void> {
+  const session = await auth();
+  if (!session?.user) throw new ForbiddenError();
+  const role = session.user.role;
+  if (role === 'ADMIN' || role === 'SECRETARY') return;
+  if (role === 'DOCTOR' || role === 'THERAPIST') {
+    const ok = await isClinicianAssignedTo(session.user.id, patientId);
+    if (!ok) throw new ForbiddenError();
+    return;
+  }
+  throw new ForbiddenError();
+}
+
+/**
  * Patient phone-number visibility (Prompt 15 §1).
  *
  * A patient's phone is contact PII visible ONLY to SECRETARY and ADMIN, and

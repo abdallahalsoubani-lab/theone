@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { PatientHomeProgramTab } from '@/components/home-program/PatientHomeProgramTab';
+import { PatientDocumentsTab } from '@/components/patients/PatientDocumentsTab';
 import { PatientFilePage } from '@/components/patients/PatientFilePage';
+import { listDocuments } from '@/lib/patient-documents/queries';
 import { getPatientHomeProgramTabData } from '@/lib/clinical/home-program/patient-tab';
 import { getPatientPlanState } from '@/lib/clinical/plans/queries';
 import { listSessionNotesForPatient } from '@/lib/clinical/session-notes/queries';
@@ -33,25 +35,35 @@ export default async function DoctorPatientFilePage({
   const sp = await searchParams;
   const timelinePage = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
   const session = await auth();
-  const [patient, activity, intakes, planState, notes, timeline, homeProgramData, pedRows] =
-    await Promise.all([
-      getPatientFile(id),
-      listPatientActivity(id),
-      listIntakesForPatient(id),
-      getPatientPlanState(id),
-      listSessionNotesForPatient(id),
-      getPatientTimeline(
-        id,
-        {
-          search: sp.q,
-          from: sp.from ? new Date(sp.from) : undefined,
-          to: sp.to ? new Date(sp.to) : undefined,
-        },
-        { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
-      ),
-      getPatientHomeProgramTabData(id),
-      listAssessmentsForPatient(id),
-    ]);
+  const [
+    patient,
+    activity,
+    intakes,
+    planState,
+    notes,
+    timeline,
+    homeProgramData,
+    pedRows,
+    documents,
+  ] = await Promise.all([
+    getPatientFile(id),
+    listPatientActivity(id),
+    listIntakesForPatient(id),
+    getPatientPlanState(id),
+    listSessionNotesForPatient(id),
+    getPatientTimeline(
+      id,
+      {
+        search: sp.q,
+        from: sp.from ? new Date(sp.from) : undefined,
+        to: sp.to ? new Date(sp.to) : undefined,
+      },
+      { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
+    ),
+    getPatientHomeProgramTabData(id),
+    listAssessmentsForPatient(id),
+    listDocuments(id),
+  ]);
   if (!patient) notFound();
   const canReadPed = session?.user
     ? can(session.user, 'pediatric_assessment.read.assigned', {})
@@ -94,6 +106,21 @@ export default async function DoctorPatientFilePage({
             locale={locale === 'ar' ? 'ar' : 'en'}
           />
         ) : undefined
+      }
+      documents={
+        <PatientDocumentsTab
+          patientId={patient.id}
+          locale={locale === 'ar' ? 'ar' : 'en'}
+          documents={documents}
+          canUpload
+          canDelete
+          reports={{
+            patientId: patient.id,
+            planId: planState.active?.id ?? null,
+            pediatricId: canReadPed ? (pedRows[0]?.id ?? null) : null,
+            noteId: notes[0]?.id ?? null,
+          }}
+        />
       }
       viewerRole="DOCTOR"
       actorId={session?.user?.id ?? ''}

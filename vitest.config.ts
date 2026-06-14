@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config';
 import { resolve } from 'node:path';
 
 export default defineConfig({
+  // Match Next.js' automatic JSX runtime so @react-pdf renderer modules (.tsx)
+  // imported by tests transform without a manual `import React`.
+  esbuild: { jsx: 'automatic' },
   test: {
     environment: 'node',
     include: ['lib/**/*.test.ts', 'app/**/*.test.ts', 'components/**/*.test.ts'],
