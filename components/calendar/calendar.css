@@ -236,36 +236,28 @@
   pointer-events: none;
 }
 
-/* ── RTL fixes ────────────────────────────────────────────────────── */
+/* ── RTL ──────────────────────────────────────────────────────────── */
 /*
- * react-big-calendar's stylesheet uses physical left/right in several places.
- * The :dir(rtl) overrides flip them — same logical effect under both locales.
- * Each block below was discovered by visiting /ar/secretary/calendar and
- * documenting the breakage; see docs/calendar/README.md.
+ * react-big-calendar has NO real RTL support. It lays the time views out with
+ * flexbox in DOM order [time-gutter][resource-columns] and relies on physical
+ * left/right plus JS-measured scrollbar widths. Under the document's dir=rtl
+ * (set for Arabic in app/[locale]/layout.tsx) the flex rows reverse and the
+ * scrollbar math desyncs — which put the hour gutter on the wrong side, left a
+ * stray sliver column before the first therapist, and opened a gap above the
+ * grid.
+ *
+ * Fix: pin the calendar's INTERNAL grid back to LTR so the library's layout
+ * math is correct again — gutter on the left, even columns, aligned headers,
+ * no sliver, no gap — i.e. the Arabic calendar matches the clean English one.
+ * Only the calendar's structural direction is forced; the page (toolbar, side
+ * panel, modals) stays RTL, and Arabic text still shapes + renders
+ * right-to-left within cells via Unicode bidi. This is far more robust than
+ * patching rbc's flex artifacts property-by-property, which is what the old
+ * per-border overrides here were doing (and still left it broken).
+ *
+ * Verified at /ar/secretary/calendar (day + week) against /en/... — LTR is
+ * unaffected because these rules are scoped to [dir='rtl'].
  */
-
-[dir='rtl'] .rbc-time-header-content {
-  border-inline-start: 1px solid var(--brand-border);
-  border-inline-end: 0;
-}
-
-[dir='rtl'] .rbc-time-gutter,
-[dir='rtl'] .rbc-header-gutter {
-  border-inline-end: 1px solid var(--brand-border);
-  border-inline-start: 0;
-}
-
-[dir='rtl'] .rbc-day-slot .rbc-events-container {
-  margin-inline-end: 0;
-  margin-inline-start: 10px;
-}
-
-[dir='rtl'] .rbc-current-time-indicator {
-  /* The indicator is positioned via percentage left; RTL flips visually. */
-  transform: scaleX(-1);
-}
-
-[dir='rtl'] .rbc-current-time-indicator::before {
-  /* Counter-flip the dot so it doesn't appear mirrored. */
-  transform: scaleX(-1);
+[dir='rtl'] .rbc-calendar {
+  direction: ltr;
 }
