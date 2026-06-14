@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { PatientHomeProgramTab } from '@/components/home-program/PatientHomeProgramTab';
+import { PatientDocumentsTab } from '@/components/patients/PatientDocumentsTab';
 import { PatientFilePage } from '@/components/patients/PatientFilePage';
+import { listDocuments } from '@/lib/patient-documents/queries';
 import { getPatientHomeProgramTabData } from '@/lib/clinical/home-program/patient-tab';
 import { getPatientPlanState } from '@/lib/clinical/plans/queries';
 import { listSessionNotesForPatient } from '@/lib/clinical/session-notes/queries';
@@ -52,7 +54,10 @@ export default async function TherapistPatientFilePage({
       getPatientHomeProgramTabData(id),
     ]);
   if (!patient) notFound();
-  const pedRows = await listAssessmentsForPatient(id);
+  const [pedRows, documents] = await Promise.all([
+    listAssessmentsForPatient(id),
+    listDocuments(id),
+  ]);
   const canReadPed = session?.user
     ? can(session.user, 'pediatric_assessment.read.assigned', {})
     : false;
@@ -92,6 +97,21 @@ export default async function TherapistPatientFilePage({
             locale={locale === 'ar' ? 'ar' : 'en'}
           />
         ) : undefined
+      }
+      documents={
+        <PatientDocumentsTab
+          patientId={patient.id}
+          locale={locale === 'ar' ? 'ar' : 'en'}
+          documents={documents}
+          canUpload={false}
+          canDelete={false}
+          reports={{
+            patientId: patient.id,
+            planId: planState.active?.id ?? null,
+            pediatricId: canReadPed ? (pedRows[0]?.id ?? null) : null,
+            noteId: notes[0]?.id ?? null,
+          }}
+        />
       }
       viewerRole="THERAPIST"
       actorId={session?.user?.id ?? ''}

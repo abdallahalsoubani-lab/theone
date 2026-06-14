@@ -6,6 +6,7 @@ import {
   Calendar,
   ClipboardList,
   FileText,
+  FolderOpen,
   Home,
   Stethoscope,
   User,
@@ -23,6 +24,7 @@ type TabKey =
   | 'notes'
   | 'home'
   | 'pediatric'
+  | 'documents'
   | 'timeline'
   | 'activity';
 
@@ -41,6 +43,8 @@ interface Props {
   homeProgram?: ReactNode;
   /** Pediatric assessment (Prompt 21). Shown only when the viewer can read it. */
   pediatric?: ReactNode;
+  /** Documents + reports (Prompt 22). Shown only for staff viewers. */
+  documents?: ReactNode;
 }
 
 export function PatientFileTabs({
@@ -53,6 +57,7 @@ export function PatientFileTabs({
   timeline,
   homeProgram,
   pediatric,
+  documents,
 }: Props) {
   const t = useTranslations('patients.file');
 
@@ -87,6 +92,12 @@ export function PatientFileTabs({
           <TabsTrigger value="pediatric">
             <Baby className="me-2 size-4" />
             {t('tabPediatric')}
+          </TabsTrigger>
+        ) : null}
+        {documents ? (
+          <TabsTrigger value="documents">
+            <FolderOpen className="me-2 size-4" />
+            {t('tabDocuments')}
           </TabsTrigger>
         ) : null}
         <TabsTrigger value="timeline">
@@ -131,6 +142,7 @@ export function PatientFileTabs({
         )}
       </TabsContent>
       {pediatric ? <TabsContent value="pediatric">{pediatric}</TabsContent> : null}
+      {documents ? <TabsContent value="documents">{documents}</TabsContent> : null}
       <TabsContent value="timeline">
         {timeline ?? (
           <Placeholder icon={<Activity className="size-6" />} message={t('placeholderTimeline')} />
