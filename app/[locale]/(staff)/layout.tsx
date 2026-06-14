@@ -8,6 +8,7 @@ import {
   ListChecks,
   Users,
   UserCheck,
+  UserPlus,
 } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
@@ -16,6 +17,7 @@ import type { ReactNode } from 'react';
 import { auth } from '@/auth';
 import { Sidebar, type NavLink } from '@/components/shell/Sidebar';
 import { countUnresolvedInbox } from '@/lib/inbox/queries';
+import { countPendingSubmissions } from '@/lib/intake-submissions/queries';
 import { countActiveWaitlist } from '@/lib/waitlist/queries';
 
 /**
@@ -43,9 +45,10 @@ export default async function StaffLayout({
 
   const links: NavLink[] = [];
   if (role === 'SECRETARY' || role === 'ADMIN') {
-    const [inboxCount, waitlistCount] = await Promise.all([
+    const [inboxCount, waitlistCount, intakeSubmissionCount] = await Promise.all([
       countUnresolvedInbox(),
       countActiveWaitlist(),
+      countPendingSubmissions(),
     ]);
     links.push(
       {
@@ -73,6 +76,12 @@ export default async function StaffLayout({
         label: tPatients('navTitle'),
         href: '/secretary/patients',
         icon: <Users className="size-4" />,
+      },
+      {
+        label: tNav('intakeSubmissions'),
+        href: '/secretary/intake-submissions',
+        icon: <UserPlus className="size-4" />,
+        badge: intakeSubmissionCount,
       },
       {
         label: tNav('inbox'),

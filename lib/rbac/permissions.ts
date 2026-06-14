@@ -196,6 +196,13 @@ export const PERMISSIONS = {
   PATIENT_DOCUMENTS_UPLOAD: 'patient_documents.upload',
   PATIENT_DOCUMENTS_DELETE: 'patient_documents.delete',
 
+  // ── Public intake submissions review queue (Prompt 23) ───────────────
+  // The public submit endpoint is unauthenticated + write-only and is NOT a
+  // permission here. Reviewing (approve/link/reject) the pending queue is
+  // SECRETARY + ADMIN only — doctors/therapists/patients have no access.
+  INTAKE_SUBMISSION_READ: 'intake_submission.read',
+  INTAKE_SUBMISSION_REVIEW: 'intake_submission.review',
+
   // ── WhatsApp templates (admin only) ──────────────────────────────────
   WHATSAPP_TEMPLATES_CREATE: 'whatsapp_templates.create',
   WHATSAPP_TEMPLATES_READ: 'whatsapp_templates.read',
@@ -281,6 +288,8 @@ const SECRETARY_PERMS = new Set<PermissionCode>([
   PERMISSIONS.INTAKE_CREATE,
   PERMISSIONS.INTAKE_READ,
   PERMISSIONS.INTAKE_UPDATE,
+  PERMISSIONS.INTAKE_SUBMISSION_READ,
+  PERMISSIONS.INTAKE_SUBMISSION_REVIEW,
   PERMISSIONS.PATIENT_DOCUMENTS_READ,
   PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD,
   PERMISSIONS.PATIENT_DOCUMENTS_DELETE,
@@ -484,6 +493,8 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.INTAKE_CREATE,
   PERMISSIONS.INTAKE_READ,
   PERMISSIONS.INTAKE_UPDATE,
+  PERMISSIONS.INTAKE_SUBMISSION_READ,
+  PERMISSIONS.INTAKE_SUBMISSION_REVIEW,
   PERMISSIONS.PEDIATRIC_ASSESSMENT_CREATE,
   PERMISSIONS.PEDIATRIC_ASSESSMENT_READ_ASSIGNED,
   PERMISSIONS.PEDIATRIC_ASSESSMENT_UPDATE,

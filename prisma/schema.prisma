@@ -184,6 +184,18 @@ enum IntakeStatus {
   REVIEWED
 }
 
+/**
+ * Lifecycle of a patient-filled public intake submission (Prompt 23). A
+ * submission lands PENDING in the secretary review queue; approval creates (or
+ * links) a patient and attaches the intake; rejection discards it. No patient
+ * is ever created automatically.
+ */
+enum IntakeSubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 enum PhysicalActivityLevel {
   VERY_ACTIVE
   ACTIVE
@@ -359,6 +371,8 @@ model User {
   pedCustomFieldsCreated   PediatricCustomField[] @relation("PedCustomFieldCreatedBy")
   patientDocumentsAsPatient  PatientDocument[]    @relation("PatientDocumentPatient")
   patientDocumentsUploaded   PatientDocument[]    @relation("PatientDocumentUploadedBy")
+  intakeSubmissionsReviewed  IntakeSubmission[]   @relation("IntakeSubmissionReviewedBy")
+  intakeSubmissionsLinked    IntakeSubmission[]   @relation("IntakeSubmissionLinkedPatient")
 
   // Note: real `phone` and `email` uniqueness scoped to non-deleted rows is enforced
   // by partial unique indexes in the init migration (Prisma can't express them).
@@ -1207,6 +1221,41 @@ model IntakeCustomAnswer {
 
   @@unique([intakeId, questionId])
   @@index([questionId])
+}
+
+/**
+ * A patient-filled public intake submission awaiting secretary review
+ * (Prompt 23). The public form is unauthenticated and WRITE-only: it can only
+ * create a PENDING row here — never read patient data or create a patient.
+ *
+ * `answers` holds the validated intake input (the same shape the secretary
+ * form produces — adult/pediatric fixed fields + customAnswers). `profile`
+ * holds the identifying fields needed to create the patient on approval
+ * (name, phone, DOB, gender, address, …). `submittedName` / `submittedPhone`
+ * are denormalised for the queue list + duplicate-by-phone detection. On
+ * approval `linkedPatientId` points at the created or matched patient.
+ */
+model IntakeSubmission {
+  id              String                 @id @default(cuid())
+  type            IntakeType
+  answers         Json
+  profile         Json
+  submittedName   String
+  submittedPhone  String
+  status          IntakeSubmissionStatus @default(PENDING)
+  rejectionReason String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  linkedPatientId String?
+
+  reviewedBy    User? @relation("IntakeSubmissionReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  linkedPatient User? @relation("IntakeSubmissionLinkedPatient", fields: [linkedPatientId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([submittedPhone])
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
