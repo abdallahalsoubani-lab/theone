@@ -70,8 +70,10 @@ export default auth(async (req) => {
     return NextResponse.redirect(url);
   }
 
-  // Authenticated visitor on /login or other auth-only public path → role home.
-  const authOnly = onPublic && (barePath === '/login' || barePath === '/forgot-password');
+  // Authenticated visitor on the public landing or an auth-only page → role
+  // home. Logged-out visitors keep seeing the marketing landing at `/`.
+  const authOnly =
+    onPublic && (barePath === '/' || barePath === '/login' || barePath === '/forgot-password');
   if (authOnly && !session.user.mustChangePassword) {
     const url = req.nextUrl.clone();
     url.pathname = `/${locale}${ROLE_HOME[session.user.role]}`;
