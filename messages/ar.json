@@ -214,7 +214,7 @@
       "resetToast": "تم تصفير كلمة المرور وإرسال كلمة جديدة.",
       "tabTimeline": "المسار الزمني",
       "placeholderTimeline": "المسار الزمني السريري قادم في الموجه 9.",
-      "tabPediatric": "تقييم الأطفال",
+      "tabPediatric": "التقييم العلاجي",
       "tabDocuments": "المستندات"
     },
     "documents": {
@@ -223,7 +223,7 @@
       "reportPatientFile": "ملف المراجع (PDF)",
       "reportTreatmentPlan": "خطة العلاج (PDF)",
       "reportSessionReport": "أحدث تقرير جلسة (PDF)",
-      "reportPediatric": "تقييم الأطفال (PDF)",
+      "reportPediatric": "التقييم العلاجي (PDF)",
       "category": "الفئة",
       "noteOptional": "ملاحظة (اختياري)",
       "uploadButton": "رفع ملف",
@@ -1567,7 +1567,7 @@
     "minutesValue": "{minutes} دقيقة"
   },
   "pediatricAssessment": {
-    "subtitle": "تقييمات العلاج الطبيعي للأطفال، الأحدث أولاً.",
+    "subtitle": "التقييمات العلاجية، الأحدث أولاً.",
     "newAssessment": "تقييم جديد",
     "editAssessment": "تعديل التقييم",
     "manageFields": "إدارة الحقول",

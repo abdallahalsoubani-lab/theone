@@ -621,7 +621,7 @@
       "resetToast": "Password reset. New temporary password sent.",
       "tabTimeline": "Timeline",
       "placeholderTimeline": "Clinical timeline arrives in Prompt 9.",
-      "tabPediatric": "Pediatric assessment",
+      "tabPediatric": "Clinical assessment",
       "tabDocuments": "Documents"
     },
     "documents": {
@@ -630,7 +630,7 @@
       "reportPatientFile": "Patient file (PDF)",
       "reportTreatmentPlan": "Treatment plan (PDF)",
       "reportSessionReport": "Latest session report (PDF)",
-      "reportPediatric": "Pediatric assessment (PDF)",
+      "reportPediatric": "Clinical assessment (PDF)",
       "category": "Category",
       "noteOptional": "Note (optional)",
       "uploadButton": "Upload file",
@@ -1567,7 +1567,7 @@
     "minutesValue": "{minutes} min"
   },
   "pediatricAssessment": {
-    "subtitle": "Pediatric physiotherapy assessments, newest first.",
+    "subtitle": "Clinical assessments, newest first.",
     "newAssessment": "New assessment",
     "editAssessment": "Edit assessment",
     "manageFields": "Manage fields",

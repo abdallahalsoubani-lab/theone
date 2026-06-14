@@ -183,7 +183,7 @@ const generateInner = async ({
     .filter(Boolean)
     .join('  ·  ');
 
-  const title = ar ? 'تقييم الأطفال' : 'Pediatric assessment';
+  const title = ar ? 'التقييم العلاجي' : 'Clinical assessment';
 
   const stream = await pdf(
     <Pdf ar={ar} title={title} meta={meta} sections={sections} />,
