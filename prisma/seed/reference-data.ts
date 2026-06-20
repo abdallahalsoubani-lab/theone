@@ -16,6 +16,10 @@ import {
   WaTemplateCategory,
 } from '@prisma/client';
 
+// Relative import (not '@/...'): the seed runs under bare tsx, which does not
+// resolve tsconfig path aliases. `lib/system/actor` is dependency-free.
+import { SYSTEM_USER } from '../../lib/system/actor';
+
 const SPECIALTIES: ReadonlyArray<{ nameEn: string; nameAr: string }> = [
   { nameEn: 'Orthopedic Physiotherapy', nameAr: 'علاج طبيعي عظمي' },
   { nameEn: 'Sports Rehabilitation', nameAr: 'إعادة تأهيل رياضي' },
@@ -172,6 +176,22 @@ const WHATSAPP_TEMPLATES: ReadonlyArray<SeedTemplate> = (
 });
 
 export async function seedReference(db: PrismaClient): Promise<void> {
+  // Reserved "system" user — the audit actor for background-worker mutations
+  // (Fix Prompt 2: overdue-session auto-complete). Fixed id, reserved email,
+  // no password hash → can never log in. See lib/system/actor.ts.
+  await db.user.upsert({
+    where: { id: SYSTEM_USER.id },
+    update: { fullNameEn: SYSTEM_USER.fullNameEn, fullNameAr: SYSTEM_USER.fullNameAr },
+    create: {
+      id: SYSTEM_USER.id,
+      email: SYSTEM_USER.email,
+      phone: SYSTEM_USER.phone,
+      role: UserRole.ADMIN,
+      fullNameEn: SYSTEM_USER.fullNameEn,
+      fullNameAr: SYSTEM_USER.fullNameAr,
+    },
+  });
+
   await Promise.all(
     SPECIALTIES.map((s) =>
       db.specialty.upsert({
@@ -225,6 +245,9 @@ export async function seedReference(db: PrismaClient): Promise<void> {
       defaultReminderOffsetMinutes: 1440,
       reminderWindowStart: '08:00',
       reminderWindowEnd: '18:00',
+      // Fix Prompt 2: Start-Session gate + overdue auto-complete grace (minutes).
+      sessionStartGraceMinutes: 15,
+      sessionAutoCompleteGraceMinutes: 15,
       // Prompt 18: manual "your turn in ~X minutes" for the kiosk. Tokens are
       // left null — admin generates them from clinic settings when ready.
       currentDelayMinutes: 10,

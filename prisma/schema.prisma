@@ -1401,6 +1401,14 @@ model ClinicSettings {
   reminderWindowStart          String @default("08:00")
   reminderWindowEnd            String @default("18:00")
 
+  // Session lifecycle grace windows (Fix Prompt 2). Start Session is gated to
+  // `appointment_start − sessionStartGraceMinutes`; an open IN_PROGRESS session
+  // is auto-completed by the maintenance worker once
+  // `appointment_end + sessionAutoCompleteGraceMinutes` has passed. Both are
+  // absolute-instant comparisons (timezone-independent).
+  sessionStartGraceMinutes        Int @default(15)
+  sessionAutoCompleteGraceMinutes Int @default(15)
+
   // Arrivals (Prompt 18). `currentDelayMinutes` is the manual "your turn in
   // ~X minutes" value the kiosk shows — adjusted live by the secretary, no
   // queue-position math. The two tokens gate the public kiosk + lobby-display

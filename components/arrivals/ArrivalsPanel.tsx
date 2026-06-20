@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useRouter } from '@/i18n/navigation';
 import { updateStatusAction } from '@/lib/appointments/actions';
+import { canStartSessionAt } from '@/lib/appointments/session-timing';
 import {
   manualCheckInAction,
   setCurrentDelayAction,
@@ -81,9 +82,27 @@ export function ArrivalsPanel({ board, locale }: { board: ArrivalsBoard; locale:
                 ]}
               />
               <div className="flex flex-wrap gap-2">
+                {/* Start-Session time gate (Fix Prompt 2). Reflected here; the
+                    server action enforces it. Instant-vs-instant, tz-independent. */}
                 <Button
                   size="sm"
-                  disabled={pending}
+                  disabled={
+                    pending ||
+                    !canStartSessionAt(
+                      new Date(),
+                      new Date(r.startsAt),
+                      board.sessionStartGraceMinutes,
+                    )
+                  }
+                  title={
+                    canStartSessionAt(
+                      new Date(),
+                      new Date(r.startsAt),
+                      board.sessionStartGraceMinutes,
+                    )
+                      ? undefined
+                      : t('startTooEarlyHint')
+                  }
                   onClick={() =>
                     run(() => updateStatusAction({ id: r.appointmentId, to: 'IN_PROGRESS' }))
                   }

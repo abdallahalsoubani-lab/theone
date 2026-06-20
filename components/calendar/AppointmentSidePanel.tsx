@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/sheet';
 import { Link } from '@/i18n/navigation';
 import { updateStatusAction } from '@/lib/appointments/actions';
+import { canStartSessionAt } from '@/lib/appointments/session-timing';
 import { formatDate, formatTime } from '@/lib/format/date';
 import { formatPhone } from '@/lib/format/phone';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
@@ -47,6 +48,9 @@ interface Props {
   /** Opens the change-therapist picker (Prompt 7b §4.6). The parent
    *  owns the modal state + the clinicians list. */
   onChangeTherapist?: () => void;
+  /** Start-Session grace window (minutes) from clinic settings (Fix Prompt 2).
+   *  Server-enforced; this only drives the disabled state + hint. */
+  sessionStartGraceMinutes?: number;
 }
 
 /**
@@ -63,6 +67,7 @@ export function AppointmentSidePanel({
   onClose,
   onEdit,
   onChangeTherapist,
+  sessionStartGraceMinutes = 15,
 }: Props) {
   const tStatus = useTranslations('appointments.status');
   const tActions = useTranslations('appointments.actions');
@@ -113,6 +118,13 @@ export function AppointmentSidePanel({
   const canConfirm = status === AppointmentStatus.SCHEDULED;
   const canCheckIn =
     status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED;
+  // Start-Session time gate (Fix Prompt 2). Reflected here; the server action is
+  // the source of truth. Instant-vs-instant comparison — tz-independent.
+  const startTooEarly = !canStartSessionAt(
+    new Date(),
+    appointment.startsAt,
+    sessionStartGraceMinutes,
+  );
   const canComplete = status === AppointmentStatus.IN_PROGRESS;
   const canCancel =
     status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED;
@@ -182,7 +194,8 @@ export function AppointmentSidePanel({
               type="button"
               className="w-full justify-start"
               variant="outline"
-              disabled={pending}
+              disabled={pending || startTooEarly}
+              title={startTooEarly ? tActions('startTooEarlyHint') : undefined}
               onClick={() => handleStatus(AppointmentStatus.IN_PROGRESS, 'markedInProgress')}
             >
               <CircleDot className="me-2 size-4" />
@@ -190,16 +203,20 @@ export function AppointmentSidePanel({
             </Button>
           ) : null}
           {canComplete ? (
-            // Post-Prompt 9: completing an appointment requires writing
-            // a session note. The button navigates to the SOAP form;
-            // saving the note transitions the appointment to COMPLETED
-            // in the same transaction. Admin-override for backfilling
-            // without a note is intentionally not exposed in this UI.
-            <Button asChild className="w-full justify-start" variant="outline" disabled={pending}>
-              <Link href={`/therapist/sessions/${appointment.id}/note/new` as `/${string}`}>
-                <Check className="me-2 size-4" />
-                {tActions('complete')}
-              </Link>
+            // End Session (Fix Prompt 2 — Receptionist #3). Calls the same
+            // status action the arrivals panel uses, so the transition works
+            // for anyone with `appointments.complete` from the calendar popup —
+            // it no longer depends on the therapist-only session-note route.
+            // A therapist can still write the SOAP note from the patient file.
+            <Button
+              type="button"
+              className="w-full justify-start"
+              variant="outline"
+              disabled={pending}
+              onClick={() => handleStatus(AppointmentStatus.COMPLETED, 'markedCompleted')}
+            >
+              <Check className="me-2 size-4" />
+              {tActions('endSession')}
             </Button>
           ) : null}
           {canNoShow ? (

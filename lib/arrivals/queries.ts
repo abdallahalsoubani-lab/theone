@@ -36,6 +36,9 @@ export interface ArrivalRow {
 export interface ArrivalsBoard {
   now: string; // ISO — render clock + "minutes waiting" against this
   currentDelayMinutes: number;
+  /** Start-Session grace (minutes) so the panel can gate "Mark in session"
+   *  (Fix Prompt 2). Server action remains the source of truth. */
+  sessionStartGraceMinutes: number;
   waiting: ArrivalRow[];
   inSession: ArrivalRow[];
   upNext: ArrivalRow[];
@@ -81,7 +84,7 @@ export async function getArrivalsBoard(opts?: { now?: Date }): Promise<ArrivalsB
   const now = opts?.now ?? new Date();
   const settings = await db.clinicSettings.findUnique({
     where: { id: 'default' },
-    select: { timezone: true, currentDelayMinutes: true },
+    select: { timezone: true, currentDelayMinutes: true, sessionStartGraceMinutes: true },
   });
   const timeZone = settings?.timezone ?? 'Asia/Amman';
   const { start, end } = clinicDayRange(now, timeZone);
@@ -121,6 +124,7 @@ export async function getArrivalsBoard(opts?: { now?: Date }): Promise<ArrivalsB
   return {
     now: now.toISOString(),
     currentDelayMinutes: settings?.currentDelayMinutes ?? 10,
+    sessionStartGraceMinutes: settings?.sessionStartGraceMinutes ?? 15,
     waiting,
     inSession,
     upNext: upNext.slice(0, UP_NEXT_LIMIT),
