@@ -22,13 +22,14 @@ const STATUS_VARIANT: Record<string, 'teal' | 'cyan' | 'muted'> = {
 };
 
 /**
- * Intake assessments tab on the patient file. The newest row is editable
- * (per Prompt 6 §4.3 — only the most recent is mutable); older rows are
- * read-only View links to preserve the historical record.
+ * Intake assessments tab on the patient file. Every assessment is a read-only
+ * View link preserving the historical record. (Editing a submitted assessment
+ * is not an implemented workflow — there is no update service/action/form — so
+ * no Edit affordance is offered; a correction is captured by adding a new
+ * assessment.)
  */
 export function PatientIntakeTab({ patientId, rows, basePath, canCreate }: Props) {
   const t = useTranslations('intake');
-  const tCommon = useTranslations('common');
   const locale = useLocale();
   const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
 
@@ -53,8 +54,7 @@ export function PatientIntakeTab({ patientId, rows, basePath, canCreate }: Props
         </Card>
       ) : (
         <ul className="divide-y divide-brand-border overflow-hidden rounded-md border border-brand-border bg-brand-surface">
-          {rows.map((r, idx) => {
-            const isNewest = idx === 0;
+          {rows.map((r) => {
             const filledBy = r.assessedBy
               ? locale === 'ar'
                 ? r.assessedBy.fullNameAr
@@ -82,13 +82,6 @@ export function PatientIntakeTab({ patientId, rows, basePath, canCreate }: Props
                   <Button asChild variant="ghost" size="sm">
                     <Link href={`${basePath}/${patientId}/intake/${r.id}`}>{t('view')}</Link>
                   </Button>
-                  {isNewest && canCreate ? (
-                    <Button asChild variant="outline" size="sm">
-                      <Link href={`${basePath}/${patientId}/intake/${r.id}/edit`}>
-                        {tCommon('edit')}
-                      </Link>
-                    </Button>
-                  ) : null}
                 </div>
               </li>
             );

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { PlanCard } from '@/components/clinical/PlanCard';
+import { Link } from '@/i18n/navigation';
 import { getPlanById } from '@/lib/clinical/plans/queries';
 import { requirePermission } from '@/lib/rbac/guards';
 
@@ -21,7 +22,14 @@ export default async function TherapistPlanPage({
 
   return (
     <section className="mx-auto max-w-4xl space-y-6 p-6">
-      <header>
+      <header className="space-y-2">
+        {/* Back to the patient file — parity with the doctor plan page (6B). */}
+        <Link
+          href={`/therapist/patients/${plan.patientId}` as `/${string}`}
+          className="text-sm text-brand-cyan hover:underline"
+        >
+          ← {t('backToPatient')}
+        </Link>
         <h1 className="text-2xl font-medium text-brand-navy">{t('viewPlanTitle')}</h1>
       </header>
       <PlanCard
