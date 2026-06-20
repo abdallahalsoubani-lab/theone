@@ -61,6 +61,21 @@ describe('recurrenceRuleSchema', () => {
       }).success,
     ).toBe(false);
   });
+
+  it('rejects a series with no valid end condition (count < 1)', () => {
+    // The occurrence count IS the end condition (1–52); an unbounded/zero
+    // series must be rejected, not silently created (Fix Prompt 3).
+    for (const count of [0, -1]) {
+      expect(
+        recurrenceRuleSchema.safeParse({
+          frequency: 'WEEKLY',
+          interval: 1,
+          byWeekday: ['SUN'],
+          count,
+        }).success,
+      ).toBe(false);
+    }
+  });
 });
 
 describe('seriesResolutionSchema', () => {

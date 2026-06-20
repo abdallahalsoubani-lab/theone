@@ -86,6 +86,12 @@ export const ResponsiveModalContent = React.forwardRef<
                 // margins center horizontally in both LTR and RTL (no physical
                 // left/right, no -translate-x which does NOT flip under RTL).
                 'end-0 start-0 top-1/2 mx-auto w-full -translate-y-1/2 rounded-xl p-6',
+                // Cap height + scroll the body so a tall form (e.g. the
+                // recurring-series builder) is never clipped on short/laptop
+                // viewports — the desktop box is centered, so without this the
+                // overflow spills above AND below the fold, hiding the date
+                // picker + Save (Fix Prompt 3). Mirrors the mobile variant.
+                'max-h-[85vh] overflow-y-auto',
                 'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-2',
                 desktopMaxWidth,
               ],
