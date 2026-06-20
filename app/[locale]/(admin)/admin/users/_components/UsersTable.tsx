@@ -26,6 +26,7 @@ import {
   restoreUserAction,
 } from '@/lib/admin/users/actions';
 import type { UserListRow } from '@/lib/admin/users/queries';
+import { formatPhone } from '@/lib/format/phone';
 
 interface Props {
   rows: UserListRow[];
@@ -94,7 +95,7 @@ export function UsersTable({ rows, total, page, pageSize, initialSearch }: Props
         {
           id: 'name',
           accessorKey: 'fullNameEn',
-          header: t('fullNameEn'),
+          header: t('name'),
           cell: ({ row }) => {
             const u = row.original;
             const name = locale === 'ar' ? u.fullNameAr : u.fullNameEn;
@@ -127,8 +128,14 @@ export function UsersTable({ rows, total, page, pageSize, initialSearch }: Props
         {
           id: 'phone',
           accessorKey: 'phone',
-          header: t('fullNameEn'),
-          cell: ({ row }) => <span className="font-mono text-xs">{row.original.phone}</span>,
+          header: t('phone'),
+          // Phone renders LTR even in Arabic (Master Context §7) — formatPhone
+          // wraps the value in LRM markers; dir="ltr" belts-and-braces.
+          cell: ({ row }) => (
+            <span dir="ltr" className="font-mono text-xs">
+              {formatPhone(row.original.phone)}
+            </span>
+          ),
         },
         {
           id: 'specialties',

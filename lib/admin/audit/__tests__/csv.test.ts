@@ -15,6 +15,7 @@ const baseRow = {
   entityType: 'Appointment',
   entityId: 'a1',
   action: AuditAction.UPDATE,
+  event: null,
   beforeJson: null,
   afterJson: null,
 };

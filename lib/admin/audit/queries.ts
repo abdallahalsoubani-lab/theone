@@ -26,6 +26,12 @@ export interface AuditRow {
   entityType: string;
   entityId: string;
   action: AuditAction;
+  /** The meaningful event tag from the `after` payload (e.g.
+   *  'APPOINTMENT_CANCELLED', 'APPOINTMENT_RESCHEDULED', 'STATUS_CHANGED') when
+   *  the service recorded one. Surfaced into the viewer's Action column so a
+   *  cancellation isn't hidden behind a generic 'UPDATE'. Null when the row
+   *  carries no event tag (plain CRUD). */
+  event: string | null;
   beforeJson: string | null;
   afterJson: string | null;
 }
@@ -134,6 +140,8 @@ function toRow(r: {
   before: unknown;
   after: unknown;
 }): AuditRow {
+  const after = r.after as { event?: unknown } | null;
+  const event = after && typeof after.event === 'string' ? after.event : null;
   return {
     id: r.id,
     createdAt: r.createdAt,
@@ -146,6 +154,7 @@ function toRow(r: {
     entityType: r.entityType,
     entityId: r.entityId,
     action: r.action,
+    event,
     beforeJson: r.before ? JSON.stringify(r.before) : null,
     afterJson: r.after ? JSON.stringify(r.after) : null,
   };

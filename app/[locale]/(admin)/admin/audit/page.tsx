@@ -169,7 +169,15 @@ export default async function AuditLogPage({
                   </div>
                 </td>
                 <td className="px-2 py-2">
-                  <Badge variant={badgeVariant(r.action)}>{r.action}</Badge>
+                  {/* Show the meaningful event (e.g. APPOINTMENT_CANCELLED) at a
+                      glance; keep the underlying CRUD action as a small label so
+                      it's still visible without opening the diff (Fix 6A). */}
+                  <Badge variant={badgeVariant(r.action)}>{r.event ?? r.action}</Badge>
+                  {r.event ? (
+                    <div className="mt-0.5 font-mono text-[10px] text-brand-textMuted">
+                      {r.action}
+                    </div>
+                  ) : null}
                 </td>
                 <td className="px-2 py-2">
                   <span className="font-medium text-brand-navy">{r.entityType}</span>
