@@ -82,7 +82,10 @@ export const ResponsiveModalContent = React.forwardRef<
                 'data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom',
               ]
             : [
-                'start-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2 rounded-xl p-6',
+                // Direction-agnostic centering: logical insets + auto inline
+                // margins center horizontally in both LTR and RTL (no physical
+                // left/right, no -translate-x which does NOT flip under RTL).
+                'end-0 start-0 top-1/2 mx-auto w-full -translate-y-1/2 rounded-xl p-6',
                 'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-2',
                 desktopMaxWidth,
               ],
