@@ -3,7 +3,7 @@
 import './calendar.css';
 
 import { ar as arLocale, enUS as enLocale } from 'date-fns/locale';
-import { addMinutes, format as formatDateFns, getDay, parse, startOfWeek } from 'date-fns';
+import { format as formatDateFns, getDay, parse, startOfWeek } from 'date-fns';
 import { useLocale, useTranslations } from 'next-intl';
 import { useMemo, useState } from 'react';
 import {
@@ -20,6 +20,7 @@ import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { cn } from '@/lib/utils';
 
 import { CalendarToolbar } from './CalendarToolbar';
+import { eventsForView } from './eventsForView';
 import { resourcesForView } from './resourcesForView';
 
 interface CalendarResource {
@@ -127,6 +128,11 @@ export function SecretaryCalendar({
   const tLeave = useTranslations('leave');
   const intlLocale = locale === 'ar' ? arLocale : enLocale;
 
+  // View + date state — declared here (above the events memo) because the
+  // fan-out is now view-aware (Option ②).
+  const [view, setView] = useState<View>(Views.DAY);
+  const [date, setDate] = useState<Date>(new Date());
+
   const localizer = useMemo(
     () =>
       dateFnsLocalizer({
@@ -139,24 +145,13 @@ export function SecretaryCalendar({
     [intlLocale],
   );
 
-  // A session with N therapists renders as N events — one in each therapist's
-  // resource column (Prompt 20). They share the same underlying appointment;
-  // the composite id keeps React keys unique per lane while handlers recover
-  // the real appointment via `event.appointment.id`.
+  // View-aware fan-out (Calendar overlap fix, Option ②): day view emits one
+  // event per therapist (each lands in its resource column); week/month/agenda
+  // emit one event per appointment so a multi-therapist session isn't
+  // duplicated into the same combined day column. See ./eventsForView.
   const events = useMemo<AppointmentEvent[]>(
-    () =>
-      appointments.flatMap((a) =>
-        a.therapists.map((th) => ({
-          id: `${a.id}::${th.id}`,
-          title: locale === 'ar' ? a.patientFullNameAr : a.patientFullNameEn,
-          start: a.startsAt,
-          end: addMinutes(a.startsAt, a.durationMinutes),
-          resourceId: th.id,
-          status: a.status,
-          appointment: a,
-        })),
-      ),
-    [appointments, locale],
+    () => eventsForView(appointments, view, locale),
+    [appointments, view, locale],
   );
 
   // Leave overlays — rendered via react-big-calendar's `backgroundEvents`
@@ -190,9 +185,6 @@ export function SecretaryCalendar({
       })),
     [resources, locale],
   );
-
-  const [view, setView] = useState<View>(Views.DAY);
-  const [date, setDate] = useState<Date>(new Date());
 
   const minTime = useMemo(() => {
     const d = new Date(date);
@@ -231,6 +223,11 @@ export function SecretaryCalendar({
           date={date}
           onNavigate={setDate}
           views={['day', 'week', 'month', 'agenda']}
+          // Lay concurrent events as equal-width, truly side-by-side columns
+          // instead of rbc's default 'overlap' (which widens each event 1.7× so
+          // they cover/clip each other — unreadable for 3+, worse in narrow week
+          // columns). Calendar overlap fix, Option ①.
+          dayLayoutAlgorithm="no-overlap"
           step={15}
           timeslots={2}
           min={minTime}
