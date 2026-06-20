@@ -10,6 +10,7 @@ import {
   type SidePanelAppointment,
 } from '@/components/calendar/AppointmentSidePanel';
 import { SecretaryCalendar } from '@/components/calendar/SecretaryCalendar';
+import { CustomDayView } from '@/components/calendar/custom/CustomDayView';
 import { ChangeTherapistModal } from '@/components/appointments/ChangeTherapistModal';
 import { CreateAppointmentModal } from '@/components/appointments/CreateAppointmentModal';
 import { SeriesScopeConfirmDialog } from '@/components/appointments/SeriesScopeConfirmDialog';
@@ -30,6 +31,9 @@ interface Props {
   maxHour: number;
   canOverride: boolean;
   newAppointmentLabel: string;
+  /** Custom Calendar Phase 1 — when true, render the new static custom day
+   *  view (read-only, flagged) instead of react-big-calendar. Default false. */
+  customCalendar?: boolean;
 }
 
 /**
@@ -54,6 +58,7 @@ export function SecretaryCalendarBoard({
   maxHour,
   canOverride,
   newAppointmentLabel,
+  customCalendar = false,
 }: Props) {
   const router = useRouter();
   const locale = useLocale();
@@ -185,16 +190,26 @@ export function SecretaryCalendarBoard({
         </Button>
       </div>
 
-      <SecretaryCalendar
-        appointments={appointments}
-        resources={resources}
-        leaves={leaves}
-        minHour={minHour}
-        maxHour={maxHour}
-        onSelectSlot={handleSlotSelect}
-        onSelectEvent={handleEventSelect}
-        onEventDrop={handleEventDrop}
-      />
+      {customCalendar ? (
+        // Phase 1: static, read-only — no interaction wiring yet (Phases 2–3).
+        <CustomDayView
+          appointments={appointments}
+          resources={resources}
+          minHour={minHour}
+          maxHour={maxHour}
+        />
+      ) : (
+        <SecretaryCalendar
+          appointments={appointments}
+          resources={resources}
+          leaves={leaves}
+          minHour={minHour}
+          maxHour={maxHour}
+          onSelectSlot={handleSlotSelect}
+          onSelectEvent={handleEventSelect}
+          onEventDrop={handleEventDrop}
+        />
+      )}
 
       <CreateAppointmentModal
         open={createOpen}

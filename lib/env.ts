@@ -18,6 +18,15 @@ const envSchema = z.object({
   NEXT_PUBLIC_APP_NAME: z.string().min(1).default('Theone.pt'),
   NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
 
+  // Custom-calendar rollout flag (Custom Calendar Phase 1). When 'true', the
+  // shared calendar page renders the new custom day view instead of
+  // react-big-calendar. Default 'false' → rbc stays active for everyone. A
+  // per-request `?calendar=custom|rbc` query param overrides this for QA.
+  NEXT_PUBLIC_CUSTOM_CALENDAR: z
+    .union([z.literal('true'), z.literal('false')])
+    .optional()
+    .default('false'),
+
   // Database (Prompt 2 begins using this)
   DATABASE_URL: z.string().url().optional(),
 
