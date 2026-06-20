@@ -3,6 +3,13 @@ import { AppointmentStatus, type LanguagePref } from '@prisma/client';
 import { db } from '@/lib/db';
 
 import { DAY_KEYS, type DayKey } from './conflicts-time';
+import {
+  CLINIC_DEFAULT_TZ,
+  type DayHours,
+  type WorkingHoursReason,
+  isWithinWorkingHours,
+  localDayKey,
+} from './working-hours';
 
 /**
  * Conflict detection engine — the SINGLE source of truth for whether a
@@ -57,19 +64,20 @@ export type Conflict =
   | { kind: 'THERAPIST_OVERLAP'; therapist: PersonName; appointment: AppointmentSummary }
   | { kind: 'PATIENT_OVERLAP'; appointment: AppointmentSummary }
   | { kind: 'THERAPIST_ON_LEAVE'; therapist: PersonName; leave: LeaveSummary }
-  | { kind: 'OUTSIDE_BUSINESS_HOURS'; openTime: string; closeTime: string; dayKey: DayKey }
+  | {
+      kind: 'OUTSIDE_BUSINESS_HOURS';
+      reason: WorkingHoursReason;
+      openTime: string;
+      closeTime: string;
+      dayKey: DayKey;
+    }
   | { kind: 'CLINIC_CLOSED_THIS_DAY'; dayKey: DayKey };
 
 export type ConflictResult = { ok: true } | { ok: false; conflicts: Conflict[] };
 
-interface DayHours {
-  open: string; // "HH:MM"
-  close: string; // "HH:MM"
-  closed: boolean;
-}
-
 interface ClinicHoursPayload {
   hours: Record<DayKey, DayHours> | null;
+  timeZone: string;
 }
 
 // Statuses considered "active" — terminal statuses (COMPLETED / CANCELLED /
@@ -142,24 +150,28 @@ export async function checkConflicts(
   }
 
   // ── 4. Business hours ─────────────────────────────────────────────────
+  // Clinic hours are clinic-LOCAL wall-clock; the appointment is a UTC instant.
+  // All day/time resolution happens in clinic-local time via the shared helper
+  // (see lib/appointments/working-hours.ts) — never in UTC.
   const hours = options.hours ?? (await loadClinicHours());
   if (hours.hours) {
-    const dayKey = DAY_KEYS[input.startsAt.getUTCDay()] as DayKey;
+    const dayKey = localDayKey(input.startsAt, hours.timeZone);
     const day = hours.hours[dayKey];
-    if (day) {
-      if (day.closed) {
-        conflicts.push({ kind: 'CLINIC_CLOSED_THIS_DAY', dayKey });
-      } else {
-        const startHm = toHm(input.startsAt);
-        const endHm = toHm(endsAt);
-        if (startHm < day.open || endHm > day.close) {
-          conflicts.push({
-            kind: 'OUTSIDE_BUSINESS_HOURS',
-            openTime: day.open,
-            closeTime: day.close,
-            dayKey,
-          });
-        }
+    if (day?.closed) {
+      conflicts.push({ kind: 'CLINIC_CLOSED_THIS_DAY', dayKey });
+    } else {
+      const verdict = isWithinWorkingHours(input.startsAt, endsAt, {
+        hours: hours.hours,
+        timeZone: hours.timeZone,
+      });
+      if (!verdict.ok) {
+        conflicts.push({
+          kind: 'OUTSIDE_BUSINESS_HOURS',
+          reason: verdict.reason,
+          openTime: verdict.openTime,
+          closeTime: verdict.closeTime,
+          dayKey: verdict.dayKey,
+        });
       }
     }
   }
@@ -221,21 +233,18 @@ async function findOverlappingAppointments(args: {
 async function loadClinicHours(): Promise<ClinicHoursPayload> {
   const row = await db.clinicSettings.findUnique({
     where: { id: 'default' },
-    select: { businessHours: true },
+    select: { businessHours: true, timezone: true },
   });
-  return { hours: (row?.businessHours as unknown as Record<DayKey, DayHours> | null) ?? null };
+  return {
+    hours: (row?.businessHours as unknown as Record<DayKey, DayHours> | null) ?? null,
+    timeZone: row?.timezone ?? CLINIC_DEFAULT_TZ,
+  };
 }
 
 function startOfUtcDay(d: Date): Date {
   const out = new Date(d);
   out.setUTCHours(0, 0, 0, 0);
   return out;
-}
-
-function toHm(d: Date): string {
-  const h = String(d.getUTCHours()).padStart(2, '0');
-  const m = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${h}:${m}`;
 }
 
 export type { DayHours };

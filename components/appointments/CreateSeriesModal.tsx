@@ -594,7 +594,12 @@ type ConflictType =
       appointment: { therapist: { fullNameEn: string; fullNameAr: string }; startsAt: Date };
     }
   | { kind: 'THERAPIST_ON_LEAVE' }
-  | { kind: 'OUTSIDE_BUSINESS_HOURS'; openTime: string; closeTime: string }
+  | {
+      kind: 'OUTSIDE_BUSINESS_HOURS';
+      reason: 'before_open' | 'after_close' | 'end_exceeds_close';
+      openTime: string;
+      closeTime: string;
+    }
   | { kind: 'CLINIC_CLOSED_THIS_DAY' };
 
 function describeConflict(
@@ -627,11 +632,23 @@ function describeConflict(
     case 'THERAPIST_ON_LEAVE':
       return t('therapistOnLeave');
     case 'OUTSIDE_BUSINESS_HOURS':
-      return t('outsideBusinessHours', {
+      return t(outsideHoursKey(conflict.reason), {
         open: conflict.openTime,
         close: conflict.closeTime,
       });
     case 'CLINIC_CLOSED_THIS_DAY':
       return t('clinicClosedThisDay');
+  }
+}
+
+/** Map a working-hours reason to its localized message key. */
+function outsideHoursKey(reason: 'before_open' | 'after_close' | 'end_exceeds_close'): string {
+  switch (reason) {
+    case 'before_open':
+      return 'beforeOpen';
+    case 'after_close':
+      return 'afterClose';
+    case 'end_exceeds_close':
+      return 'endExceedsClose';
   }
 }
