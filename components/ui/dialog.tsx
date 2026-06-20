@@ -35,7 +35,10 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'shadow-soft-xl fixed start-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl border border-brand-border/70 bg-background p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-2',
+        // Direction-agnostic centering: logical insets (start-0 end-0) + auto
+        // inline margins center horizontally in both LTR and RTL. Avoids
+        // -translate-x, which is physical and does NOT flip under dir=rtl.
+        'shadow-soft-xl fixed end-0 start-0 top-1/2 z-50 mx-auto grid w-full max-w-lg -translate-y-1/2 gap-4 rounded-xl border border-brand-border/70 bg-background p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-top-2',
         className,
       )}
       {...props}
