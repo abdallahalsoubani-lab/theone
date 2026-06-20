@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { ensureCanAccessPatientDocuments } from '@/lib/patient-documents/access';
+import { extensionFor } from '@/lib/patient-documents/policy';
 import { getDocumentForDownload } from '@/lib/patient-documents/queries';
 import { recordDocumentDownload } from '@/lib/patient-documents/services';
 import { getObjectBytes } from '@/lib/patient-documents/storage';
@@ -40,13 +41,18 @@ export async function GET(
   const bytes = await getObjectBytes(doc.storageKey);
   await recordDocumentDownload({ documentId: doc.id, patientId: doc.patientId });
 
-  // RFC 5987 filename* for the (possibly Arabic) original filename.
+  // Content-Disposition: the RFC 5987 `filename*` carries the original (possibly
+  // Arabic) name; the ASCII `filename` fallback (for clients that ignore
+  // `filename*`) now includes the correct extension derived from the stored
+  // mime type, so the OS can open it (Fix 6C item 2 — an extensionless fallback
+  // saved files the OS couldn't read).
   const encoded = encodeURIComponent(doc.fileName);
+  const fallbackName = `document.${extensionFor(doc.mimeType)}`;
   return new Response(new Uint8Array(bytes), {
     status: 200,
     headers: {
       'content-type': doc.mimeType,
-      'content-disposition': `attachment; filename="document"; filename*=UTF-8''${encoded}`,
+      'content-disposition': `attachment; filename="${fallbackName}"; filename*=UTF-8''${encoded}`,
       'cache-control': 'no-store',
     },
   });

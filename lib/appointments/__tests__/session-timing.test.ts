@@ -4,6 +4,7 @@ import {
   canStartSessionAt,
   earliestSessionStart,
   isSessionOverdue,
+  isStartInPast,
   sessionStartTooEarly,
 } from '../session-timing';
 
@@ -69,5 +70,27 @@ describe('isSessionOverdue — auto-complete threshold (grace 15min)', () => {
   it('overdue exactly at end + grace (boundary inclusive)', () => {
     const now = new Date('2026-06-01T13:45:00Z');
     expect(isSessionOverdue(now, start, duration, GRACE)).toBe(true);
+  });
+});
+
+describe('isStartInPast — booking past-time guard (Fix 6C item 1)', () => {
+  const now = new Date('2026-06-01T14:00:00Z');
+
+  it('rejects a start before now (Receptionist #9)', () => {
+    expect(isStartInPast(new Date('2026-06-01T13:45:00Z'), now)).toBe(true);
+  });
+
+  it('allows a start exactly at now', () => {
+    expect(isStartInPast(new Date('2026-06-01T14:00:00Z'), now)).toBe(false);
+  });
+
+  it('allows a future start (later today or another day)', () => {
+    expect(isStartInPast(new Date('2026-06-01T14:15:00Z'), now)).toBe(false);
+    expect(isStartInPast(new Date('2026-06-02T09:00:00Z'), now)).toBe(false);
+  });
+
+  it('is tz-independent — a past instant is past however it is expressed', () => {
+    // 11:00 Amman (08:00Z) is before 14:00Z now → past, regardless of zone.
+    expect(isStartInPast(new Date('2026-06-01T08:00:00Z'), now)).toBe(true);
   });
 });

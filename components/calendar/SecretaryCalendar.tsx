@@ -306,6 +306,10 @@ export function SecretaryCalendar({
             const classes: string[] = [];
             if (h >= 9 && h < 17) classes.push('rbc-peak-slot');
             if (h === 12 && m === 0) classes.push('rbc-noon');
+            // Grey past slots so they read as unselectable (Fix 6C item 1). The
+            // server is the source of truth (APPOINTMENT_IN_PAST); this is the
+            // affordance. Instant-vs-instant comparison — tz-independent.
+            if (date.getTime() < Date.now()) classes.push('rbc-past-slot');
             return classes.length > 0 ? { className: classes.join(' ') } : {};
           }}
           backgroundEvents={leaveBackgroundEvents as unknown as AppointmentEvent[]}

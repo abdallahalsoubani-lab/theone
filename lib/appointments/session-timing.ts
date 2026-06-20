@@ -32,6 +32,15 @@ export function canStartSessionAt(now: Date, startsAt: Date, graceMinutes: numbe
   return now.getTime() >= earliestSessionStart(startsAt, graceMinutes).getTime();
 }
 
+/**
+ * Whether a proposed appointment start is in the past (Fix 6C item 1).
+ * Strictly-before-now is past; start == now or future is allowed. Instant vs
+ * instant — tz-independent (see file header); do NOT convert to clinic-local.
+ */
+export function isStartInPast(startsAt: Date, now: Date = new Date()): boolean {
+  return startsAt.getTime() < now.getTime();
+}
+
 /** The session's scheduled end instant. */
 export function sessionEndsAt(startsAt: Date, durationMinutes: number): Date {
   return new Date(startsAt.getTime() + durationMinutes * 60_000);

@@ -15,7 +15,12 @@ import { checkConflicts, type Conflict, type ConflictResult } from './conflicts'
 import { expandRecurrence, MAX_SERIES_OCCURRENCES, type PlannedOccurrence } from './recurrence';
 import { parseHhMm, type ReminderConfig } from './reminderWindow';
 import { getSessionGraceConfig } from './session-settings';
-import { canStartSessionAt, earliestSessionStart, sessionStartTooEarly } from './session-timing';
+import {
+  canStartSessionAt,
+  earliestSessionStart,
+  isStartInPast,
+  sessionStartTooEarly,
+} from './session-timing';
 import type {
   AppointmentCancelParsed,
   AppointmentChangeTherapistParsed,
@@ -51,6 +56,14 @@ const notFound: LocalizedError = {
   code: 'APPOINTMENT_NOT_FOUND',
   message_en: 'Appointment not found.',
   message_ar: 'لم يتم العثور على الموعد.',
+};
+
+// Fix 6C item 1 — a booking's start must not be before now (instant-vs-instant,
+// tz-independent; see session-timing.ts). Allow now/future.
+const inPast: LocalizedError = {
+  code: 'APPOINTMENT_IN_PAST',
+  message_en: 'Cannot book an appointment in the past. Pick a current or future time.',
+  message_ar: 'لا يمكن حجز موعد في وقت مضى. اختر وقتاً حالياً أو مستقبلياً.',
 };
 
 // ─── Multi-therapist helpers (Prompt 20) ──────────────────────────────────
@@ -127,6 +140,8 @@ export const createAppointment = withAudit<
   ): Promise<{ appointmentId: string; conflictsOverridden: boolean }> {
     const session = await auth();
     if (!session?.user?.id) throw new AppointmentError(unauthenticated);
+
+    if (isStartInPast(input.startsAt)) throw new AppointmentError(inPast);
 
     const conflicts = await checkConflicts({
       patientId: input.patientId,
@@ -252,6 +267,8 @@ export const rescheduleAppointment = withAudit<
       select: { id: true, patientId: true, status: true },
     });
     if (!existing) throw new AppointmentError(notFound);
+
+    if (isStartInPast(input.startsAt)) throw new AppointmentError(inPast);
 
     // Omitted therapistIds → keep the existing set (pure time/room move, e.g.
     // dragging a multi-therapist session). Provided → replace it (e.g. dragging
@@ -1200,6 +1217,11 @@ export const createSeries = withAudit<
   }> {
     const session = await auth();
     if (!session?.user?.id) throw new AppointmentError(unauthenticated);
+
+    // The first occurrence is `input.startsAt` and every other occurrence is
+    // later, so rejecting a past first-start guarantees no past occurrence is
+    // created (Fix 6C item 1).
+    if (isStartInPast(input.startsAt)) throw new AppointmentError(inPast);
 
     // Re-expand from the rule + first slot to validate the client's
     // resolution list matches the actual occurrence count. The client

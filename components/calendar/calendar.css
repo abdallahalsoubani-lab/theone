@@ -152,6 +152,15 @@
   background-color: rgba(61, 192, 217, 0.04);
 }
 
+/* Past slots (Fix 6C item 1) — greyed + not-allowed cursor so they read as
+ * unselectable. The server rejects a past start regardless
+ * (APPOINTMENT_IN_PAST); this is only the visual affordance. !important wins
+ * over the peak / today backgrounds above. */
+.rbc-day-slot .rbc-time-slot.rbc-past-slot {
+  background-color: rgba(216, 222, 232, 0.45) !important; /* brand-border @ 45% */
+  cursor: not-allowed;
+}
+
 /* ── Current-time indicator ───────────────────────────────────────── */
 .rbc-current-time-indicator {
   background-color: var(--brand-cyan);
