@@ -20,6 +20,7 @@ import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { cn } from '@/lib/utils';
 
 import { CalendarToolbar } from './CalendarToolbar';
+import { resourcesForView } from './resourcesForView';
 
 interface CalendarResource {
   resourceId: string;
@@ -218,7 +219,9 @@ export function SecretaryCalendar({
         <DnDCalendar
           localizer={localizer}
           events={events}
-          resources={rbcResources.length > 0 ? rbcResources : undefined}
+          // Resources (therapist lanes) only in DAY view — rbc can't lay them
+          // out in week/month, which clipped + desynced the columns (Fix Prompt 4).
+          resources={resourcesForView(view, rbcResources)}
           resourceIdAccessor={(r) => (r as CalendarResource).resourceId}
           resourceTitleAccessor={(r) => (r as CalendarResource).resourceTitle}
           startAccessor="start"
