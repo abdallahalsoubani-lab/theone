@@ -25,6 +25,10 @@ export const REMINDER_QUEUE = 'reminders';
 export const HOME_PROGRAM_QUEUE = 'homeProgramReminders';
 export const COMPLIANCE_QUEUE = 'complianceChecks';
 export const WHATSAPP_OUTBOUND_QUEUE = 'whatsappOutbound';
+// Session maintenance — recurring auto-complete of overdue IN_PROGRESS
+// sessions (Fix Prompt 2). Its own queue so the tick is never consumed by
+// another worker (see the worker-race note above).
+export const SESSION_MAINTENANCE_QUEUE = 'sessionMaintenance';
 
 export const reminderQueue = new Queue(REMINDER_QUEUE, {
   connection: queueRedis,
@@ -51,6 +55,15 @@ export const complianceQueue = new Queue(COMPLIANCE_QUEUE, {
   defaultJobOptions: {
     attempts: 1,
     removeOnComplete: { age: 60 * 60 * 24 * 7, count: 30 },
+    removeOnFail: { age: 60 * 60 * 24 * 30 },
+  },
+});
+
+export const sessionMaintenanceQueue = new Queue(SESSION_MAINTENANCE_QUEUE, {
+  connection: queueRedis,
+  defaultJobOptions: {
+    attempts: 1,
+    removeOnComplete: { age: 60 * 60 * 24 * 7, count: 100 },
     removeOnFail: { age: 60 * 60 * 24 * 30 },
   },
 });

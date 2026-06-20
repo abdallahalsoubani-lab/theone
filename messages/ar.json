@@ -45,6 +45,8 @@
       "confirm": "تأكيد",
       "checkIn": "بدء الجلسة",
       "complete": "إنهاء الجلسة",
+      "endSession": "إنهاء الجلسة",
+      "startTooEarlyHint": "لا يمكن بدء الجلسة إلا قبل وقتها المحدد بقليل.",
       "cancel": "إلغاء",
       "noShow": "تسجيل عدم حضور",
       "changeTherapist": "إدارة المعالجين",
@@ -743,7 +745,9 @@
         "patientCanViewClinicalNotesHelp": "عند إيقاف الإعداد يرى المرضى المواعيد والبرنامج المنزلي فقط؛ تبقى خطط العلاج وملاحظات الجلسات سريرية فقط.",
         "reminderWindowStart": "بداية نافذة التذكير",
         "reminderWindowEnd": "نهاية نافذة التذكير",
-        "currentDelayMinutes": "التأخير الحالي (بالدقائق)"
+        "currentDelayMinutes": "التأخير الحالي (بالدقائق)",
+        "sessionStartGraceMinutes": "مهلة بدء الجلسة (دقائق قبل الموعد)",
+        "sessionAutoCompleteGraceMinutes": "مهلة الإنهاء التلقائي (دقائق بعد الموعد)"
       },
       "days": {
         "sun": "الأحد",
@@ -1607,6 +1611,7 @@
     "viaKiosk": "الجهاز",
     "markInSession": "بدء الجلسة",
     "markDone": "إنهاء",
+    "startTooEarlyHint": "لا يمكن بدء الجلسة إلا قبل وقتها المحدد بقليل.",
     "undoCheckIn": "تراجع",
     "checkIn": "تسجيل وصول",
     "currentDelay": "التأخير الحالي",

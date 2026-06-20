@@ -211,6 +211,28 @@ export function ClinicSettingsForm({ initial }: Props) {
                 }
               />
             </Field>
+            <Field label={t('fields.sessionStartGraceMinutes')}>
+              <Input
+                type="number"
+                min={0}
+                max={120}
+                value={state.sessionStartGraceMinutes}
+                onChange={(e) =>
+                  setField('sessionStartGraceMinutes', parseInt(e.target.value || '15', 10))
+                }
+              />
+            </Field>
+            <Field label={t('fields.sessionAutoCompleteGraceMinutes')}>
+              <Input
+                type="number"
+                min={0}
+                max={120}
+                value={state.sessionAutoCompleteGraceMinutes}
+                onChange={(e) =>
+                  setField('sessionAutoCompleteGraceMinutes', parseInt(e.target.value || '15', 10))
+                }
+              />
+            </Field>
           </div>
         </TabsContent>
 

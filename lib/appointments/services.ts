@@ -14,6 +14,8 @@ import { notifyWaitlistForFreedSlot } from '@/lib/waitlist/services';
 import { checkConflicts, type Conflict, type ConflictResult } from './conflicts';
 import { expandRecurrence, MAX_SERIES_OCCURRENCES, type PlannedOccurrence } from './recurrence';
 import { parseHhMm, type ReminderConfig } from './reminderWindow';
+import { getSessionGraceConfig } from './session-settings';
+import { canStartSessionAt, earliestSessionStart, sessionStartTooEarly } from './session-timing';
 import type {
   AppointmentCancelParsed,
   AppointmentChangeTherapistParsed,
@@ -1056,6 +1058,24 @@ export const updateAppointmentStatus = withAudit<
 
     if (!canTransition(existing.status, to)) {
       throw new AppointmentError(STATUS_ERRORS.INVALID_TRANSITION(existing.status, to));
+    }
+
+    // Start-Session time gate (Fix Prompt 2 — Receptionist #11). Starting a
+    // session (→ IN_PROGRESS) is blocked until `start − sessionStartGraceMinutes`.
+    // This is the SERVER-SIDE source of truth; both the calendar popup and the
+    // arrivals panel route here, so neither surface can start a session early.
+    // The comparison is instant-vs-instant and is intentionally tz-independent
+    // (see lib/appointments/session-timing.ts).
+    if (to === AppointmentStatus.IN_PROGRESS) {
+      const { startGraceMinutes, timeZone } = await getSessionGraceConfig();
+      if (!canStartSessionAt(new Date(), existing.startsAt, startGraceMinutes)) {
+        throw new AppointmentError(
+          sessionStartTooEarly(
+            earliestSessionStart(existing.startsAt, startGraceMinutes),
+            timeZone,
+          ),
+        );
+      }
     }
 
     // A therapist may only complete an in-session appointment they are ON

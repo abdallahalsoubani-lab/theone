@@ -292,7 +292,9 @@
         "patientCanViewClinicalNotesHelp": "When off, patients see appointments and home program only; treatment plans and session notes stay clinical-only.",
         "reminderWindowStart": "Reminder window start",
         "reminderWindowEnd": "Reminder window end",
-        "currentDelayMinutes": "Current delay (minutes)"
+        "currentDelayMinutes": "Current delay (minutes)",
+        "sessionStartGraceMinutes": "Start session grace (minutes before)",
+        "sessionAutoCompleteGraceMinutes": "Auto-complete grace (minutes after)"
       },
       "days": {
         "sun": "Sunday",
@@ -452,6 +454,8 @@
       "confirm": "Confirm",
       "checkIn": "Mark in progress",
       "complete": "Mark completed",
+      "endSession": "End session",
+      "startTooEarlyHint": "The session can only be started shortly before its scheduled time.",
       "cancel": "Cancel",
       "noShow": "Mark no-show",
       "changeTherapist": "Manage therapists",
@@ -1607,6 +1611,7 @@
     "viaKiosk": "kiosk",
     "markInSession": "In session",
     "markDone": "Done",
+    "startTooEarlyHint": "The session can only be started shortly before its scheduled time.",
     "undoCheckIn": "Undo",
     "checkIn": "Check in",
     "currentDelay": "Current delay",

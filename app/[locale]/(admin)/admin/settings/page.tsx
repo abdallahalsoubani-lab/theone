@@ -36,6 +36,8 @@ export default async function ClinicSettingsPage({
           reminderWindowStart: settings.reminderWindowStart,
           reminderWindowEnd: settings.reminderWindowEnd,
           currentDelayMinutes: settings.currentDelayMinutes,
+          sessionStartGraceMinutes: settings.sessionStartGraceMinutes,
+          sessionAutoCompleteGraceMinutes: settings.sessionAutoCompleteGraceMinutes,
           defaultLanguage: settings.defaultLanguage,
           hijriDefault: settings.hijriDefault,
           patientCanViewClinicalNotes: settings.patientCanViewClinicalNotes,

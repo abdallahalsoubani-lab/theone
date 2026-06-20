@@ -58,6 +58,9 @@ export const clinicSettingsUpdateSchema = z.object({
   reminderWindowEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:MM'),
   // Arrivals (Prompt 18): manual "your turn in ~X minutes" shown on the kiosk.
   currentDelayMinutes: z.number().int().min(0).max(240),
+  // Fix Prompt 2: session lifecycle grace windows (minutes).
+  sessionStartGraceMinutes: z.number().int().min(0).max(120),
+  sessionAutoCompleteGraceMinutes: z.number().int().min(0).max(120),
   defaultLanguage: z.nativeEnum(LanguagePref),
   hijriDefault: z.boolean(),
   patientCanViewClinicalNotes: z.boolean(),

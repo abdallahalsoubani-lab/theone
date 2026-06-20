@@ -33,6 +33,10 @@ import {
 } from './complianceDailyCheck';
 import { startHomeReminderWorker } from './homeReminder';
 import { startReminderWorker } from './reminder';
+import {
+  ensureSessionAutoCompleteScheduled,
+  startSessionAutoCompleteWorker,
+} from './sessionAutoComplete';
 import { startWhatsappOutboundWorker } from './whatsapp';
 
 console.warn('[workers] starting…');
@@ -48,6 +52,14 @@ void ensureComplianceDailyCheckScheduled().catch((err: unknown) => {
 });
 const whatsappWorker = startWhatsappOutboundWorker();
 console.warn(`[workers] whatsapp outbound worker listening on queue=${whatsappWorker.name}`);
+const sessionAutoCompleteWorker = startSessionAutoCompleteWorker();
+console.warn(
+  `[workers] session auto-complete worker listening on queue=${sessionAutoCompleteWorker.name}`,
+);
+// Register the recurring 15-min overdue-session sweep (idempotent via jobId).
+void ensureSessionAutoCompleteScheduled().catch((err: unknown) => {
+  console.error('[workers] session auto-complete registration failed', err);
+});
 
 // Keep the process alive while the workers run. Graceful shutdown on SIGINT.
 async function shutdown(signal: string) {
@@ -57,6 +69,7 @@ async function shutdown(signal: string) {
     homeReminderWorker.close(),
     complianceWorker.close(),
     whatsappWorker.close(),
+    sessionAutoCompleteWorker.close(),
   ]);
   console.warn('[workers] all workers closed; exiting');
   process.exit(0);

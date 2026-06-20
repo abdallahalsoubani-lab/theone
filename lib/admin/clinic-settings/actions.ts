@@ -41,6 +41,8 @@ const updateInner = withAudit<[ClinicSettingsUpdateParsed], { id: string }>(
         reminderWindowStart: input.reminderWindowStart,
         reminderWindowEnd: input.reminderWindowEnd,
         currentDelayMinutes: input.currentDelayMinutes,
+        sessionStartGraceMinutes: input.sessionStartGraceMinutes,
+        sessionAutoCompleteGraceMinutes: input.sessionAutoCompleteGraceMinutes,
         defaultLanguage: input.defaultLanguage,
         hijriDefault: input.hijriDefault,
         patientCanViewClinicalNotes: input.patientCanViewClinicalNotes,
