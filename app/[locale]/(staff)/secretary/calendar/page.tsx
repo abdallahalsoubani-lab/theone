@@ -7,12 +7,9 @@ import { CalendarPageContent } from '@/components/calendar/CalendarPageContent';
  */
 export default async function SecretaryCalendarPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ calendar?: string | string[] }>;
 }) {
   const { locale } = await params;
-  const { calendar } = await searchParams;
-  return <CalendarPageContent locale={locale} calendarParam={calendar} />;
+  return <CalendarPageContent locale={locale} />;
 }

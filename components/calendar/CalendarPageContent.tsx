@@ -7,9 +7,7 @@ import {
   listActivePatientsBrief,
   listAppointmentsForCalendar,
 } from '@/lib/appointments/queries';
-import { resolveCustomCalendar } from '@/lib/calendar/flag';
 import { db } from '@/lib/db';
-import { env } from '@/lib/env';
 import { listApprovedLeavesInRange } from '@/lib/leave/queries';
 import { can } from '@/lib/rbac/can';
 import { requirePermission } from '@/lib/rbac/guards';
@@ -21,14 +19,7 @@ import { requirePermission } from '@/lib/rbac/guards';
  * renders this so we don't fork a second calendar; permission is enforced
  * here and again in every server action the board calls.
  */
-export async function CalendarPageContent({
-  locale,
-  calendarParam,
-}: {
-  locale: string;
-  /** `?calendar=custom|rbc` override for the custom-calendar rollout (Phase 1). */
-  calendarParam?: string | string[];
-}) {
+export async function CalendarPageContent({ locale }: { locale: string }) {
   setRequestLocale(locale);
   await requirePermission('appointments.read');
   const session = await auth();
@@ -61,10 +52,6 @@ export async function CalendarPageContent({
   const { minHour, maxHour } = deriveDayWindow(settings?.businessHours);
   const defaultDurationMinutes = settings?.defaultAppointmentDuration ?? 30;
   const canOverride = session?.user ? can(session.user, 'appointments.override_conflict') : false;
-  const customCalendar = resolveCustomCalendar(
-    calendarParam,
-    env.NEXT_PUBLIC_CUSTOM_CALENDAR === 'true',
-  );
 
   return (
     <section className="p-4 sm:p-6">
@@ -79,7 +66,6 @@ export async function CalendarPageContent({
         maxHour={maxHour}
         canOverride={canOverride}
         newAppointmentLabel={tAppointments('newAppointment')}
-        customCalendar={customCalendar}
       />
     </section>
   );

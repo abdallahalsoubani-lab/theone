@@ -23,9 +23,6 @@ export interface CalendarAppointment {
   startsAt: Date;
   durationMinutes: number;
   status: 'SCHEDULED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
-  /** Arrivals (Prompt 18): set when the patient has checked in → "arrived"
-   *  badge on the calendar card. Not a schema change — selected through. */
-  checkedInAt: Date | null;
   notes: string | null;
   seriesId: string | null;
 }
@@ -70,7 +67,6 @@ export async function listAppointmentsForCalendar(
     startsAt: r.startsAt,
     durationMinutes: r.durationMinutes,
     status: r.status,
-    checkedInAt: r.checkedInAt,
     notes: r.notes,
     seriesId: r.seriesId,
   }));
