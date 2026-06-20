@@ -419,46 +419,82 @@ describe('checkConflicts — therapist leave', () => {
 });
 
 describe('checkConflicts — business hours', () => {
-  it('detects appointment starting before open time', async () => {
+  // Clinic hours 09:00–18:00 are Asia/Amman (UTC+3) local wall-clock. The UTC
+  // literals below are chosen so the LOCAL time is the value under test
+  // (08:00 Amman = 05:00Z, etc.) — this is the regression guard for the tz bug.
+  it('detects appointment starting before open time (08:00 Amman)', async () => {
     const result = await checkConflicts({
       patientId: 'p1',
       therapistIds: ['t1'],
-      startsAt: new Date(`${MONDAY}T08:00:00Z`),
+      startsAt: new Date(`${MONDAY}T05:00:00Z`), // 08:00 Amman
       durationMinutes: 30,
     });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      const kinds = result.conflicts.map((c) => c.kind);
-      expect(kinds).toContain('OUTSIDE_BUSINESS_HOURS');
+      const outside = result.conflicts.find((c) => c.kind === 'OUTSIDE_BUSINESS_HOURS');
+      expect(outside).toBeDefined();
+      if (outside?.kind === 'OUTSIDE_BUSINESS_HOURS') {
+        expect(outside.reason).toBe('before_open');
+      }
     }
   });
 
-  it('detects appointment ending after close time', async () => {
+  it('detects appointment ending after close time (17:45→18:15 Amman)', async () => {
     const result = await checkConflicts({
       patientId: 'p1',
       therapistIds: ['t1'],
-      startsAt: new Date(`${MONDAY}T17:45:00Z`),
-      durationMinutes: 30, // ends 18:15, after 18:00 close
+      startsAt: new Date(`${MONDAY}T14:45:00Z`), // 17:45 Amman, ends 18:15
+      durationMinutes: 30,
     });
     expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const outside = result.conflicts.find((c) => c.kind === 'OUTSIDE_BUSINESS_HOURS');
+      expect(outside?.kind === 'OUTSIDE_BUSINESS_HOURS' && outside.reason).toBe(
+        'end_exceeds_close',
+      );
+    }
   });
 
-  it('allows appointment starting exactly at open time', async () => {
+  it('detects appointment starting at close time (18:00 Amman)', async () => {
     const result = await checkConflicts({
       patientId: 'p1',
       therapistIds: ['t1'],
-      startsAt: new Date(`${MONDAY}T09:00:00Z`),
+      startsAt: new Date(`${MONDAY}T15:00:00Z`), // 18:00 Amman — clinic closing
+      durationMinutes: 30,
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      const outside = result.conflicts.find((c) => c.kind === 'OUTSIDE_BUSINESS_HOURS');
+      expect(outside?.kind === 'OUTSIDE_BUSINESS_HOURS' && outside.reason).toBe('after_close');
+    }
+  });
+
+  it('allows appointment starting exactly at open time (09:00 Amman)', async () => {
+    const result = await checkConflicts({
+      patientId: 'p1',
+      therapistIds: ['t1'],
+      startsAt: new Date(`${MONDAY}T06:00:00Z`), // 09:00 Amman
       durationMinutes: 30,
     });
     expect(result.ok).toBe(true);
   });
 
-  it('allows appointment ending exactly at close time', async () => {
+  it('allows appointment ending exactly at close time (17:30→18:00 Amman)', async () => {
     const result = await checkConflicts({
       patientId: 'p1',
       therapistIds: ['t1'],
-      startsAt: new Date(`${MONDAY}T17:30:00Z`),
+      startsAt: new Date(`${MONDAY}T14:30:00Z`), // 17:30 Amman, ends exactly 18:00
       durationMinutes: 30,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('allows a recurring-style 11:15 Amman occurrence (false-positive regression)', async () => {
+    const result = await checkConflicts({
+      patientId: 'p1',
+      therapistIds: ['t1'],
+      startsAt: new Date(`${MONDAY}T08:15:00Z`), // 11:15 Amman
+      durationMinutes: 45,
     });
     expect(result.ok).toBe(true);
   });
@@ -505,7 +541,7 @@ describe('checkConflicts — aggregate behaviour', () => {
     const result = await checkConflicts({
       patientId: 'p1',
       therapistIds: ['t1'],
-      startsAt: new Date(`${MONDAY}T08:00:00Z`), // also outside hours
+      startsAt: new Date(`${MONDAY}T05:00:00Z`), // 08:00 Amman — also outside hours
       durationMinutes: 30,
     });
     expect(result.ok).toBe(false);
