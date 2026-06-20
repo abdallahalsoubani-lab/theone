@@ -48,6 +48,16 @@ export function PlanCard({ plan, viewerRole, editHref }: Props) {
   const isDoctor = viewerRole === 'DOCTOR' || viewerRole === 'ADMIN';
   const isAssignedTherapist = viewerRole === 'THERAPIST'; // narrower check happens server-side
 
+  // Whether THIS viewer has any lifecycle action on THIS plan. When false (a
+  // terminal/historical plan, or a read-only role) we show an explicit
+  // "Read-only" badge so the absence of edit/save is never ambiguous (Fix 6B
+  // item 5). Doctors retain full management of ACTIVE plans (Prompt 16).
+  const hasActions =
+    (plan.status === 'PROPOSED' && isDoctor && !!plan.doctorId) ||
+    (plan.status === 'ACTIVE' && isDoctor) ||
+    (plan.status === 'ACTIVE' && isAssignedTherapist && !!editHref);
+  const showReadOnly = !hasActions && viewerRole !== 'PATIENT';
+
   function onAction(
     fn: () => Promise<{ ok: boolean; error?: { message_en: string; message_ar: string } }>,
     success: string,
@@ -168,6 +178,7 @@ export function PlanCard({ plan, viewerRole, editHref }: Props) {
               <Link href={editHref}>{t('proposeChange')}</Link>
             </Button>
           ) : null}
+          {showReadOnly ? <Badge variant="muted">{t('readOnly')}</Badge> : null}
         </div>
       </header>
 

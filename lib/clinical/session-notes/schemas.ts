@@ -46,3 +46,20 @@ export const sessionNoteAddendumSchema = z.object({
 export type SessionNoteCreateInput = z.infer<typeof sessionNoteCreateSchema>;
 export type SessionNoteUpdateInput = z.infer<typeof sessionNoteUpdateSchema>;
 export type SessionNoteAddendumInput = z.infer<typeof sessionNoteAddendumSchema>;
+
+/**
+ * An addendum must carry real clinical content — at least one SOAP field or a
+ * measurement (Fix 6B item 3). painScore alone (which defaults to 0 in the
+ * form) does not count, otherwise an all-blank addendum saves silently.
+ */
+export function addendumHasClinicalContent(input: {
+  subjective?: string | null;
+  objective?: string | null;
+  assessment?: string | null;
+  plan?: string | null;
+  measurements?: string | null;
+}): boolean {
+  return [input.subjective, input.objective, input.assessment, input.plan, input.measurements].some(
+    (v) => (v ?? '').trim().length > 0,
+  );
+}

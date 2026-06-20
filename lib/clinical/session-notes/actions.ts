@@ -7,6 +7,7 @@ import type { LocalizedError } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac/guards';
 
 import {
+  addendumHasClinicalContent,
   sessionNoteAddendumSchema,
   sessionNoteCreateSchema,
   sessionNoteUpdateSchema,
@@ -82,6 +83,18 @@ export async function addSessionNoteAddendumAction(
         code: 'VALIDATION',
         message_en: parsed.error.issues[0]?.message ?? 'Invalid addendum input.',
         message_ar: 'بيانات الملاحظة التكميلية غير صالحة.',
+      },
+    };
+  }
+  // Reject an empty addendum (Fix 6B item 3) — at least one SOAP field or a
+  // measurement is required; painScore alone (defaults to 0) isn't content.
+  if (!addendumHasClinicalContent(parsed.data)) {
+    return {
+      ok: false,
+      error: {
+        code: 'SESSION_NOTE_ADDENDUM_EMPTY',
+        message_en: 'An addendum needs at least one SOAP field or a measurement.',
+        message_ar: 'يجب أن تحتوي الملاحظة التكميلية على حقل SOAP واحد على الأقل أو قياس.',
       },
     };
   }

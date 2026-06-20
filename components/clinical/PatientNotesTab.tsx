@@ -94,11 +94,15 @@ export async function PatientNotesTab({ notes, viewerRole, actorId, locale }: Pr
                     <div key={a.id} className="space-y-2 border-t border-brand-border pt-2">
                       <p className="text-xs text-brand-textMuted">
                         {aTherapist} · {a.createdAt.toLocaleString(localeTag)}
+                        {a.painScore != null ? ` · ${t('painScore')} ${a.painScore}/10` : ''}
                       </p>
                       <Soap label={t('subjective')} value={a.subjective} />
                       <Soap label={t('objective')} value={a.objective} />
                       <Soap label={t('assessment')} value={a.assessment} />
                       <Soap label={t('planField')} value={a.plan} />
+                      {a.measurementsText ? (
+                        <Soap label={t('measurements')} value={a.measurementsText} />
+                      ) : null}
                     </div>
                   );
                 })}

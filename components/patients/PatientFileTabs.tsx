@@ -63,7 +63,10 @@ export function PatientFileTabs({
 
   return (
     <Tabs defaultValue={defaultTab}>
-      <TabsList className="flex w-full flex-wrap justify-start gap-1">
+      {/* h-auto overrides the base TabsList's fixed h-10 so the ~10 tabs wrap
+          onto multiple rows cleanly instead of overlapping inside 40px (Fix 6B
+          item 1). flex-wrap + gap keep rows readable in both LTR and RTL. */}
+      <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
         <TabsTrigger value="profile">
           <User className="me-2 size-4" />
           {t('tabProfile')}
