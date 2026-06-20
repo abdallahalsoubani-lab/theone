@@ -1,7 +1,6 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
-import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
@@ -9,6 +8,10 @@ import { MediaUploader } from '@/components/exercises/MediaUploader';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+// Locale-aware router: push('/clinical/exercises/<id>') resolves to
+// /<locale>/clinical/... Using next/navigation's router pushed a non-prefixed
+// path that didn't navigate (the "stuck on details, must refresh" bug).
+import { useRouter } from '@/i18n/navigation';
 import { createExerciseAction, updateExerciseAction } from '@/lib/exercises/actions';
 import type { ExerciseRow } from '@/lib/exercises/queries';
 import { ANATOMICAL_REGIONS, EXERCISE_CATEGORIES } from '@/lib/exercises/taxonomy';

@@ -2,7 +2,7 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
@@ -40,6 +40,24 @@ export function ExercisesTable({ rows, total, page, pageSize, showArchived, canA
   const router = useRouter();
   const sp = useSearchParams();
   const [pending, startTransition] = useTransition();
+
+  // Live, debounced search. Controlled input (fixes the old uncontrolled
+  // defaultValue + onBlur-only field that never filtered while typing and
+  // mishandled keyboard deletes). The effect pushes `q` to the URL ~300ms
+  // after the last keystroke; the server re-renders the filtered list.
+  const [query, setQuery] = useState(sp.get('q') ?? '');
+  useEffect(() => {
+    const current = sp.get('q') ?? '';
+    if (query === current) return; // already in sync (incl. post-navigation)
+    const handle = setTimeout(() => {
+      const params = new URLSearchParams(sp.toString());
+      if (query) params.set('q', query);
+      else params.delete('q');
+      params.delete('page');
+      router.replace(`?${params.toString()}`);
+    }, 300);
+    return () => clearTimeout(handle);
+  }, [query, sp, router]);
 
   function setParam(name: string, value: string) {
     const params = new URLSearchParams(sp.toString());
@@ -114,9 +132,9 @@ export function ExercisesTable({ rows, total, page, pageSize, showArchived, canA
         <label className="flex flex-1 flex-col gap-1 text-xs text-brand-textMuted">
           {t('search')}
           <Input
-            defaultValue={sp.get('q') ?? ''}
+            value={query}
             placeholder={t('searchPlaceholder')}
-            onBlur={(e) => setParam('q', e.target.value)}
+            onChange={(e) => setQuery(e.target.value)}
           />
         </label>
         <label className="flex flex-col gap-1 text-xs text-brand-textMuted">

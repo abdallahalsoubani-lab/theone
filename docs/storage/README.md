@@ -5,6 +5,34 @@ development uses MinIO inside `docker-compose`; production swaps to AWS
 S3 (or any other S3-compatible service — Cloudflare R2, Backblaze B2, …)
 with zero application-code changes.
 
+## Upload/read transport — same-origin proxy (Fix Prompt 4)
+
+> **Deviation from the "direct browser→S3 / never proxy uploads" guideline,
+> with sign-off.** On the single-VM deployment MinIO is bound to
+> `127.0.0.1:9000` and there is no public, TLS-terminated, CORS-enabled S3
+> endpoint the browser can reach (a presigned `http://localhost:9000/...` URL
+> is unreachable from the user's browser and mixed-content-blocked on HTTPS).
+> So uploads **and** exercise-media reads stream through a same-origin Next
+> route, `app/api/v1/storage/[...key]`:
+>
+> - **Upload (PUT):** authorized by a short-lived signed capability token
+>   (`lib/storage/uploadToken.ts`, HS256/`AUTH_SECRET`) issued only after the
+>   `can()` check in `createUploadUrl` / `createPendingDocument`. The token is
+>   scoped to one object key + content-type + size — the same capability model
+>   as a presigned URL. The route validates and streams the bytes to MinIO via
+>   the server-side s3 client.
+> - **Read (GET):** session-gated, **exercise media only** (keys under
+>   `exercises/`). Patient documents are PII and keep their existing
+>   permission-scoped download route (`/api/v1/documents/[id]`).
+>
+> **nginx requirement:** the reverse proxy must allow the upload body size —
+> set `client_max_body_size 55m;` (≥ the 50 MB video ceiling) on the
+> `theonephysio.com` server block, otherwise large PUTs fail with nginx 413.
+>
+> This is reversible: when a browser-reachable S3/MinIO endpoint with TLS+CORS
+> exists, revert `buildPublicUrl`/`proxyUploadUrl` + the two presign helpers to
+> issue real presigned URLs and drop the proxy route.
+
 ## Local (MinIO)
 
 `pnpm infra:up` starts MinIO and runs `scripts/init-minio.sh` which:

@@ -1,29 +1,25 @@
 'use server';
 
-import { PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-
 import { auth } from '@/auth';
 import type { Result } from '@/lib/auth/result';
 import type { LocalizedError } from '@/lib/db';
-import { env } from '@/lib/env';
 import { requirePermission } from '@/lib/rbac/guards';
-import { STORAGE_BUCKET, s3 } from '@/lib/storage/client';
-import { buildObjectKey, validateUploadInput, type UploadKind } from '@/lib/storage/policies';
+import {
+  buildObjectKey,
+  getUploadPolicy,
+  validateUploadInput,
+  type UploadKind,
+} from '@/lib/storage/policies';
+import { signUploadToken, UPLOAD_TTL_SECONDS } from '@/lib/storage/uploadToken';
+import { buildPublicUrl, proxyUploadUrl } from '@/lib/storage/urls';
 
 /**
- * Generate a presigned PUT URL for a direct browser-to-S3 upload
- * (Prompt 10 §4.2.2). The presign signs the URL plus the
- * Content-Type and Content-Length headers so MinIO/S3 rejects any
- * mismatch with a 403 at PUT time. The browser then PUTs the file
- * with those exact headers via <MediaUploader>.
- *
- * URL expires in 15 minutes — long enough for a slow connection on
- * a 50 MB video, short enough that a leaked URL stops being useful
- * fast.
+ * Issue an upload capability for a single object (Prompt 10 §4.2.2; reworked to
+ * the proxy-upload path in Fix Prompt 4). Validates kind/type/size, runs the
+ * can() check, builds the object key, and returns a same-origin PUT URL carrying
+ * a short-lived signed token. The browser PUTs the file to that URL via
+ * <MediaUploader>; the proxy route streams it to MinIO. Token TTL is 15 min.
  */
-
-const SIGN_TTL_SECONDS = 15 * 60;
 
 interface CreateUploadUrlInput {
   kind: UploadKind;
@@ -81,36 +77,23 @@ export async function createUploadUrl(
     contentType: input.contentType,
   });
 
-  const command = new PutObjectCommand({
-    Bucket: STORAGE_BUCKET,
-    Key: key,
-    ContentType: input.contentType,
-    ContentLength: input.sizeBytes,
-  });
-
-  // signableHeaders ensures the browser must send the same Content-Type
-  // (and ContentLength via the SDK) for the signature to match.
-  const uploadUrl = await getSignedUrl(s3, command, {
-    expiresIn: SIGN_TTL_SECONDS,
-    signableHeaders: new Set(['content-type', 'content-length']),
+  // Proxy-upload path (Fix Prompt 4): instead of an S3 presigned URL (MinIO is
+  // not browser-reachable on the VM), issue a signed capability token scoped to
+  // this key + content-type + size, and point the browser at the same-origin
+  // proxy route. The can() check above already gated this.
+  const token = await signUploadToken({
+    key,
+    contentType: input.contentType,
+    maxBytes: getUploadPolicy(input.kind).maxSizeBytes,
   });
 
   return {
     ok: true,
     data: {
-      uploadUrl,
+      uploadUrl: proxyUploadUrl(key, token),
       key,
       publicUrl: buildPublicUrl(key),
-      expiresInSeconds: SIGN_TTL_SECONDS,
+      expiresInSeconds: UPLOAD_TTL_SECONDS,
     },
   };
-}
-
-// Module-local — 'use server' files can only export async functions, so
-// buildPublicUrl and the policy re-exports live in '@/lib/storage/urls'.
-function buildPublicUrl(key: string): string {
-  const base =
-    process.env.S3_PUBLIC_BASE_URL ??
-    `${(env.S3_ENDPOINT ?? 'http://localhost:9000').replace(/\/$/, '')}/${STORAGE_BUCKET}`;
-  return `${base}/${key}`;
 }

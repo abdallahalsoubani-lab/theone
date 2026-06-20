@@ -1,26 +1,29 @@
-import { DeleteObjectCommand, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { DeleteObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 
 import { STORAGE_BUCKET, s3 } from '@/lib/storage/client';
+import { signUploadToken, UPLOAD_TTL_SECONDS } from '@/lib/storage/uploadToken';
+import { proxyUploadUrl } from '@/lib/storage/urls';
 
-const SIGN_TTL_SECONDS = 15 * 60;
+const SIGN_TTL_SECONDS = UPLOAD_TTL_SECONDS;
 
-/** Presigned PUT URL for a direct browser→S3 upload (no proxy; Prompt 22 §3). */
+/**
+ * Upload URL for a patient document (Prompt 22 §3; reworked to the proxy-upload
+ * path in Fix Prompt 4 — MinIO isn't browser-reachable on the VM). Returns a
+ * same-origin PUT URL carrying a signed capability token scoped to this key +
+ * content-type + size; the proxy route streams the bytes to MinIO. The PENDING
+ * row + finalize sniff (server-side) are unchanged.
+ */
 export async function presignDocumentPut(args: {
   key: string;
   contentType: string;
   sizeBytes: number;
 }): Promise<string> {
-  const command = new PutObjectCommand({
-    Bucket: STORAGE_BUCKET,
-    Key: args.key,
-    ContentType: args.contentType,
-    ContentLength: args.sizeBytes,
+  const token = await signUploadToken({
+    key: args.key,
+    contentType: args.contentType,
+    maxBytes: args.sizeBytes,
   });
-  return getSignedUrl(s3, command, {
-    expiresIn: SIGN_TTL_SECONDS,
-    signableHeaders: new Set(['content-type', 'content-length']),
-  });
+  return proxyUploadUrl(args.key, token);
 }
 
 /** Read the first `n` bytes of the stored object for the magic-byte sniff. */

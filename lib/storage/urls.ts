@@ -1,22 +1,25 @@
-import { env } from '@/lib/env';
-
-import { STORAGE_BUCKET } from './client';
-
 /**
- * Public URL for an object — used in `<img src>` / `<video src>` once
- * the upload finishes. Local dev hits MinIO directly; production swaps
- * S3_PUBLIC_BASE_URL to the CDN (CloudFront / Cloudflare). When the
- * env var is unset we fall back to the endpoint + bucket so the URL
- * still resolves in dev.
+ * Storage URLs (Fix Prompt 4 — proxy-upload path).
  *
- * Lives in its own module because `createUploadUrl.ts` carries
- * 'use server' — that pragma forbids non-async exports.
+ * Both reads and uploads go through the same-origin Next route
+ * `/api/v1/storage/<key>` rather than directly to MinIO: on the single-VM
+ * topology MinIO is localhost-only, so a direct `http://localhost:9000/...`
+ * URL is unreachable from the browser (and mixed-content-blocked on HTTPS).
+ * The relative path resolves through nginx → Next → MinIO.
+ *
+ * Lives in its own module because `createUploadUrl.ts` carries 'use server' —
+ * that pragma forbids non-async exports.
  */
+const STORAGE_ROUTE = '/api/v1/storage';
+
+/** GET URL stored on the row and used in `<img src>` / `<video src>`. */
 export function buildPublicUrl(key: string): string {
-  const base =
-    process.env.S3_PUBLIC_BASE_URL ??
-    `${(env.S3_ENDPOINT ?? 'http://localhost:9000').replace(/\/$/, '')}/${STORAGE_BUCKET}`;
-  return `${base}/${key}`;
+  return `${STORAGE_ROUTE}/${key}`;
+}
+
+/** PUT URL the browser uploads to, carrying the short-lived capability token. */
+export function proxyUploadUrl(key: string, token: string): string {
+  return `${STORAGE_ROUTE}/${key}?t=${encodeURIComponent(token)}`;
 }
 
 // Re-export the policy helpers for client components that need the size /
