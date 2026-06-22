@@ -104,7 +104,10 @@ describe('MetaWhatsAppProvider.sendTemplate', () => {
       type: 'template',
       template: {
         name: 'appointment_reminder_30min',
-        language: { code: 'en' },
+        // EN requests are temporarily routed to the approved `ar` translation
+        // (Meta has no approved `en` translation — error #132001). See the
+        // fallback note in providers/meta.ts → languageCode().
+        language: { code: 'ar' },
         components: [
           {
             type: 'body',

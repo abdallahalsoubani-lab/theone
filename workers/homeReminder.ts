@@ -73,7 +73,10 @@ export function startHomeReminderWorker(): Worker {
 
       const language = item.patient.languagePref;
       const exerciseName = language === 'AR' ? item.exercise.nameAr : item.exercise.nameEn;
-      const therapistNote = item.therapistNote ?? '';
+      // Meta rejects an empty body parameter with #131008 "Required parameter
+      // is missing", so {{2}} must never be blank. When the therapist left no
+      // note, send a localized fallback instead of an empty/whitespace string.
+      const therapistNote = item.therapistNote?.trim() || 'لا توجد ملاحظة إضافية';
       const portalLink = `${(env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '')}/${language === 'AR' ? 'ar' : 'en'}/patient/home-program`;
 
       // The seeded `home_exercise_reminder_v2` template takes three params:

@@ -152,7 +152,15 @@ function normalizeMetaPhone(raw: string): string {
 }
 
 function languageCode(language: 'EN' | 'AR'): string {
-  return language === 'AR' ? 'ar' : 'en';
+  // Normal per-language mapping.
+  const approved = language === 'AR' ? 'ar' : 'en';
+  // TEMPORARY FALLBACK (2026-06-22 WhatsApp incident): Meta currently has only
+  // the Arabic template translations approved. Sending the `en` code fails with
+  // error #132001 "Template language does not exist", so every English send
+  // bounces. Until the English translations are approved in Meta, route EN
+  // sends to the approved `ar` translation as well. To restore per-language
+  // codes once EN is live, delete the next line and `return approved`.
+  return approved === 'en' ? 'ar' : approved;
 }
 
 export class MetaWhatsAppProvider implements WhatsAppProvider {
