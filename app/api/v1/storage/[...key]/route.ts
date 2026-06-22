@@ -31,8 +31,11 @@ export async function PUT(
     return NextResponse.json({ error: 'Invalid or expired upload token.' }, { status: 403 });
   }
 
-  const contentType = req.headers.get('content-type') ?? '';
-  if (contentType !== claims.contentType) {
+  // Compare the base media type only — some browsers/proxies append parameters
+  // (e.g. "video/mp4; charset=binary") or vary case, which must not fail an
+  // otherwise-valid upload (QA retest #5).
+  const baseType = (req.headers.get('content-type') ?? '').split(';')[0]!.trim().toLowerCase();
+  if (baseType !== claims.contentType.toLowerCase()) {
     return NextResponse.json({ error: 'Content-Type does not match the grant.' }, { status: 400 });
   }
 
@@ -44,15 +47,28 @@ export async function PUT(
     return NextResponse.json({ error: 'File exceeds the allowed size.' }, { status: 413 });
   }
 
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: STORAGE_BUCKET,
-      Key: key,
-      Body: body,
-      ContentType: contentType,
-      ContentLength: body.byteLength,
-    }),
-  );
+  // Surface storage failures clearly instead of an opaque 500 — a misconfigured
+  // bucket/endpoint is otherwise indistinguishable from a code bug (QA retest #5).
+  try {
+    await s3.send(
+      new PutObjectCommand({
+        Bucket: STORAGE_BUCKET,
+        Key: key,
+        Body: body,
+        ContentType: claims.contentType,
+        ContentLength: body.byteLength,
+      }),
+    );
+  } catch (err) {
+    console.error('[storage] upload to object store failed', {
+      key,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return NextResponse.json(
+      { error: 'Storage backend rejected the upload. Check object-store configuration.' },
+      { status: 502 },
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }

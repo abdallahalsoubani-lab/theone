@@ -145,6 +145,20 @@ export function parseFailureReasonCode(
   return (all as ReadonlyArray<string>).includes(code) ? (code as WhatsAppErrorCode) : null;
 }
 
+/**
+ * Extract a leading Meta numeric error code from a stored failureReason like
+ * "[131042] Business eligibility payment issue". Delivery-status webhooks write
+ * this shape (see lib/whatsapp/inbound/process.ts), which `parseFailureReasonCode`
+ * (which expects a leading WhatsAppErrorCode word) does not recognise. The Admin
+ * WhatsApp log uses this to show a friendly explanation for known Meta codes —
+ * notably 131042 (business/payment eligibility). QA retest #9.
+ */
+export function parseMetaErrorCode(reason: string | null | undefined): number | null {
+  if (!reason) return null;
+  const m = reason.match(/^\[(\d{4,6})\]/);
+  return m ? Number(m[1]) : null;
+}
+
 function stripSecrets(message: string): string {
   return message
     .replace(/(Bearer\s+)[\w.-]+/gi, '$1<redacted>')

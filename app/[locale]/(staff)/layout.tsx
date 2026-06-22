@@ -102,11 +102,9 @@ export default async function StaffLayout({
         href: '/doctor/calendar',
         icon: <Calendar className="size-4" />,
       },
-      {
-        label: tNav('waitlist'),
-        href: '/secretary/waitlist',
-        icon: <ListChecks className="size-4" />,
-      },
+      // Waitlist removed from the Doctor sidebar (QA retest #1): it linked to
+      // the Secretary-only /secretary/waitlist route, so it never navigated for
+      // a Doctor. There is no Doctor-scoped waitlist view in v1.
       {
         label: tNav('cancelled'),
         href: '/doctor/appointments/cancelled',

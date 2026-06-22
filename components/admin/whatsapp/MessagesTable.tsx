@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { resendMessageAction } from '@/lib/admin/whatsapp/actions';
 import type { MessageListRow } from '@/lib/admin/whatsapp/queries';
-import { parseFailureReasonCode } from '@/lib/whatsapp/errors';
+import { parseFailureReasonCode, parseMetaErrorCode } from '@/lib/whatsapp/errors';
 
 interface Props {
   rows: MessageListRow[];
@@ -185,18 +185,38 @@ export function MessagesTable({ rows, initialFilters }: Props) {
  * back to the raw string otherwise — admins can still read the original
  * for codes we haven't translated yet.
  */
+// Known Meta delivery error codes we surface a friendly explanation for
+// (QA retest #9). 131042 is the business/payment eligibility block that stops
+// delivery despite a wamid. Unknown codes fall through to the raw string.
+const META_ERROR_KEYS: Record<number, string> = {
+  131042: 'metaError.131042',
+  131026: 'metaError.131026',
+  131047: 'metaError.131047',
+  131000: 'metaError.131000',
+  132001: 'metaError.132001',
+  131008: 'metaError.131008',
+};
+
 function FailureReason({ reason }: { reason: string | null }) {
   const t = useTranslations('admin.whatsapp');
   if (!reason) return null;
   const code = parseFailureReasonCode(reason);
-  if (!code) {
-    return <div className="mt-1 text-xs text-brand-textMuted">{reason}</div>;
+  if (code) {
+    return <div className="mt-1 text-xs text-brand-text">{t(`failureReason.${code}`)}</div>;
   }
-  return (
-    <div className="mt-1 space-y-0.5 text-xs">
-      <div className="text-brand-text">{t(`failureReason.${code}`)}</div>
-    </div>
-  );
+  // Meta numeric delivery codes (e.g. "[131042] …") aren't WhatsAppErrorCodes —
+  // map the known ones to a friendly message, keeping the raw text underneath.
+  const metaCode = parseMetaErrorCode(reason);
+  const metaKey = metaCode != null ? META_ERROR_KEYS[metaCode] : undefined;
+  if (metaKey) {
+    return (
+      <div className="mt-1 space-y-0.5 text-xs">
+        <div className="text-brand-text">{t(metaKey)}</div>
+        <div className="text-brand-textMuted">{reason}</div>
+      </div>
+    );
+  }
+  return <div className="mt-1 text-xs text-brand-textMuted">{reason}</div>;
 }
 
 function StatusBadge({ status }: { status: string }) {

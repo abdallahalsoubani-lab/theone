@@ -63,10 +63,13 @@ export function PatientFileTabs({
 
   return (
     <Tabs defaultValue={defaultTab}>
-      {/* h-auto overrides the base TabsList's fixed h-10 so the ~10 tabs wrap
-          onto multiple rows cleanly instead of overlapping inside 40px (Fix 6B
-          item 1). flex-wrap + gap keep rows readable in both LTR and RTL. */}
-      <TabsList className="flex h-auto w-full flex-wrap justify-start gap-1">
+      {/* `!flex` forces display:flex to win over the base TabsList's
+          `inline-flex` (later in the stylesheet, so it otherwise wins and makes
+          w-full/flex-wrap inert — the ~10 tabs then overflow/overlap inside the
+          40px inline row). With real flex + wrap the tabs flow onto multiple
+          rows; h-auto drops the fixed h-10. Readable in both LTR and RTL
+          (justify-start is logical). QA retest #10. */}
+      <TabsList className="!flex h-auto w-full flex-wrap justify-start gap-1">
         <TabsTrigger value="profile">
           <User className="me-2 size-4" />
           {t('tabProfile')}

@@ -75,6 +75,20 @@ export type Conflict =
 
 export type ConflictResult = { ok: true } | { ok: false; conflicts: Conflict[] };
 
+/**
+ * Hard-blocked conflicts can NEVER be overridden or waitlisted (QA retest #15):
+ * booking the same patient into two overlapping slots is always invalid, so
+ * "Add anyway" / "Add to waiting list" must be hidden in the UI and rejected
+ * server-side even when the actor holds appointments.override_conflict.
+ */
+export function isHardBlockedConflict(c: Conflict): boolean {
+  return c.kind === 'PATIENT_OVERLAP';
+}
+
+export function hasHardBlockedConflict(conflicts: Conflict[]): boolean {
+  return conflicts.some(isHardBlockedConflict);
+}
+
 interface ClinicHoursPayload {
   hours: Record<DayKey, DayHours> | null;
   timeZone: string;

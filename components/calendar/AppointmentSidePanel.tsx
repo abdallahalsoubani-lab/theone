@@ -126,6 +126,13 @@ export function AppointmentSidePanel({
     sessionStartGraceMinutes,
   );
   const canComplete = status === AppointmentStatus.IN_PROGRESS;
+  // QA retest #14 — a session is NEVER auto-completed when its scheduled end
+  // passes. Instead, while it stays IN_PROGRESS past the scheduled end we surface
+  // an "Overdue" badge (+ elapsed overtime) and keep End Session available.
+  const endsAtMs = appointment.startsAt.getTime() + appointment.durationMinutes * 60_000;
+  const overdueMinutes =
+    status === AppointmentStatus.IN_PROGRESS ? Math.floor((Date.now() - endsAtMs) / 60_000) : 0;
+  const isOverdue = overdueMinutes > 0;
   const canCancel =
     status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED;
   const canNoShow =
@@ -161,7 +168,14 @@ export function AppointmentSidePanel({
             <span className="text-xs uppercase tracking-wide text-brand-textMuted">
               {tSide('appointmentDetails')}
             </span>
-            <Badge variant="cyan">{tStatus(statusLabelKey(status))}</Badge>
+            <div className="flex items-center gap-1.5">
+              <Badge variant="cyan">{tStatus(statusLabelKey(status))}</Badge>
+              {isOverdue ? (
+                <Badge variant="destructive">
+                  {tStatus('overdue', { minutes: overdueMinutes })}
+                </Badge>
+              ) : null}
+            </div>
           </div>
           <p className="font-medium text-brand-navy">
             {formatDate(appointment.startsAt, intlLocale)} ·{' '}

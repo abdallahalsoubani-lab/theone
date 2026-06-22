@@ -191,7 +191,7 @@ const baseCreate = {
   therapistIds: ['therapist-1'],
   startsAt: new Date('2026-07-01T10:00:00Z'),
   durationMinutes: 30,
-  roomId: null,
+  roomId: 'room-1',
   notes: null,
   overrideConflicts: false,
 } as Parameters<typeof createAppointment>[0];

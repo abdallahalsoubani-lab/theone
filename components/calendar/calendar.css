@@ -19,7 +19,11 @@
   background-color: var(--brand-surface);
   border: 1px solid var(--brand-border);
   border-radius: 0.75rem;
-  overflow: hidden;
+  /* `auto` (not `hidden`): the week / resource views can be wider and taller
+     than the fixed-height container (each therapist lane has a min-width), so
+     hidden clipped the right-hand lanes and lower hours. Auto lets them scroll
+     instead of being cut off — readable in both LTR and RTL. QA retest #4. */
+  overflow: auto;
   box-shadow: var(--shadow-sm);
 }
 

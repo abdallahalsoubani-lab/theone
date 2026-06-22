@@ -81,7 +81,9 @@ export function ExerciseForm({ initial }: Props) {
         return;
       }
       toast.success(t(initial ? 'updatedToast' : 'createdToast'));
-      router.push(`/clinical/exercises/${r.data.exerciseId}`);
+      // After CREATE, return to the library list — a guaranteed-usable landing
+      // state (QA retest #2). After EDIT, go to the (existing) detail page.
+      router.push(initial ? `/clinical/exercises/${r.data.exerciseId}` : '/clinical/exercises');
       router.refresh();
     });
   }

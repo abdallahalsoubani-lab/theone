@@ -93,6 +93,7 @@ describe('seriesPreviewSchema', () => {
       seriesPreviewSchema.safeParse({
         patientId: validId,
         therapistIds: [validId],
+        roomId: validId,
         startsAt: new Date(),
         durationMinutes: 30,
         rule: {
@@ -111,6 +112,7 @@ describe('seriesCreateSchema', () => {
     const r = seriesCreateSchema.safeParse({
       patientId: validId,
       therapistIds: [validId],
+      roomId: validId,
       startsAt: new Date(),
       durationMinutes: 30,
       rule: { frequency: 'WEEKLY', interval: 1, byWeekday: ['SUN'], count: 4 },
@@ -123,6 +125,7 @@ describe('seriesCreateSchema', () => {
     const r = seriesCreateSchema.safeParse({
       patientId: validId,
       therapistIds: [validId],
+      roomId: validId,
       startsAt: new Date(),
       durationMinutes: 30,
       rule: { frequency: 'WEEKLY', interval: 1, byWeekday: ['SUN'], count: 4 },
@@ -139,6 +142,7 @@ describe('seriesCreateSchema', () => {
     const r = seriesCreateSchema.safeParse({
       patientId: validId,
       therapistIds: [validId],
+      roomId: validId,
       startsAt: new Date(),
       durationMinutes: 30,
       rule: { frequency: 'WEEKLY', interval: 1, byWeekday: ['SUN'], count: 2 },

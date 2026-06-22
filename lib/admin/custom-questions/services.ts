@@ -1,4 +1,4 @@
-import { AuditAction } from '@prisma/client';
+import { AuditAction, Prisma } from '@prisma/client';
 
 import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
@@ -73,7 +73,14 @@ export const createCustomQuestion = withAudit<[CustomQuestionCreateInput], { id:
         required: input.required,
         active: input.active,
         displayOrder: nextOrder,
-        options: isSelectType(input.type) ? input.options : undefined,
+        // SINGLE_SELECT / MULTI_SELECT persist their options; everything else
+        // stores SQL NULL. Cast + Prisma.JsonNull mirror the proven pediatric
+        // custom-field path so select options serialize to JSONB reliably
+        // (QA retest #3). Passing a bare typed array here is what previously
+        // failed for select types.
+        options: isSelectType(input.type)
+          ? (input.options as unknown as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
         createdById: session.user.id,
       },
     });
@@ -133,7 +140,14 @@ export const updateCustomQuestion = withAudit<[CustomQuestionUpdateInput], { id:
         appliesTo: input.appliesTo,
         required: input.required,
         active: input.active,
-        options: isSelectType(input.type) ? input.options : undefined,
+        // SINGLE_SELECT / MULTI_SELECT persist their options; everything else
+        // stores SQL NULL. Cast + Prisma.JsonNull mirror the proven pediatric
+        // custom-field path so select options serialize to JSONB reliably
+        // (QA retest #3). Passing a bare typed array here is what previously
+        // failed for select types.
+        options: isSelectType(input.type)
+          ? (input.options as unknown as Prisma.InputJsonValue)
+          : Prisma.JsonNull,
       },
     });
     return { id: input.id };

@@ -11,7 +11,12 @@ import {
 } from '@/lib/queue/jobs/appointmentReminder';
 import { notifyWaitlistForFreedSlot } from '@/lib/waitlist/services';
 
-import { checkConflicts, type Conflict, type ConflictResult } from './conflicts';
+import {
+  checkConflicts,
+  hasHardBlockedConflict,
+  type Conflict,
+  type ConflictResult,
+} from './conflicts';
 import { expandRecurrence, MAX_SERIES_OCCURRENCES, type PlannedOccurrence } from './recurrence';
 import { parseHhMm, type ReminderConfig } from './reminderWindow';
 import { getSessionGraceConfig } from './session-settings';
@@ -43,6 +48,15 @@ const conflictError = (conflicts: Conflict[]): LocalizedError => ({
   code: 'APPOINTMENT_CONFLICT',
   message_en: `${conflicts.length} conflict(s) detected.`,
   message_ar: `تم اكتشاف ${conflicts.length} تعارض(ات).`,
+  details: { conflicts: conflicts as unknown as Record<string, unknown> },
+});
+
+// QA retest #15 — a same-patient overlap is a hard block: it cannot be
+// overridden or waitlisted. Thrown even when overrideConflicts is set.
+const hardBlockedError = (conflicts: Conflict[]): LocalizedError => ({
+  code: 'APPOINTMENT_SAME_PATIENT_OVERLAP',
+  message_en: 'This patient already has an appointment at this time. Pick another slot.',
+  message_ar: 'لدى هذا المريض موعد آخر في نفس الوقت. الرجاء اختيار وقت آخر.',
   details: { conflicts: conflicts as unknown as Record<string, unknown> },
 });
 
@@ -150,8 +164,15 @@ export const createAppointment = withAudit<
       durationMinutes: input.durationMinutes,
     });
 
-    if (!conflicts.ok && !input.overrideConflicts) {
-      throw new AppointmentError(conflictError(conflicts.conflicts));
+    if (!conflicts.ok) {
+      // Same-patient overlap is never overridable (QA retest #15) — reject even
+      // when the actor passed overrideConflicts + holds the override permission.
+      if (hasHardBlockedConflict(conflicts.conflicts)) {
+        throw new AppointmentError(hardBlockedError(conflicts.conflicts));
+      }
+      if (!input.overrideConflicts) {
+        throw new AppointmentError(conflictError(conflicts.conflicts));
+      }
     }
 
     const therapistIds = [...new Set(input.therapistIds)];

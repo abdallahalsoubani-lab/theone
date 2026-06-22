@@ -133,7 +133,15 @@ export const ResponsiveModalFooter = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2', className)}
+    className={cn(
+      // Sticky to the bottom of the scrollable modal body so the action buttons
+      // stay reachable on tall forms (e.g. the recurring-series builder) without
+      // scrolling to the very end — QA retest #6. The background + top border
+      // keep scrolled content from showing through.
+      'sticky bottom-0 -mx-4 mt-1 border-t border-brand-border/50 bg-background px-4 pt-3 sm:-mx-6 sm:px-6',
+      'flex flex-col-reverse sm:flex-row sm:justify-end sm:gap-2',
+      className,
+    )}
     {...props}
   />
 );

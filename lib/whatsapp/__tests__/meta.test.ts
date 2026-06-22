@@ -170,6 +170,50 @@ describe('MetaWhatsAppProvider.sendTemplate', () => {
     ).rejects.toBeInstanceOf(TemplateNotConfiguredError);
   });
 
+  it('refuses an inactive template (QA retest #8)', async () => {
+    setTemplate({
+      id: 't1',
+      name: 'appointment_reminder_30min',
+      language: LanguagePref.EN,
+      active: false,
+      metaTemplateName: 'appointment_reminder_30min',
+      metaApprovalStatus: 'APPROVED',
+    });
+    const provider = new MetaWhatsAppProvider({
+      fetchImpl: fakeFetch({ ok: true, status: 200, json: { messages: [{ id: 'x' }] } }),
+    });
+    await expect(
+      provider.sendTemplate({
+        name: 'appointment_reminder_30min',
+        language: LanguagePref.EN,
+        recipientPhone: '+962790000000',
+        parameters: [],
+      }),
+    ).rejects.toBeInstanceOf(TemplateNotConfiguredError);
+  });
+
+  it('refuses a REJECTED template (QA retest #8)', async () => {
+    setTemplate({
+      id: 't1',
+      name: 'appointment_reminder_30min',
+      language: LanguagePref.EN,
+      active: true,
+      metaTemplateName: 'appointment_reminder_30min',
+      metaApprovalStatus: 'REJECTED',
+    });
+    const provider = new MetaWhatsAppProvider({
+      fetchImpl: fakeFetch({ ok: true, status: 200, json: { messages: [{ id: 'x' }] } }),
+    });
+    await expect(
+      provider.sendTemplate({
+        name: 'appointment_reminder_30min',
+        language: LanguagePref.EN,
+        recipientPhone: '+962790000000',
+        parameters: [],
+      }),
+    ).rejects.toBeInstanceOf(TemplateNotConfiguredError);
+  });
+
   it('refuses when metaTemplateName is missing', async () => {
     setTemplate({
       id: 't1',

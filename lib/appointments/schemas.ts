@@ -7,7 +7,10 @@ const therapistIdsSchema = z.array(z.string().min(1)).min(1).max(10);
 export const appointmentCreateSchema = z.object({
   patientId: z.string().min(1),
   therapistIds: therapistIdsSchema,
-  roomId: z.string().min(1).optional().nullable(),
+  // Room is required for every booking (QA retest #7/#13). Enforced here so a
+  // direct server-action/API call can't bypass the UI. Reschedule keeps it
+  // optional (omitted → preserve the existing room on a drag-move).
+  roomId: z.string().min(1),
   startsAt: z.coerce.date(),
   durationMinutes: z
     .number()
@@ -151,7 +154,8 @@ export const seriesOccurrenceInputSchema = z.object({
 export const seriesPreviewSchema = z.object({
   patientId: z.string().min(1),
   therapistIds: therapistIdsSchema,
-  roomId: z.string().min(1).optional().nullable(),
+  // Room required for recurring create too (QA retest #7/#13).
+  roomId: z.string().min(1),
   startsAt: z.coerce.date(),
   durationMinutes: z
     .number()

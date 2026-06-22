@@ -17,7 +17,7 @@ import {
   ResponsiveModalTitle,
 } from '@/components/ui/responsive-modal';
 import { createAppointmentAction, previewConflictsAction } from '@/lib/appointments/actions';
-import type { ConflictResult } from '@/lib/appointments/conflicts';
+import { hasHardBlockedConflict, type ConflictResult } from '@/lib/appointments/conflicts';
 import { addWaitlistEntryAction, fulfillWaitlistEntryAction } from '@/lib/waitlist/actions';
 
 import { CreateSeriesModal } from './CreateSeriesModal';
@@ -137,7 +137,13 @@ export function CreateAppointmentModal({
   }, [patientId, therapistKey, startsAt, duration]);
 
   const hasConflicts = conflicts && !conflicts.ok;
-  const canSubmit = patientId && therapistIds.length > 0 && startsAt;
+  // QA retest #15 — same-patient overlap is a hard block: no override, no
+  // waitlist. The server enforces this too; the UI just hides the bypass paths.
+  const hardBlocked = Boolean(
+    conflicts && !conflicts.ok && hasHardBlockedConflict(conflicts.conflicts),
+  );
+  // Room is required (QA retest #7/#13).
+  const canSubmit = Boolean(patientId && therapistIds.length > 0 && startsAt && roomId);
 
   const toggleTherapist = (id: string) =>
     setTherapistIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -147,7 +153,7 @@ export function CreateAppointmentModal({
       const r = await createAppointmentAction({
         patientId,
         therapistIds,
-        roomId: roomId || null,
+        roomId,
         startsAt: new Date(startsAt),
         durationMinutes: duration,
         notes: notes || null,
@@ -252,20 +258,24 @@ export function CreateAppointmentModal({
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="appt-room">{t('room')}</Label>
+              <Label htmlFor="appt-room">
+                {t('room')} <span className="text-destructive">*</span>
+              </Label>
               <select
                 id="appt-room"
                 value={roomId}
+                required
                 onChange={(e) => setRoomId(e.target.value)}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                <option value="">—</option>
+                <option value="">{t('roomPlaceholder')}</option>
                 {rooms.map((r) => (
                   <option key={r.id} value={r.id}>
                     {r.name}
                   </option>
                 ))}
               </select>
+              {!roomId ? <p className="text-xs text-brand-textMuted">{t('roomRequired')}</p> : null}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
@@ -307,9 +317,15 @@ export function CreateAppointmentModal({
             {hasConflicts ? (
               <div
                 role="alert"
-                className="space-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+                className={`space-y-1 rounded-md border p-3 text-sm ${
+                  hardBlocked
+                    ? 'border-red-200 bg-red-50 text-red-900'
+                    : 'border-amber-200 bg-amber-50 text-amber-900'
+                }`}
               >
-                <p className="font-medium">{tConflicts('title')}</p>
+                <p className="font-medium">
+                  {hardBlocked ? tConflicts('hardBlockTitle') : tConflicts('title')}
+                </p>
                 <ul className="list-disc ps-5 text-xs">
                   {(
                     conflicts as {
@@ -338,32 +354,39 @@ export function CreateAppointmentModal({
               {tCommon('cancel')}
             </Button>
             {hasConflicts ? (
-              <>
-                {!waitlistEntryId ? (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={pending || !canSubmit}
-                    onClick={addToWaitlist}
-                  >
-                    {tWaitlist('addToWaitlist')}
-                  </Button>
-                ) : null}
-                {canOverride ? (
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    disabled={pending || !canSubmit}
-                    onClick={() => submit(true)}
-                  >
-                    {tConflicts('overrideButton')}
-                  </Button>
-                ) : (
-                  <Button type="button" disabled>
-                    {tConflicts('cancelButton')}
-                  </Button>
-                )}
-              </>
+              hardBlocked ? (
+                // Same-patient overlap (QA retest #15): no override, no waitlist.
+                <Button type="button" disabled>
+                  {tConflicts('cancelButton')}
+                </Button>
+              ) : (
+                <>
+                  {!waitlistEntryId ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={pending || !canSubmit}
+                      onClick={addToWaitlist}
+                    >
+                      {tWaitlist('addToWaitlist')}
+                    </Button>
+                  ) : null}
+                  {canOverride ? (
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={pending || !canSubmit}
+                      onClick={() => submit(true)}
+                    >
+                      {tConflicts('overrideButton')}
+                    </Button>
+                  ) : (
+                    <Button type="button" disabled>
+                      {tConflicts('cancelButton')}
+                    </Button>
+                  )}
+                </>
+              )
             ) : (
               <Button type="button" disabled={pending || !canSubmit} onClick={() => submit(false)}>
                 {t('save')}

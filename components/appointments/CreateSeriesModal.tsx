@@ -138,8 +138,10 @@ export function CreateSeriesModal({
   const therapistKey = therapistIds.join(',');
   const toggleTherapist = (id: string) =>
     setTherapistIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  const canPreview =
-    patientId && therapistIds.length > 0 && startsAt && byWeekday.length > 0 && count > 0;
+  // Room required for recurring create too (QA retest #7/#13).
+  const canPreview = Boolean(
+    patientId && therapistIds.length > 0 && roomId && startsAt && byWeekday.length > 0 && count > 0,
+  );
 
   // Run the initial preview when the pattern + actors are settled.
   useEffect(() => {
@@ -152,7 +154,7 @@ export function CreateSeriesModal({
       void previewSeriesAction({
         patientId,
         therapistIds,
-        roomId: roomId || null,
+        roomId,
         startsAt: new Date(startsAt),
         durationMinutes: duration,
         rule: {
@@ -258,7 +260,7 @@ export function CreateSeriesModal({
       const r = await createSeriesAction({
         patientId,
         therapistIds,
-        roomId: roomId || null,
+        roomId,
         startsAt: new Date(startsAt),
         durationMinutes: duration,
         notes: notes || null,
@@ -346,14 +348,17 @@ export function CreateSeriesModal({
             </div>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="series-room">{tForm('room')}</Label>
+            <Label htmlFor="series-room">
+              {tForm('room')} <span className="text-destructive">*</span>
+            </Label>
             <select
               id="series-room"
               value={roomId}
+              required
               onChange={(e) => setRoomId(e.target.value)}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
             >
-              <option value="">—</option>
+              <option value="">{tForm('roomPlaceholder')}</option>
               {rooms.map((r) => (
                 <option key={r.id} value={r.id}>
                   {r.name}

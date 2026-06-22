@@ -428,6 +428,14 @@
         "INVALID_SIGNATURE": "Incoming webhook signature did not verify.",
         "WEBHOOK_PARSE": "Could not parse the inbound webhook payload.",
         "NOT_IMPLEMENTED": "This provider feature is not implemented yet."
+      },
+      "metaError": {
+        "131042": "Meta rejected delivery: business/payment eligibility issue. Add a valid payment method and complete business verification in Meta — this is a WhatsApp account setting, not an app bug.",
+        "131026": "The recipient is no longer reachable on WhatsApp.",
+        "131047": "Outside the 24-hour service window — re-engage with an approved template.",
+        "131000": "Meta could not deliver the message (generic delivery error).",
+        "132001": "The template language/translation is not approved in Meta.",
+        "131008": "A required template parameter was missing."
       }
     }
   },
@@ -450,7 +458,8 @@
       "inProgress": "In progress",
       "completed": "Completed",
       "cancelled": "Cancelled",
-      "noShow": "No show"
+      "noShow": "No show",
+      "overdue": "Overdue +{minutes}m"
     },
     "actions": {
       "confirm": "Confirm",
@@ -466,6 +475,7 @@
     },
     "conflicts": {
       "title": "Conflicts detected",
+      "hardBlockTitle": "This booking is not allowed",
       "therapistOverlap": "{therapist} already has an appointment with {patient} at {time}.",
       "patientOverlap": "This patient already has an appointment with {therapist} at {time}.",
       "therapistOnLeave": "{therapist} is on approved leave on this date.",
@@ -484,6 +494,8 @@
       "therapists": "Therapists",
       "therapistsHint": "Pick at least one therapist.",
       "room": "Room",
+      "roomPlaceholder": "Select a room…",
+      "roomRequired": "A room is required.",
       "startsAt": "Start time",
       "duration": "Duration (minutes)",
       "notes": "Notes",
