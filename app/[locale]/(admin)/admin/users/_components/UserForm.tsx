@@ -139,14 +139,14 @@ export function UserForm({ mode, specialties, initial }: Props) {
               <TextField
                 form={form}
                 name={'email' as never}
-                label={t('fullNameEn')}
+                label={t('email')}
                 type="email"
                 autoComplete="email"
               />
               <TextField
                 form={form}
                 name={'phone' as never}
-                label={t('fullNameEn')}
+                label={t('phone')}
                 type="tel"
                 inputMode="tel"
                 autoComplete="tel"
@@ -163,7 +163,7 @@ export function UserForm({ mode, specialties, initial }: Props) {
               <SelectField
                 form={form}
                 name={'languagePref' as never}
-                label={tCommon('languageToggle')}
+                label={t('languagePref')}
                 options={languageOptions}
               />
             </div>
