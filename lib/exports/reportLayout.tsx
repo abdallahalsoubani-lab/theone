@@ -1,7 +1,8 @@
-import { Document, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
+import { Document, Page, StyleSheet, View } from '@react-pdf/renderer';
 import type { ReactElement } from 'react';
 
-type PdfDocElement = Parameters<typeof pdf>[0];
+import { PDF_FONT_FAMILY, pdfDir } from './fonts';
+import { PdfText } from './render';
 
 /**
  * Shared layout for the clinical report PDFs (Prompt 22 §2) — session report
@@ -21,7 +22,7 @@ export interface ReportSection {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 36, fontFamily: 'Helvetica', fontSize: 10, color: '#212940' },
+  page: { padding: 36, fontFamily: PDF_FONT_FAMILY, fontSize: 10, color: '#212940' },
   header: {
     marginBottom: 16,
     paddingBottom: 8,
@@ -58,46 +59,37 @@ export function ReportDocument({
   meta: string;
   sections: ReportSection[];
 }): ReactElement {
+  const d = pdfDir(ar);
   return (
     <Document title={title}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.clinicName}>
+          <PdfText style={[styles.clinicName, d.text]}>
             {ar ? 'المركز الأول للعلاج الطبيعي' : 'The One for Physiotherapy'}
-          </Text>
-          <Text style={styles.meta}>{title}</Text>
-          <Text style={styles.meta}>{meta}</Text>
+          </PdfText>
+          <PdfText style={[styles.meta, d.text]}>{title}</PdfText>
+          <PdfText style={[styles.meta, d.text]}>{meta}</PdfText>
         </View>
         {sections.map((s, i) => (
           <View key={i} style={styles.section} wrap={false}>
-            <Text style={styles.h2}>{s.heading}</Text>
-            {s.body !== undefined && <Text style={styles.body}>{s.body || '—'}</Text>}
+            <PdfText style={[styles.h2, d.text]}>{s.heading}</PdfText>
+            {s.body !== undefined && (
+              <PdfText style={[styles.body, d.text]}>{s.body || '—'}</PdfText>
+            )}
             {(s.rows ?? []).map((r, j) => (
-              <View key={j} style={styles.row}>
-                <Text style={styles.rowLabel}>{r.label}</Text>
-                <Text style={styles.rowValue}>{r.value}</Text>
+              <View key={j} style={[styles.row, d.row]}>
+                <PdfText style={[styles.rowLabel, d.text]}>{r.label}</PdfText>
+                <PdfText style={[styles.rowValue, d.text]}>{r.value}</PdfText>
               </View>
             ))}
           </View>
         ))}
-        <Text style={styles.footer} fixed>
+        <PdfText style={[styles.footer, d.center]} fixed>
           {ar
             ? 'وثيقة سريرية — للاستخدام داخل العيادة فقط.'
             : 'Clinical document — for in-clinic use only.'}
-        </Text>
+        </PdfText>
       </Page>
     </Document>
   );
-}
-
-/** Render a react-pdf document element to a complete Buffer. */
-export async function renderReportToBuffer(element: PdfDocElement): Promise<Buffer> {
-  const stream = await pdf(element).toBuffer();
-  const chunks: Buffer[] = [];
-  await new Promise<void>((resolve, reject) => {
-    (stream as unknown as NodeJS.ReadableStream).on('data', (c: Buffer) => chunks.push(c));
-    (stream as unknown as NodeJS.ReadableStream).on('end', () => resolve());
-    (stream as unknown as NodeJS.ReadableStream).on('error', reject);
-  });
-  return Buffer.concat(chunks);
 }

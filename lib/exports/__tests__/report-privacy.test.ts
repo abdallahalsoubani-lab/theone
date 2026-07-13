@@ -1,17 +1,17 @@
-import zlib from 'node:zlib';
-
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Prompt 22 §2 — regression guard. A clinician-downloaded report (session
- * report, treatment plan) must NEVER contain the patient's phone number. The
- * source query shapes don't carry phone today, but this test feeds the
- * underlying lookups a phone-bearing record and asserts the rendered PDF text
- * does not contain it — so a future schema change that wires the phone into a
- * report fails CI instead of silently leaking contact PII.
+ * Prompt 22 §2 + §3.1 — regression guard. A clinician-downloaded report
+ * (session report, treatment plan) must NEVER contain the patient's phone
+ * number or email. The source query shapes don't carry contact PII today,
+ * but this test feeds the underlying lookups phone/email-bearing records and
+ * asserts the rendered PDF text does not contain them — so a future schema
+ * change that wires contact PII into a report fails CI instead of silently
+ * leaking it.
  */
 
 const PHONE = '0790SENTINELPHONE';
+const EMAIL = 'sentinel.leak@example.com';
 
 // No audit writes during the render (null effective session → actor null).
 vi.mock('@/lib/impersonation/session', () => ({
@@ -39,6 +39,7 @@ vi.mock('@/lib/clinical/session-notes/queries', () => ({
     updatedAt: new Date('2026-06-01T09:00:00Z'),
     isWithinEditWindow: false,
     phone: PHONE,
+    email: EMAIL,
     addenda: [],
   })),
   getPrimaryNoteForAppointment: vi.fn(async () => null),
@@ -51,6 +52,7 @@ vi.mock('@/lib/clinical/plans/queries', () => ({
     patientFullNameEn: 'John Patient',
     patientFullNameAr: 'المريض',
     patientPhone: PHONE,
+    patientEmail: EMAIL,
     doctorId: 'doc1',
     doctorFullNameEn: 'Dr Who',
     doctorFullNameAr: 'الطبيب',
@@ -89,7 +91,7 @@ vi.mock('@/lib/clinical/plans/queries', () => ({
 }));
 
 // Patient lookup used by the session report — production select returns only
-// names; we add `phone` to prove the renderer ignores it.
+// names; we add `phone` + `email` to prove the renderer ignores them.
 vi.mock('@/lib/db', () => ({
   db: {
     user: {
@@ -97,6 +99,7 @@ vi.mock('@/lib/db', () => ({
         fullNameEn: 'John Patient',
         fullNameAr: 'المريض',
         phone: PHONE,
+        email: EMAIL,
       })),
     },
   },
@@ -110,64 +113,28 @@ vi.mock('@/lib/db', () => ({
 import { generateSessionReportPdf } from '../sessionReport';
 import { generateTreatmentPlanPdf } from '../treatmentPlan';
 
-/** Decode the `<hexpairs>` glyph strings react-pdf emits in TJ operators. */
-function decodeHexStrings(s: string): string {
-  let out = '';
-  for (const m of s.matchAll(/<([0-9A-Fa-f]+)>/g)) {
-    const hex = m[1] ?? '';
-    for (let i = 0; i + 1 < hex.length; i += 2) {
-      out += String.fromCharCode(parseInt(hex.slice(i, i + 2), 16));
-    }
-  }
-  return out;
-}
-
-/**
- * All recoverable text from a PDF buffer: raw bytes, any inflated streams, and
- * the hex-encoded glyph strings inside the content-stream TJ operators (react-
- * pdf writes visible text as `<hex>` tokens, not literal ASCII).
- */
-function extractText(buf: Buffer): string {
-  let streams = '';
-  const marker = Buffer.from('stream');
-  let idx = 0;
-  while ((idx = buf.indexOf(marker, idx)) !== -1) {
-    let start = idx + marker.length;
-    if (buf[start] === 0x0d) start++;
-    if (buf[start] === 0x0a) start++;
-    const end = buf.indexOf(Buffer.from('endstream'), start);
-    if (end === -1) break;
-    const slice = buf.subarray(start, end);
-    try {
-      streams += zlib.inflateSync(slice).toString('latin1');
-    } catch {
-      try {
-        streams += zlib.inflateRawSync(slice).toString('latin1');
-      } catch {
-        streams += slice.toString('latin1'); // uncompressed content stream
-      }
-    }
-    idx = end + 1;
-  }
-  const raw = buf.toString('latin1') + streams;
-  return raw + decodeHexStrings(raw);
-}
+// CMap-aware text recovery — the PDFs embed a subsetted TrueType font
+// (QA §2.4), so glyph runs must be translated through the ToUnicode CMap
+// or the leak assertions would go blind.
+import { extractPdfText } from './pdfText';
 
 beforeEach(() => vi.clearAllMocks());
 
-describe('report PDFs never leak the patient phone', () => {
-  it('session report contains no patient phone', async () => {
+describe('report PDFs never leak patient contact PII', () => {
+  it('session report contains no patient phone or email', async () => {
     const { buffer } = await generateSessionReportPdf({ noteId: 'note1', locale: 'en' });
-    const text = extractText(buffer);
+    const text = extractPdfText(buffer);
     expect(text).not.toContain(PHONE);
+    expect(text).not.toContain(EMAIL);
     // Sanity: the report DID render real content.
     expect(text).toContain('Lumbar');
   });
 
-  it('treatment plan contains no patient phone', async () => {
+  it('treatment plan contains no patient phone or email', async () => {
     const { buffer } = await generateTreatmentPlanPdf({ planId: 'plan1', locale: 'en' });
-    const text = extractText(buffer);
+    const text = extractPdfText(buffer);
     expect(text).not.toContain(PHONE);
+    expect(text).not.toContain(EMAIL);
     expect(text).toContain('Bridge');
   });
 });

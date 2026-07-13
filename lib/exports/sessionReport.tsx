@@ -8,7 +8,8 @@ import {
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
 import { formatShortDate, formatTime } from '@/lib/format/date';
 
-import { ReportDocument, renderReportToBuffer, type ReportSection } from './reportLayout';
+import { renderPdfToBuffer } from './render';
+import { ReportDocument, type ReportSection } from './reportLayout';
 
 /**
  * Session report PDF (Prompt 22 §2). Renders a single SOAP session note (plus
@@ -96,7 +97,7 @@ const generateInner = async ({
   }
 
   const title = ar ? 'تقرير الجلسة' : 'Session report';
-  const buffer = await renderReportToBuffer(
+  const buffer = await renderPdfToBuffer(
     <ReportDocument ar={ar} title={title} meta={meta} sections={sections} />,
   );
   return { buffer, patientId: note.patientId };

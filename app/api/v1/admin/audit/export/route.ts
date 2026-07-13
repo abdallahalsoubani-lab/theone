@@ -49,7 +49,10 @@ export async function GET(request: Request): Promise<Response> {
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const enc = new TextEncoder();
-      controller.enqueue(enc.encode(`${AUDIT_CSV_HEADER}\n`));
+      // UTF-8 BOM so Excel decodes Arabic in the before/after JSON columns
+      // correctly — the charset in the content-type header is lost once the
+      // file lands on disk.
+      controller.enqueue(enc.encode(`\uFEFF${AUDIT_CSV_HEADER}\n`));
       for await (const row of streamAuditLogs(filters)) {
         rowCount++;
         controller.enqueue(enc.encode(`${auditRowToCsv(row)}\n`));

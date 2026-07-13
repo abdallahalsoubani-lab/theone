@@ -1,4 +1,4 @@
-import { Document, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
+import { Document, Page, StyleSheet, View } from '@react-pdf/renderer';
 import { AuditAction } from '@prisma/client';
 
 import { withAudit } from '@/lib/audit/withAudit';
@@ -11,6 +11,9 @@ import {
   type CustomFieldRow,
 } from '@/lib/pediatric-assessment/customFields/queries';
 import { getAssessmentById } from '@/lib/pediatric-assessment/queries';
+
+import { PDF_FONT_FAMILY, pdfDir } from './fonts';
+import { PdfText, renderPdfToBuffer } from './render';
 
 export function pedExportErrorToLocalized(err: unknown): LocalizedError {
   if (err instanceof PedAssessmentError) return err.error;
@@ -32,7 +35,7 @@ interface Sec {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: 36, fontFamily: 'Helvetica', fontSize: 10, color: '#212940' },
+  page: { padding: 36, fontFamily: PDF_FONT_FAMILY, fontSize: 10, color: '#212940' },
   header: {
     marginBottom: 16,
     paddingBottom: 8,
@@ -68,32 +71,33 @@ function Pdf({
   meta: string;
   sections: Sec[];
 }) {
+  const d = pdfDir(ar);
   return (
     <Document title={title}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.clinicName}>
+          <PdfText style={[styles.clinicName, d.text]}>
             {ar ? 'المركز الأول للعلاج الطبيعي' : 'The One for Physiotherapy'}
-          </Text>
-          <Text style={styles.meta}>{title}</Text>
-          <Text style={styles.meta}>{meta}</Text>
+          </PdfText>
+          <PdfText style={[styles.meta, d.text]}>{title}</PdfText>
+          <PdfText style={[styles.meta, d.text]}>{meta}</PdfText>
         </View>
         {sections.map((s, i) => (
           <View key={i} style={styles.section} wrap={false}>
-            <Text style={styles.h2}>{s.heading}</Text>
+            <PdfText style={[styles.h2, d.text]}>{s.heading}</PdfText>
             {s.rows.map((r, j) => (
-              <View key={j} style={styles.row}>
-                <Text style={styles.rowLabel}>{r.label}</Text>
-                <Text style={styles.rowValue}>{r.value}</Text>
+              <View key={j} style={[styles.row, d.row]}>
+                <PdfText style={[styles.rowLabel, d.text]}>{r.label}</PdfText>
+                <PdfText style={[styles.rowValue, d.text]}>{r.value}</PdfText>
               </View>
             ))}
           </View>
         ))}
-        <Text style={styles.footer} fixed>
+        <PdfText style={[styles.footer, d.center]} fixed>
           {ar
             ? 'وثيقة سريرية — للاستخدام داخل العيادة فقط.'
             : 'Clinical document — for in-clinic use only.'}
-        </Text>
+        </PdfText>
       </Page>
     </Document>
   );
@@ -186,16 +190,10 @@ const generateInner = async ({
 
   const title = ar ? 'التقييم العلاجي' : 'Clinical assessment';
 
-  const stream = await pdf(
+  const buffer = await renderPdfToBuffer(
     <Pdf ar={ar} title={title} meta={meta} sections={sections} />,
-  ).toBuffer();
-  const chunks: Buffer[] = [];
-  await new Promise<void>((resolve, reject) => {
-    (stream as unknown as NodeJS.ReadableStream).on('data', (c: Buffer) => chunks.push(c));
-    (stream as unknown as NodeJS.ReadableStream).on('end', () => resolve());
-    (stream as unknown as NodeJS.ReadableStream).on('error', reject);
-  });
-  return { buffer: Buffer.concat(chunks), patientId: assessment.patientId };
+  );
+  return { buffer, patientId: assessment.patientId };
 };
 
 export const generatePediatricAssessmentPdf = withAudit<

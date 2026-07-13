@@ -1,5 +1,5 @@
 import { AuditAction, type AppointmentStatus } from '@prisma/client';
-import { Document, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer';
+import { Document, Page, StyleSheet, View } from '@react-pdf/renderer';
 
 import { withAudit } from '@/lib/audit/withAudit';
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
@@ -7,7 +7,9 @@ import { formatDateTime, formatShortDate } from '@/lib/format/date';
 import { getPatientFile } from '@/lib/patients/queries';
 import { type PermissionUser } from '@/lib/rbac/can';
 
+import { PDF_FONT_FAMILY, pdfDir } from './fonts';
 import { resolveRedaction, type ExportRedaction } from './redaction';
+import { PdfText, renderPdfToBuffer } from './render';
 
 export { resolveRedaction, type ExportRedaction };
 
@@ -155,16 +157,8 @@ const generatePatientFilePdfInner = async ({
     auditCount,
   };
 
-  // react-pdf `toBuffer()` returns a Node Readable stream; collect it
-  // into a single Buffer before handing to the route handler.
-  const stream = await pdf(<PatientFilePdf inputs={inputs} />).toBuffer();
-  const chunks: Buffer[] = [];
-  await new Promise<void>((resolve, reject) => {
-    (stream as unknown as NodeJS.ReadableStream).on('data', (c: Buffer) => chunks.push(c));
-    (stream as unknown as NodeJS.ReadableStream).on('end', () => resolve());
-    (stream as unknown as NodeJS.ReadableStream).on('error', reject);
-  });
-  return { buffer: Buffer.concat(chunks), patientId };
+  const buffer = await renderPdfToBuffer(<PatientFilePdf inputs={inputs} />);
+  return { buffer, patientId };
 };
 
 export const generatePatientFilePdf = withAudit<
@@ -188,7 +182,7 @@ export function exportErrorToLocalized(err: unknown): LocalizedError {
 // ─── PDF document ─────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  page: { padding: 36, fontFamily: 'Helvetica', fontSize: 10, color: '#212940' },
+  page: { padding: 36, fontFamily: PDF_FONT_FAMILY, fontSize: 10, color: '#212940' },
   header: {
     marginBottom: 16,
     paddingBottom: 8,
@@ -235,38 +229,56 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
     auditCount,
   } = inputs;
   const ar = locale === 'ar';
+  const d = pdfDir(ar);
   const name = ar ? patient.fullNameAr : patient.fullNameEn;
   return (
     <Document title={`Patient file — ${patient.fullNameEn}`}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
-          <Text style={styles.clinicName}>Theone.pt — {ar ? 'ملف المريض' : 'Patient File'}</Text>
-          <Text style={styles.generated}>
+          <PdfText style={[styles.clinicName, d.text]}>
+            Theone.pt — {ar ? 'ملف المريض' : 'Patient File'}
+          </PdfText>
+          <PdfText style={[styles.generated, d.text]}>
             {ar ? 'تم التوليد' : 'Generated'}: {formatDateTime(new Date(), locale)} ·{' '}
             {ar ? 'النطاق' : 'Scope'}: {redaction}
-          </Text>
+          </PdfText>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.h2}>{ar ? 'البيانات الشخصية' : 'Profile'}</Text>
-          <Row label={ar ? 'الاسم' : 'Name'} value={name} />
-          {/* Phone is null in a CLINICAL (Doctor/Therapist) export — getPatientFile
-              hides it at the data layer (Prompt 15 §1); SELF/ADMIN exports keep it. */}
-          <Row label={ar ? 'الهاتف' : 'Phone'} value={patient.phone ?? (ar ? 'مخفي' : 'Hidden')} />
-          <Row label={ar ? 'البريد' : 'Email'} value={patient.email ?? '—'} />
+          <PdfText style={[styles.h2, d.text]}>{ar ? 'البيانات الشخصية' : 'Profile'}</PdfText>
+          <Row d={d} label={ar ? 'الاسم' : 'Name'} value={name} />
+          {/* Phone + email are null in a CLINICAL (Doctor/Therapist) export —
+              getPatientFile hides both at the data layer (Prompt 15 §1 +
+              Prompt 22 §3.1); SELF/ADMIN exports keep them. */}
           <Row
+            d={d}
+            label={ar ? 'الهاتف' : 'Phone'}
+            value={patient.phone ?? (ar ? 'مخفي' : 'Hidden')}
+          />
+          <Row
+            d={d}
+            label={ar ? 'البريد' : 'Email'}
+            value={patient.email ?? (ar ? 'مخفي' : 'Hidden')}
+          />
+          <Row
+            d={d}
             label={ar ? 'تاريخ الميلاد' : 'Date of birth'}
             value={formatShortDate(patient.dateOfBirth, locale, { timeZone: 'UTC' })}
           />
-          <Row label={ar ? 'الجنس' : 'Gender'} value={patient.gender} />
-          <Row label={ar ? 'العنوان' : 'Address'} value={patient.address ?? '—'} />
+          <Row d={d} label={ar ? 'الجنس' : 'Gender'} value={patient.gender} />
+          <Row d={d} label={ar ? 'العنوان' : 'Address'} value={patient.address ?? '—'} />
         </View>
 
         {intake ? (
           <View style={styles.section}>
-            <Text style={styles.h2}>{ar ? 'تقييم القبول' : 'Intake'}</Text>
-            <Row label={ar ? 'تاريخ' : 'Date'} value={formatShortDate(intake.createdAt, locale)} />
+            <PdfText style={[styles.h2, d.text]}>{ar ? 'تقييم القبول' : 'Intake'}</PdfText>
             <Row
+              d={d}
+              label={ar ? 'تاريخ' : 'Date'}
+              value={formatShortDate(intake.createdAt, locale)}
+            />
+            <Row
+              d={d}
               label={ar ? 'الشكوى' : 'Primary complaint'}
               value={intake.primaryComplaint ?? '—'}
             />
@@ -274,28 +286,32 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
         ) : null}
 
         <View style={styles.section}>
-          <Text style={styles.h2}>{ar ? 'المواعيد' : 'Appointments'}</Text>
+          <PdfText style={[styles.h2, d.text]}>{ar ? 'المواعيد' : 'Appointments'}</PdfText>
           <View style={styles.table}>
-            <View style={styles.tableRow}>
-              <Text style={styles.tdSmall}>{ar ? 'التاريخ' : 'Date'}</Text>
-              <Text style={styles.td}>{ar ? 'المعالج' : 'Therapist'}</Text>
-              <Text style={styles.tdSmall}>{ar ? 'الحالة' : 'Status'}</Text>
-              <Text style={styles.tdSmall}>{ar ? 'الدقائق' : 'Minutes'}</Text>
+            <View style={[styles.tableRow, d.row]}>
+              <PdfText style={[styles.tdSmall, d.text]}>{ar ? 'التاريخ' : 'Date'}</PdfText>
+              <PdfText style={[styles.td, d.text]}>{ar ? 'المعالج' : 'Therapist'}</PdfText>
+              <PdfText style={[styles.tdSmall, d.text]}>{ar ? 'الحالة' : 'Status'}</PdfText>
+              <PdfText style={[styles.tdSmall, d.text]}>{ar ? 'الدقائق' : 'Minutes'}</PdfText>
             </View>
             {appointments.slice(0, 50).map((a) => (
-              <View key={a.id} style={styles.tableRow}>
-                <Text style={styles.tdSmall}>{formatShortDate(a.startsAt, locale)}</Text>
-                <Text style={styles.td}>{ar ? a.therapistFullNameAr : a.therapistFullNameEn}</Text>
-                <Text style={styles.tdSmall}>{a.status}</Text>
-                <Text style={styles.tdSmall}>{a.durationMinutes}</Text>
+              <View key={a.id} style={[styles.tableRow, d.row]}>
+                <PdfText style={[styles.tdSmall, d.text]}>
+                  {formatShortDate(a.startsAt, locale)}
+                </PdfText>
+                <PdfText style={[styles.td, d.text]}>
+                  {ar ? a.therapistFullNameAr : a.therapistFullNameEn}
+                </PdfText>
+                <PdfText style={[styles.tdSmall, d.text]}>{a.status}</PdfText>
+                <PdfText style={[styles.tdSmall, d.text]}>{a.durationMinutes}</PdfText>
               </View>
             ))}
             {appointments.length > 50 ? (
-              <Text style={{ marginTop: 4, fontSize: 9, color: '#5A6580' }}>
+              <PdfText style={[{ marginTop: 4, fontSize: 9, color: '#5A6580' }, d.text]}>
                 {ar
                   ? `… و ${appointments.length - 50} موعد إضافي`
                   : `… and ${appointments.length - 50} more`}
-              </Text>
+              </PdfText>
             ) : null}
           </View>
         </View>
@@ -303,18 +319,20 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
         {redaction !== 'SELF' ? (
           <>
             <View style={styles.section}>
-              <Text style={styles.h2}>
+              <PdfText style={[styles.h2, d.text]}>
                 {ar ? 'خطط العلاج' : 'Treatment plans'} ({plans.length})
-              </Text>
+              </PdfText>
               {plans.length === 0 ? (
-                <Text>—</Text>
+                <PdfText style={d.text}>—</PdfText>
               ) : (
                 <View style={styles.table}>
                   {plans.map((p) => (
-                    <View key={p.id} style={styles.tableRow}>
-                      <Text style={styles.tdSmall}>{formatShortDate(p.createdAt, locale)}</Text>
-                      <Text style={styles.td}>{p.diagnosisPrimary}</Text>
-                      <Text style={styles.tdSmall}>{p.status}</Text>
+                    <View key={p.id} style={[styles.tableRow, d.row]}>
+                      <PdfText style={[styles.tdSmall, d.text]}>
+                        {formatShortDate(p.createdAt, locale)}
+                      </PdfText>
+                      <PdfText style={[styles.td, d.text]}>{p.diagnosisPrimary}</PdfText>
+                      <PdfText style={[styles.tdSmall, d.text]}>{p.status}</PdfText>
                     </View>
                   ))}
                 </View>
@@ -322,40 +340,42 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
             </View>
 
             <View style={styles.section}>
-              <Text style={styles.h2}>{ar ? 'الجلسات' : 'Session notes'}</Text>
-              <Text>
+              <PdfText style={[styles.h2, d.text]}>{ar ? 'الجلسات' : 'Session notes'}</PdfText>
+              <PdfText style={d.text}>
                 {ar ? `إجمالي ملاحظات الجلسات: ${noteCount}` : `Total session notes: ${noteCount}`}
-              </Text>
+              </PdfText>
             </View>
           </>
         ) : null}
 
         <View style={styles.section}>
-          <Text style={styles.h2}>
+          <PdfText style={[styles.h2, d.text]}>
             {ar ? 'البرنامج المنزلي' : 'Home program'} ({homeProgram.length})
-          </Text>
+          </PdfText>
           {homeProgram.length === 0 ? (
-            <Text>—</Text>
+            <PdfText style={d.text}>—</PdfText>
           ) : (
             homeProgram.map((h) => (
-              <Text key={h.id}>• {ar ? h.exerciseNameAr : h.exerciseNameEn}</Text>
+              <PdfText key={h.id} style={d.text}>
+                • {ar ? h.exerciseNameAr : h.exerciseNameEn}
+              </PdfText>
             ))
           )}
         </View>
 
         {redaction === 'ADMIN' ? (
           <View style={styles.section}>
-            <Text style={styles.h2}>{ar ? 'سجل التدقيق' : 'Audit summary'}</Text>
-            <Text>
+            <PdfText style={[styles.h2, d.text]}>{ar ? 'سجل التدقيق' : 'Audit summary'}</PdfText>
+            <PdfText style={d.text}>
               {ar
                 ? `عدد الإجراءات على هذا الملف: ${auditCount}`
                 : `Total audit actions on this profile: ${auditCount}`}
-            </Text>
+            </PdfText>
           </View>
         ) : null}
 
-        <Text
-          style={styles.footer}
+        <PdfText
+          style={[styles.footer, d.center]}
           render={({ pageNumber, totalPages }) =>
             `${ar ? 'سري' : 'Confidential'} · Theone.pt v1 · ${pageNumber}/${totalPages}`
           }
@@ -366,11 +386,11 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ d, label, value }: { d: ReturnType<typeof pdfDir>; label: string; value: string }) {
   return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
+    <View style={[styles.row, d.row]}>
+      <PdfText style={[styles.rowLabel, d.text]}>{label}</PdfText>
+      <PdfText style={[styles.rowValue, d.text]}>{value}</PdfText>
     </View>
   );
 }

@@ -5,7 +5,8 @@ import { getPlanById } from '@/lib/clinical/plans/queries';
 import { toLocalizedError, type LocalizedError } from '@/lib/db';
 import { formatShortDate } from '@/lib/format/date';
 
-import { ReportDocument, renderReportToBuffer, type ReportSection } from './reportLayout';
+import { renderPdfToBuffer } from './render';
+import { ReportDocument, type ReportSection } from './reportLayout';
 
 /**
  * Treatment plan PDF (Prompt 22 §2). Renders an approved/active or proposed
@@ -108,7 +109,7 @@ const generateInner = async ({
   }
 
   const title = ar ? 'خطة العلاج' : 'Treatment plan';
-  const buffer = await renderReportToBuffer(
+  const buffer = await renderPdfToBuffer(
     <ReportDocument ar={ar} title={title} meta={meta} sections={sections} />,
   );
   return { buffer, patientId: plan.patientId };
