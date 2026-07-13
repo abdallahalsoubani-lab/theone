@@ -89,6 +89,8 @@
     "resetPasswordDescription": "Use at least 8 characters with upper, lower, number, and symbol.",
     "changePasswordTitle": "Change your password",
     "changePasswordDescription": "Your account requires a new password before you can continue.",
+    "changePasswordSubmit": "Change password",
+    "changingPassword": "Changing password…",
     "currentPasswordLabel": "Current password",
     "newPasswordLabel": "New password",
     "confirmPasswordLabel": "Confirm new password",

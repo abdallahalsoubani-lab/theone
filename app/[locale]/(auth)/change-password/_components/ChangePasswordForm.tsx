@@ -1,5 +1,6 @@
 'use client';
 
+import { useSession } from 'next-auth/react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
@@ -21,6 +22,7 @@ export function ChangePasswordForm({
   const t = useTranslations('auth');
   const router = useRouter();
   const locale = useLocale();
+  const { update } = useSession();
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -44,6 +46,11 @@ export function ChangePasswordForm({
             setError(errorMessageKey(result.error.code));
             return;
           }
+          // The JWT still carries mustChangePassword:true from sign-in; without
+          // re-signing the cookie the middleware bounces the redirect straight
+          // back here (and the temp password no longer matches the DB hash).
+          // Must complete before navigating or the race re-bounces.
+          await update?.({ mustChangePassword: false });
           router.replace(`/${locale}${successHref}`);
           router.refresh();
         });
@@ -92,7 +99,7 @@ export function ChangePasswordForm({
         </p>
       ) : null}
       <Button type="submit" className="w-full" disabled={pending}>
-        {pending ? t('signingIn') : t('submit')}
+        {pending ? t('changingPassword') : t('changePasswordSubmit')}
       </Button>
     </form>
   );

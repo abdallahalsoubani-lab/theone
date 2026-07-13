@@ -552,6 +552,8 @@
     "resetPasswordDescription": "استخدم 8 أحرف على الأقل تتضمن حرفاً كبيراً وصغيراً ورقماً ورمزاً.",
     "changePasswordTitle": "تغيير كلمة المرور",
     "changePasswordDescription": "يجب تغيير كلمة المرور قبل المتابعة.",
+    "changePasswordSubmit": "تغيير كلمة المرور",
+    "changingPassword": "جارٍ تغيير كلمة المرور…",
     "currentPasswordLabel": "كلمة المرور الحالية",
     "newPasswordLabel": "كلمة المرور الجديدة",
     "confirmPasswordLabel": "تأكيد كلمة المرور",
