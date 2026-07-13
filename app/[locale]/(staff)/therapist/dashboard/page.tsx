@@ -1,7 +1,6 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 
-import { auth } from '@/auth';
 import { ScheduleDensity } from '@/components/analytics/ScheduleDensity';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
@@ -10,6 +9,7 @@ import { therapistAppointmentHref } from '@/lib/appointments/links';
 import { clinicDayRange } from '@/lib/arrivals/time';
 import { listAppointmentsPendingNote } from '@/lib/clinical/session-notes/queries';
 import { db } from '@/lib/db';
+import { getEffectiveSession } from '@/lib/impersonation/session';
 import { formatDateTime, formatTime } from '@/lib/format/date';
 import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
 import { countUnreadNotificationsForCurrentUser } from '@/lib/notifications/queries';
@@ -28,7 +28,9 @@ export default async function TherapistDashboard({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const session = await auth();
+  // Effective session so Act-As loads the impersonated therapist's data
+  // (Prompt 22 §3.2).
+  const session = await getEffectiveSession();
   if (!session?.user) redirect(`/${locale}/login`);
   const t = await getTranslations('clinical.dashboard');
   const therapistId = session.user.id;

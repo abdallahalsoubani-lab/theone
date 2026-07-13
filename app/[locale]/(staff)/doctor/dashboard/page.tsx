@@ -1,7 +1,6 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 
-import { auth } from '@/auth';
 import { ComplianceTrend } from '@/components/analytics/ComplianceTrend';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -9,6 +8,7 @@ import { Link } from '@/i18n/navigation';
 import { getComplianceTrendForDoctor } from '@/lib/analytics/queries';
 import { listPendingProposalsForDoctor } from '@/lib/clinical/plans/queries';
 import { db } from '@/lib/db';
+import { getEffectiveSession } from '@/lib/impersonation/session';
 import { formatShortDate } from '@/lib/format/date';
 import { countUnreadNotificationsForCurrentUser } from '@/lib/notifications/queries';
 
@@ -22,7 +22,9 @@ import { countUnreadNotificationsForCurrentUser } from '@/lib/notifications/quer
 export default async function DoctorDashboard({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const session = await auth();
+  // Effective session so Act-As loads the impersonated doctor's data
+  // instead of the Admin's empty dashboard (Prompt 22 §3.2).
+  const session = await getEffectiveSession();
   if (!session?.user) redirect(`/${locale}/login`);
   const t = await getTranslations('clinical.dashboard');
 

@@ -20,7 +20,7 @@ export interface PatientListRow {
   id: string;
   fullNameEn: string;
   fullNameAr: string;
-  /** Null for Doctor/Therapist viewers — phone is hidden from them (Prompt 15 §1). */
+  /** Null for Doctor/Therapist viewers — contact PII (phone + email) is hidden from them (Prompt 15 §1 + Prompt 22 §3.1). */
   phone: string | null;
   email: string | null;
   dateOfBirth: Date;
@@ -59,9 +59,10 @@ export async function listPatients({
   filters,
 }: ListOptions): Promise<{ rows: PatientListRow[]; total: number }> {
   // Only Secretary/Admin (scope 'all') may see — and therefore search by —
-  // patient phone numbers (Prompt 15 §1). Doctor/Therapist (scope 'assigned')
-  // get the phone nulled out and the phone search term disabled.
-  const canSeePhone = scope.kind === 'all';
+  // patient contact PII (phone + email, Prompt 15 §1 + Prompt 22 §3.1).
+  // Doctor/Therapist (scope 'assigned') get both nulled out and both search
+  // terms disabled.
+  const canSeeContact = scope.kind === 'all';
   const where: Prisma.UserWhereInput = {
     role: UserRole.PATIENT,
     deletedAt: null,
@@ -77,8 +78,12 @@ export async function listPatients({
           OR: [
             { fullNameEn: { contains: filters.search, mode: 'insensitive' } },
             { fullNameAr: { contains: filters.search } },
-            ...(canSeePhone ? [{ phone: { contains: filters.search } }] : []),
-            { email: { contains: filters.search, mode: 'insensitive' } },
+            ...(canSeeContact
+              ? [
+                  { phone: { contains: filters.search } },
+                  { email: { contains: filters.search, mode: 'insensitive' as const } },
+                ]
+              : []),
           ],
         }
       : {}),
@@ -118,8 +123,8 @@ export async function listPatients({
         id: u.id,
         fullNameEn: u.fullNameEn,
         fullNameAr: u.fullNameAr,
-        phone: canSeePhone ? u.phone : null,
-        email: u.email,
+        phone: canSeeContact ? u.phone : null,
+        email: canSeeContact ? u.email : null,
         dateOfBirth: profile.dateOfBirth,
         ageYears,
         gender: profile.gender,
@@ -169,7 +174,7 @@ export interface PatientFileData {
   id: string;
   fullNameEn: string;
   fullNameAr: string;
-  /** Null for Doctor/Therapist viewers — phone is hidden from them (Prompt 15 §1). */
+  /** Null for Doctor/Therapist viewers — contact PII (phone + email) is hidden from them (Prompt 15 §1 + Prompt 22 §3.1). */
   phone: string | null;
   email: string | null;
   dateOfBirth: Date;
@@ -197,12 +202,13 @@ export async function getPatientFile(id: string): Promise<PatientFileData | null
   const u = await getPatientById(id);
   if (!u || !u.patientProfile) return null;
   const p = u.patientProfile;
-  // Phone numbers are hidden from Doctor/Therapist viewers at the data layer
-  // (Prompt 15 §1) — Secretary/Admin and the patient themself still see them.
+  // Contact PII (phone + email) is hidden from Doctor/Therapist viewers at
+  // the data layer (Prompt 15 §1 + Prompt 22 §3.1) — Secretary/Admin and the
+  // patient themself still see it.
   // Lazy import keeps `@/auth` out of this module's load graph so query
   // consumers that never call getPatientFile stay test-isolatable.
-  const { viewerCanSeePatientPhone } = await import('./access');
-  const canSeePhone = await viewerCanSeePatientPhone(id);
+  const { viewerCanSeePatientContact } = await import('./access');
+  const canSeeContact = await viewerCanSeePatientContact(id);
   // Look up the most recent successful outbound delivery so the profile
   // section can show "Last delivery on …". Cheap because the
   // (recipientPhone, sentAt DESC) index covers it.
@@ -219,15 +225,15 @@ export async function getPatientFile(id: string): Promise<PatientFileData | null
     id: u.id,
     fullNameEn: u.fullNameEn,
     fullNameAr: u.fullNameAr,
-    phone: canSeePhone ? u.phone : null,
-    email: u.email,
+    phone: canSeeContact ? u.phone : null,
+    email: canSeeContact ? u.email : null,
     dateOfBirth: p.dateOfBirth,
     gender: p.gender,
     nationalId: p.nationalId,
     address: p.address,
     occupation: p.occupation,
     emergencyContactName: p.emergencyContactName,
-    emergencyContactPhone: canSeePhone ? p.emergencyContactPhone : null,
+    emergencyContactPhone: canSeeContact ? p.emergencyContactPhone : null,
     hijriCalendarPref: p.hijriCalendarPref,
     medicalHistorySummary: p.medicalHistorySummary,
     allergies: p.allergies,

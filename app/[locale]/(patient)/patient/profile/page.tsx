@@ -1,9 +1,9 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound, redirect } from 'next/navigation';
 
-import { auth } from '@/auth';
 import { PatientSelfEditForm } from '@/components/patient-portal/PatientSelfEditForm';
 import { ExportPatientFileButton } from '@/components/exports/ExportPatientFileButton';
+import { getEffectiveSession } from '@/lib/impersonation/session';
 import { getPatientFile } from '@/lib/patients/queries';
 
 export default async function PatientProfilePage({
@@ -13,7 +13,10 @@ export default async function PatientProfilePage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const session = await auth();
+  // Effective session so Act-As resolves to the impersonated patient
+  // (QA Admin #16/#18). A minimal user without a PatientProfile row lands on
+  // notFound() below — graceful, no crash.
+  const session = await getEffectiveSession();
   if (!session?.user) redirect(`/${locale}/login`);
   if (session.user.role !== 'PATIENT') redirect(`/${locale}/`);
   const patient = await getPatientFile(session.user.id);

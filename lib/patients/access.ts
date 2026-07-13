@@ -1,4 +1,5 @@
 import { auth } from '@/auth';
+import { getEffectiveSession } from '@/lib/impersonation/session';
 import { ForbiddenError } from '@/lib/rbac/guards';
 
 import { isClinicianAssignedTo } from './assignment';
@@ -50,25 +51,34 @@ export async function ensureCanReadPatientStaff(patientId: string): Promise<void
 }
 
 /**
- * Patient phone-number visibility (Prompt 15 §1).
+ * Patient contact-PII visibility (Prompt 15 §1, extended to email by
+ * Prompt 22 §3.1).
  *
- * A patient's phone is contact PII visible ONLY to SECRETARY and ADMIN, and
- * to the patient themself (their own portal/profile). THERAPIST and DOCTOR
- * must never see it. This is the single source of truth for that rule; the
- * patient read queries (`getPatientFile`, the appointment side-panel query,
- * the PDF export) call it and null the phone out at the data layer so it is
- * never serialized to a clinician's session.
+ * A patient's phone AND email are contact PII visible ONLY to SECRETARY and
+ * ADMIN, and to the patient themself (their own portal/profile). THERAPIST
+ * and DOCTOR must never see them. This is the single source of truth for
+ * that rule; the patient read queries (`getPatientFile`, `listPatients`, the
+ * appointment side-panel query, the PDF export) call it and null both fields
+ * out at the data layer so they are never serialized to a clinician's
+ * session — and the patient-list search never matches on them for those
+ * roles.
  *
  * Fail-closed: with no session, or any role other than the above, returns
  * false. Server-side senders (WhatsApp jobs, reminder workers) read the phone
  * directly from Prisma without a viewer session and are intentionally not
  * routed through here.
  */
-export async function viewerCanSeePatientPhone(patientId?: string): Promise<boolean> {
-  const session = await auth();
+export async function viewerCanSeePatientContact(patientId?: string): Promise<boolean> {
+  // Impersonation-aware: during Act-As the EFFECTIVE (impersonated) role
+  // governs, so an Admin acting as a Doctor sees exactly what the Doctor
+  // would — contact PII hidden (Prompt 22 §3.2).
+  const session = await getEffectiveSession();
   const user = session?.user;
   if (!user) return false;
   if (user.role === 'ADMIN' || user.role === 'SECRETARY') return true;
   if (user.role === 'PATIENT' && patientId !== undefined && user.id === patientId) return true;
   return false;
 }
+
+/** @deprecated Use `viewerCanSeePatientContact` — kept so no call site breaks. */
+export const viewerCanSeePatientPhone = viewerCanSeePatientContact;

@@ -70,13 +70,40 @@ export default auth(async (req) => {
     return NextResponse.redirect(url);
   }
 
+  // ── Impersonation (verified early) ──────────────────────────────────
+  //
+  // The cookie is the single source of truth for impersonation. Verify it
+  // with jose (Edge-safe) BEFORE any redirect decision: every redirect below
+  // must target the *effective* (impersonated) role's surface, otherwise an
+  // impersonating Admin ping-pongs between their real role home and the
+  // target's pages (QA Admin #16/#18 — the infinite-redirect crash).
+  const impersonationToken = req.cookies.get(IMPERSONATION_COOKIE)?.value;
+  let impersonation: Awaited<ReturnType<typeof verifyImpersonationToken>> = null;
+  if (impersonationToken) {
+    const claims = await verifyImpersonationToken(impersonationToken);
+    const validForThisSession =
+      !!claims && session.user.role === 'ADMIN' && claims.adminId === session.user.id;
+
+    if (!validForThisSession) {
+      // Tampered cookie OR real session is not the admin that issued the
+      // token (logged out, logged in as someone else, role downgraded…).
+      // Clear it and continue with the request — RBAC will treat the
+      // user as the real session below.
+      const cleared = NextResponse.next();
+      cleared.cookies.delete(IMPERSONATION_COOKIE);
+      return cleared;
+    }
+    impersonation = claims;
+  }
+  const effectiveRole = impersonation?.targetRole ?? session.user.role;
+
   // Authenticated visitor on the public landing or an auth-only page → role
   // home. Logged-out visitors keep seeing the marketing landing at `/`.
   const authOnly =
     onPublic && (barePath === '/' || barePath === '/login' || barePath === '/forgot-password');
   if (authOnly && !session.user.mustChangePassword) {
     const url = req.nextUrl.clone();
-    url.pathname = `/${locale}${ROLE_HOME[session.user.role]}`;
+    url.pathname = `/${locale}${ROLE_HOME[effectiveRole]}`;
     url.search = '';
     return NextResponse.redirect(url);
   }
@@ -97,49 +124,14 @@ export default auth(async (req) => {
   // dashboard — not a ForbiddenError page. `requirePermission` at the
   // page boundary is still the authoritative gate; this is the pre-render
   // UX redirect that prevents the error class entirely. Admin is allowed
-  // everywhere (see `lib/auth/routes.ts → ROLE_PATH_PREFIXES`).
-  if (!isPathAllowedForRole(barePath, session.user.role)) {
+  // everywhere (see `lib/auth/routes.ts → ROLE_PATH_PREFIXES`) — except
+  // while impersonating, where the EFFECTIVE role governs so /admin/* is
+  // off-limits until the Admin explicitly exits impersonation.
+  if (!isPathAllowedForRole(barePath, effectiveRole)) {
     const url = req.nextUrl.clone();
-    url.pathname = `/${locale}${ROLE_HOME[session.user.role]}`;
+    url.pathname = `/${locale}${ROLE_HOME[effectiveRole]}`;
     url.search = '';
     return NextResponse.redirect(url);
-  }
-
-  // ── Impersonation guard ─────────────────────────────────────────────
-  //
-  // The cookie is the single source of truth for impersonation. Verify it
-  // with jose (Edge-safe) on every protected request so:
-  //   - a tampered cookie can never reach a route handler,
-  //   - if the real session is no longer Admin (logout + login as a
-  //     different role with the cookie still around) we wipe the cookie,
-  //   - while impersonation is active, navigating to /admin/* bounces
-  //     to the impersonated user's role home — the Admin must explicitly
-  //     "Exit impersonation" to come back to the admin area.
-  const impersonationToken = req.cookies.get(IMPERSONATION_COOKIE)?.value;
-  if (impersonationToken) {
-    const claims = await verifyImpersonationToken(impersonationToken);
-    const validForThisSession =
-      !!claims && session.user.role === 'ADMIN' && claims.adminId === session.user.id;
-
-    if (!validForThisSession) {
-      // Tampered cookie OR real session is not the admin that issued the
-      // token (logged out, logged in as someone else, role downgraded…).
-      // Clear it and continue with the request — RBAC will treat the
-      // user as the real session below.
-      const cleared = NextResponse.next();
-      cleared.cookies.delete(IMPERSONATION_COOKIE);
-      return cleared;
-    }
-
-    // Active impersonation → /admin/* is off-limits until the Admin exits.
-    // The role-home for the *impersonated* user is the destination so the
-    // Admin can immediately continue testing as that user.
-    if (barePath.startsWith('/admin')) {
-      const url = req.nextUrl.clone();
-      url.pathname = `/${locale}${ROLE_HOME[claims.targetRole]}`;
-      url.search = '';
-      return NextResponse.redirect(url);
-    }
   }
 
   return intlResponse;

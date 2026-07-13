@@ -1,6 +1,5 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
-import { auth } from '@/auth';
 import { CancelledAppointmentsTable } from '@/components/appointments/CancelledAppointmentsTable';
 import { listActiveClinicians, listCancelledAppointments } from '@/lib/appointments/queries';
 import { requirePermission } from '@/lib/rbac/guards';
@@ -21,8 +20,9 @@ export async function CancelledAppointmentsContent({
   searchParams: Record<string, string | string[] | undefined>;
 }) {
   setRequestLocale(locale);
-  await requirePermission('appointments.read');
-  const session = await auth();
+  // Chain the effective user from requirePermission so the phone-visibility
+  // gate matches the role RBAC enforces — also during Act-As (Prompt 22 §3.2).
+  const viewer = await requirePermission('appointments.read');
   const t = await getTranslations('appointments.cancelledView');
 
   const str = (v: string | string[] | undefined) => (typeof v === 'string' ? v : undefined);
@@ -37,7 +37,7 @@ export async function CancelledAppointmentsContent({
   const fromDate = new Date(`${fromStr ?? defaultFrom.toISOString().slice(0, 10)}T00:00:00.000Z`);
   const toDate = toStr ? new Date(`${toStr}T23:59:59.999Z`) : undefined;
 
-  const canSeePhone = session?.user?.role === 'SECRETARY' || session?.user?.role === 'ADMIN';
+  const canSeePhone = viewer.role === 'SECRETARY' || viewer.role === 'ADMIN';
 
   const [data, clinicians] = await Promise.all([
     listCancelledAppointments({

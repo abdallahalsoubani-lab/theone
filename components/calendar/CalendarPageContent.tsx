@@ -1,6 +1,5 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
-import { auth } from '@/auth';
 import { SecretaryCalendarBoard } from '@/components/calendar/SecretaryCalendarBoard';
 import {
   listActiveClinicians,
@@ -21,8 +20,9 @@ import { requirePermission } from '@/lib/rbac/guards';
  */
 export async function CalendarPageContent({ locale }: { locale: string }) {
   setRequestLocale(locale);
-  await requirePermission('appointments.read');
-  const session = await auth();
+  // requirePermission resolves the impersonation-aware effective user —
+  // chain it so canOverride matches the role RBAC will actually enforce.
+  const viewer = await requirePermission('appointments.read');
   const tAppointments = await getTranslations('appointments');
 
   const now = new Date();
@@ -51,7 +51,7 @@ export async function CalendarPageContent({ locale }: { locale: string }) {
 
   const { minHour, maxHour } = deriveDayWindow(settings?.businessHours);
   const defaultDurationMinutes = settings?.defaultAppointmentDuration ?? 30;
-  const canOverride = session?.user ? can(session.user, 'appointments.override_conflict') : false;
+  const canOverride = can(viewer, 'appointments.override_conflict');
 
   return (
     <section className="p-4 sm:p-6">

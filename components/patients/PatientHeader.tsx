@@ -1,7 +1,6 @@
 'use client';
 
 import { useLocale } from 'next-intl';
-import { useSession } from 'next-auth/react';
 
 import { ExportPatientFileButton } from '@/components/exports/ExportPatientFileButton';
 import { ActAsButton } from '@/components/impersonation/ActAsButton';
@@ -14,15 +13,23 @@ import type { PatientFileData } from '@/lib/patients/queries';
  * Patient header card — sits above the file tabs. Shows the avatar, both
  * locales of the name (active locale primary, the other beneath), age,
  * gender, assignment chips, and the patient's phone.
+ *
+ * `showActAs` is computed SERVER-SIDE from the impersonation-aware effective
+ * session (real non-impersonating Admin only) — a client useSession() gate
+ * here read the raw Auth.js session, which made the button appear inside
+ * Secretary surfaces while an Admin was impersonating one, flash in after
+ * hydration, and fail with ALREADY_IMPERSONATING when clicked (QA
+ * Receptionist #7, Admin #18). The server action still enforces ADMIN-only
+ * independently.
  */
-export function PatientHeader({ patient }: { patient: PatientFileData }) {
+export function PatientHeader({
+  patient,
+  showActAs = false,
+}: {
+  patient: PatientFileData;
+  showActAs?: boolean;
+}) {
   const locale = useLocale();
-  const { data: session } = useSession();
-  // Only render the "Act as patient" entry point for Admins. The server
-  // action behind ActAsButton enforces this independently — the UI gate
-  // is purely to avoid showing a button that would always fail for
-  // Secretary / Doctor / Therapist viewers of the same profile.
-  const viewerIsAdmin = session?.user?.role === 'ADMIN';
   const name = locale === 'ar' ? patient.fullNameAr : patient.fullNameEn;
   const alt = locale === 'ar' ? patient.fullNameEn : patient.fullNameAr;
   const initials = name
@@ -55,7 +62,7 @@ export function PatientHeader({ patient }: { patient: PatientFileData }) {
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        {viewerIsAdmin ? (
+        {showActAs ? (
           <ActAsButton targetUserId={patient.id} targetName={name} variant="button" />
         ) : null}
         <ExportPatientFileButton patientId={patient.id} locale={locale} />

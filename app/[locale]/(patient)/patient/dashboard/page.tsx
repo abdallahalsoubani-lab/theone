@@ -3,13 +3,13 @@ import { Calendar, Home, User } from 'lucide-react';
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 
-import { auth } from '@/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { getVisibleHomeProgram } from '@/lib/clinical/home-program/approval';
 import { db } from '@/lib/db';
 import { formatDate, formatTime } from '@/lib/format/date';
+import { getEffectiveSession } from '@/lib/impersonation/session';
 
 export default async function PatientDashboard({
   params,
@@ -18,7 +18,10 @@ export default async function PatientDashboard({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const session = await auth();
+  // Effective session: during Act-As this resolves to the impersonated
+  // patient, so the page loads THEIR data instead of bouncing the Admin's
+  // real role back to '/' in an infinite middleware loop (QA Admin #16/#18).
+  const session = await getEffectiveSession();
   if (!session?.user) redirect(`/${locale}/login`);
   if (session.user.role !== 'PATIENT') redirect(`/${locale}/`);
   const t = await getTranslations('patient.portal');

@@ -23,10 +23,11 @@ const GRANT = { key: 'exercises/img.jpg', contentType: 'image/jpeg', maxBytes: 5
 
 function putRequest(opts: { token?: string; contentType?: string; body?: Uint8Array }) {
   const url = `http://localhost/api/v1/storage/exercises/img.jpg${opts.token ? `?t=${opts.token}` : ''}`;
+  const bytes = opts.body ?? new Uint8Array([1, 2, 3]);
   return new NextRequest(url, {
     method: 'PUT',
     headers: opts.contentType ? { 'content-type': opts.contentType } : {},
-    body: opts.body ?? new Uint8Array([1, 2, 3]),
+    body: bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer,
   });
 }
 

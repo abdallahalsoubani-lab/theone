@@ -1,7 +1,5 @@
 import { setRequestLocale } from 'next-intl/server';
-import { redirect } from 'next/navigation';
 
-import { auth } from '@/auth';
 import { PatientHomeProgramView } from '@/components/home-program/PatientHomeProgramView';
 import { getVisibleHomeProgram, getVisibleTodayItems } from '@/lib/clinical/home-program/approval';
 import { calculateStreak } from '@/lib/clinical/compliance/calculate';
@@ -15,10 +13,11 @@ export default async function PatientHomeProgramPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  await requirePermission('home_program.read.own', {});
-  const session = await auth();
-  if (!session?.user) redirect(`/${locale}/login`);
-  const patientId = session.user.id;
+  // requirePermission resolves through the impersonation-aware effective
+  // session and returns that user — chain it instead of a second auth() so
+  // Act-As loads the impersonated patient's program (QA Admin #16/#18).
+  const user = await requirePermission('home_program.read.own', {});
+  const patientId = user.id;
 
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);

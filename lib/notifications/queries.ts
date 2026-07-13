@@ -2,8 +2,8 @@ import 'server-only';
 
 import type { NotificationType, Prisma } from '@prisma/client';
 
-import { auth } from '@/auth';
 import { db } from '@/lib/db';
+import { getEffectiveSession } from '@/lib/impersonation/session';
 
 export interface NotificationListRow {
   id: string;
@@ -20,12 +20,16 @@ export interface NotificationListRow {
  * Fetch the current user's notifications, newest first. Default 20
  * rows for the bell dropdown; the dedicated /notifications page passes
  * larger `take` values for pagination.
+ *
+ * "Current user" is the impersonation-aware EFFECTIVE user — during Act-As
+ * the bell shows the impersonated user's notifications, not the Admin's
+ * (Prompt 22 §3.2).
  */
 export async function listNotificationsForCurrentUser(
   take = 20,
   skip = 0,
 ): Promise<NotificationListRow[]> {
-  const session = await auth();
+  const session = await getEffectiveSession();
   if (!session?.user) return [];
   const rows = await db.notification.findMany({
     where: { recipientId: session.user.id },
@@ -50,7 +54,7 @@ export async function listNotificationsForCurrentUser(
 }
 
 export async function countUnreadNotificationsForCurrentUser(): Promise<number> {
-  const session = await auth();
+  const session = await getEffectiveSession();
   if (!session?.user) return 0;
   return db.notification.count({
     where: { recipientId: session.user.id, readAt: null },
@@ -61,7 +65,7 @@ export async function countUnreadNotificationsForCurrentUser(): Promise<number> 
  * Total count for the /notifications page paginator.
  */
 export async function countNotificationsForCurrentUser(): Promise<number> {
-  const session = await auth();
+  const session = await getEffectiveSession();
   if (!session?.user) return 0;
   return db.notification.count({ where: { recipientId: session.user.id } });
 }

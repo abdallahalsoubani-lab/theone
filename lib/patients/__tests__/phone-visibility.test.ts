@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * Prompt 15 §1 — patient phone numbers are hidden from THERAPIST/DOCTOR at the
- * data layer (serialized shape), visible to SECRETARY/ADMIN and the patient
- * themself. Asserts the query output, not the UI.
+ * Prompt 15 §1 + Prompt 22 §3.1 — patient contact PII (phone AND email) is
+ * hidden from THERAPIST/DOCTOR at the data layer (serialized shape), visible
+ * to SECRETARY/ADMIN and the patient themself. Asserts the query output, not
+ * the UI.
  */
 
 // Mutable session for @/auth so each test picks the viewer.
@@ -117,7 +118,7 @@ vi.mock('@/lib/db', () => {
 });
 
 import { auth } from '@/auth';
-import { viewerCanSeePatientPhone } from '../access';
+import { viewerCanSeePatientContact, viewerCanSeePatientPhone } from '../access';
 import { getPatientFile, listPatients } from '../queries';
 import { type PatientListFilters } from '../schemas';
 
@@ -149,13 +150,13 @@ const FILTERS: PatientListFilters = {
   pageSize: 20,
 };
 
-function seedPatient(id: string, phone: string, clinicianIds: string[] = []) {
+function seedPatient(id: string, phone: string, clinicianIds: string[] = [], email?: string) {
   __state.patients.push({
     id,
     fullNameEn: id,
     fullNameAr: id,
     phone,
-    email: null,
+    email: email ?? null,
     languagePref: 'EN',
     deletedAt: null,
     profile: {
@@ -200,6 +201,25 @@ describe('viewerCanSeePatientPhone', () => {
   });
 });
 
+describe('viewerCanSeePatientContact (email extension, Prompt 22 §3.1)', () => {
+  it('is the same gate as phone: allows SECRETARY/ADMIN, denies THERAPIST/DOCTOR', async () => {
+    sessionRef.current = { user: { id: 's', role: 'SECRETARY' } };
+    expect(await viewerCanSeePatientContact('p1')).toBe(true);
+    sessionRef.current = { user: { id: 't', role: 'THERAPIST' } };
+    expect(await viewerCanSeePatientContact('p1')).toBe(false);
+    sessionRef.current = { user: { id: 'd', role: 'DOCTOR' } };
+    expect(await viewerCanSeePatientContact('p1')).toBe(false);
+  });
+
+  it('allows a PATIENT only for themself and fails closed with no session', async () => {
+    sessionRef.current = { user: { id: 'p1', role: 'PATIENT' } };
+    expect(await viewerCanSeePatientContact('p1')).toBe(true);
+    expect(await viewerCanSeePatientContact('p2')).toBe(false);
+    sessionRef.current = null;
+    expect(await viewerCanSeePatientContact('p1')).toBe(false);
+  });
+});
+
 describe('listPatients phone visibility (by scope)', () => {
   it('Secretary/Admin scope "all" returns the phone', async () => {
     seedPatient('p1', '+962791112222');
@@ -215,6 +235,17 @@ describe('listPatients phone visibility (by scope)', () => {
     });
     expect(rows).toHaveLength(1);
     expect(rows[0]!.phone).toBeNull();
+  });
+
+  it('Secretary/Admin scope "all" returns the email; assigned scope nulls it', async () => {
+    seedPatient('p1', '+962791112222', ['therapist-1'], 'p1@example.com');
+    const all = await listPatients({ scope: { kind: 'all' }, filters: FILTERS });
+    expect(all.rows[0]!.email).toBe('p1@example.com');
+    const assigned = await listPatients({
+      scope: { kind: 'assigned', clinicianId: 'therapist-1' },
+      filters: FILTERS,
+    });
+    expect(assigned.rows[0]!.email).toBeNull();
   });
 });
 
@@ -236,34 +267,52 @@ describe('search by phone digits', () => {
     });
     expect(rows).toHaveLength(0);
   });
+
+  it('Secretary search by email substring finds the patient; Therapist gets nothing', async () => {
+    seedPatient('p1', '+962791112222', ['therapist-1'], 'rose.ahmad@example.com');
+    const secretary = await listPatients({
+      scope: { kind: 'all' },
+      filters: { ...FILTERS, search: 'rose.ahmad' },
+    });
+    expect(secretary.rows.map((r) => r.id)).toEqual(['p1']);
+    const therapist = await listPatients({
+      scope: { kind: 'assigned', clinicianId: 'therapist-1' },
+      filters: { ...FILTERS, search: 'rose.ahmad' },
+    });
+    expect(therapist.rows).toHaveLength(0);
+  });
 });
 
-describe('getPatientFile phone visibility (session-aware)', () => {
-  beforeEach(() => seedPatient('p1', '+962793334444'));
+describe('getPatientFile contact visibility (session-aware)', () => {
+  beforeEach(() => seedPatient('p1', '+962793334444', [], 'p1@example.com'));
 
-  it('Secretary sees phone + emergency phone', async () => {
+  it('Secretary sees phone + email + emergency phone', async () => {
     sessionRef.current = { user: { id: 's', role: 'SECRETARY' } };
     const file = await getPatientFile('p1');
     expect(file?.phone).toBe('+962793334444');
+    expect(file?.email).toBe('p1@example.com');
     expect(file?.emergencyContactPhone).toBe('+962790009999');
   });
 
-  it('Therapist gets null phone + null emergency phone', async () => {
+  it('Therapist gets null phone + null email + null emergency phone', async () => {
     sessionRef.current = { user: { id: 't', role: 'THERAPIST' } };
     const file = await getPatientFile('p1');
     expect(file?.phone).toBeNull();
+    expect(file?.email).toBeNull();
     expect(file?.emergencyContactPhone).toBeNull();
   });
 
-  it('Doctor gets null phone', async () => {
+  it('Doctor gets null phone + null email', async () => {
     sessionRef.current = { user: { id: 'd', role: 'DOCTOR' } };
     const file = await getPatientFile('p1');
     expect(file?.phone).toBeNull();
+    expect(file?.email).toBeNull();
   });
 
-  it('the patient themself still sees their own phone', async () => {
+  it('the patient themself still sees their own phone + email', async () => {
     sessionRef.current = { user: { id: 'p1', role: 'PATIENT' } };
     const file = await getPatientFile('p1');
     expect(file?.phone).toBe('+962793334444');
+    expect(file?.email).toBe('p1@example.com');
   });
 });

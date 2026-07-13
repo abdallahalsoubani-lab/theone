@@ -1,7 +1,5 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { redirect } from 'next/navigation';
 
-import { auth } from '@/auth';
 import { deriveDayWindow } from '@/components/calendar/CalendarPageContent';
 import { TherapistScheduleBoard } from '@/components/calendar/TherapistScheduleBoard';
 import { listAppointmentsForCalendar } from '@/lib/appointments/queries';
@@ -22,10 +20,11 @@ export default async function TherapistCalendarPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  await requirePermission('appointments.read.assigned');
-  const session = await auth();
-  if (!session?.user) redirect(`/${locale}/login`);
-  const therapistId = session.user.id;
+  // requirePermission resolves the impersonation-aware effective user —
+  // chain it so Act-As shows the impersonated therapist's schedule
+  // (Prompt 22 §3.2).
+  const viewer = await requirePermission('appointments.read.assigned');
+  const therapistId = viewer.id;
   const t = await getTranslations('appointments');
 
   // Generous window: a week back through a year out, so any reasonable future
