@@ -1,6 +1,10 @@
+import { randomInt } from 'node:crypto';
+
 import { describe, expect, it } from 'vitest';
 
-import { generateTempPassword } from '../temp-password';
+import { passwordSchema } from '@/lib/auth/password';
+
+import { generateReadablePassword, generateTempPassword } from '../temp-password';
 
 describe('generateTempPassword', () => {
   it('produces a 12-character string by default', () => {
@@ -24,5 +28,21 @@ describe('generateTempPassword', () => {
     for (let i = 0; i < 50; i++) set.add(generateTempPassword());
     // 50 random 12-char passwords from this pool should never collide.
     expect(set.size).toBe(50);
+  });
+});
+
+describe('generateReadablePassword', () => {
+  it('matches the Word-Word-1234 shape and passes the password policy', () => {
+    for (let i = 0; i < 200; i++) {
+      const p = generateReadablePassword(randomInt);
+      expect(p).toMatch(/^[A-Z][a-z]+-[A-Z][a-z]+-\d{4}$/);
+      expect(passwordSchema.safeParse(p).success).toBe(true);
+    }
+  });
+
+  it('produces distinct values across calls', () => {
+    const set = new Set<string>();
+    for (let i = 0; i < 50; i++) set.add(generateReadablePassword(randomInt));
+    expect(set.size).toBeGreaterThan(45);
   });
 });

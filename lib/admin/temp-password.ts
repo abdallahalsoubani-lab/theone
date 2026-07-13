@@ -19,6 +19,88 @@ function pick(set: string, bytes: Buffer, offset: number): string {
   return set.charAt(byte % set.length);
 }
 
+/**
+ * Readable staff password in `Word-Word-1234` form (Prompt 22 Part 1).
+ *
+ * Satisfies `passwordSchema`: capitalized words give upper+lower, the numeric
+ * block gives digits, and `-` is in the allowed symbol set. Words are chosen
+ * with `randomInt` (CSPRNG); ~64² × 9000 ≈ 36.8M combinations — fine for
+ * demo-phase credentials that are also rate-limited + lockout-protected.
+ */
+const WORDS = [
+  'Amber',
+  'Aqua',
+  'Aspen',
+  'Atlas',
+  'Basil',
+  'Birch',
+  'Blaze',
+  'Bloom',
+  'Breeze',
+  'Brook',
+  'Cedar',
+  'Cliff',
+  'Cloud',
+  'Coral',
+  'Crane',
+  'Crest',
+  'Dawn',
+  'Delta',
+  'Dune',
+  'Ember',
+  'Fern',
+  'Flint',
+  'Frost',
+  'Galaxy',
+  'Grove',
+  'Harbor',
+  'Hazel',
+  'Iris',
+  'Ivory',
+  'Jade',
+  'Juniper',
+  'Lagoon',
+  'Lark',
+  'Lotus',
+  'Maple',
+  'Marble',
+  'Meadow',
+  'Mesa',
+  'Mist',
+  'Noble',
+  'Oasis',
+  'Ocean',
+  'Onyx',
+  'Opal',
+  'Orbit',
+  'Pearl',
+  'Pine',
+  'Plum',
+  'Prism',
+  'Quartz',
+  'Raven',
+  'Reef',
+  'Ridge',
+  'River',
+  'Rowan',
+  'Sage',
+  'Sierra',
+  'Slate',
+  'Solar',
+  'Spruce',
+  'Stone',
+  'Summit',
+  'Terra',
+  'Willow',
+] as const;
+
+export function generateReadablePassword(randomInt: (min: number, max: number) => number): string {
+  const w1 = WORDS[randomInt(0, WORDS.length)]!;
+  const w2 = WORDS[randomInt(0, WORDS.length)]!;
+  const num = randomInt(1000, 10000);
+  return `${w1}-${w2}-${num}`;
+}
+
 export function generateTempPassword(length = 12): string {
   if (length < 8) throw new Error('temp password length must be >= 8');
   const bytes = randomBytes(length * 2);
