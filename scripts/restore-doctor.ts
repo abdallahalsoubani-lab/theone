@@ -208,7 +208,38 @@ async function main(): Promise<void> {
   }
 
   await db.$transaction(async (tx) => {
-    // 1. Preserve the occupant under their own account.
+    // 1. Restore the doctor identity on the original id FIRST — this frees
+    // the occupant's phone/email from the row (phone carries a partial
+    // unique index over non-deleted rows, so creating the occupant's new
+    // account before releasing the values collides with P2002).
+    await tx.user.update({
+      where: { id: DOCTOR_ID },
+      data: {
+        ...ORIGINAL,
+        passwordHash: null,
+        mustChangePassword: false,
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
+    });
+    await tx.auditLog.create({
+      data: {
+        actorId,
+        entityType: 'User',
+        entityId: DOCTOR_ID,
+        action: 'UPDATE',
+        before: {
+          role: occupant.role,
+          email: occupant.email,
+          phone: occupant.phone,
+          fullNameEn: occupant.fullNameEn,
+          fullNameAr: occupant.fullNameAr,
+        } as Prisma.InputJsonValue,
+        after: { ...ORIGINAL, restoredBy: 'scripts/restore-doctor.ts' },
+      },
+    });
+
+    // 2. Preserve the occupant under their own account.
     let occupantId = existingOccupantUser?.id;
     if (!occupantId) {
       const created = await tx.user.create({
@@ -251,7 +282,7 @@ async function main(): Promise<void> {
       });
     }
 
-    // 2. Re-point therapist-side rows created after the repurpose moment.
+    // 3. Re-point therapist-side rows created after the repurpose moment.
     await tx.sessionNote.updateMany({
       where: { therapistId: DOCTOR_ID, createdAt: { gte: REPURPOSED_AT } },
       data: { therapistId: occupantId },
@@ -271,34 +302,6 @@ async function main(): Promise<void> {
     await tx.homeProgramApproval.updateMany({
       where: { submittedById: DOCTOR_ID, submittedAt: { gte: REPURPOSED_AT } },
       data: { submittedById: occupantId },
-    });
-
-    // 3. Restore the doctor identity on the original id.
-    await tx.user.update({
-      where: { id: DOCTOR_ID },
-      data: {
-        ...ORIGINAL,
-        passwordHash: null,
-        mustChangePassword: false,
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-      },
-    });
-    await tx.auditLog.create({
-      data: {
-        actorId,
-        entityType: 'User',
-        entityId: DOCTOR_ID,
-        action: 'UPDATE',
-        before: {
-          role: occupant.role,
-          email: occupant.email,
-          phone: occupant.phone,
-          fullNameEn: occupant.fullNameEn,
-          fullNameAr: occupant.fullNameAr,
-        } as Prisma.InputJsonValue,
-        after: { ...ORIGINAL, restoredBy: 'scripts/restore-doctor.ts' },
-      },
     });
   });
 
