@@ -17,6 +17,11 @@ export const WAITLIST_ERRORS = {
     message_en: 'This waitlist entry was already placed.',
     message_ar: 'تم بالفعل حجز موعد لإدخال قائمة الانتظار هذا.',
   },
+  PATIENT_HOLDS_SLOT: {
+    code: 'WAITLIST_PATIENT_HOLDS_SLOT',
+    message_en: 'This patient already has an appointment inside this time window.',
+    message_ar: 'هذا المريض لديه موعد في نفس الوقت.',
+  },
 } as const satisfies Record<string, LocalizedError>;
 
 export class WaitlistError extends Error {

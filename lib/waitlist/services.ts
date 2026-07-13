@@ -42,6 +42,30 @@ export const addWaitlistEntry = withAudit<[WaitlistAddParsed, string], { id: str
     extractAfter: (result) => ({ event: 'WAITLIST_ADDED', id: result.id }),
   },
   async function addInner(input, actorId): Promise<{ id: string }> {
+    // Prompt 22 §4.1 — the waitlist is for slots held by a DIFFERENT patient.
+    // When this patient already holds an appointment inside the window, the
+    // add is rejected server-side (the UI hides the CTA, this is the
+    // authoritative gate).
+    const ownOverlap = await db.appointment.findFirst({
+      where: {
+        patientId: input.patientId,
+        status: { in: ['SCHEDULED', 'CONFIRMED', 'IN_PROGRESS'] },
+        startsAt: { lt: input.windowEnd },
+        // endsAt is derived (startsAt + duration); a coarse startsAt bound is
+        // enough here — exact math below.
+        NOT: { startsAt: { lt: new Date(input.windowStart.getTime() - 8 * 60 * 60 * 1000) } },
+      },
+      select: { startsAt: true, durationMinutes: true },
+      orderBy: { startsAt: 'desc' },
+    });
+    if (
+      ownOverlap &&
+      ownOverlap.startsAt.getTime() + ownOverlap.durationMinutes * 60_000 >
+        input.windowStart.getTime()
+    ) {
+      throw new WaitlistError(WAITLIST_ERRORS.PATIENT_HOLDS_SLOT);
+    }
+
     // desiredDate is the clinic-local day the window sits in (UTC midnight),
     // derived so the (date, status) index + page grouping stay consistent.
     const tz = await clinicTimeZone();

@@ -47,6 +47,16 @@ export function sessionEndsAt(startsAt: Date, durationMinutes: number): Date {
 }
 
 /**
+ * Whole minutes an IN_PROGRESS session has run past its scheduled end — 0
+ * while still inside the slot (Prompt 22 §4.4 "متأخرة / Overdue" badge).
+ * Callers gate on status; this is pure instant math (tz-independent).
+ */
+export function minutesOverdue(now: Date, startsAt: Date, durationMinutes: number): number {
+  const over = now.getTime() - sessionEndsAt(startsAt, durationMinutes).getTime();
+  return over > 0 ? Math.floor(over / 60_000) : 0;
+}
+
+/**
  * Whether an open session is overdue for auto-completion: now is at/after
  * `end + graceMinutes`. The grace lets a slightly-overrunning real session
  * finish before the worker force-closes it.

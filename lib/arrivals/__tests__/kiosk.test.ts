@@ -7,6 +7,7 @@ vi.mock('@/lib/db', () => {
     id: string;
     patientId: string;
     startsAt: Date;
+    durationMinutes: number;
     status: string;
     checkedInAt: Date | null;
     checkedInVia: string | null;
@@ -87,6 +88,7 @@ const state = (dbModule as any).__state as {
     id: string;
     patientId: string;
     startsAt: Date;
+    durationMinutes: number;
     status: string;
     checkedInAt: Date | null;
     checkedInVia: string | null;
@@ -110,6 +112,7 @@ function seedPatientWithAppt(over?: Partial<(typeof state.appts)[number]>) {
     id: 'appt-1',
     patientId: 'pat-1',
     startsAt: new Date('2026-06-10T10:00:00Z'),
+    durationMinutes: 30,
     status: 'CONFIRMED',
     checkedInAt: null,
     checkedInVia: null,
@@ -147,6 +150,7 @@ describe('checkInByPhone', () => {
       id: 'appt-x',
       patientId: 'pat-1',
       startsAt: new Date('2026-06-12T10:00:00Z'), // different day
+      durationMinutes: 30,
       status: 'CONFIRMED',
       checkedInAt: null,
       checkedInVia: null,
@@ -169,6 +173,7 @@ describe('checkInByPhone', () => {
         id: 'late',
         patientId: 'pat-1',
         startsAt: new Date('2026-06-10T12:00:00Z'),
+        durationMinutes: 30,
         status: 'CONFIRMED',
         checkedInAt: null,
         checkedInVia: null,
@@ -177,6 +182,7 @@ describe('checkInByPhone', () => {
         id: 'early',
         patientId: 'pat-1',
         startsAt: new Date('2026-06-10T10:00:00Z'),
+        durationMinutes: 30,
         status: 'SCHEDULED',
         checkedInAt: null,
         checkedInVia: null,
@@ -202,12 +208,79 @@ describe('checkInByPhone', () => {
   });
 });
 
+describe('checkInByPhone — passed appointment (Prompt 22 §4.3)', () => {
+  // Appointment 13:00 Amman (10:00Z) + 30m; patient shows up at 17:00 Amman.
+  const LATE_NOW = new Date('2026-06-10T14:00:00Z');
+
+  it('records the arrival but returns APPOINTMENT_PASSED (never a future wait)', async () => {
+    seedPatientWithAppt();
+    const res = await checkInByPhone({ phone: PHONE, now: LATE_NOW });
+    expect(res).toEqual({
+      kind: 'APPOINTMENT_PASSED',
+      firstName: 'Abdullah',
+      startsAtIso: '2026-06-10T10:00:00.000Z',
+    });
+    // Owner decision: the patient is physically present — the check-in IS
+    // recorded so reception sees them on the arrivals board.
+    expect(state.appts[0]!.checkedInAt).toEqual(LATE_NOW);
+    expect(state.audits).toEqual([{ actorId: 'pat-1', entityId: 'appt-1' }]);
+  });
+
+  it('one minute past the end is already "passed" (boundary)', async () => {
+    seedPatientWithAppt();
+    const res = await checkInByPhone({ phone: PHONE, now: new Date('2026-06-10T10:31:00Z') });
+    expect(res.kind).toBe('APPOINTMENT_PASSED');
+  });
+
+  it('a mid-slot latecomer still checks in normally', async () => {
+    seedPatientWithAppt();
+    const res = await checkInByPhone({ phone: PHONE, now: new Date('2026-06-10T10:10:00Z') });
+    expect(res).toMatchObject({ kind: 'CHECKED_IN', delayMinutes: 10 });
+  });
+
+  it('an upcoming appointment wins over a passed one (two appts today)', async () => {
+    state.users.push({ id: 'pat-1', phone: PHONE, fullNameEn: 'Abdullah', fullNameAr: 'عبدالله' });
+    state.appts.push(
+      {
+        id: 'passed',
+        patientId: 'pat-1',
+        startsAt: new Date('2026-06-10T06:00:00Z'),
+        durationMinutes: 30,
+        status: 'CONFIRMED',
+        checkedInAt: null,
+        checkedInVia: null,
+      },
+      {
+        id: 'upcoming',
+        patientId: 'pat-1',
+        startsAt: new Date('2026-06-10T15:00:00Z'),
+        durationMinutes: 30,
+        status: 'CONFIRMED',
+        checkedInAt: null,
+        checkedInVia: null,
+      },
+    );
+    const res = await checkInByPhone({ phone: PHONE, now: LATE_NOW });
+    expect(res.kind).toBe('CHECKED_IN');
+    expect(state.appts.find((a) => a.id === 'upcoming')!.checkedInAt).toEqual(LATE_NOW);
+    expect(state.appts.find((a) => a.id === 'passed')!.checkedInAt).toBeNull();
+  });
+
+  it('re-submitting after a passed check-in stays APPOINTMENT_PASSED (no second write)', async () => {
+    seedPatientWithAppt({ checkedInAt: new Date('2026-06-10T13:45:00Z'), checkedInVia: 'KIOSK' });
+    const res = await checkInByPhone({ phone: PHONE, now: LATE_NOW });
+    expect(res.kind).toBe('APPOINTMENT_PASSED');
+    expect(state.audits).toHaveLength(0);
+  });
+});
+
 describe('recordCheckIn (staff manual)', () => {
   it('marks via STAFF with the staff member as the audit actor', async () => {
     state.appts.push({
       id: 'appt-1',
       patientId: 'pat-1',
       startsAt: new Date('2026-06-10T10:00:00Z'),
+      durationMinutes: 30,
       status: 'CONFIRMED',
       checkedInAt: null,
       checkedInVia: null,

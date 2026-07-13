@@ -33,11 +33,9 @@ import {
 } from './complianceDailyCheck';
 import { startHomeReminderWorker } from './homeReminder';
 import { startReminderWorker } from './reminder';
-import {
-  ensureSessionAutoCompleteScheduled,
-  startSessionAutoCompleteWorker,
-} from './sessionAutoComplete';
 import { startWhatsappOutboundWorker } from './whatsapp';
+
+import { sessionMaintenanceQueue } from '@/lib/queue/queues';
 
 console.warn('[workers] starting…');
 const reminderWorker = startReminderWorker();
@@ -52,14 +50,16 @@ void ensureComplianceDailyCheckScheduled().catch((err: unknown) => {
 });
 const whatsappWorker = startWhatsappOutboundWorker();
 console.warn(`[workers] whatsapp outbound worker listening on queue=${whatsappWorker.name}`);
-const sessionAutoCompleteWorker = startSessionAutoCompleteWorker();
-console.warn(
-  `[workers] session auto-complete worker listening on queue=${sessionAutoCompleteWorker.name}`,
-);
-// Register the recurring 15-min overdue-session sweep (idempotent via jobId).
-void ensureSessionAutoCompleteScheduled().catch((err: unknown) => {
-  console.error('[workers] session auto-complete registration failed', err);
-});
+// Prompt 22 §4.4 — sessions are NEVER auto-completed (owner decision: manual
+// End Session only; the arrivals/calendar UI shows an amber Overdue badge
+// instead). The legacy 15-min sweep is gone; drop its persistent BullMQ
+// repeatable if an older deployment ever registered it in this Redis.
+void sessionMaintenanceQueue
+  .removeRepeatable('sessionAutoComplete', { pattern: '*/15 * * * *', tz: 'Asia/Amman' })
+  .then((removed) => {
+    if (removed) console.warn('[workers] removed legacy session auto-complete repeatable');
+  })
+  .catch(() => {});
 
 // Keep the process alive while the workers run. Graceful shutdown on SIGINT.
 async function shutdown(signal: string) {
@@ -69,7 +69,6 @@ async function shutdown(signal: string) {
     homeReminderWorker.close(),
     complianceWorker.close(),
     whatsappWorker.close(),
-    sessionAutoCompleteWorker.close(),
   ]);
   console.warn('[workers] all workers closed; exiting');
   process.exit(0);

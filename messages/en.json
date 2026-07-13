@@ -1583,7 +1583,8 @@
     "turnIn": "Your turn in about {minutes} minutes.",
     "alreadyCheckedIn": "You are already checked in, {name}. ✅",
     "noAppointment": "No appointment registered today — please see reception.",
-    "rateLimited": "Too many attempts. Please wait a moment or see reception."
+    "rateLimited": "Too many attempts. Please wait a moment or see reception.",
+    "appointmentPassed": "Your appointment was at {time} — please see reception."
   },
   "display": {
     "title": "Arrivals",

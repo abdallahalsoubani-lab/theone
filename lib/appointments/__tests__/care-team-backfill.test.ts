@@ -13,7 +13,14 @@ vi.mock('@/auth', () => ({
 vi.mock('@/lib/impersonation/session', () => ({
   getEffectiveSession: vi.fn(async () => ({ isImpersonating: false, user: { id: 'actor-1' } })),
 }));
-vi.mock('../conflicts', () => ({ checkConflicts: vi.fn(async () => ({ ok: true })) }));
+vi.mock('../conflicts', async (importOriginal) => {
+  // Keep the real hard-block helpers; stub only the engine call.
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    checkConflicts: vi.fn(async () => ({ ok: true })),
+  };
+});
 vi.mock('@/lib/queue/jobs/appointmentReminder', () => ({
   enqueueAppointmentReminder: vi.fn(async () => {}),
   cancelAppointmentReminder: vi.fn(async () => {}),
@@ -175,6 +182,7 @@ vi.mock('@/lib/db', () => {
   };
 });
 
+import { checkConflicts } from '../conflicts';
 import { createAppointment, rescheduleAppointment, changeAppointmentTherapist } from '../services';
 
 const { __state } = (await import('@/lib/db')) as unknown as {
@@ -186,10 +194,21 @@ const { __state } = (await import('@/lib/db')) as unknown as {
   };
 };
 
+// Always-in-the-future start so the past-time booking guard (71e61c9) never
+// time-bombs this suite the way the fixed 2026-07-01 fixture did. Tuesday-ish
+// mid-morning is inside seeded working hours regardless of the actual day
+// because the conflict engine is mocked here.
+const futureStart = () => {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 7);
+  d.setUTCHours(8, 0, 0, 0);
+  return d;
+};
+
 const baseCreate = {
   patientId: 'patient-1',
   therapistIds: ['therapist-1'],
-  startsAt: new Date('2026-07-01T10:00:00Z'),
+  startsAt: futureStart(),
   durationMinutes: 30,
   roomId: 'room-1',
   notes: null,
@@ -236,7 +255,7 @@ describe('reschedule / change-therapist add the new therapist (never remove)', (
     const { appointmentId } = await createAppointment(baseCreate);
     await rescheduleAppointment({
       id: appointmentId,
-      startsAt: new Date('2026-07-01T11:00:00Z'),
+      startsAt: new Date(futureStart().getTime() + 60 * 60 * 1000),
       durationMinutes: 30,
       therapistIds: ['therapist-2'],
       roomId: null,
@@ -258,5 +277,59 @@ describe('reschedule / change-therapist add the new therapist (never remove)', (
 
     expect(__state.members.some((m) => m.clinicianId === 'therapist-2')).toBe(true);
     expect(__state.members.some((m) => m.clinicianId === 'therapist-1')).toBe(true);
+  });
+});
+
+describe('hard-blocked conflicts reject even with override (Prompt 22 §4.1/§4.2)', () => {
+  it('rescheduleAppointment with overrideConflicts=true still rejects PATIENT_OVERLAP', async () => {
+    const { appointmentId } = await createAppointment(baseCreate);
+    vi.mocked(checkConflicts).mockResolvedValueOnce({
+      ok: false,
+      conflicts: [{ kind: 'PATIENT_OVERLAP', appointment: {} }],
+    } as never);
+    await expect(
+      rescheduleAppointment({
+        id: appointmentId,
+        startsAt: new Date(futureStart().getTime() + 60 * 60 * 1000),
+        durationMinutes: 30,
+        therapistIds: ['therapist-2'],
+        roomId: null,
+        overrideConflicts: true,
+      } as Parameters<typeof rescheduleAppointment>[0]),
+    ).rejects.toMatchObject({ error: { code: 'APPOINTMENT_SAME_PATIENT_OVERLAP' } });
+  });
+
+  it('changeAppointmentTherapist with override still rejects a closed-day hard block', async () => {
+    const { appointmentId } = await createAppointment(baseCreate);
+    vi.mocked(checkConflicts).mockResolvedValueOnce({
+      ok: false,
+      conflicts: [{ kind: 'CLINIC_CLOSED_THIS_DAY', dayKey: 'fri' }],
+    } as never);
+    await expect(
+      changeAppointmentTherapist({
+        id: appointmentId,
+        therapistIds: ['therapist-2'],
+        reason: 'cover',
+        overrideConflicts: true,
+      } as Parameters<typeof changeAppointmentTherapist>[0]),
+    ).rejects.toMatchObject({ error: { code: 'APPOINTMENT_ON_CLOSED_DAY' } });
+  });
+
+  it('soft conflicts stay overridable (therapist overlap + override succeeds)', async () => {
+    const { appointmentId } = await createAppointment(baseCreate);
+    vi.mocked(checkConflicts).mockResolvedValueOnce({
+      ok: false,
+      conflicts: [{ kind: 'THERAPIST_OVERLAP', therapist: {}, appointment: {} }],
+    } as never);
+    await expect(
+      rescheduleAppointment({
+        id: appointmentId,
+        startsAt: new Date(futureStart().getTime() + 60 * 60 * 1000),
+        durationMinutes: 30,
+        therapistIds: ['therapist-2'],
+        roomId: null,
+        overrideConflicts: true,
+      } as Parameters<typeof rescheduleAppointment>[0]),
+    ).resolves.toBeDefined();
   });
 });

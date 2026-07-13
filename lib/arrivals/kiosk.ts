@@ -24,6 +24,7 @@ import { clinicDayRange } from './time';
 export type KioskCheckInResult =
   | { kind: 'CHECKED_IN'; firstName: string; delayMinutes: number }
   | { kind: 'ALREADY_CHECKED_IN'; firstName: string; delayMinutes: number }
+  | { kind: 'APPOINTMENT_PASSED'; firstName: string; startsAtIso: string }
   | { kind: 'NO_APPOINTMENT' };
 
 const BOOKABLE: AppointmentStatus[] = [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED];
@@ -98,7 +99,7 @@ export async function checkInByPhone(input: {
       status: { in: BOOKABLE },
     },
     orderBy: { startsAt: 'asc' },
-    select: { id: true, startsAt: true, checkedInAt: true },
+    select: { id: true, startsAt: true, durationMinutes: true, checkedInAt: true },
   });
   if (candidates.length === 0) return { kind: 'NO_APPOINTMENT' };
 
@@ -111,8 +112,22 @@ export async function checkInByPhone(input: {
   // locales (the kiosk surrounds it with localized copy).
   const greetName = firstName(patient.fullNameEn || patient.fullNameAr);
 
+  // Prompt 22 §4.3 — the matched appointment already ENDED (patient shows up
+  // hours late): still record the arrival (they are physically present, so
+  // reception sees them on the board) but never promise "your turn in ~X
+  // minutes"; the kiosk tells them to see reception instead. Mid-slot
+  // latecomers (now <= end) keep the normal flow.
+  const endsAt = target.startsAt.getTime() + target.durationMinutes * 60_000;
+  const passed = now.getTime() > endsAt;
+
   if (target.checkedInAt) {
-    return { kind: 'ALREADY_CHECKED_IN', firstName: greetName, delayMinutes };
+    return passed
+      ? {
+          kind: 'APPOINTMENT_PASSED',
+          firstName: greetName,
+          startsAtIso: target.startsAt.toISOString(),
+        }
+      : { kind: 'ALREADY_CHECKED_IN', firstName: greetName, delayMinutes };
   }
 
   await recordCheckIn({
@@ -122,5 +137,11 @@ export async function checkInByPhone(input: {
     at: now,
   });
 
-  return { kind: 'CHECKED_IN', firstName: greetName, delayMinutes };
+  return passed
+    ? {
+        kind: 'APPOINTMENT_PASSED',
+        firstName: greetName,
+        startsAtIso: target.startsAt.toISOString(),
+      }
+    : { kind: 'CHECKED_IN', firstName: greetName, delayMinutes };
 }

@@ -259,8 +259,11 @@ export async function seedReference(db: PrismaClient): Promise<void> {
         tue: { open: '09:00', close: '18:00', closed: false },
         wed: { open: '09:00', close: '18:00', closed: false },
         thu: { open: '09:00', close: '18:00', closed: false },
+        // Friday + Saturday are non-working days (Prompt 22 §4.2). Seeds
+        // never re-run in production — the live ClinicSettings row is
+        // flipped via the admin settings UI / deploy data step.
         fri: { open: '09:00', close: '13:00', closed: true },
-        sat: { open: '10:00', close: '14:00', closed: false },
+        sat: { open: '10:00', close: '14:00', closed: true },
       },
       serviceTypes: [
         {

@@ -130,7 +130,9 @@ const weekdayEnum = z.enum(['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']);
 export const recurrenceRuleSchema = z.object({
   frequency: z.literal('WEEKLY'),
   interval: z.number().int().min(1).max(8),
-  byWeekday: z.array(weekdayEnum).min(1).max(7),
+  // Max 2 days per week (Prompt 22 §4.2) — the schema is the single source
+  // of truth, so preview + create actions enforce the cap server-side.
+  byWeekday: z.array(weekdayEnum).min(1).max(2),
   count: z.number().int().min(1).max(52),
 });
 

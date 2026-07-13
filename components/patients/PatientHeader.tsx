@@ -49,7 +49,9 @@ export function PatientHeader({
       </Avatar>
       <div className="flex-1 space-y-1">
         <h1 className="text-2xl font-medium text-brand-navy">{name}</h1>
-        <p className="text-sm text-brand-textMuted">{alt}</p>
+        {/* Legacy intake rows copied one name into both locale fields — show
+            the alternate-locale name only when it actually differs (QA 5.2). */}
+        {alt.trim() !== name.trim() ? <p className="text-sm text-brand-textMuted">{alt}</p> : null}
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <Badge variant="muted">{ageYears}y</Badge>
           <Badge variant="muted">{patient.gender}</Badge>

@@ -51,14 +51,25 @@ const conflictError = (conflicts: Conflict[]): LocalizedError => ({
   details: { conflicts: conflicts as unknown as Record<string, unknown> },
 });
 
-// QA retest #15 — a same-patient overlap is a hard block: it cannot be
-// overridden or waitlisted. Thrown even when overrideConflicts is set.
-const hardBlockedError = (conflicts: Conflict[]): LocalizedError => ({
-  code: 'APPOINTMENT_SAME_PATIENT_OVERLAP',
-  message_en: 'This patient already has an appointment at this time. Pick another slot.',
-  message_ar: 'لدى هذا المريض موعد آخر في نفس الوقت. الرجاء اختيار وقت آخر.',
-  details: { conflicts: conflicts as unknown as Record<string, unknown> },
-});
+// QA retest #15 + Prompt 22 §4.1/§4.2 — hard-blocked conflicts can never be
+// overridden or waitlisted. Thrown even when overrideConflicts is set. The
+// message names the dominant blocker: same-patient overlap wins over the
+// closed-day case when both are present.
+const hardBlockedError = (conflicts: Conflict[]): LocalizedError =>
+  conflicts.some((c) => c.kind === 'PATIENT_OVERLAP')
+    ? {
+        code: 'APPOINTMENT_SAME_PATIENT_OVERLAP',
+        message_en: 'This patient already has an appointment at this time. Pick another slot.',
+        message_ar: 'لدى هذا المريض موعد آخر في نفس الوقت. الرجاء اختيار وقت آخر.',
+        details: { conflicts: conflicts as unknown as Record<string, unknown> },
+      }
+    : {
+        code: 'APPOINTMENT_ON_CLOSED_DAY',
+        message_en:
+          'The clinic is closed on this day. Appointments cannot be booked on non-working days.',
+        message_ar: 'العيادة مغلقة في هذا اليوم. لا يمكن حجز مواعيد في أيام العطلة.',
+        details: { conflicts: conflicts as unknown as Record<string, unknown> },
+      };
 
 const unauthenticated: LocalizedError = {
   code: 'UNAUTHENTICATED',
@@ -305,8 +316,15 @@ export const rescheduleAppointment = withAudit<
       durationMinutes: input.durationMinutes,
     });
 
-    if (!conflicts.ok && !input.overrideConflicts) {
-      throw new AppointmentError(conflictError(conflicts.conflicts));
+    if (!conflicts.ok) {
+      // Hard-blocked kinds (same-patient overlap, closed day) reject even
+      // with overrideConflicts + the override permission (Prompt 22 §4.1).
+      if (hasHardBlockedConflict(conflicts.conflicts)) {
+        throw new AppointmentError(hardBlockedError(conflicts.conflicts));
+      }
+      if (!input.overrideConflicts) {
+        throw new AppointmentError(conflictError(conflicts.conflicts));
+      }
     }
 
     await db.$transaction(async (tx) => {
@@ -417,8 +435,14 @@ export const changeAppointmentTherapist = withAudit<
       startsAt: existing.startsAt,
       durationMinutes: existing.durationMinutes,
     });
-    if (!conflicts.ok && !input.overrideConflicts) {
-      throw new AppointmentError(conflictError(conflicts.conflicts));
+    if (!conflicts.ok) {
+      // Hard-blocked kinds reject even with overrideConflicts (Prompt 22 §4.1).
+      if (hasHardBlockedConflict(conflicts.conflicts)) {
+        throw new AppointmentError(hardBlockedError(conflicts.conflicts));
+      }
+      if (!input.overrideConflicts) {
+        throw new AppointmentError(conflictError(conflicts.conflicts));
+      }
     }
 
     const prevSet = new Set(previousTherapistIds);
@@ -867,7 +891,12 @@ export const rescheduleAppointmentSeries = withAudit<
           startsAt: p.newStartsAt,
           durationMinutes: p.newDurationMinutes,
         });
-        if (!conflicts.ok && !input.overrideConflicts) {
+        // Hard-blocked kinds fail the occurrence regardless of override
+        // (Prompt 22 §4.1) — soft conflicts stay overridable.
+        if (
+          !conflicts.ok &&
+          (hasHardBlockedConflict(conflicts.conflicts) || !input.overrideConflicts)
+        ) {
           failures.push({
             appointmentId: p.occ.id,
             startsAt: p.newStartsAt,
@@ -980,7 +1009,12 @@ export const changeAppointmentTherapistSeries = withAudit<
           startsAt: occ.startsAt,
           durationMinutes: occ.durationMinutes,
         });
-        if (!conflicts.ok && !input.overrideConflicts) {
+        // Hard-blocked kinds fail the occurrence regardless of override
+        // (Prompt 22 §4.1) — soft conflicts stay overridable.
+        if (
+          !conflicts.ok &&
+          (hasHardBlockedConflict(conflicts.conflicts) || !input.overrideConflicts)
+        ) {
           failures.push({
             appointmentId: occ.id,
             startsAt: occ.startsAt,
@@ -1336,6 +1370,12 @@ export const createSeries = withAudit<
             startsAt: occ.startsAt,
             durationMinutes: occ.durationMinutes,
           });
+          // Hard-blocked kinds (same-patient overlap, closed day) can never
+          // be resolved via OVERRIDE — abort the series atomically even when
+          // the occurrence carries an override resolution (Prompt 22 §4.1).
+          if (!conflicts.ok && hasHardBlockedConflict(conflicts.conflicts)) {
+            throw new AppointmentError(hardBlockedError(conflicts.conflicts));
+          }
           if (!conflicts.ok && !occ.override) {
             // Atomic abort — Prompt 7b §4.4: any failure rolls back the
             // entire series and surfaces the failing occurrence in the

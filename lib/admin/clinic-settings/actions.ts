@@ -64,6 +64,10 @@ export async function updateClinicSettingsAction(
   try {
     const data = await updateInner(parsed.data);
     revalidatePath('/[locale]/(admin)/admin/settings', 'page');
+    // currentDelayMinutes also feeds the arrivals board + kiosk estimate —
+    // refresh that surface so an admin-side change lands within one poll
+    // (Prompt 22 §4.5).
+    revalidatePath('/[locale]/(staff)/secretary/arrivals', 'page');
     return ok(data);
   } catch (err) {
     return fail(toLocalized(err));

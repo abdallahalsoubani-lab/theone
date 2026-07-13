@@ -38,7 +38,7 @@ describe('appointment room requirement (QA retest #7/#13)', () => {
   });
 });
 
-describe('same-patient overlap hard block (QA retest #15)', () => {
+describe('hard-blocked conflict kinds (QA retest #15 + Prompt 22 §4.1/§4.2)', () => {
   const patientOverlap = { kind: 'PATIENT_OVERLAP', appointment: {} } as unknown as Conflict;
   const therapistOverlap = {
     kind: 'THERAPIST_OVERLAP',
@@ -53,8 +53,11 @@ describe('same-patient overlap hard block (QA retest #15)', () => {
     dayKey: 'MON',
   } as unknown as Conflict;
 
-  it('treats only PATIENT_OVERLAP as hard-blocked', () => {
+  const clinicClosed = { kind: 'CLINIC_CLOSED_THIS_DAY', dayKey: 'fri' } as unknown as Conflict;
+
+  it('treats PATIENT_OVERLAP and CLINIC_CLOSED_THIS_DAY as hard-blocked', () => {
     expect(isHardBlockedConflict(patientOverlap)).toBe(true);
+    expect(isHardBlockedConflict(clinicClosed)).toBe(true);
     expect(isHardBlockedConflict(therapistOverlap)).toBe(false);
     expect(isHardBlockedConflict(outsideHours)).toBe(false);
   });
@@ -62,5 +65,24 @@ describe('same-patient overlap hard block (QA retest #15)', () => {
   it('detects a hard block within a mixed conflict set', () => {
     expect(hasHardBlockedConflict([therapistOverlap, outsideHours])).toBe(false);
     expect(hasHardBlockedConflict([therapistOverlap, patientOverlap])).toBe(true);
+    expect(hasHardBlockedConflict([therapistOverlap, clinicClosed])).toBe(true);
+  });
+});
+
+describe('recurring day cap (Prompt 22 §4.2)', () => {
+  const series = (byWeekday: string[]) => ({
+    patientId: 'p1',
+    therapistIds: ['t1'],
+    startsAt: new Date('2030-01-01T10:00:00Z'),
+    durationMinutes: 30,
+    roomId: 'r1',
+    rule: { frequency: 'WEEKLY' as const, interval: 1, byWeekday, count: 4 },
+  });
+
+  it('accepts 1 or 2 weekdays and rejects 3+', () => {
+    expect(seriesPreviewSchema.safeParse(series(['MON'])).success).toBe(true);
+    expect(seriesPreviewSchema.safeParse(series(['MON', 'WED'])).success).toBe(true);
+    expect(seriesPreviewSchema.safeParse(series(['MON', 'WED', 'THU'])).success).toBe(false);
+    expect(seriesPreviewSchema.safeParse(series([])).success).toBe(false);
   });
 });
