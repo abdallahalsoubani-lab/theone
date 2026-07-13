@@ -45,6 +45,8 @@ vi.mock('@/lib/db', () => ({
   toLocalizedError: (e: unknown) => ({ code: 'ERR', message_en: String(e), message_ar: String(e) }),
 }));
 
+import { auth } from '@/auth';
+
 import { approveSubmissionLink, approveSubmissionNew, rejectSubmission } from '../services';
 
 const adultAnswers = {
@@ -61,7 +63,8 @@ const adultAnswers = {
 };
 
 const profile = {
-  fullName: 'John Doe',
+  fullNameAr: 'يوسف النجار',
+  fullNameEn: 'John Doe',
   phone: '+962790000000',
   dateOfBirth: '1990-01-01',
   gender: 'MALE',
@@ -102,6 +105,50 @@ describe('approveSubmissionNew', () => {
     // claim PENDING→APPROVED, then linkedPatientId set.
     expect(m.updateManyCalls[0]?.data.status).toBe('APPROVED');
     expect(m.updateCalls.at(-1)?.data).toEqual({ linkedPatientId: 'pat-new' });
+  });
+
+  it('maps each submitted name to its own column and carries the explicit languagePref (QA 5.2/5.3)', async () => {
+    await approveSubmissionNew({ submissionId: 'sub-1' });
+    expect(createPatient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fullNameAr: 'يوسف النجار',
+        fullNameEn: 'John Doe',
+        languagePref: 'EN',
+      }),
+      'sec-1',
+    );
+  });
+
+  it('falls back to the AR name for fullNameEn when the EN name is missing — never empty', async () => {
+    m.submission = pendingAdult({ profile: { ...profile, fullNameEn: null } });
+    await approveSubmissionNew({ submissionId: 'sub-1' });
+    expect(createPatient).toHaveBeenCalledWith(
+      expect.objectContaining({ fullNameAr: 'يوسف النجار', fullNameEn: 'يوسف النجار' }),
+      'sec-1',
+    );
+  });
+
+  it('still approves a legacy pre-split submission (single fullName feeds both columns)', async () => {
+    const { fullNameAr: _ar, fullNameEn: _en, ...rest } = profile;
+    m.submission = pendingAdult({
+      profile: { ...rest, fullName: 'John Doe', languagePref: 'AR' },
+    });
+    await approveSubmissionNew({ submissionId: 'sub-1' });
+    expect(createPatient).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fullNameAr: 'John Doe',
+        fullNameEn: 'John Doe',
+        languagePref: 'AR',
+      }),
+      'sec-1',
+    );
+  });
+
+  it('denies an unauthenticated caller before any claim or write (RBAC/session guard)', async () => {
+    vi.mocked(auth).mockResolvedValueOnce(null as never);
+    await expect(approveSubmissionNew({ submissionId: 'sub-1' })).rejects.toThrow();
+    expect(createPatient).not.toHaveBeenCalled();
+    expect(m.updateManyCalls).toHaveLength(0);
   });
 
   it('is race-safe: a lost claim (count 0) creates no patient', async () => {

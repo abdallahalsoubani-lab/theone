@@ -7,6 +7,12 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { listCustomQuestions } from '@/lib/admin/custom-questions/queries';
 import { formatDateTime } from '@/lib/format/date';
+import {
+  formatIntakeAnswer,
+  genderLabelKey,
+  languagePrefLabel,
+  resolveCustomAnswerValue,
+} from '@/lib/intake/display';
 import { findPatientByPhone, getSubmissionById } from '@/lib/intake-submissions/queries';
 import { requirePermission } from '@/lib/rbac/guards';
 
@@ -70,23 +76,38 @@ export default async function IntakeSubmissionDetailPage({
   const questionById = new Map(customQuestions.map((q) => [q.id, q]));
 
   const fieldKeys = submission.type === IntakeType.ADULT ? ADULT_FIELD_KEYS : PEDIATRIC_FIELD_KEYS;
+  // Fixed enum answers render through the SAME intake.adult option labels the
+  // form inputs use (QA 5.1); unknown values fall back to the stored raw key.
   const answerRows = fieldKeys.map((k) => ({
     label: tFields(k),
-    value: formatValue(answers[k]),
+    value: formatIntakeAnswer(k, answers[k], tFields),
   }));
+  // Custom SINGLE/MULTI_SELECT answers store the canonical option `value` —
+  // resolve it to the viewer-locale option label; free-text passes through.
   const customRows = Object.entries(customAnswers).map(([qid, value]) => {
     const q = questionById.get(qid);
     return {
       label: q ? (intlLocale === 'ar' ? q.nameAr : q.nameEn) : qid,
-      value: formatValue(value),
+      value: q ? resolveCustomAnswerValue(q.options, value, intlLocale) : formatValue(value),
     };
   });
 
+  const genderKey = genderLabelKey(profile.gender);
   const profileRows: Array<{ label: string; value: string }> = [
-    { label: tProfile('fullName'), value: formatValue(profile.fullName) },
+    // Legacy pre-split submissions stored a single `fullName` — show it in the
+    // AR slot (AR is the app default locale) so the pending queue stays readable.
+    { label: tProfile('fullNameAr'), value: formatValue(profile.fullNameAr ?? profile.fullName) },
+    { label: tProfile('fullNameEn'), value: formatValue(profile.fullNameEn) },
     { label: tProfile('phone'), value: submission.submittedPhone },
     { label: tProfile('dateOfBirth'), value: formatValue(profile.dateOfBirth) },
-    { label: tProfile('gender'), value: formatValue(profile.gender) },
+    {
+      label: tProfile('gender'),
+      value: genderKey ? tProfile(genderKey) : formatValue(profile.gender),
+    },
+    {
+      label: tProfile('languagePref'),
+      value: languagePrefLabel(profile.languagePref) ?? formatValue(profile.languagePref),
+    },
     { label: tProfile('address'), value: formatValue(profile.address) },
     { label: tProfile('emailOptional'), value: formatValue(profile.email) },
   ];

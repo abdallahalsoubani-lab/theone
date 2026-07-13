@@ -3,6 +3,7 @@
 import {
   Comorbidity,
   Gender,
+  LanguagePref,
   PainSeverity,
   PainStability,
   PainTiming,
@@ -63,19 +64,24 @@ const PEDIATRIC_ANSWER_DEFAULTS = {
   customAnswers: {},
 };
 
-const emptyProfile = {
-  fullName: '',
-  phone: '',
-  dateOfBirth: '',
-  gender: Gender.MALE,
-  address: '',
-  email: '',
-};
-
 export function PublicIntakeFlow({ locale, adultQuestions, pediatricQuestions }: Props) {
   const t = useTranslations('publicIntake');
   const tCommon = useTranslations('common');
   const [step, setStep] = useState<Step>('choose');
+
+  // Built inside the component because the preferred-language radio (QA 5.3)
+  // defaults to the locale the form is being filled in. Two name fields
+  // (QA 5.2): AR required, EN optional.
+  const emptyProfile = {
+    fullNameAr: '',
+    fullNameEn: '',
+    phone: '',
+    dateOfBirth: '',
+    gender: Gender.MALE,
+    languagePref: locale === 'ar' ? LanguagePref.AR : LanguagePref.EN,
+    address: '',
+    email: '',
+  };
 
   if (step === 'done') {
     return (

@@ -1,4 +1,4 @@
-import { Gender } from '@prisma/client';
+import { Gender, LanguagePref } from '@prisma/client';
 import { z } from 'zod';
 
 import { adultIntakeSchema, pediatricIntakeSchema } from '@/lib/intake/schemas';
@@ -12,17 +12,27 @@ import { adultIntakeSchema, pediatricIntakeSchema } from '@/lib/intake/schemas';
  */
 
 /**
- * Identifying fields needed to create the patient on approval. One name field
- * (copied into both fullNameEn/fullNameAr at approval). Phone is accepted
- * loosely here and normalised + validated server-side against the Jordan E.164
- * rule. `min(3)` on the name matches `patientCreateSchema` so approval never
- * fails on length.
+ * Identifying fields needed to create the patient on approval (QA 13/7
+ * items 5.2 + 5.3). Two name fields, both collected regardless of the form
+ * locale: the Arabic name is required (it feeds `submittedName` and
+ * `User.fullNameAr`); the English name is optional because the submission
+ * stores the profile as Json (no non-null column) — on approval a missing EN
+ * name falls back to the AR name so `User.fullNameEn` is never empty. When
+ * the EN name IS provided it must satisfy the same `min(3).max(120)` bounds
+ * as `patientCreateSchema` so approval never fails on length. Phone is
+ * accepted loosely here and normalised + validated server-side against the
+ * Jordan E.164 rule. `languagePref` is the patient's EXPLICIT channel/portal
+ * language choice (defaulted to the form locale by the UI); it is optional
+ * here so pre-fix clients stay valid — the service falls back to the form
+ * locale.
  */
 export const publicProfileSchema = z.object({
-  fullName: z.string().trim().min(3).max(120),
+  fullNameAr: z.string().trim().min(3).max(120),
+  fullNameEn: z.string().trim().min(3).max(120).optional().or(z.literal('')),
   phone: z.string().trim().min(6).max(25),
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'required'),
   gender: z.nativeEnum(Gender),
+  languagePref: z.nativeEnum(LanguagePref).optional(),
   address: z.string().trim().min(5).max(500),
   email: z.string().email().max(255).optional().or(z.literal('')),
 });

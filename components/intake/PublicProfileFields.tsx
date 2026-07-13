@@ -1,11 +1,14 @@
 'use client';
 
-import { Gender } from '@prisma/client';
+import { Gender, LanguagePref } from '@prisma/client';
 import { useTranslations } from 'next-intl';
 import type { FieldValues, UseFormReturn } from 'react-hook-form';
 
 import { SelectField, TextField, TextareaField } from '@/components/forms/FormFields';
 import { Card, CardContent } from '@/components/ui/card';
+import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 interface Props {
   form: UseFormReturn<FieldValues>;
@@ -14,11 +17,22 @@ interface Props {
 }
 
 /**
+ * Native language names are locale-invariant proper nouns — the established
+ * precedent from `PatientForm`'s language options.
+ */
+const LANGUAGE_OPTIONS = [
+  { value: LanguagePref.AR, label: 'العربية' },
+  { value: LanguagePref.EN, label: 'English' },
+] as const;
+
+/**
  * Identifying-fields section of the public intake form (Prompt 23). These
- * drive patient creation on approval (name → both name fields, phone for
- * duplicate detection, DOB/gender/address required by the patient-create
- * service). One name field per the confirmed decision — the secretary can
- * transliterate the other half at review.
+ * drive patient creation on approval (each name → its own name column, phone
+ * for duplicate detection, DOB/gender/address required by the patient-create
+ * service). Two name fields per QA 13/7 item 5.2 — the Arabic name is
+ * required, the English one optional (approval falls back to the AR name).
+ * The preferred-language radio (QA 5.3) is the patient's explicit choice for
+ * WhatsApp + portal language; the host form defaults it to the form locale.
  */
 export function PublicProfileFields({ form, namePrefix = 'profile.' }: Props) {
   const t = useTranslations('publicIntake');
@@ -28,7 +42,20 @@ export function PublicProfileFields({ form, namePrefix = 'profile.' }: Props) {
     <Card>
       <CardContent className="space-y-4 p-6">
         <h2 className="text-lg font-medium text-brand-navy">{t('sectionAbout')}</h2>
-        <TextField form={form} name={n('fullName')} label={t('fullName')} autoComplete="name" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <TextField
+            form={form}
+            name={n('fullNameAr')}
+            label={t('fullNameAr')}
+            autoComplete="name"
+          />
+          <TextField
+            form={form}
+            name={n('fullNameEn')}
+            label={t('fullNameEn')}
+            autoComplete="name"
+          />
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
             form={form}
@@ -68,6 +95,40 @@ export function PublicProfileFields({ form, namePrefix = 'profile.' }: Props) {
             autoComplete="email"
           />
         </div>
+        <FormField
+          control={form.control}
+          name={n('languagePref')}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t('languagePref')}</FormLabel>
+              <FormControl>
+                <div className="flex flex-wrap gap-4 rounded-md border border-input bg-background p-3">
+                  {LANGUAGE_OPTIONS.map((o) => {
+                    const id = `lang-${namePrefix}${o.value}`;
+                    return (
+                      <Label
+                        key={o.value}
+                        htmlFor={id}
+                        className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+                      >
+                        <Input
+                          id={id}
+                          type="radio"
+                          name={n('languagePref')}
+                          checked={field.value === o.value}
+                          onChange={() => field.onChange(o.value)}
+                          className="size-4 cursor-pointer accent-brand-cyan"
+                        />
+                        <span>{o.label}</span>
+                      </Label>
+                    );
+                  })}
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
         <TextareaField form={form} name={n('address')} label={t('address')} rows={2} />
       </CardContent>
     </Card>

@@ -1,6 +1,7 @@
 import type { IntakeStatus, IntakeType } from '@prisma/client';
 
 import { db } from '@/lib/db';
+import { parseCustomOptions, resolveCustomAnswerValue } from '@/lib/intake/display';
 
 export interface IntakeListRow {
   id: string;
@@ -25,7 +26,18 @@ export interface IntakeAssessmentDetail {
   /** Typed adult columns (null for pediatric), as a plain record for the view. */
   adult: Record<string, unknown> | null;
   pediatric: Record<string, unknown> | null;
-  custom: Array<{ nameEn: string; nameAr: string; value: string }>;
+  /**
+   * `value` keeps the stored canonical form; `valueEn`/`valueAr` resolve
+   * select answers to the question's localized option labels (QA 5.1), with
+   * the raw value as fallback for free-text answers or deleted options.
+   */
+  custom: Array<{
+    nameEn: string;
+    nameAr: string;
+    value: string;
+    valueEn: string;
+    valueAr: string;
+  }>;
 }
 
 /** Read-only detail for the patient-file "View" link (Fix 6B item 4). */
@@ -38,7 +50,7 @@ export async function getIntakeAssessmentById(id: string): Promise<IntakeAssessm
       adultData: true,
       pediatricData: true,
       customAnswers: {
-        include: { question: { select: { nameEn: true, nameAr: true } } },
+        include: { question: { select: { nameEn: true, nameAr: true, options: true } } },
         orderBy: { createdAt: 'asc' },
       },
     },
@@ -46,9 +58,17 @@ export async function getIntakeAssessmentById(id: string): Promise<IntakeAssessm
   if (!row) return null;
 
   const custom = row.customAnswers.map((a) => {
-    const options = (a.valueOptions as string[] | null) ?? null;
-    const value = options && options.length > 0 ? options.join(', ') : (a.value ?? '');
-    return { nameEn: a.question.nameEn, nameAr: a.question.nameAr, value };
+    const selected = (a.valueOptions as string[] | null) ?? null;
+    const stored: unknown = selected && selected.length > 0 ? selected : (a.value ?? '');
+    const value = Array.isArray(stored) ? stored.join(', ') : String(stored);
+    const questionOptions = parseCustomOptions(a.question.options);
+    return {
+      nameEn: a.question.nameEn,
+      nameAr: a.question.nameAr,
+      value,
+      valueEn: resolveCustomAnswerValue(questionOptions, stored, 'en'),
+      valueAr: resolveCustomAnswerValue(questionOptions, stored, 'ar'),
+    };
   });
 
   return {

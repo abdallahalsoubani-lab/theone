@@ -29,9 +29,13 @@ export async function createPublicSubmission(
   const normalized = normalizeJordanPhone(input.profile.phone);
   if (!normalized) throw new IntakeSubmissionError(SUBMISSION_ERRORS.INVALID_PHONE);
 
-  const languagePref = input.locale === 'ar' ? 'AR' : 'EN';
+  // Explicit preferred-language choice wins (QA 5.3); the form locale stays as
+  // a fallback for legacy payloads submitted before the field existed.
+  const languagePref = input.profile.languagePref ?? (input.locale === 'ar' ? 'AR' : 'EN');
   const profile = {
-    fullName: input.profile.fullName,
+    fullNameAr: input.profile.fullNameAr,
+    // EN name is optional on the public form (QA 5.2) — store null, never ''.
+    fullNameEn: input.profile.fullNameEn || null,
     phone: normalized,
     dateOfBirth: input.profile.dateOfBirth,
     gender: input.profile.gender,
@@ -45,7 +49,9 @@ export async function createPublicSubmission(
       type: input.type === 'ADULT' ? IntakeType.ADULT : IntakeType.PEDIATRIC,
       answers: input.answers as unknown as Prisma.InputJsonValue,
       profile: profile as unknown as Prisma.InputJsonValue,
-      submittedName: input.profile.fullName,
+      // AR is the app's default locale — the AR name is the denormalized
+      // display name for the review queue.
+      submittedName: input.profile.fullNameAr,
       submittedPhone: normalized,
       // status defaults to PENDING
     },
@@ -54,12 +60,25 @@ export async function createPublicSubmission(
   return { submissionId: row.id };
 }
 
-/** Build the patient-create input from a stored submission profile. */
+function profileString(v: unknown): string {
+  return typeof v === 'string' ? v.trim() : '';
+}
+
+/**
+ * Build the patient-create input from a stored submission profile.
+ *
+ * Names (QA 5.2): each stored name maps to its own column. Legacy submissions
+ * (pre split-name fix) carry a single `fullName` — it feeds both columns so
+ * the in-flight PENDING queue stays approvable. A missing EN name falls back
+ * to the AR name (`User.fullNameEn` is non-nullable — never empty).
+ */
 function patientInputFromProfile(profile: Record<string, unknown>): PatientCreateInput {
-  const fullName = String(profile.fullName ?? '');
+  const legacyName = profileString(profile.fullName);
+  const fullNameAr = profileString(profile.fullNameAr) || legacyName;
+  const fullNameEn = profileString(profile.fullNameEn) || legacyName || fullNameAr;
   return patientCreateSchema.parse({
-    fullNameEn: fullName,
-    fullNameAr: fullName,
+    fullNameEn,
+    fullNameAr,
     phone: String(profile.phone ?? ''),
     email: profile.email ? String(profile.email) : '',
     dateOfBirth: String(profile.dateOfBirth ?? ''),

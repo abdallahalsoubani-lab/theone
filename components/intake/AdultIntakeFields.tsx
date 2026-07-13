@@ -19,6 +19,7 @@ import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/comp
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import type { CustomQuestionRow } from '@/lib/admin/custom-questions/queries';
+import { enumOptions, pascal, severitySuffix } from '@/lib/intake/display';
 
 interface Props {
   form: UseFormReturn<FieldValues>;
@@ -262,39 +263,6 @@ export function AdultIntakeFields({ form, customQuestions, locale, namePrefix = 
   );
 }
 
-function enumOptions<E extends Record<string, string>>(
-  e: E,
-  label: (v: E[keyof E]) => string,
-): Array<{ value: string; label: string }> {
-  return (Object.values(e) as Array<E[keyof E]>).map((v) => ({
-    value: v as string,
-    label: label(v),
-  }));
-}
-
-function pascal(s: string): string {
-  return s
-    .toLowerCase()
-    .split('_')
-    .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
-    .join('');
-}
-
-function severitySuffix(v: PainSeverity): string {
-  switch (v) {
-    case PainSeverity.ZERO:
-      return '0';
-    case PainSeverity.ONE_TWO:
-      return '12';
-    case PainSeverity.THREE_FOUR:
-      return '34';
-    case PainSeverity.FIVE:
-      return '5';
-    case PainSeverity.SIX_SEVEN:
-      return '67';
-    case PainSeverity.EIGHT_NINE:
-      return '89';
-    case PainSeverity.TEN:
-      return '10';
-  }
-}
+// enumOptions / pascal / severitySuffix moved to lib/intake/display.ts so the
+// read-only views (submission detail, IntakeAssessmentView) localize stored
+// enum values with the SAME keys the form options use (QA 13/7 item 5.1).

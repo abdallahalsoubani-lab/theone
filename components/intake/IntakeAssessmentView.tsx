@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { formatDateTime } from '@/lib/format/date';
+import { formatIntakeAnswer } from '@/lib/intake/display';
 import type { IntakeAssessmentDetail } from '@/lib/intake/queries';
 
 /**
@@ -34,12 +35,6 @@ const ADULT_FIELD_KEYS = [
 
 const PEDIATRIC_FIELD_KEYS = ['numberOfSiblings', 'birthOrder'] as const;
 
-function formatValue(v: unknown): string {
-  if (Array.isArray(v)) return v.length ? v.map(String).join(', ') : '—';
-  if (v === null || v === undefined || v === '') return '—';
-  return String(v);
-}
-
 export async function IntakeAssessmentView({
   assessment,
   backHref,
@@ -57,7 +52,12 @@ export async function IntakeAssessmentView({
   const isAdult = assessment.type === IntakeType.ADULT;
   const data = (isAdult ? assessment.adult : assessment.pediatric) ?? {};
   const fieldKeys = isAdult ? ADULT_FIELD_KEYS : PEDIATRIC_FIELD_KEYS;
-  const rows = fieldKeys.map((k) => ({ label: tFields(k), value: formatValue(data[k]) }));
+  // Enum answers render through the SAME intake.adult option labels the form
+  // inputs use (QA 5.1); unknown values fall back to the stored raw key.
+  const rows = fieldKeys.map((k) => ({
+    label: tFields(k),
+    value: formatIntakeAnswer(k, data[k], tFields),
+  }));
   const assessedBy = locale === 'ar' ? assessment.assessedByAr : assessment.assessedByEn;
 
   return (
@@ -71,8 +71,13 @@ export async function IntakeAssessmentView({
         </Badge>
         <Badge variant="muted">{t('readOnly')}</Badge>
         <span className="text-xs text-brand-textMuted">
-          {formatDateTime(assessment.assessedAt, locale)}
-          {assessedBy ? ` · ${t('assessedBy')} ${assessedBy}` : ''}
+          <bdi>{formatDateTime(assessment.assessedAt, locale)}</bdi>
+          {assessedBy ? (
+            <>
+              {' · '}
+              {t('assessedBy')} <bdi>{assessedBy}</bdi>
+            </>
+          ) : null}
         </span>
       </div>
 
@@ -98,7 +103,7 @@ export async function IntakeAssessmentView({
                 <Row
                   key={i}
                   label={locale === 'ar' ? c.nameAr : c.nameEn}
-                  value={formatValue(c.value)}
+                  value={locale === 'ar' ? c.valueAr : c.valueEn}
                 />
               ))}
             </dl>
