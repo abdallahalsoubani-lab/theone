@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/responsive-modal';
 import { createAppointmentAction, previewConflictsAction } from '@/lib/appointments/actions';
 import { hasHardBlockedConflict, type ConflictResult } from '@/lib/appointments/conflicts';
+import type { DayKey } from '@/lib/appointments/conflicts-time';
 import { addWaitlistEntryAction, fulfillWaitlistEntryAction } from '@/lib/waitlist/actions';
 
 import { CreateSeriesModal } from './CreateSeriesModal';
@@ -50,6 +51,10 @@ interface Props {
   defaultStartsAt: Date | null;
   defaultTherapistId?: string;
   defaultDurationMinutes: number;
+  /** Non-working days (Prompt 22 §4.2) — forwarded to the series builder's
+   *  weekday picker. The single-booking datetime-local input can't grey
+   *  weekdays natively; its live conflict preview is the feedback there. */
+  closedDays?: DayKey[];
   canOverride: boolean;
   /** Prompt 19 — prefill the patient (one-click placement / add-to-waitlist). */
   defaultPatientId?: string;
@@ -76,6 +81,7 @@ export function CreateAppointmentModal({
   defaultStartsAt,
   defaultTherapistId,
   defaultDurationMinutes,
+  closedDays,
   canOverride,
   defaultPatientId,
   waitlistEntryId,
@@ -407,6 +413,7 @@ export function CreateAppointmentModal({
         defaultStartsAt={defaultStartsAt}
         defaultTherapistId={defaultTherapistId}
         defaultDurationMinutes={defaultDurationMinutes}
+        closedDays={closedDays}
         canOverride={canOverride}
       />
     </>

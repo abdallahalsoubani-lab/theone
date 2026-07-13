@@ -882,7 +882,10 @@
     "address": "Address",
     "thankYouTitle": "Thank you!",
     "thankYouBody": "Your intake has been received. The clinic will review it and contact you to confirm your registration.",
-    "submitAnother": "Submit another"
+    "submitAnother": "Submit another",
+    "fullNameAr": "Full name (Arabic)",
+    "fullNameEn": "Full name (English)",
+    "languagePref": "Preferred language"
   },
   "intakeSubmissions": {
     "title": "Intake requests",
@@ -1437,7 +1440,10 @@
       "overrideNotPermitted": "You don't have permission to override conflicts.",
       "rangeError": "Series must contain between 1 and 52 occurrences.",
       "recurringToggle": "Recurring",
-      "switchToSingle": "Single appointment"
+      "switchToSingle": "Single appointment",
+      "hardBlockedHint": "This occurrence conflicts with the same patient's existing appointment or a closed day — skip or shift it.",
+      "weekdayMaxHint": "Choose up to 2 days per week.",
+      "closedDay": "Non-working day"
     }
   },
   "leave": {

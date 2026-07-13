@@ -12,6 +12,10 @@ const badgeVariants = cva(
         secondary: 'border-transparent bg-secondary text-secondary-foreground',
         destructive:
           'border-transparent bg-destructive/10 text-destructive ring-1 ring-inset ring-destructive/20',
+        // Warning tier (Prompt 22 §4.4 overdue badge) — amber is the codebase's
+        // established warning hue (conflict panels), not a new brand token.
+        amber:
+          'border-transparent bg-amber-500/15 text-amber-700 ring-1 ring-inset ring-amber-500/25',
         outline: 'border-brand-border text-brand-navy',
         teal: 'border-transparent bg-brand-teal/10 text-brand-teal ring-1 ring-inset ring-brand-teal/25',
         cyan: 'border-transparent bg-brand-cyan/15 text-brand-blue ring-1 ring-inset ring-brand-cyan/30',

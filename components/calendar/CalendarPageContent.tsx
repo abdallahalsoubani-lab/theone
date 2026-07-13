@@ -1,6 +1,7 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { SecretaryCalendarBoard } from '@/components/calendar/SecretaryCalendarBoard';
+import { closedDayKeys } from '@/lib/appointments/closed-days';
 import {
   listActiveClinicians,
   listActivePatientsBrief,
@@ -50,6 +51,10 @@ export async function CalendarPageContent({ locale }: { locale: string }) {
   ]);
 
   const { minHour, maxHour } = deriveDayWindow(settings?.businessHours);
+  // Non-working days (Prompt 22 §4.2) — greyed out in the series weekday
+  // picker. The conflict engine (CLINIC_CLOSED_THIS_DAY, hard-blocked)
+  // remains the server-side authority.
+  const closedDays = closedDayKeys(settings?.businessHours);
   const defaultDurationMinutes = settings?.defaultAppointmentDuration ?? 30;
   const canOverride = can(viewer, 'appointments.override_conflict');
 
@@ -64,6 +69,7 @@ export async function CalendarPageContent({ locale }: { locale: string }) {
         defaultDurationMinutes={defaultDurationMinutes}
         minHour={minHour}
         maxHour={maxHour}
+        closedDays={closedDays}
         canOverride={canOverride}
         newAppointmentLabel={tAppointments('newAppointment')}
       />

@@ -21,7 +21,9 @@ import {
   previewSeriesAction,
   previewSeriesSlotAction,
 } from '@/lib/appointments/actions';
-import type { ConflictResult } from '@/lib/appointments/conflicts';
+import { weekdayToDayKey } from '@/lib/appointments/closed-days';
+import { hasHardBlockedConflict, type ConflictResult } from '@/lib/appointments/conflicts';
+import type { DayKey } from '@/lib/appointments/conflicts-time';
 import { WEEKDAYS, type Weekday } from '@/lib/appointments/recurrence';
 import type { SeriesResolution } from '@/lib/appointments/schemas';
 import type { SeriesPreviewOccurrence } from '@/lib/appointments/services';
@@ -53,8 +55,14 @@ interface Props {
   defaultStartsAt: Date | null;
   defaultTherapistId?: string;
   defaultDurationMinutes: number;
+  /** Non-working days from ClinicSettings.businessHours (Prompt 22 §4.2) —
+   *  their weekday buttons render disabled. */
+  closedDays?: DayKey[];
   canOverride: boolean;
 }
+
+/** A weekly pattern may span at most 2 days (Prompt 22 §4.2 — schema max(2)). */
+const MAX_WEEKDAYS = 2;
 
 /**
  * Recurring series builder — Prompt 7b §4.4.
@@ -86,6 +94,7 @@ export function CreateSeriesModal({
   defaultStartsAt,
   defaultTherapistId,
   defaultDurationMinutes,
+  closedDays,
   canOverride,
 }: Props) {
   const t = useTranslations('calendar.series');
@@ -419,19 +428,28 @@ export function CreateSeriesModal({
             <div className="mt-1 flex flex-wrap gap-2">
               {WEEKDAYS.map((day) => {
                 const active = byWeekday.includes(day);
+                // Non-working days are unselectable (Prompt 22 §4.2); an
+                // already-active day stays clickable so it can be deselected.
+                const closed = (closedDays ?? []).includes(weekdayToDayKey(day));
+                // Once the 2-day cap is reached, the remaining buttons disable.
+                const capReached = !active && byWeekday.length >= MAX_WEEKDAYS;
+                const disabled = (closed && !active) || capReached;
                 return (
                   <button
                     type="button"
                     key={day}
+                    disabled={disabled}
+                    title={closed ? t('closedDay') : undefined}
+                    aria-label={closed ? `${t(`weekdays.${day}`)} — ${t('closedDay')}` : undefined}
                     onClick={() =>
                       setByWeekday((prev) =>
                         prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
                       )
                     }
-                    className={`rounded-md border px-3 py-1 text-xs font-medium ${
+                    className={`rounded-md border px-3 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
                       active
                         ? 'border-brand-cyan bg-brand-cyan/10 text-brand-navy'
-                        : 'border-brand-border bg-brand-surface text-brand-textMuted hover:bg-brand-bg'
+                        : 'border-brand-border bg-brand-surface text-brand-textMuted hover:bg-brand-bg disabled:hover:bg-brand-surface'
                     }`}
                   >
                     {t(`weekdays.${day}`)}
@@ -439,6 +457,7 @@ export function CreateSeriesModal({
                 );
               })}
             </div>
+            <p className="mt-1 text-xs text-brand-textMuted">{t('weekdayMaxHint')}</p>
           </div>
         </fieldset>
 
@@ -465,74 +484,85 @@ export function CreateSeriesModal({
             </span>
           </div>
           <ul className="max-h-72 space-y-2 overflow-y-auto rounded-md border border-brand-border bg-brand-bg p-2">
-            {slots.map((s) => (
-              <li
-                key={s.index}
-                className={`rounded-md border bg-brand-surface p-2 text-sm ${
-                  s.conflicts.ok
-                    ? 'border-brand-border'
-                    : s.resolution
-                      ? 'border-amber-200'
-                      : 'border-red-300'
-                }`}
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="font-medium text-brand-navy">
-                      #{s.index + 1} · {formatDate(s.startsAt, intlLocale)} ·{' '}
-                      {formatTime(s.startsAt, intlLocale)}
-                    </p>
-                    <p
-                      className={`text-xs ${
-                        s.conflicts.ok ? 'text-brand-textMuted' : 'text-red-700'
-                      }`}
-                    >
-                      {s.conflicts.ok
-                        ? t('noConflict')
-                        : t('conflictCount', { count: String(s.conflicts.conflicts.length) })}
-                    </p>
+            {slots.map((s) => {
+              // Hard-blocked occurrences (same-patient overlap / closed day —
+              // Prompt 22 §4.1/§4.2) can never be overridden: the server
+              // rejects OVERRIDE for them, so the button is withheld and only
+              // the legitimate escapes (skip / shift) remain.
+              const slotHardBlocked =
+                !s.conflicts.ok && hasHardBlockedConflict(s.conflicts.conflicts);
+              return (
+                <li
+                  key={s.index}
+                  className={`rounded-md border bg-brand-surface p-2 text-sm ${
+                    s.conflicts.ok
+                      ? 'border-brand-border'
+                      : s.resolution
+                        ? 'border-amber-200'
+                        : 'border-red-300'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-brand-navy">
+                        #{s.index + 1} · {formatDate(s.startsAt, intlLocale)} ·{' '}
+                        {formatTime(s.startsAt, intlLocale)}
+                      </p>
+                      <p
+                        className={`text-xs ${
+                          s.conflicts.ok ? 'text-brand-textMuted' : 'text-red-700'
+                        }`}
+                      >
+                        {s.conflicts.ok
+                          ? t('noConflict')
+                          : t('conflictCount', { count: String(s.conflicts.conflicts.length) })}
+                      </p>
+                    </div>
+                    {!s.conflicts.ok ? (
+                      <div className="flex flex-wrap gap-1">
+                        <ResolutionButton
+                          active={s.resolution === 'SKIP'}
+                          onClick={() => setSlotResolution(s, 'SKIP')}
+                        >
+                          {t('resolutionSkip')}
+                        </ResolutionButton>
+                        <ResolutionButton
+                          active={s.resolution === 'SHIFT_1D'}
+                          onClick={() => setSlotResolution(s, 'SHIFT_1D')}
+                        >
+                          {t('resolutionShift1d')}
+                        </ResolutionButton>
+                        <ResolutionButton
+                          active={s.resolution === 'SHIFT_1W'}
+                          onClick={() => setSlotResolution(s, 'SHIFT_1W')}
+                        >
+                          {t('resolutionShift1w')}
+                        </ResolutionButton>
+                        {canOverride && !slotHardBlocked ? (
+                          <ResolutionButton
+                            variant="danger"
+                            active={s.resolution === 'OVERRIDE'}
+                            onClick={() => setSlotResolution(s, 'OVERRIDE')}
+                          >
+                            {t('resolutionOverride')}
+                          </ResolutionButton>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   {!s.conflicts.ok ? (
-                    <div className="flex flex-wrap gap-1">
-                      <ResolutionButton
-                        active={s.resolution === 'SKIP'}
-                        onClick={() => setSlotResolution(s, 'SKIP')}
-                      >
-                        {t('resolutionSkip')}
-                      </ResolutionButton>
-                      <ResolutionButton
-                        active={s.resolution === 'SHIFT_1D'}
-                        onClick={() => setSlotResolution(s, 'SHIFT_1D')}
-                      >
-                        {t('resolutionShift1d')}
-                      </ResolutionButton>
-                      <ResolutionButton
-                        active={s.resolution === 'SHIFT_1W'}
-                        onClick={() => setSlotResolution(s, 'SHIFT_1W')}
-                      >
-                        {t('resolutionShift1w')}
-                      </ResolutionButton>
-                      {canOverride ? (
-                        <ResolutionButton
-                          variant="danger"
-                          active={s.resolution === 'OVERRIDE'}
-                          onClick={() => setSlotResolution(s, 'OVERRIDE')}
-                        >
-                          {t('resolutionOverride')}
-                        </ResolutionButton>
-                      ) : null}
-                    </div>
+                    <ul className="mt-1 list-disc ps-5 text-xs text-brand-textMuted">
+                      {s.conflicts.conflicts.map((c, i) => (
+                        <li key={i}>{describeConflict(c, tConflicts, locale)}</li>
+                      ))}
+                    </ul>
                   ) : null}
-                </div>
-                {!s.conflicts.ok ? (
-                  <ul className="mt-1 list-disc ps-5 text-xs text-brand-textMuted">
-                    {s.conflicts.conflicts.map((c, i) => (
-                      <li key={i}>{describeConflict(c, tConflicts, locale)}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </li>
-            ))}
+                  {slotHardBlocked ? (
+                    <p className="mt-1 text-xs text-red-700">{t('hardBlockedHint')}</p>
+                  ) : null}
+                </li>
+              );
+            })}
           </ul>
           {conflictCount > 0 && !allResolved ? (
             <p className="text-xs text-amber-800">{t('unresolvedError')}</p>

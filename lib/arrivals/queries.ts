@@ -28,6 +28,9 @@ export interface ArrivalRow {
   therapistNameAr: string;
   roomName: string | null;
   startsAt: string; // ISO
+  /** Scheduled length — lets the panel derive the overdue badge
+   *  (Prompt 22 §4.4) without a second query. */
+  durationMinutes: number;
   checkedInAt: string | null; // ISO
   checkedInVia: 'KIOSK' | 'STAFF' | null;
   status: AppointmentStatus;
@@ -48,6 +51,7 @@ const ROW_SELECT = {
   id: true,
   patientId: true,
   startsAt: true,
+  durationMinutes: true,
   checkedInAt: true,
   checkedInVia: true,
   status: true,
@@ -72,6 +76,7 @@ function toRow(a: RawRow): ArrivalRow {
     therapistNameAr: a.therapists.map((t) => t.therapist.fullNameAr).join('، '),
     roomName: a.room?.name ?? null,
     startsAt: a.startsAt.toISOString(),
+    durationMinutes: a.durationMinutes,
     checkedInAt: a.checkedInAt ? a.checkedInAt.toISOString() : null,
     checkedInVia: a.checkedInVia,
     status: a.status,

@@ -15,6 +15,7 @@ import { CreateAppointmentModal } from '@/components/appointments/CreateAppointm
 import { SeriesScopeConfirmDialog } from '@/components/appointments/SeriesScopeConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { rescheduleAppointmentAction } from '@/lib/appointments/actions';
+import type { DayKey } from '@/lib/appointments/conflicts-time';
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 import type { SeriesEditMode } from '@/lib/appointments/schemas';
 
@@ -28,6 +29,9 @@ interface Props {
   defaultDurationMinutes: number;
   minHour: number;
   maxHour: number;
+  /** Non-working days from ClinicSettings.businessHours (Prompt 22 §4.2) —
+   *  greyed out in the series weekday picker. */
+  closedDays?: DayKey[];
   canOverride: boolean;
   newAppointmentLabel: string;
 }
@@ -52,6 +56,7 @@ export function SecretaryCalendarBoard({
   defaultDurationMinutes,
   minHour,
   maxHour,
+  closedDays,
   canOverride,
   newAppointmentLabel,
 }: Props) {
@@ -205,6 +210,7 @@ export function SecretaryCalendarBoard({
         defaultStartsAt={createSlot.start}
         defaultTherapistId={createSlot.therapistId}
         defaultDurationMinutes={defaultDurationMinutes}
+        closedDays={closedDays}
         canOverride={canOverride}
       />
 

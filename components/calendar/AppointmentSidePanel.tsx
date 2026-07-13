@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/sheet';
 import { Link } from '@/i18n/navigation';
 import { updateStatusAction } from '@/lib/appointments/actions';
-import { canStartSessionAt } from '@/lib/appointments/session-timing';
+import { canStartSessionAt, minutesOverdue } from '@/lib/appointments/session-timing';
 import { formatDate, formatTime } from '@/lib/format/date';
 import { formatPhone } from '@/lib/format/phone';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
@@ -129,9 +129,11 @@ export function AppointmentSidePanel({
   // QA retest #14 — a session is NEVER auto-completed when its scheduled end
   // passes. Instead, while it stays IN_PROGRESS past the scheduled end we surface
   // an "Overdue" badge (+ elapsed overtime) and keep End Session available.
-  const endsAtMs = appointment.startsAt.getTime() + appointment.durationMinutes * 60_000;
+  // minutesOverdue is the single source for this math (Prompt 22 §4.4).
   const overdueMinutes =
-    status === AppointmentStatus.IN_PROGRESS ? Math.floor((Date.now() - endsAtMs) / 60_000) : 0;
+    status === AppointmentStatus.IN_PROGRESS
+      ? minutesOverdue(new Date(), appointment.startsAt, appointment.durationMinutes)
+      : 0;
   const isOverdue = overdueMinutes > 0;
   const canCancel =
     status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED;
@@ -171,9 +173,7 @@ export function AppointmentSidePanel({
             <div className="flex items-center gap-1.5">
               <Badge variant="cyan">{tStatus(statusLabelKey(status))}</Badge>
               {isOverdue ? (
-                <Badge variant="destructive">
-                  {tStatus('overdue', { minutes: overdueMinutes })}
-                </Badge>
+                <Badge variant="amber">{tStatus('overdue', { minutes: overdueMinutes })}</Badge>
               ) : null}
             </div>
           </div>
@@ -182,8 +182,13 @@ export function AppointmentSidePanel({
             {formatTime(appointment.startsAt, intlLocale)}
           </p>
           <p className="text-brand-textMuted">
-            {therapistName} · {appointment.durationMinutes} min
-            {appointment.roomName ? ` · ${appointment.roomName}` : ''}
+            <bdi>{therapistName}</bdi> · {appointment.durationMinutes} min
+            {appointment.roomName ? (
+              <>
+                {' · '}
+                <bdi>{appointment.roomName}</bdi>
+              </>
+            ) : null}
           </p>
           {appointment.notes ? (
             <p className="whitespace-pre-wrap text-xs text-brand-text">{appointment.notes}</p>

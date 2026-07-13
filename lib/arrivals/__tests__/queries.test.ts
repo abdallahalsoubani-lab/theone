@@ -32,11 +32,13 @@ function row(over: {
   status: string;
   checkedInAt?: string | null;
   via?: 'KIOSK' | 'STAFF' | null;
+  durationMinutes?: number;
 }) {
   return {
     id: over.id,
     patientId: `pat-${over.id}`,
     startsAt: new Date(over.startsAt),
+    durationMinutes: over.durationMinutes ?? 30,
     checkedInAt: over.checkedInAt ? new Date(over.checkedInAt) : null,
     checkedInVia: over.via ?? null,
     status: over.status,
@@ -81,6 +83,28 @@ describe('getArrivalsBoard', () => {
     expect(board.waiting.map((r) => r.appointmentId)).toEqual(['w2', 'w1']);
     expect(board.inSession.map((r) => r.appointmentId)).toEqual(['s1']);
     expect(board.upNext.map((r) => r.appointmentId)).toEqual(['u1']);
+  });
+
+  it('carries durationMinutes on every row (overdue badge math — Prompt 22 §4.4)', async () => {
+    state.rows = [
+      row({
+        id: 's1',
+        startsAt: '2026-06-10T08:30:00Z',
+        status: 'IN_PROGRESS',
+        durationMinutes: 45,
+      }),
+      row({
+        id: 'w1',
+        startsAt: '2026-06-10T10:00:00Z',
+        status: 'CONFIRMED',
+        checkedInAt: '2026-06-10T08:50:00Z',
+      }),
+    ];
+
+    const board = await getArrivalsBoard({ now: NOW });
+
+    expect(board.inSession[0]?.durationMinutes).toBe(45);
+    expect(board.waiting[0]?.durationMinutes).toBe(30);
   });
 
   it('serializes NO phone fields anywhere in the payload (lobby display safety)', async () => {

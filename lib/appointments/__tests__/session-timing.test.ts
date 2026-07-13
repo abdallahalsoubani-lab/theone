@@ -5,6 +5,7 @@ import {
   earliestSessionStart,
   isSessionOverdue,
   isStartInPast,
+  minutesOverdue,
   sessionStartTooEarly,
 } from '../session-timing';
 
@@ -70,6 +71,27 @@ describe('isSessionOverdue — auto-complete threshold (grace 15min)', () => {
   it('overdue exactly at end + grace (boundary inclusive)', () => {
     const now = new Date('2026-06-01T13:45:00Z');
     expect(isSessionOverdue(now, start, duration, GRACE)).toBe(true);
+  });
+});
+
+describe('minutesOverdue — IN_PROGRESS overdue badge (Prompt 22 §4.4)', () => {
+  const start = new Date('2026-06-01T13:00:00Z');
+  const duration = 30; // ends 13:30Z
+
+  it('is 0 exactly at the scheduled end (not yet overdue)', () => {
+    expect(minutesOverdue(new Date('2026-06-01T13:30:00Z'), start, duration)).toBe(0);
+  });
+
+  it('is 1 one minute past the scheduled end', () => {
+    expect(minutesOverdue(new Date('2026-06-01T13:31:00Z'), start, duration)).toBe(1);
+  });
+
+  it('is 0 mid-slot (session still inside its scheduled window)', () => {
+    expect(minutesOverdue(new Date('2026-06-01T13:15:00Z'), start, duration)).toBe(0);
+  });
+
+  it('floors partial minutes (90s over → 1)', () => {
+    expect(minutesOverdue(new Date('2026-06-01T13:31:30Z'), start, duration)).toBe(1);
   });
 });
 

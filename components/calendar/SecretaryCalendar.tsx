@@ -17,6 +17,7 @@ import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 
 import type { CalendarAppointment } from '@/lib/appointments/queries';
+import { minutesOverdue } from '@/lib/appointments/session-timing';
 import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
 import { cn } from '@/lib/utils';
 
@@ -326,6 +327,7 @@ export function SecretaryCalendar({
 
 function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
   const locale = useLocale();
+  const tStatus = useTranslations('appointments.status');
   // react-big-calendar reuses `components.event` for backgroundEvents too,
   // which are leave overlays without an `appointment` field — render just
   // the title for those.
@@ -349,6 +351,13 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
     : '';
   const therapist = coTherapists > 0 ? `${therapistName} +${coTherapists}` : therapistName;
   const tint = therapistTint(event.resourceId);
+  // Overdue while IN_PROGRESS past scheduled end (Prompt 22 §4.4). No
+  // auto-transition — computed at render time (fresh on navigation/refresh);
+  // minutesOverdue is the single source for this math.
+  const overdueMinutes =
+    event.status === 'IN_PROGRESS'
+      ? minutesOverdue(new Date(), event.start, event.appointment.durationMinutes)
+      : 0;
   return (
     <div className="flex h-full flex-col gap-0.5 overflow-hidden">
       <div className="flex items-start gap-1.5">
@@ -362,6 +371,13 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
       <div className="ps-3 text-[11px] font-medium tabular-nums leading-tight opacity-80">
         {startLabel}–{endLabel}
       </div>
+      {overdueMinutes > 0 ? (
+        <div className="ps-3">
+          <span className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-px text-[10px] font-medium tabular-nums text-amber-700 ring-1 ring-inset ring-amber-500/25">
+            {tStatus('overdue', { minutes: overdueMinutes })}
+          </span>
+        </div>
+      ) : null}
       {/* Therapist name kept tiny + truncated for non-day views where the
        * resource column header isn't visible. In day view it's redundant
        * but harmless because the row is bounded by the card height. */}

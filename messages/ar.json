@@ -459,7 +459,10 @@
     "address": "العنوان",
     "thankYouTitle": "شكراً لك!",
     "thankYouBody": "تم استلام استمارتك. سيقوم المركز بمراجعتها والتواصل معك لتأكيد التسجيل.",
-    "submitAnother": "إرسال استمارة أخرى"
+    "submitAnother": "إرسال استمارة أخرى",
+    "fullNameAr": "الاسم الكامل (عربي)",
+    "fullNameEn": "الاسم الكامل (إنجليزي)",
+    "languagePref": "اللغة المفضلة"
   },
   "intakeSubmissions": {
     "title": "طلبات الاستقبال",
@@ -1437,7 +1440,10 @@
       "overrideNotPermitted": "ليس لديك صلاحية تجاوز التعارضات.",
       "rangeError": "يجب أن تحتوي السلسلة على ما بين 1 و 52 موعداً.",
       "recurringToggle": "متكرر",
-      "switchToSingle": "موعد فردي"
+      "switchToSingle": "موعد فردي",
+      "hardBlockedHint": "يتعارض هذا الموعد مع موعد آخر لنفس المريض أو مع يوم عطلة — يمكن فقط تخطيه أو تغيير وقته.",
+      "weekdayMaxHint": "اختر يومين في الأسبوع كحدٍ أقصى.",
+      "closedDay": "يوم عطلة"
     }
   },
   "leave": {
