@@ -26,8 +26,16 @@ with zero application-code changes.
 >   permission-scoped download route (`/api/v1/documents/[id]`).
 >
 > **nginx requirement:** the reverse proxy must allow the upload body size —
-> set `client_max_body_size 55m;` (≥ the 50 MB video ceiling) on the
-> `theonephysio.com` server block, otherwise large PUTs fail with nginx 413.
+> otherwise large PUTs fail with nginx 413 before reaching Next. Prefer
+> scoping the bump to the storage route so the rest of the site keeps the
+> tight 1 MB default:
+>
+> ```nginx
+> location /api/v1/storage/ {
+>   proxy_pass http://127.0.0.1:3000;
+>   client_max_body_size 55m; # ≥ the 50 MB video ceiling
+> }
+> ```
 >
 > This is reversible: when a browser-reachable S3/MinIO endpoint with TLS+CORS
 > exists, revert `buildPublicUrl`/`proxyUploadUrl` + the two presign helpers to

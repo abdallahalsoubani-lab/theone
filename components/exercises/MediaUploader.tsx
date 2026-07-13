@@ -1,12 +1,12 @@
 'use client';
 
 import { Loader2, Upload, X } from 'lucide-react';
-import { useLocale, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { uploadFile } from '@/lib/storage/upload';
+import { UploadHttpError, uploadFile } from '@/lib/storage/upload';
 import { getUploadPolicy, type UploadKind } from '@/lib/storage/urls';
 
 interface Props {
@@ -29,7 +29,6 @@ interface Props {
  */
 export function MediaUploader({ kind, value, onChange, label }: Props) {
   const t = useTranslations('clinical.exercises');
-  const locale = useLocale();
   const inputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -67,12 +66,12 @@ export function MediaUploader({ kind, value, onChange, label }: Props) {
       toast.success(t('uploadDoneToast'));
     } catch (err) {
       if ((err as DOMException).name === 'AbortError') return;
+      // 413 = body rejected by the reverse proxy / storage route before the
+      // policy check could answer — surface it as "too large", localized.
       toast.error(
-        locale === 'ar'
-          ? t('errors.uploadFailed')
-          : err instanceof Error
-            ? err.message
-            : 'Upload failed',
+        err instanceof UploadHttpError && err.status === 413
+          ? t('errors.tooLarge', { maxMb })
+          : t('errors.uploadFailed'),
       );
     } finally {
       setProgress(null);

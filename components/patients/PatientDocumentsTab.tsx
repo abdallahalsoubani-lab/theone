@@ -92,7 +92,8 @@ export function PatientDocumentsTab({
         body: file,
       });
       if (!put.ok) {
-        toast.error(t('errorUploadFailed'));
+        // 413 = rejected on size by the reverse proxy / storage route.
+        toast.error(put.status === 413 ? t('errorTooLarge', { maxMb }) : t('errorUploadFailed'));
         return;
       }
       const fin = await finalizeDocumentUpload({ documentId: ticket.data.documentId });

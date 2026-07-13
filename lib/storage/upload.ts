@@ -12,6 +12,18 @@ import type { UploadKind } from './policies';
  * cancel.
  */
 
+/**
+ * Thrown when the storage proxy answers with a non-2xx status. Carries the
+ * HTTP status so the UI can map specific failures (413 → "file too large",
+ * everything else → generic localized message) instead of leaking raw text.
+ */
+export class UploadHttpError extends Error {
+  constructor(public readonly status: number) {
+    super(`Upload failed: HTTP ${status}`);
+    this.name = 'UploadHttpError';
+  }
+}
+
 export interface UploadResult {
   /** Public URL the row should reference. */
   url: string;
@@ -77,7 +89,7 @@ function putWithProgress(args: {
     }
     xhr.addEventListener('load', () => {
       if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error(`Upload failed: HTTP ${xhr.status}`));
+      else reject(new UploadHttpError(xhr.status));
     });
     xhr.addEventListener('error', () => reject(new Error('Upload network error')));
     xhr.addEventListener('abort', () => reject(new DOMException('Upload aborted', 'AbortError')));
