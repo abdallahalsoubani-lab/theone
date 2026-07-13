@@ -11,7 +11,7 @@ import {
 } from '@tanstack/react-table';
 import { ChevronDown, ChevronUp, Eye, Search } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -25,13 +25,16 @@ import { DirectionalIcon } from '@/components/ui/DirectionalIcon';
 import { formatNumber } from '@/lib/format/number';
 import { cn } from '@/lib/utils';
 
+import { createSearchDebounce } from './searchDebounce';
+
 /**
  * Project-wide DataTable wrapper around TanStack Table.
  *
  * Features (Prompt 5 §4.2):
  *   - Sortable headers (one column at a time)
  *   - Column-visibility dropdown
- *   - Server-side search via `onSearchChange`
+ *   - Server-side search via `onSearchChange` (locally controlled input,
+ *     debounced ~300ms before the URL sync — see ./searchDebounce.ts)
  *   - Server-side pagination via page / pageSize / total / onPageChange
  *   - Per-row actions slot (renderRowActions returning a DropdownMenu)
  *   - Localized empty + loading states with optional CTA
@@ -75,6 +78,44 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
+  // Debounced search (QA Prompt-22 §7.1). The input is LOCALLY controlled so
+  // every keystroke renders instantly; the URL — pushed by the consumer's
+  // `onSearchChange` (router.replace) — stays the durable, linkable state per
+  // the CLAUDE.md tables pattern, but is synced at most once per ~300ms
+  // typing pause instead of one RSC navigation per keystroke.
+  const urlSearch = search ?? '';
+  const [query, setQuery] = useState(urlSearch);
+  const onSearchChangeRef = useRef(onSearchChange);
+  useEffect(() => {
+    onSearchChangeRef.current = onSearchChange;
+  }, [onSearchChange]);
+  // Value we last pushed, so its echo (the server re-render that follows our
+  // own navigation) doesn't clobber characters typed while it was in flight.
+  const lastPushedRef = useRef<string | null>(null);
+  const [debouncer] = useState(() =>
+    createSearchDebounce((value) => {
+      lastPushedRef.current = value;
+      onSearchChangeRef.current?.(value);
+    }),
+  );
+
+  // Adopt EXTERNAL URL changes (back/forward navigation, programmatic filter
+  // resets) into the input; the echo of our own push is consumed instead.
+  useEffect(() => {
+    if (urlSearch === lastPushedRef.current) {
+      lastPushedRef.current = null;
+      return;
+    }
+    setQuery(urlSearch);
+  }, [urlSearch]);
+
+  // (Re)arm the debounce on each keystroke; it self-disarms once the query
+  // and the URL agree (incl. after back-navigation adoption above).
+  useEffect(() => {
+    debouncer.schedule(query, urlSearch);
+  }, [debouncer, query, urlSearch]);
+  useEffect(() => () => debouncer.cancel(), [debouncer]);
+
   const table = useReactTable({
     data,
     columns,
@@ -100,8 +141,8 @@ export function DataTable<TData, TValue>({
             <Search className="pointer-events-none absolute start-2.5 top-2.5 size-4 text-brand-textMuted" />
             <Input
               type="search"
-              value={search ?? ''}
-              onChange={(e) => onSearchChange(e.target.value)}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
               placeholder={t('search')}
               className="ps-8"
             />

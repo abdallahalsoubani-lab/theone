@@ -42,9 +42,26 @@ function randomKey(): string {
   return `opt-${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/**
+ * RHF error shape for the setValue-managed `options` array: the group-level
+ * refine (min-2 for select types) lands on `errors.options.message`; per-row
+ * field failures land on `errors.options[i].valueEn/valueAr.message`.
+ */
+type OptionsErrors =
+  | ({ message?: string } & Record<
+      number,
+      { valueEn?: { message?: string }; valueAr?: { message?: string } } | undefined
+    >)
+  | undefined;
+
 export function QuestionForm({ mode, initial }: Props) {
   const t = useTranslations('admin.customQuestions');
   const tCommon = useTranslations('common');
+  // Zod messages in the custom-question schemas are bare `validation.*`
+  // tokens ('atLeastTwoOptions', 'required') — translate them here since the
+  // options block is setValue-managed and has no FormField/FormMessage to
+  // surface them (QA Prompt-22 §7.2: silent min-2 failure).
+  const tValidation = useTranslations('validation');
   const router = useRouter();
   const locale = useLocale();
   const isEdit = mode === 'edit';
@@ -99,20 +116,26 @@ export function QuestionForm({ mode, initial }: Props) {
         const nameAr = String(form.watch('nameAr' as never) ?? '');
         const required = Boolean(form.watch('required' as never));
 
+        const optionsErrors = form.formState.errors.options as OptionsErrors;
+        // Re-validate edits after a failed submit so the options error
+        // clears as soon as the user fixes it (options is not a registered
+        // field, so RHF's own reValidateMode never fires for it).
+        const setOpts = { shouldDirty: true, shouldValidate: form.formState.isSubmitted };
+
         const addOption = () => {
           form.setValue(
             'options' as never,
             [...options, { value: randomKey(), valueEn: '', valueAr: '' }] as never,
-            { shouldDirty: true },
+            setOpts,
           );
         };
         const removeOption = (idx: number) => {
           const next = options.filter((_, i) => i !== idx);
-          form.setValue('options' as never, next as never, { shouldDirty: true });
+          form.setValue('options' as never, next as never, setOpts);
         };
         const editOption = (idx: number, patch: Partial<CustomQuestionOption>) => {
           const next = options.map((o, i) => (i === idx ? { ...o, ...patch } : o));
-          form.setValue('options' as never, next as never, { shouldDirty: true });
+          form.setValue('options' as never, next as never, setOpts);
         };
 
         return (
@@ -150,6 +173,15 @@ export function QuestionForm({ mode, initial }: Props) {
                       {t('addOption')}
                     </Button>
                   </div>
+                  {/* Group-level error (min-2 options refine). The options
+                      block is setValue-managed — no registered field, so no
+                      FormMessage renders this; do it explicitly here
+                      (QA Prompt-22 §7.2). */}
+                  {optionsErrors?.message ? (
+                    <p role="alert" className="text-sm font-medium text-destructive">
+                      {tValidation(optionsErrors.message as never)}
+                    </p>
+                  ) : null}
                   <div className="space-y-2">
                     {options.length === 0 ? (
                       <p className="text-xs text-brand-textMuted">{t('addOption')}</p>
@@ -170,7 +202,13 @@ export function QuestionForm({ mode, initial }: Props) {
                             id={`opt-en-${opt.value}`}
                             value={opt.valueEn}
                             onChange={(e) => editOption(idx, { valueEn: e.target.value })}
+                            aria-invalid={Boolean(optionsErrors?.[idx]?.valueEn)}
                           />
+                          {optionsErrors?.[idx]?.valueEn?.message ? (
+                            <p role="alert" className="text-xs text-destructive">
+                              {tValidation(optionsErrors[idx]!.valueEn!.message as never)}
+                            </p>
+                          ) : null}
                         </div>
                         <div className="space-y-1">
                           <Label
@@ -183,7 +221,13 @@ export function QuestionForm({ mode, initial }: Props) {
                             id={`opt-ar-${opt.value}`}
                             value={opt.valueAr}
                             onChange={(e) => editOption(idx, { valueAr: e.target.value })}
+                            aria-invalid={Boolean(optionsErrors?.[idx]?.valueAr)}
                           />
+                          {optionsErrors?.[idx]?.valueAr?.message ? (
+                            <p role="alert" className="text-xs text-destructive">
+                              {tValidation(optionsErrors[idx]!.valueAr!.message as never)}
+                            </p>
+                          ) : null}
                         </div>
                         <Button
                           type="button"

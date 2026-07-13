@@ -120,7 +120,8 @@
     "maxLength": "Must be at most {max} characters.",
     "unique": "This value is already in use.",
     "atLeastOne": "At least one item is required.",
-    "openBeforeClose": "Open time must be before close time."
+    "openBeforeClose": "Open time must be before close time.",
+    "atLeastTwoOptions": "Add at least two options."
   },
   "admin": {
     "navTitle": "Admin",
@@ -1144,7 +1145,11 @@
         "pageOf": "Page {page} of {total}",
         "previous": "Previous",
         "next": "Next"
-      }
+      },
+      "editTitle": "Edit treatment plan",
+      "editSubtitle": "Saving creates a new version of the plan and supersedes the current one. The assigned therapist is notified.",
+      "saveChanges": "Save changes",
+      "updatedToast": "Plan updated."
     },
     "notes": {
       "newNoteTitle": "Write session note",
@@ -1337,8 +1342,10 @@
         "commentPlaceholder": "Describe the changes needed…",
         "commentRequired": "A comment is required.",
         "approvedToast": "Program approved",
-        "changesRequestedToast": "Changes requested"
-      }
+        "changesRequestedToast": "Changes requested",
+        "draftRevisionNote": "You are editing a draft revision — the patient still sees the last approved program until you submit it and it is approved."
+      },
+      "emptyTab": "No home program yet."
     },
     "compliance": {
       "sevenDay": "7-day rate",

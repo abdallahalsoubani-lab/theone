@@ -4,8 +4,10 @@ import { z } from 'zod';
 export const customQuestionOptionSchema = z.object({
   /** Stable per-question key; uuid-ish. Generated client-side on add. */
   value: z.string().min(1).max(64),
-  valueEn: z.string().min(1).max(200),
-  valueAr: z.string().min(1).max(200),
+  // Messages are bare `validation.*` tokens (project convention) so the form
+  // can render them localized in either locale.
+  valueEn: z.string().min(1, 'required').max(200),
+  valueAr: z.string().min(1, 'required').max(200),
 });
 
 export type CustomQuestionOption = z.infer<typeof customQuestionOptionSchema>;
@@ -27,7 +29,9 @@ export const customQuestionCreateSchema = z
       }
       return true;
     },
-    { message: 'atLeastOne', path: ['options'] },
+    // Bare `validation.*` token; QuestionForm renders it localized under the
+    // options block (QA Prompt-22 §7.2 — min-2 rule for select types).
+    { message: 'atLeastTwoOptions', path: ['options'] },
   );
 
 export const customQuestionUpdateSchema = z
@@ -48,7 +52,9 @@ export const customQuestionUpdateSchema = z
       }
       return true;
     },
-    { message: 'atLeastOne', path: ['options'] },
+    // Bare `validation.*` token; QuestionForm renders it localized under the
+    // options block (QA Prompt-22 §7.2 — min-2 rule for select types).
+    { message: 'atLeastTwoOptions', path: ['options'] },
   );
 
 export type CustomQuestionCreateInput = z.infer<typeof customQuestionCreateSchema>;

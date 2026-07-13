@@ -11,7 +11,7 @@ import {
   Stethoscope,
   User,
 } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -60,16 +60,21 @@ export function PatientFileTabs({
   documents,
 }: Props) {
   const t = useTranslations('patients.file');
+  const locale = useLocale();
 
   return (
-    <Tabs defaultValue={defaultTab}>
-      {/* `!flex` forces display:flex to win over the base TabsList's
-          `inline-flex` (later in the stylesheet, so it otherwise wins and makes
-          w-full/flex-wrap inert — the ~10 tabs then overflow/overlap inside the
-          40px inline row). With real flex + wrap the tabs flow onto multiple
-          rows; h-auto drops the fixed h-10. Readable in both LTR and RTL
-          (justify-start is logical). QA retest #10. */}
-      <TabsList className="!flex h-auto w-full flex-wrap justify-start gap-1">
+    // `dir` is required on the Radix root: Radix does not read the DOM's
+    // html[dir] attribute, so without it roving focus (ArrowLeft/ArrowRight
+    // across the tab strip) stays LTR on /ar even though the CSS flow is
+    // already RTL (QA Prompt-22 §7.6). Shared by all staff roles' patient
+    // files, so one prop covers Secretary/Doctor/Therapist tab sets.
+    <Tabs defaultValue={defaultTab} dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+      {/* `wrap` = real flex + flex-wrap + auto height on the base TabsList,
+          so the ~10 tabs flow onto multiple rows instead of overflowing/
+          overlapping inside the default 40px inline row. Logical
+          justify-start keeps both LTR and RTL correct. QA retest #10,
+          Prompt-22 §7.5. */}
+      <TabsList wrap>
         <TabsTrigger value="profile">
           <User className="me-2 size-4" />
           {t('tabProfile')}

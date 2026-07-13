@@ -9,12 +9,24 @@ const Tabs = TabsPrimitive.Root;
 
 const TabsList = React.forwardRef<
   React.ElementRef<typeof TabsPrimitive.List>,
-  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List>
->(({ className, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> & {
+    /**
+     * Multi-row layout for long tab sets (e.g. the 10-tab patient file):
+     * real `flex` + `flex-wrap` + auto height instead of the default 40px
+     * single inline row, so triggers flow onto extra rows instead of
+     * overflowing/overlapping. Replaces the brittle `!flex` escape hatch
+     * callers previously needed to beat the base `inline-flex`
+     * (QA retest #10, Prompt-22 §7.5). `justify-start` is logical, so the
+     * rows read correctly in both LTR and RTL.
+     */
+    wrap?: boolean;
+  }
+>(({ className, wrap = false, ...props }, ref) => (
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      'inline-flex h-10 items-center justify-center rounded-lg border border-brand-border/60 bg-brand-bg p-1 text-brand-textMuted',
+      'items-center rounded-lg border border-brand-border/60 bg-brand-bg p-1 text-brand-textMuted',
+      wrap ? 'flex h-auto w-full flex-wrap justify-start gap-1' : 'inline-flex h-10 justify-center',
       className,
     )}
     {...props}

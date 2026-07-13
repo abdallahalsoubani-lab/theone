@@ -18,7 +18,7 @@ vi.mock('@/lib/db', () => ({
 }));
 vi.mock('../queries', () => ({ listSelectedOptionValues: vi.fn(async () => new Set()) }));
 
-import { customQuestionCreateSchema } from '../schemas';
+import { customQuestionCreateSchema, customQuestionUpdateSchema } from '../schemas';
 import { createCustomQuestion } from '../services';
 
 const OPTIONS = [
@@ -53,6 +53,62 @@ describe('custom question select validation (QA retest #3)', () => {
         .success,
     ).toBe(true);
     expect(customQuestionCreateSchema.safeParse({ ...base, type: 'TEXT' }).success).toBe(true);
+  });
+
+  // QA Prompt-22 §7.2 — the refine error must land on the `options` path with
+  // the bare validation-namespace token the form translates and renders.
+  it("reports the min-2 failure at path ['options'] with token 'atLeastTwoOptions' (create)", () => {
+    const parsed = customQuestionCreateSchema.safeParse({
+      ...base,
+      type: 'SINGLE_SELECT',
+      options: [OPTIONS[0]],
+    });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      const issue = parsed.error.issues.find((i) => i.path.join('.') === 'options');
+      expect(issue?.message).toBe('atLeastTwoOptions');
+    }
+  });
+
+  it("reports the min-2 failure at path ['options'] with token 'atLeastTwoOptions' (update)", () => {
+    const parsed = customQuestionUpdateSchema.safeParse({
+      ...base,
+      id: 'q1',
+      type: 'MULTI_SELECT',
+      required: false,
+      active: true,
+      options: [],
+    });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues).toEqual([
+        expect.objectContaining({ path: ['options'], message: 'atLeastTwoOptions' }),
+      ]);
+    }
+  });
+
+  it("uses the 'required' token for empty per-option values so the form can localize them", () => {
+    const parsed = customQuestionCreateSchema.safeParse({
+      ...base,
+      type: 'SINGLE_SELECT',
+      options: [
+        { value: 'a', valueEn: '', valueAr: '' },
+        { value: 'b', valueEn: 'B', valueAr: 'ب' },
+      ],
+    });
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      const paths = parsed.error.issues.map((i) => ({ path: i.path.join('.'), msg: i.message }));
+      expect(paths).toContainEqual({ path: 'options.0.valueEn', msg: 'required' });
+      expect(paths).toContainEqual({ path: 'options.0.valueAr', msg: 'required' });
+    }
+  });
+
+  it('accepts two valid options for MULTI_SELECT', () => {
+    expect(
+      customQuestionCreateSchema.safeParse({ ...base, type: 'MULTI_SELECT', options: OPTIONS })
+        .success,
+    ).toBe(true);
   });
 });
 

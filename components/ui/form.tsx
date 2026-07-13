@@ -3,6 +3,7 @@
 import * as React from 'react';
 import type * as LabelPrimitive from '@radix-ui/react-label';
 import { Slot } from '@radix-ui/react-slot';
+import { useTranslations } from 'next-intl';
 import {
   Controller,
   FormProvider,
@@ -130,7 +131,18 @@ const FormMessage = React.forwardRef<
   React.HTMLAttributes<HTMLParagraphElement>
 >(({ className, children, ...props }, ref) => {
   const { error, formMessageId } = useFormField();
-  const body = error ? String(error?.message ?? '') : children;
+  const tValidation = useTranslations('validation');
+  // Zod schemas carry i18n TOKENS (e.g. 'phoneJordan', 'required') as their
+  // message so the schema stays locale-free; localize here when the token
+  // exists in the validation namespace, otherwise show the raw message
+  // (QA Admin #15 — the raw key leaked to the user).
+  const raw = error ? String(error?.message ?? '') : null;
+  const body =
+    raw !== null
+      ? /^[a-zA-Z][a-zA-Z0-9]*$/.test(raw) && tValidation.has(raw)
+        ? tValidation(raw)
+        : raw
+      : children;
   if (!body) return null;
   return (
     <p
