@@ -7,13 +7,15 @@ import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
 import { createNotification } from '@/lib/notifications/actions';
 import { addCareTeamMemberTx } from '@/lib/patients/assignment';
 
-import type { PlanCreateInput, PlanProposeInput } from './schemas';
+import type { PlanCreateInput, PlanProposeInput, PlanUpdateInput } from './schemas';
 
 /**
- * Treatment plan services (Prompt 9 §4.3-§4.5).
+ * Treatment plan services (Prompt 9 §4.3-§4.5, + QA 6.1 doctor edit).
  *
- * Three core mutations:
+ * Four core mutations:
  *   - createTreatmentPlan      (Doctor authors the initial plan)
+ *   - updateTreatmentPlan      (Doctor edits their own ACTIVE plan — creates
+ *                               the next version and supersedes the old one)
  *   - proposeTreatmentPlanChange (Therapist proposes a revision)
  *   - approveProposal / rejectProposal (Doctor reviews the proposal)
  *
@@ -156,6 +158,110 @@ export const createTreatmentPlan = withAudit<
     });
 
     return { planId: plan.id };
+  },
+);
+
+// ─── Doctor direct edit (QA 6.1) ────────────────────────────────────────────
+/**
+ * Doctor edits their own ACTIVE plan. Plans are immutable versions, so —
+ * like an approved proposal — the edit creates the next version (child row,
+ * status ACTIVE, doctor is author + approver) and supersedes the old one in
+ * the same transaction, preserving the single-active-plan invariant.
+ *
+ * Blocked while a therapist proposal is PENDING: the proposal targets the
+ * current version; superseding it underneath would orphan the review.
+ */
+export const updateTreatmentPlan = withAudit<
+  [PlanUpdateInput, { doctorId: string }],
+  { planId: string }
+>(
+  {
+    entityType: 'TreatmentPlan',
+    action: AuditAction.UPDATE,
+    extractEntityId: (_args, result) => result.planId,
+    extractAfter: () => ({ event: 'UPDATED' }) as Prisma.InputJsonValue,
+  },
+  async function updateInner(input, ctx): Promise<{ planId: string }> {
+    const active = await db.treatmentPlan.findUnique({
+      where: { id: input.activePlanId },
+      select: {
+        id: true,
+        patientId: true,
+        doctorId: true,
+        status: true,
+        version: true,
+      },
+    });
+    if (!active) throw new PlanError(notFound);
+    if (active.status !== PlanStatus.ACTIVE) throw new PlanError(notActive);
+    // RBAC grants the capability (`treatment_plans.update.own`); this check
+    // binds it to the right row — only the authoring doctor edits directly.
+    if (active.doctorId !== ctx.doctorId) throw new PlanError(forbidden);
+    if (active.patientId !== input.patientId) throw new PlanError(forbidden);
+
+    const pending = await db.treatmentPlan.findFirst({
+      where: { patientId: input.patientId, status: PlanStatus.PROPOSED },
+      select: { id: true },
+    });
+    if (pending) throw new PlanError(conflictProposal);
+
+    const updated = await db.$transaction(async (tx) => {
+      await tx.treatmentPlan.update({
+        where: { id: active.id },
+        data: { status: PlanStatus.SUPERSEDED },
+      });
+      const created = await tx.treatmentPlan.create({
+        data: {
+          patientId: input.patientId,
+          doctorId: active.doctorId,
+          assignedTherapistId: input.assignedTherapistId,
+          parentPlanId: active.id,
+          version: active.version + 1,
+          diagnosisPrimary: input.diagnosisPrimary,
+          diagnosisSecondary: input.diagnosisSecondary,
+          goalsShortTerm: input.goalsShortTerm,
+          goalsLongTerm: input.goalsLongTerm ?? '',
+          frequencyPerWeek: input.frequencyPerWeek,
+          durationWeeks: input.durationWeeks,
+          therapistNotes: input.therapistNotes,
+          status: PlanStatus.ACTIVE,
+          approvedAt: new Date(),
+          approvedById: ctx.doctorId,
+        },
+        select: { id: true },
+      });
+      await tx.planExercise.createMany({
+        data: input.exercises.map((e) => ({
+          planId: created.id,
+          exerciseId: e.exerciseId,
+          sets: e.sets,
+          reps: e.reps,
+          durationSeconds: e.durationSeconds,
+          customNotes: e.customNotes ?? null,
+          order: e.order,
+        })),
+      });
+      return created;
+    });
+
+    // Tell the assigned therapist the plan they execute changed. Best-effort,
+    // same PLAN_ASSIGNED template as plan creation.
+    const [doctorName, patientName] = await Promise.all([
+      fullName(ctx.doctorId),
+      fullName(input.patientId),
+    ]);
+    await createNotification({
+      recipientId: input.assignedTherapistId,
+      type: 'PLAN_ASSIGNED',
+      params: { doctorName, patientName },
+      linkPath: `/therapist/plans/${updated.id}`,
+      relatedEntityType: 'TreatmentPlan',
+      relatedEntityId: updated.id,
+    }).catch((err: unknown) => {
+      console.error('[plans] notification PLAN_ASSIGNED failed', err);
+    });
+
+    return { planId: updated.id };
   },
 );
 

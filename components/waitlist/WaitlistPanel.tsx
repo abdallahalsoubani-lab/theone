@@ -150,7 +150,8 @@ export function WaitlistPanel({
                 <p className="text-xs text-brand-textMuted">
                   <CalendarClock className="me-1 inline size-3.5 align-[-2px]" />
                   {dateStr(r.windowStart)} · {timeStr(r.windowStart)}–{timeStr(r.windowEnd)}
-                  {therapistName(r) ? ` · ${therapistName(r)}` : ` · ${t('anyTherapist')}`}
+                  {' · '}
+                  {therapistName(r) ? <bdi>{therapistName(r)}</bdi> : t('anyTherapist')}
                 </p>
                 {r.phone ? <p className="text-xs text-brand-textMuted">{r.phone}</p> : null}
                 {r.note ? <p className="text-xs text-brand-textMuted">{r.note}</p> : null}

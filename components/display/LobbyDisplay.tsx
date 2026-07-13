@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ArrivalRow, ArrivalsBoard } from '@/lib/arrivals/queries';
+import { bidiIsolate } from '@/lib/format/bidi';
 import { formatTime } from '@/lib/format/date';
 import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
 
@@ -108,7 +109,7 @@ export function LobbyDisplay({ token, locale }: { token: string; locale: string 
             <Row
               key={r.appointmentId}
               primary={name(r)}
-              secondary={`${therapist(r)} · ${time(r.startsAt)}`}
+              secondary={`${bidiIsolate(therapist(r))} · ${time(r.startsAt)}`}
               badge={t('waitingMinutes', {
                 minutes: r.checkedInAt ? waitMinutes(r.checkedInAt) : 0,
               })}
@@ -137,7 +138,7 @@ export function LobbyDisplay({ token, locale }: { token: string; locale: string 
             <Row
               key={r.appointmentId}
               primary={name(r)}
-              secondary={`${therapist(r)}${r.roomName ? ` · ${r.roomName}` : ''}`}
+              secondary={`${bidiIsolate(therapist(r))}${r.roomName ? ` · ${bidiIsolate(r.roomName)}` : ''}`}
               badge={time(r.startsAt)}
             />
           ))}

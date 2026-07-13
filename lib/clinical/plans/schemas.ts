@@ -44,6 +44,12 @@ export const planProposeSchema = planCreateSchema.extend({
     .max(2000),
 });
 
+/** Doctor direct edit (QA 6.1): same shape as create + the ACTIVE plan
+ *  being revised. No proposalReason — the doctor is the plan owner. */
+export const planUpdateSchema = planCreateSchema.extend({
+  activePlanId: z.string().min(1),
+});
+
 export const planRejectSchema = z.object({
   proposedPlanId: z.string().min(1),
   rejectedReason: z.string().min(5).max(2000),
@@ -55,6 +61,7 @@ export const planLifecycleSchema = z.object({
 
 export type PlanCreateInput = z.infer<typeof planCreateSchema>;
 export type PlanProposeInput = z.infer<typeof planProposeSchema>;
+export type PlanUpdateInput = z.infer<typeof planUpdateSchema>;
 export type PlanExerciseInput = z.infer<typeof planExerciseSchema>;
 export type PlanRejectInput = z.infer<typeof planRejectSchema>;
 

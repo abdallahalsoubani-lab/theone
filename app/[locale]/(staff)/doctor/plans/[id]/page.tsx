@@ -36,7 +36,7 @@ export default async function DoctorPlanPage({
       <PlanCard
         plan={plan}
         viewerRole={(session?.user?.role ?? 'DOCTOR') as 'DOCTOR'}
-        editHref={plan.status === 'ACTIVE' ? `/doctor/patients/${plan.patientId}` : undefined}
+        editHref={plan.status === 'ACTIVE' ? `/doctor/plans/${plan.id}/edit` : undefined}
       />
     </section>
   );

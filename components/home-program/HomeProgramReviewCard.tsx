@@ -13,6 +13,7 @@ import {
   requestHomeProgramChangesAction,
 } from '@/lib/clinical/home-program/actions';
 import type { PendingApprovalRow } from '@/lib/clinical/home-program/approval';
+import { bidiIsolate } from '@/lib/format/bidi';
 
 export function HomeProgramReviewCard({ row }: { row: PendingApprovalRow }) {
   const t = useTranslations('clinical.homeProgram.approval');
@@ -61,7 +62,9 @@ export function HomeProgramReviewCard({ row }: { row: PendingApprovalRow }) {
           <div>
             <p className="text-sm font-medium text-brand-navy">{patientName}</p>
             <p className="text-xs text-brand-textMuted">
-              {t('submittedBy', { name: therapistName })} ·{' '}
+              {/* The name lives inside the ICU message — isolate it so an AR
+                  label + Latin name renders in order (QA 6.5). */}
+              {t('submittedBy', { name: bidiIsolate(therapistName) })} ·{' '}
               {t('itemCount', { count: row.itemCount })}
             </p>
           </div>

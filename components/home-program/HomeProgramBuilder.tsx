@@ -25,6 +25,11 @@ interface Props {
 const DAY_LABELS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const DAY_LABELS_AR = ['أحد', 'إثن', 'ثلا', 'أرب', 'خمي', 'جمع', 'سبت'];
 
+/** One exclusive form at a time (QA 6.2): opening the add form closes any
+ *  inline edit and vice versa, so "Add to program" and "Save changes" can
+ *  never be on screen together. */
+type BuilderMode = { kind: 'add' } | { kind: 'edit'; id: string } | null;
+
 /**
  * Two-column builder: existing items on the left, add-new form on the
  * right (when expanded). Per-item edit toggles in place. Compact —
@@ -35,8 +40,7 @@ export function HomeProgramBuilder({ patientId, items, exerciseOptions }: Props)
   const t = useTranslations('clinical.homeProgram');
   const locale = useLocale();
   const router = useRouter();
-  const [adding, setAdding] = useState(items.length === 0);
-  const [editing, setEditing] = useState<string | null>(null);
+  const [mode, setMode] = useState<BuilderMode>(items.length === 0 ? { kind: 'add' } : null);
   const [pending, startTransition] = useTransition();
 
   function handleDelete(id: string) {
@@ -69,8 +73,8 @@ export function HomeProgramBuilder({ patientId, items, exerciseOptions }: Props)
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-brand-navy">{t('currentProgram')}</h2>
-          {!adding ? (
-            <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
+          {mode?.kind !== 'add' ? (
+            <Button size="sm" variant="outline" onClick={() => setMode({ kind: 'add' })}>
               <Plus className="me-1 size-4" />
               {t('addExercise')}
             </Button>
@@ -90,12 +94,12 @@ export function HomeProgramBuilder({ patientId, items, exerciseOptions }: Props)
                   key={item.id}
                   className="space-y-2 rounded-md border border-brand-border bg-brand-surface p-3"
                 >
-                  {editing === item.id ? (
+                  {mode?.kind === 'edit' && mode.id === item.id ? (
                     <HomeProgramItemForm
                       patientId={patientId}
                       exerciseOptions={exerciseOptions}
                       initial={item}
-                      onDone={() => setEditing(null)}
+                      onDone={() => setMode(null)}
                     />
                   ) : (
                     <div className="space-y-2">
@@ -120,7 +124,7 @@ export function HomeProgramBuilder({ patientId, items, exerciseOptions }: Props)
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => setEditing(item.id)}
+                          onClick={() => setMode({ kind: 'edit', id: item.id })}
                         >
                           {t('edit')}
                         </Button>
@@ -153,13 +157,13 @@ export function HomeProgramBuilder({ patientId, items, exerciseOptions }: Props)
         )}
       </section>
 
-      {adding ? (
+      {mode?.kind === 'add' ? (
         <aside>
           <h2 className="mb-2 text-sm font-semibold text-brand-navy">{t('newItem')}</h2>
           <HomeProgramItemForm
             patientId={patientId}
             exerciseOptions={exerciseOptions}
-            onDone={() => setAdding(false)}
+            onDone={() => setMode(null)}
           />
         </aside>
       ) : null}

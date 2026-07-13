@@ -5,7 +5,7 @@ import { HomeProgramApprovalPanel } from '@/components/home-program/HomeProgramA
 import { HomeProgramBuilder } from '@/components/home-program/HomeProgramBuilder';
 import { getApprovalState } from '@/lib/clinical/home-program/approval';
 import { listHomeProgramForPatient } from '@/lib/clinical/home-program/queries';
-import { listExerciseOptions } from '@/lib/clinical/plans/exercises';
+import { listExerciseOptionsIncluding } from '@/lib/clinical/plans/exercises';
 import { db } from '@/lib/db';
 import { ensureCanReadPatient } from '@/lib/patients/access';
 import { requirePermission } from '@/lib/rbac/guards';
@@ -27,16 +27,18 @@ export default async function DoctorHomeProgramEditPage({
   await ensureCanReadPatient(id);
   const t = await getTranslations('clinical.homeProgram');
 
-  const [patient, items, exerciseOptions, approval] = await Promise.all([
+  const [patient, items, approval] = await Promise.all([
     db.user.findUnique({
       where: { id },
       select: { id: true, fullNameEn: true, fullNameAr: true, role: true },
     }),
     listHomeProgramForPatient(id),
-    listExerciseOptions(),
     getApprovalState(id),
   ]);
   if (!patient || patient.role !== 'PATIENT') notFound();
+  // Active catalog + the versions the existing items already reference, so
+  // items pointing at archived exercises keep resolving in the picker (6.3).
+  const exerciseOptions = await listExerciseOptionsIncluding(items.map((i) => i.exerciseId));
 
   const patientName = locale === 'ar' ? patient.fullNameAr : patient.fullNameEn;
 
@@ -54,6 +56,7 @@ export default async function DoctorHomeProgramEditPage({
         remindersEnabled={approval.remindersEnabled}
         changesComment={approval.changesComment}
         canSubmit={false}
+        hasApprovedSnapshot={approval.hasApprovedSnapshot}
       />
       <HomeProgramBuilder patientId={patient.id} items={items} exerciseOptions={exerciseOptions} />
     </section>

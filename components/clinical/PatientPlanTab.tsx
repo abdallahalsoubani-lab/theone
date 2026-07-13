@@ -63,7 +63,7 @@ export async function PatientPlanTab({ state, patientId, viewerRole }: Props) {
           viewerRole={viewerRole}
           editHref={
             isDoctor
-              ? `${planBasePath}/${state.active.id}`
+              ? `${planBasePath}/${state.active.id}/edit`
               : viewerRole === 'THERAPIST'
                 ? `/therapist/plans/${state.active.id}/edit`
                 : undefined

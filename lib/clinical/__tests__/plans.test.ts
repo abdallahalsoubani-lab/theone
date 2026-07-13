@@ -92,8 +92,8 @@ vi.mock('@/lib/db', () => {
                   therapistNotes: (data.therapistNotes as string | null) ?? null,
                   proposalReason: (data.proposalReason as string | null) ?? null,
                   rejectedReason: null,
-                  approvedAt: null,
-                  approvedById: null,
+                  approvedAt: (data.approvedAt as Date | null) ?? null,
+                  approvedById: (data.approvedById as string | null) ?? null,
                   createdAt: new Date(),
                 };
                 state.plans.push(row);
@@ -202,6 +202,9 @@ vi.mock('@/auth', () => {
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }));
 
 import * as dbModule from '@/lib/db';
+import * as authModule from '@/auth';
+import { ForbiddenError } from '@/lib/rbac/guards';
+import { updateTreatmentPlanAction } from '../plans/actions';
 import {
   approveProposal,
   createTreatmentPlan,
@@ -210,7 +213,14 @@ import {
   rejectProposal,
   pauseTreatmentPlan,
   discontinueTreatmentPlan,
+  updateTreatmentPlan,
 } from '../plans/services';
+
+const setSession = (
+  authModule as unknown as {
+    __setSession: (s: { user: { id: string; role: string } } | null) => void;
+  }
+).__setSession;
 
 const state = (
   dbModule as unknown as {
@@ -242,6 +252,7 @@ beforeEach(() => {
   state.notifications.length = 0;
   state.auditLogs.length = 0;
   state.counter = 0;
+  setSession({ user: { id: 'doctor-1', role: 'DOCTOR' } });
 });
 
 const baseCreate = {
@@ -315,6 +326,115 @@ describe('createTreatmentPlan', () => {
     await expect(createTreatmentPlan(baseCreate, { doctorId: 'doctor-1' })).rejects.toBeInstanceOf(
       PlanError,
     );
+  });
+});
+
+describe('updateTreatmentPlan (doctor edit, QA 6.1)', () => {
+  function seedActive() {
+    state.plans.push({
+      id: 'active-1',
+      patientId: 'patient-1',
+      status: PlanStatus.ACTIVE,
+      doctorId: 'doctor-1',
+      assignedTherapistId: 'therapist-1',
+      version: 1,
+      parentPlanId: null,
+      approvedAt: null,
+      approvedById: null,
+      rejectedReason: null,
+    });
+  }
+
+  const editInput = {
+    ...baseCreate,
+    activePlanId: 'active-1',
+    diagnosisPrimary: 'Lumbar strain — revised',
+  };
+
+  it('creates the next ACTIVE version, supersedes the old one, copies exercises', async () => {
+    seedActive();
+    const r = await updateTreatmentPlan(editInput, { doctorId: 'doctor-1' });
+    expect(state.plans.find((p) => p.id === 'active-1')!.status).toBe(PlanStatus.SUPERSEDED);
+    const next = state.plans.find((p) => p.id === r.planId)!;
+    expect(next).toMatchObject({
+      status: PlanStatus.ACTIVE,
+      version: 2,
+      parentPlanId: 'active-1',
+      doctorId: 'doctor-1',
+      approvedById: 'doctor-1',
+    });
+    expect(state.exercises.filter((e) => e.planId === r.planId)).toHaveLength(1);
+    // Audited as an UPDATE on the TreatmentPlan entity.
+    expect(
+      state.auditLogs.find(
+        (a) => a.entityType === 'TreatmentPlan' && a.action === AuditAction.UPDATE,
+      ),
+    ).toBeDefined();
+    // The assigned therapist learns the plan they execute changed.
+    expect(state.notifications[0]).toMatchObject({
+      recipientId: 'therapist-1',
+      type: 'PLAN_ASSIGNED',
+    });
+  });
+
+  it('refuses when the plan is not ACTIVE', async () => {
+    state.plans.push({
+      id: 'active-1',
+      patientId: 'patient-1',
+      status: PlanStatus.PAUSED,
+      doctorId: 'doctor-1',
+      assignedTherapistId: 'therapist-1',
+      version: 1,
+      parentPlanId: null,
+      approvedAt: null,
+      approvedById: null,
+      rejectedReason: null,
+    });
+    await expect(updateTreatmentPlan(editInput, { doctorId: 'doctor-1' })).rejects.toBeInstanceOf(
+      PlanError,
+    );
+  });
+
+  it('refuses when the actor is not the authoring doctor (row binding)', async () => {
+    seedActive();
+    await expect(
+      updateTreatmentPlan(editInput, { doctorId: 'doctor-other' }),
+    ).rejects.toBeInstanceOf(PlanError);
+    expect(state.plans.find((p) => p.id === 'active-1')!.status).toBe(PlanStatus.ACTIVE);
+  });
+
+  it('refuses while a therapist proposal is pending (PLAN_PROPOSAL_PENDING)', async () => {
+    seedActive();
+    state.plans.push({
+      id: 'pending-1',
+      patientId: 'patient-1',
+      status: PlanStatus.PROPOSED,
+      doctorId: 'doctor-1',
+      assignedTherapistId: 'therapist-1',
+      version: 2,
+      parentPlanId: 'active-1',
+      approvedAt: null,
+      approvedById: null,
+      rejectedReason: null,
+    });
+    await expect(updateTreatmentPlan(editInput, { doctorId: 'doctor-1' })).rejects.toBeInstanceOf(
+      PlanError,
+    );
+  });
+
+  it('action: forbidden for THERAPIST (lacks treatment_plans.update.own)', async () => {
+    seedActive();
+    setSession({ user: { id: 'therapist-1', role: 'THERAPIST' } });
+    await expect(updateTreatmentPlanAction(editInput)).rejects.toBeInstanceOf(ForbiddenError);
+  });
+
+  it('action: succeeds for the authoring doctor and returns the new plan id', async () => {
+    seedActive();
+    const r = await updateTreatmentPlanAction(editInput);
+    expect(r.ok).toBe(true);
+    if (r.ok) {
+      expect(state.plans.find((p) => p.id === r.data.planId)!.status).toBe(PlanStatus.ACTIVE);
+    }
   });
 });
 

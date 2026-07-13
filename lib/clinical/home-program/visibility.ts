@@ -16,6 +16,9 @@ export interface ApprovalState {
   submittedAt: Date | null;
   reviewedAt: Date | null;
   approvedAt: Date | null;
+  /** True when a frozen approved snapshot exists — i.e. while the working
+   *  draft differs from what the patient sees (QA 7.8 builder hint). */
+  hasApprovedSnapshot: boolean;
 }
 
 const DEFAULT_STATE: ApprovalState = {
@@ -25,6 +28,7 @@ const DEFAULT_STATE: ApprovalState = {
   submittedAt: null,
   reviewedAt: null,
   approvedAt: null,
+  hasApprovedSnapshot: false,
 };
 
 /** Current approval state for a patient (defaults to DRAFT when no row yet). */
@@ -38,6 +42,7 @@ export async function getApprovalState(patientId: string): Promise<ApprovalState
     submittedAt: row.submittedAt,
     reviewedAt: row.reviewedAt,
     approvedAt: row.approvedAt,
+    hasApprovedSnapshot: row.approvedSnapshot !== null,
   };
 }
 

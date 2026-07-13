@@ -2,6 +2,7 @@
 
 import { Download, FileText, Loader2, Trash2, Upload } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
@@ -53,6 +54,7 @@ export function PatientDocumentsTab({
   reports,
 }: Props) {
   const t = useTranslations('patients.documents');
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [category, setCategory] = useState<Category>('REPORT');
   const [note, setNote] = useState('');
@@ -103,8 +105,13 @@ export function PatientDocumentsTab({
       }
       toast.success(t('uploadSuccess'));
       setNote('');
+      // Refresh the server-rendered document list in place (established
+      // toast + router.refresh() mutation pattern — RoomsTable et al.).
+      // The old window.location.reload() remounted the whole page, landing
+      // the user back on the Profile tab and wiping the success toast
+      // (QA Prompt-22 §7.7).
       startTransition(() => {
-        window.location.reload();
+        router.refresh();
       });
     } catch {
       toast.error(t('errorUploadFailed'));
@@ -120,7 +127,11 @@ export function PatientDocumentsTab({
       return;
     }
     toast.success(t('deleteSuccess'));
-    window.location.reload();
+    // Same in-place refresh as the upload path — keeps the Documents tab
+    // active and the toast visible (QA Prompt-22 §7.7).
+    startTransition(() => {
+      router.refresh();
+    });
   }
 
   const reportItems: Array<{ key: string; label: string; href: string }> = [
@@ -237,9 +248,14 @@ export function PatientDocumentsTab({
                   <p className="truncate text-sm font-medium text-brand-navy">{d.fileName}</p>
                   <p className="text-xs text-brand-textMuted">
                     {formatBytes(d.sizeBytes)} ·{' '}
-                    {locale === 'ar' ? d.uploadedByNameAr : d.uploadedByNameEn} ·{' '}
-                    {d.createdAt.slice(0, 10)}
-                    {d.note ? ` · ${d.note}` : ''}
+                    <bdi>{locale === 'ar' ? d.uploadedByNameAr : d.uploadedByNameEn}</bdi> ·{' '}
+                    <bdi>{d.createdAt.slice(0, 10)}</bdi>
+                    {d.note ? (
+                      <>
+                        {' · '}
+                        <bdi>{d.note}</bdi>
+                      </>
+                    ) : null}
                   </p>
                 </div>
                 <Button asChild variant="ghost" size="sm">

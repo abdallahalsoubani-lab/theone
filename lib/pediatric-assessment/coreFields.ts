@@ -212,7 +212,8 @@ export const CORE_FIELDS: readonly CoreField[] = [
     labelEn: 'Any observations',
     labelAr: 'أي ملاحظات',
     type: 'LONG_TEXT',
-    required: true,
+    // QA 6.4: observations are optional — free-text notes must never block
+    // saving the assessment. Schema + asterisk both derive from this flag.
   },
 
   // ── Part B — Clinical exam: muscle tone ───────────────────────────────
@@ -588,7 +589,7 @@ export const CORE_FIELDS: readonly CoreField[] = [
     labelEn: 'Any observations',
     labelAr: 'أي ملاحظات',
     type: 'LONG_TEXT',
-    required: true,
+    // QA 6.4: optional — see historyObservations.
   },
 ] as const;
 

@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import {
   createTreatmentPlanAction,
   proposeTreatmentPlanChangeAction,
+  updateTreatmentPlanAction,
 } from '@/lib/clinical/plans/actions';
 import type { ExerciseOption } from '@/lib/clinical/plans/exercises';
 
@@ -49,6 +50,9 @@ export interface PlanFormInitial {
 interface Props {
   /** Doctor-create mode when omitted; therapist-propose when set. */
   activePlanId?: string;
+  /** Doctor direct-edit mode (QA 6.1): the ACTIVE plan being revised. Takes
+   *  precedence over `activePlanId`; submit creates the next version. */
+  editPlanId?: string;
   patient: PlanFormPatient;
   therapists: PlanFormTherapist[];
   exerciseOptions: ExerciseOption[];
@@ -58,11 +62,13 @@ interface Props {
 }
 
 /**
- * Shared treatment-plan form (Prompt 9 §4.3 + §4.4).
+ * Shared treatment-plan form (Prompt 9 §4.3 + §4.4, + QA 6.1 doctor edit).
  *
  * Doctors hit `createTreatmentPlanAction`; Therapists pass `activePlanId`
  * and the form switches to `proposeTreatmentPlanChangeAction`, surfacing
- * the required `proposalReason` field.
+ * the required `proposalReason` field. Doctors editing their own ACTIVE
+ * plan pass `editPlanId` and the form submits `updateTreatmentPlanAction`,
+ * then navigates to the new version's plan view.
  *
  * Validation: server actions enforce the canonical Zod schemas; this
  * form does the bare minimum (required attributes + min lengths on
@@ -71,6 +77,7 @@ interface Props {
  */
 export function PlanForm({
   activePlanId,
+  editPlanId,
   patient,
   therapists,
   exerciseOptions,
@@ -78,6 +85,7 @@ export function PlanForm({
   redirectTo,
 }: Props) {
   const t = useTranslations('clinical.plans');
+  const tEx = useTranslations('clinical.exercises');
   const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -146,19 +154,25 @@ export function PlanForm({
         therapistNotes: therapistNotes || null,
         exercises: exercises.map((e, i) => ({ ...e, order: i })),
       };
-      const result = activePlanId
-        ? await proposeTreatmentPlanChangeAction({
-            ...payload,
-            activePlanId,
-            proposalReason,
-          })
-        : await createTreatmentPlanAction(payload);
+      const result = editPlanId
+        ? await updateTreatmentPlanAction({ ...payload, activePlanId: editPlanId })
+        : activePlanId
+          ? await proposeTreatmentPlanChangeAction({
+              ...payload,
+              activePlanId,
+              proposalReason,
+            })
+          : await createTreatmentPlanAction(payload);
       if (!result.ok) {
         toast.error(locale === 'ar' ? result.error.message_ar : result.error.message_en);
         return;
       }
-      toast.success(t(activePlanId ? 'proposedToast' : 'createdToast'));
-      router.push(redirectTo);
+      toast.success(
+        t(editPlanId ? 'updatedToast' : activePlanId ? 'proposedToast' : 'createdToast'),
+      );
+      // An edit creates the NEXT version — land on the new plan's view, not
+      // the superseded one.
+      router.push(editPlanId ? `/doctor/plans/${result.data.planId}` : redirectTo);
       router.refresh();
     });
   }
@@ -295,6 +309,7 @@ export function PlanForm({
                   {exerciseOptions.map((opt) => (
                     <option key={opt.id} value={opt.id}>
                       {locale === 'ar' ? opt.nameAr : opt.nameEn}
+                      {opt.archived ? ` (${tEx('archived')})` : ''}
                     </option>
                   ))}
                 </select>
@@ -378,7 +393,7 @@ export function PlanForm({
           {t('cancel')}
         </Button>
         <Button type="submit" disabled={pending}>
-          {activePlanId ? t('submitProposal') : t('createPlan')}
+          {editPlanId ? t('saveChanges') : activePlanId ? t('submitProposal') : t('createPlan')}
         </Button>
       </div>
     </form>

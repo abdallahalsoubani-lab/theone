@@ -13,7 +13,7 @@ export { getApprovalState } from './visibility';
 export type { ApprovalState } from './visibility';
 
 /**
- * Home-program approval workflow (Prompt 16).
+ * Home-program approval workflow (Prompt 16, revised by QA 7.8).
  *
  * State machine (per patient, on HomeProgramApproval):
  *   DRAFT ──submit──▶ PENDING_APPROVAL ──approve──▶ APPROVED
@@ -23,8 +23,15 @@ export type { ApprovalState } from './visibility';
  *
  * Auto-transitions on a clinical edit (see onHomeProgramEdited):
  *   - Doctor/Admin edit  → APPROVED (re-snapshot). The doctor IS the approver.
- *   - Therapist edit of an APPROVED program → PENDING_APPROVAL. The patient
- *     keeps seeing the frozen `approvedSnapshot` until re-approval.
+ *   - Therapist edit of an APPROVED program → back to DRAFT (a reopened
+ *     working revision — nothing is auto-submitted, no doctor notification).
+ *     The patient keeps seeing the frozen `approvedSnapshot` until the
+ *     therapist explicitly submits AND the doctor re-approves.
+ *   - Therapist edit in DRAFT / PENDING_APPROVAL / CHANGES_REQUESTED keeps
+ *     the current status; the therapist submits (or resubmits) explicitly.
+ *
+ * Submitting is only valid from DRAFT / CHANGES_REQUESTED — submitHomeProgram
+ * enforces that server-side (the panel hides the button for other states).
  *
  * Permission + care-team checks live in the action layer; these services
  * assume the caller is authorized and just move the state (audited).
@@ -41,6 +48,14 @@ const commentRequired: LocalizedError = {
   code: 'HOME_PROGRAM_COMMENT_REQUIRED',
   message_en: 'A comment is required when requesting changes.',
   message_ar: 'التعليق مطلوب عند طلب التعديلات.',
+};
+
+const alreadySubmitted: LocalizedError = {
+  code: 'HOME_PROGRAM_ALREADY_SUBMITTED',
+  message_en:
+    'This home program is already awaiting approval or approved. Edit the program to open a new draft revision before submitting.',
+  message_ar:
+    'هذا البرنامج المنزلي بانتظار الموافقة أو تمت الموافقة عليه بالفعل. عدّل البرنامج لفتح مسودة مراجعة جديدة قبل الإرسال.',
 };
 
 /**
@@ -156,9 +171,10 @@ async function notifyCareTeamDoctors(patientId: string, therapistName: string): 
 }
 
 /**
- * Therapist submits the program for review (DRAFT / CHANGES_REQUESTED →
- * PENDING_APPROVAL). Also the auto-transition when a therapist edits an
- * APPROVED program. Notifies the care-team doctors.
+ * Therapist EXPLICITLY submits the program for review (DRAFT /
+ * CHANGES_REQUESTED → PENDING_APPROVAL). Rejects any other from-state — an
+ * already-pending or approved program has nothing new to submit (QA 7.8).
+ * Notifies the care-team doctors.
  */
 export const submitHomeProgram = withAudit<
   [string],
@@ -171,6 +187,17 @@ export const submitHomeProgram = withAudit<
     extractAfter: () => ({ event: 'HOME_PROGRAM_SUBMITTED', status: 'PENDING_APPROVAL' }),
   },
   async function submitInner(patientId): Promise<{ patientId: string; status: HomeProgramStatus }> {
+    const current = await db.homeProgramApproval.findUnique({
+      where: { patientId },
+      select: { status: true },
+    });
+    if (
+      current &&
+      (current.status === HomeProgramStatus.PENDING_APPROVAL ||
+        current.status === HomeProgramStatus.APPROVED)
+    ) {
+      throw new HomeProgramApprovalError(alreadySubmitted);
+    }
     const session = await auth();
     const actorId = session?.user?.id ?? null;
     await db.homeProgramApproval.upsert({
@@ -189,6 +216,50 @@ export const submitHomeProgram = withAudit<
     });
     await notifyCareTeamDoctors(patientId, actorId ? await fullName(actorId) : '');
     return { patientId, status: HomeProgramStatus.PENDING_APPROVAL };
+  },
+);
+
+/**
+ * Reopen an APPROVED program as a working DRAFT after a therapist edit
+ * (QA 7.8). Nothing is submitted and no doctor is notified — the therapist
+ * keeps editing and submits explicitly when done. The frozen
+ * `approvedSnapshot` is preserved so the patient (and the reminder worker)
+ * keep seeing the last approved content.
+ *
+ * Backfill guard: rows approved by the 20260612100000 migration backfill
+ * carry a NULL `approvedSnapshot` — for those we freeze the current live
+ * items first, otherwise leaving APPROVED would blank the patient's program.
+ */
+export const reopenHomeProgramDraft = withAudit<
+  [string],
+  { patientId: string; status: HomeProgramStatus }
+>(
+  {
+    entityType: 'HomeProgramApproval',
+    action: AuditAction.UPDATE,
+    extractEntityId: (args) => args[0],
+    extractAfter: () => ({ event: 'HOME_PROGRAM_REOPENED_DRAFT', status: 'DRAFT' }),
+  },
+  async function reopenInner(patientId): Promise<{ patientId: string; status: HomeProgramStatus }> {
+    const row = await db.homeProgramApproval.findUnique({
+      where: { patientId },
+      select: { approvedSnapshot: true },
+    });
+    const snapshotPatch =
+      row && row.approvedSnapshot === null
+        ? { approvedSnapshot: await buildSnapshot(patientId) }
+        : {};
+    await db.homeProgramApproval.upsert({
+      where: { patientId },
+      update: {
+        status: HomeProgramStatus.DRAFT,
+        submittedById: null,
+        submittedAt: null,
+        ...snapshotPatch,
+      },
+      create: { patientId, status: HomeProgramStatus.DRAFT },
+    });
+    return { patientId, status: HomeProgramStatus.DRAFT };
   },
 );
 
@@ -333,9 +404,10 @@ export const setHomeProgramReminders = withAudit<
 /**
  * Called after any clinical edit to a patient's program items. Drives the
  * auto-transitions: doctor/admin → auto-approve; therapist editing an APPROVED
- * program → back to PENDING_APPROVAL (preserving the approved snapshot). A
- * therapist editing a DRAFT/CHANGES program just keeps building (status
- * unchanged); a DRAFT row is ensured so the builder shows a status.
+ * program → back to DRAFT (reopened revision, preserving the approved
+ * snapshot — the therapist submits explicitly, QA 7.8). A therapist editing a
+ * DRAFT/PENDING/CHANGES program just keeps building (status unchanged); a
+ * DRAFT row is ensured so the builder shows a status.
  */
 export async function onHomeProgramEdited(patientId: string): Promise<void> {
   const session = await auth();
@@ -347,7 +419,7 @@ export async function onHomeProgramEdited(patientId: string): Promise<void> {
   if (role === 'THERAPIST') {
     const state = await getApprovalState(patientId);
     if (state.status === HomeProgramStatus.APPROVED) {
-      await submitHomeProgram(patientId);
+      await reopenHomeProgramDraft(patientId);
     } else {
       await db.homeProgramApproval.upsert({
         where: { patientId },

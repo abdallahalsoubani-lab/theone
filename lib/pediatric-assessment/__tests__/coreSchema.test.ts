@@ -46,11 +46,21 @@ describe('coreAssessmentSchema', () => {
     expect(coreAssessmentSchema.safeParse({ ...valid, transKneeling: 4 }).success).toBe(false);
   });
 
-  it('rejects missing required observations', () => {
-    const { historyObservations: _h, ...noHistory } = valid;
-    expect(coreAssessmentSchema.safeParse(noHistory).success).toBe(false);
-    const { examObservations: _e, ...noExam } = valid;
-    expect(coreAssessmentSchema.safeParse(noExam).success).toBe(false);
+  // QA 6.4: the two "Any observations" notes fields are optional — an
+  // assessment saves without them (and with them left empty).
+  it('accepts missing observations (optional notes, QA 6.4)', () => {
+    const { historyObservations: _h, examObservations: _e, ...noObservations } = valid;
+    expect(coreAssessmentSchema.safeParse(noObservations).success).toBe(true);
+  });
+
+  it('accepts empty-string observations (QA 6.4)', () => {
+    expect(
+      coreAssessmentSchema.safeParse({
+        ...valid,
+        historyObservations: '',
+        examObservations: '',
+      }).success,
+    ).toBe(true);
   });
 
   it('rejects NICU = Yes without NICU days', () => {

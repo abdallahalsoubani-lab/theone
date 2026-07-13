@@ -51,7 +51,7 @@ export async function PatientNotesTab({ notes, viewerRole, actorId, locale }: Pr
               <div>
                 <p className="text-sm font-medium text-brand-navy">{therapistName}</p>
                 <p className="text-xs text-brand-textMuted">
-                  {formatDateTime(note.createdAt, localeTag)}
+                  <bdi>{formatDateTime(note.createdAt, localeTag)}</bdi>
                   {note.painScore != null ? ` · ${t('painScore')} ${note.painScore}/10` : ''}
                 </p>
               </div>
@@ -94,7 +94,8 @@ export async function PatientNotesTab({ notes, viewerRole, actorId, locale }: Pr
                   return (
                     <div key={a.id} className="space-y-2 border-t border-brand-border pt-2">
                       <p className="text-xs text-brand-textMuted">
-                        {aTherapist} · {formatDateTime(a.createdAt, localeTag)}
+                        <bdi>{aTherapist}</bdi> ·{' '}
+                        <bdi>{formatDateTime(a.createdAt, localeTag)}</bdi>
                         {a.painScore != null ? ` · ${t('painScore')} ${a.painScore}/10` : ''}
                       </p>
                       <Soap label={t('subjective')} value={a.subjective} />

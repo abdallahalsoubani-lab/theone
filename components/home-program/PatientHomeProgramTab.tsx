@@ -1,4 +1,4 @@
-import { Pencil } from 'lucide-react';
+import { Pencil, Plus } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 
 import { ComplianceWidget } from '@/components/home-program/ComplianceWidget';
@@ -62,15 +62,27 @@ export async function PatientHomeProgramTab({
                   (editHref ?? `/therapist/patients/${patientId}/home-program/edit`) as `/${string}`
                 }
               >
-                <Pencil className="me-1 size-4" />
-                {tHp('edit')}
+                {/* The action reflects the actual operation (QA 6.2): with no
+                    program yet the builder opens in add mode → "Add exercise";
+                    with items it opens the editable list → "Edit". */}
+                {items.length === 0 ? (
+                  <>
+                    <Plus className="me-1 size-4" />
+                    {tHp('addExercise')}
+                  </>
+                ) : (
+                  <>
+                    <Pencil className="me-1 size-4" />
+                    {tHp('edit')}
+                  </>
+                )}
               </Link>
             </Button>
           ) : null}
         </div>
         {items.length === 0 ? (
           <p className="rounded-md border border-brand-border bg-brand-bg p-4 text-sm text-brand-textMuted">
-            {tHp('emptyBuilder')}
+            {tHp('emptyTab')}
           </p>
         ) : (
           <ul className="divide-y divide-brand-border overflow-hidden rounded-md border border-brand-border bg-brand-surface text-sm">

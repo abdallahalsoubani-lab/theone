@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { ExportPediatricAssessmentButton } from '@/components/exports/ExportPediatricAssessmentButton';
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
+import { bidiIsolate } from '@/lib/format/bidi';
 import { formatDate } from '@/lib/format/date';
 import type { AssessmentListRow } from '@/lib/pediatric-assessment/queries';
 
@@ -74,7 +75,7 @@ export function PediatricAssessmentTab({
                   ) : null}
                 </p>
                 <p className="text-xs text-brand-textMuted">
-                  {t('byLine', { name: ar ? r.createdByNameAr : r.createdByNameEn })}
+                  {t('byLine', { name: bidiIsolate(ar ? r.createdByNameAr : r.createdByNameEn) })}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">

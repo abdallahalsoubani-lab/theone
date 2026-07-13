@@ -6,7 +6,7 @@ import type { Result } from '@/lib/auth/result';
 import type { LocalizedError } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac/guards';
 
-import { planCreateSchema, planProposeSchema, planRejectSchema } from './schemas';
+import { planCreateSchema, planProposeSchema, planRejectSchema, planUpdateSchema } from './schemas';
 import {
   approveProposal,
   completeTreatmentPlan,
@@ -18,6 +18,7 @@ import {
   planToLocalized,
   proposeTreatmentPlanChange,
   rejectProposal,
+  updateTreatmentPlan,
 } from './services';
 
 /**
@@ -46,6 +47,34 @@ export async function createTreatmentPlanAction(
   try {
     const doctorId = await currentDoctorId();
     const data = await createTreatmentPlan(parsed.data, { doctorId });
+    revalidatePath('/doctor/dashboard');
+    revalidatePath(`/secretary/patients/${parsed.data.patientId}`);
+    revalidatePath(`/doctor/patients/${parsed.data.patientId}`);
+    revalidatePath(`/therapist/patients/${parsed.data.patientId}`);
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: planToLocalized(err) };
+  }
+}
+
+export async function updateTreatmentPlanAction(
+  raw: unknown,
+): Promise<Result<{ planId: string }, LocalizedError>> {
+  await requirePermission('treatment_plans.update.own');
+  const parsed = planUpdateSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: {
+        code: 'VALIDATION',
+        message_en: parsed.error.issues[0]?.message ?? 'Invalid plan input.',
+        message_ar: 'بيانات الخطة غير صالحة.',
+      },
+    };
+  }
+  try {
+    const doctorId = await currentDoctorId();
+    const data = await updateTreatmentPlan(parsed.data, { doctorId });
     revalidatePath('/doctor/dashboard');
     revalidatePath(`/secretary/patients/${parsed.data.patientId}`);
     revalidatePath(`/doctor/patients/${parsed.data.patientId}`);

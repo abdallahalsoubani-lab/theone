@@ -107,7 +107,9 @@ export function PlanCard({ plan, viewerRole, editHref }: Props) {
             <StatusBadge status={plan.status} />
           </div>
           <p className="mt-1 text-xs text-brand-textMuted">
-            {t('forPatient')} {patientName} · {t('by')} {doctorName}
+            {/* <bdi> isolates the names so an AR label + Latin name byline
+                keeps its visual order (QA 6.5). */}
+            {t('forPatient')} <bdi>{patientName}</bdi> · {t('by')} <bdi>{doctorName}</bdi>
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

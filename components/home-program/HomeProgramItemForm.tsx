@@ -41,6 +41,7 @@ const DAYS: ReadonlyArray<{ value: number; labelEnShort: string; labelArShort: s
  */
 export function HomeProgramItemForm({ patientId, exerciseOptions, initial, onDone }: Props) {
   const t = useTranslations('clinical.homeProgram');
+  const tEx = useTranslations('clinical.exercises');
   const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -106,6 +107,7 @@ export function HomeProgramItemForm({ patientId, exerciseOptions, initial, onDon
           {exerciseOptions.map((opt) => (
             <option key={opt.id} value={opt.id}>
               {locale === 'ar' ? opt.nameAr : opt.nameEn}
+              {opt.archived ? ` (${tEx('archived')})` : ''}
             </option>
           ))}
         </select>

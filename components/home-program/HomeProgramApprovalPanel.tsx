@@ -35,6 +35,7 @@ export function HomeProgramApprovalPanel({
   remindersEnabled,
   changesComment,
   canSubmit,
+  hasApprovedSnapshot = false,
 }: {
   patientId: string;
   status: HomeProgramStatus;
@@ -42,6 +43,9 @@ export function HomeProgramApprovalPanel({
   changesComment: string | null;
   /** True for the THERAPIST view (shows the Submit button). */
   canSubmit: boolean;
+  /** True when a frozen approved snapshot exists — a DRAFT then means the
+   *  patient still sees the last approved version (QA 7.8 hint). */
+  hasApprovedSnapshot?: boolean;
 }) {
   const t = useTranslations('clinical.homeProgram.approval');
   const router = useRouter();
@@ -92,6 +96,12 @@ export function HomeProgramApprovalPanel({
           <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
             <p className="font-medium">{t('changesRequestedTitle')}</p>
             <p className="mt-1 whitespace-pre-wrap">{changesComment}</p>
+          </div>
+        ) : null}
+
+        {status === 'DRAFT' && hasApprovedSnapshot ? (
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <p>{t('draftRevisionNote')}</p>
           </div>
         ) : null}
 

@@ -35,7 +35,9 @@ vi.mock('@/lib/db', () => {
     }>,
     exercises: [
       { id: 'ex-1', active: true, replacedById: null },
+      { id: 'ex-2', active: true, replacedById: null },
       { id: 'ex-archived', active: false, replacedById: null },
+      { id: 'ex-replaced', active: true, replacedById: 'ex-2' },
     ] as Array<{ id: string; active: boolean; replacedById: string | null }>,
     careTeam: [{ patientId: 'patient-1', clinicianId: 'therapist-1' }] as Array<{
       patientId: string;
@@ -56,6 +58,25 @@ vi.mock('@/lib/db', () => {
         findUnique: vi.fn(
           async ({ where }: { where: { id: string } }) =>
             state.items.find((i) => i.id === where.id) ?? null,
+        ),
+        // The exercise resolves through the FK relation join with NO
+        // active/replacedById condition — archived versions keep rendering.
+        findMany: vi.fn(async ({ where }: { where: { patientId: string } }) =>
+          state.items
+            .filter((i) => i.patientId === where.patientId)
+            .map((i) => ({
+              ...i,
+              exercise: {
+                nameEn: `Name of ${i.exerciseId}`,
+                nameAr: `اسم ${i.exerciseId}`,
+                videoUrl: null,
+                imageUrl: null,
+                descriptionEn: '',
+                descriptionAr: '',
+                defaultInstructionEn: null,
+                defaultInstructionAr: null,
+              },
+            })),
         ),
         create: vi.fn(
           async ({ data, select }: { data: Record<string, unknown>; select?: { id: true } }) => {
@@ -173,7 +194,13 @@ vi.mock('@/auth', () => ({
 }));
 
 import * as dbModule from '@/lib/db';
-import { addHomeProgramItem, HomeProgramError, markHomeExerciseDone } from '../services';
+import { listHomeProgramForPatient } from '../queries';
+import {
+  addHomeProgramItem,
+  HomeProgramError,
+  markHomeExerciseDone,
+  updateHomeProgramItem,
+} from '../services';
 
 const state = (
   dbModule as unknown as {
@@ -232,6 +259,95 @@ describe('addHomeProgramItem', () => {
   it('sorts daysOfWeek ascending on insert', async () => {
     await addHomeProgramItem({ ...validInput, daysOfWeek: [5, 1, 3] }, { actorId: 'therapist-1' });
     expect(state.items[0]!.daysOfWeek).toEqual([1, 3, 5]);
+  });
+});
+
+describe('updateHomeProgramItem — archived-exercise guard (QA 6.3)', () => {
+  function seedItem(exerciseId: string) {
+    state.items.push({
+      id: 'item-1',
+      patientId: 'patient-1',
+      exerciseId,
+      daysOfWeek: [1, 3],
+      scheduledTime: '18:00',
+      durationMinutes: 15,
+      setsReps: null,
+      therapistNote: null,
+      active: true,
+      reminderJobKey: null,
+      createdAt: new Date(),
+    } as unknown as (typeof state.items)[number]);
+  }
+
+  const patch = {
+    id: 'item-1',
+    patientId: 'patient-1',
+    daysOfWeek: [2, 4],
+    scheduledTime: '19:00',
+    durationMinutes: 20,
+    setsReps: null,
+    therapistNote: null,
+    active: true,
+  };
+
+  it('rejects re-pointing an item at an archived exercise', async () => {
+    seedItem('ex-1');
+    await expect(
+      updateHomeProgramItem({ ...patch, exerciseId: 'ex-archived' }, { actorId: 'therapist-1' }),
+    ).rejects.toBeInstanceOf(HomeProgramError);
+    expect(state.items[0]).toMatchObject({ exerciseId: 'ex-1', scheduledTime: '18:00' });
+  });
+
+  it('rejects re-pointing an item at a superseded version (replacedById set)', async () => {
+    seedItem('ex-1');
+    await expect(
+      updateHomeProgramItem({ ...patch, exerciseId: 'ex-replaced' }, { actorId: 'therapist-1' }),
+    ).rejects.toBeInstanceOf(HomeProgramError);
+  });
+
+  it('allows schedule tweaks when the (unchanged) exercise has since been archived', async () => {
+    seedItem('ex-archived');
+    const r = await updateHomeProgramItem(
+      { ...patch, exerciseId: 'ex-archived' },
+      { actorId: 'therapist-1' },
+    );
+    expect(r.itemId).toBe('item-1');
+    expect(state.items[0]).toMatchObject({ exerciseId: 'ex-archived', scheduledTime: '19:00' });
+  });
+
+  it('allows switching to a different ACTIVE exercise', async () => {
+    seedItem('ex-1');
+    const r = await updateHomeProgramItem(
+      { ...patch, exerciseId: 'ex-2' },
+      { actorId: 'therapist-1' },
+    );
+    expect(r.itemId).toBe('item-1');
+    expect(state.items[0]).toMatchObject({ exerciseId: 'ex-2' });
+  });
+});
+
+describe('historical items keep rendering (QA 6.3)', () => {
+  it('an item referencing an archived version still resolves its exercise names', async () => {
+    state.items.push({
+      id: 'item-hist',
+      patientId: 'patient-1',
+      exerciseId: 'ex-archived',
+      daysOfWeek: [1],
+      scheduledTime: '18:00',
+      durationMinutes: 15,
+      setsReps: null,
+      therapistNote: null,
+      active: true,
+      reminderJobKey: null,
+      createdAt: new Date(),
+    } as unknown as (typeof state.items)[number]);
+    const rows = await listHomeProgramForPatient('patient-1');
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      exerciseId: 'ex-archived',
+      exerciseNameEn: 'Name of ex-archived',
+      exerciseNameAr: 'اسم ex-archived',
+    });
   });
 });
 

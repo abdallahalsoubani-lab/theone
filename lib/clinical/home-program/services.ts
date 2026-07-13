@@ -67,6 +67,23 @@ const exerciseArchived: LocalizedError = {
   message_en: 'Cannot add an archived exercise to a home program.',
   message_ar: 'لا يمكن إضافة تمرين مؤرشف إلى البرنامج المنزلي.',
 };
+const exerciseNotFound: LocalizedError = {
+  code: 'EXERCISE_NOT_FOUND',
+  message_en: 'Exercise not found.',
+  message_ar: 'لم يتم العثور على التمرين.',
+};
+
+/** Throws unless the exercise exists, is active, and is not superseded. */
+async function ensureExerciseReferencable(exerciseId: string): Promise<void> {
+  const exercise = await db.exercise.findUnique({
+    where: { id: exerciseId },
+    select: { id: true, active: true, replacedById: true },
+  });
+  if (!exercise) throw new HomeProgramError(exerciseNotFound);
+  if (!exercise.active || exercise.replacedById) {
+    throw new HomeProgramError(exerciseArchived);
+  }
+}
 
 /**
  * Resource-scope check: the Therapist managing a home program must be
@@ -105,20 +122,7 @@ export const addHomeProgramItem = withAudit<
 
     // Block adding archived / superseded exercises to a new home program.
     // Existing rows referencing the old version remain valid (no cascade).
-    const exercise = await db.exercise.findUnique({
-      where: { id: input.exerciseId },
-      select: { id: true, active: true, replacedById: true },
-    });
-    if (!exercise) {
-      throw new HomeProgramError({
-        code: 'EXERCISE_NOT_FOUND',
-        message_en: 'Exercise not found.',
-        message_ar: 'لم يتم العثور على التمرين.',
-      });
-    }
-    if (!exercise.active || exercise.replacedById) {
-      throw new HomeProgramError(exerciseArchived);
-    }
+    await ensureExerciseReferencable(input.exerciseId);
 
     const row = await db.homeProgramItem.create({
       data: {
@@ -175,10 +179,17 @@ export const updateHomeProgramItem = withAudit<
   async function inner(input, ctx): Promise<{ itemId: string }> {
     const existing = await db.homeProgramItem.findUnique({
       where: { id: input.id },
-      select: { id: true, patientId: true, reminderJobKey: true },
+      select: { id: true, patientId: true, exerciseId: true, reminderJobKey: true },
     });
     if (!existing) throw new HomeProgramError(notFound);
     await ensureClinicalActorCanManage({ actorId: ctx.actorId, patientId: existing.patientId });
+
+    // Re-pointing an item at an archived / superseded exercise is blocked
+    // (QA 6.3); saving an item whose CURRENT exercise has since been archived
+    // stays allowed so schedule tweaks never break historical items.
+    if (input.exerciseId !== existing.exerciseId) {
+      await ensureExerciseReferencable(input.exerciseId);
+    }
 
     await db.homeProgramItem.update({
       where: { id: input.id },

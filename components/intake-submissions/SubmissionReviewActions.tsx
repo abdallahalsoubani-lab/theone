@@ -89,7 +89,7 @@ export function SubmissionReviewActions({ submissionId, locale, duplicate }: Pro
           <div className="rounded-md border border-brand-cyan/40 bg-brand-cyan/5 p-3 text-sm">
             <p className="font-medium text-brand-navy">{t('duplicateFound')}</p>
             <p className="text-brand-textMuted">
-              {duplicate.name} · {duplicate.phone}
+              <bdi>{duplicate.name}</bdi> · <bdi>{duplicate.phone}</bdi>
             </p>
           </div>
         ) : null}
