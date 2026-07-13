@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 import type { ComplianceResult } from '@/lib/clinical/compliance/calculate';
 import type { HomeProgramItemRow } from '@/lib/clinical/home-program/queries';
+import { formatShortDate } from '@/lib/format/date';
 
 interface Props {
   patientId: string;
@@ -88,7 +89,7 @@ export async function PatientHomeProgramTab({
                   <div className="flex flex-col items-end gap-1">
                     {!item.active ? <Badge variant="muted">{tHp('paused')}</Badge> : null}
                     <p className="text-xs text-brand-textMuted">
-                      {t('lastCompleted')}: {last ? last.toLocaleDateString(localeTag) : '—'}
+                      {t('lastCompleted')}: {last ? formatShortDate(last, localeTag) : '—'}
                     </p>
                   </div>
                 </li>

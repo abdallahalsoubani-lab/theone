@@ -15,6 +15,7 @@ import {
   undoCheckInAction,
 } from '@/lib/arrivals/actions';
 import type { ArrivalRow, ArrivalsBoard } from '@/lib/arrivals/queries';
+import { formatTime } from '@/lib/format/date';
 
 const DELAY_PRESETS = [5, 10, 15, 20, 25, 30, 45];
 const REFRESH_MS = 15_000;
@@ -38,11 +39,7 @@ export function ArrivalsPanel({ board, locale }: { board: ArrivalsBoard; locale:
 
   const name = (r: ArrivalRow) => (locale === 'ar' ? r.patientNameAr : r.patientNameEn);
   const therapist = (r: ArrivalRow) => (locale === 'ar' ? r.therapistNameAr : r.therapistNameEn);
-  const time = (iso: string) =>
-    new Date(iso).toLocaleTimeString(locale === 'ar' ? 'ar-JO' : 'en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const time = (iso: string) => formatTime(new Date(iso), locale === 'ar' ? 'ar' : 'en');
 
   function run(
     fn: () => Promise<{ ok: boolean; error?: { message_en: string; message_ar: string } }>,

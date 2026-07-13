@@ -4,16 +4,23 @@ import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ArrivalRow, ArrivalsBoard } from '@/lib/arrivals/queries';
+import { formatTime } from '@/lib/format/date';
+import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
 
 const POLL_MS = 10_000;
 const STALE_AFTER_MS = 35_000; // ~3 missed polls → show the stale badge
 
+// Clinic wall-clock, not the display device's TZ. The seconds variant has no
+// shared-helper equivalent, so it keeps Intl with the zone pinned.
 const timeFmt = (locale: string, d: Date, withSeconds = false) =>
-  d.toLocaleTimeString(locale === 'ar' ? 'ar-JO' : 'en-GB', {
-    hour: '2-digit',
-    minute: '2-digit',
-    ...(withSeconds ? { second: '2-digit' } : {}),
-  });
+  withSeconds
+    ? d.toLocaleTimeString(locale === 'ar' ? 'ar-JO' : 'en-GB', {
+        timeZone: CLINIC_TIME_ZONE,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+    : formatTime(d, locale === 'ar' ? 'ar' : 'en');
 
 /**
  * Staff break-room lobby display (Prompt 18 §4). Standalone, TV-friendly,
@@ -57,13 +64,7 @@ export function LobbyDisplay({ token, locale }: { token: string; locale: string 
 
   // Live wall clock, updated each second.
   useEffect(() => {
-    const tick = () =>
-      setClock(
-        new Date().toLocaleTimeString(locale === 'ar' ? 'ar-JO' : 'en-GB', {
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-      );
+    const tick = () => setClock(formatTime(new Date(), locale === 'ar' ? 'ar' : 'en'));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
@@ -71,11 +72,7 @@ export function LobbyDisplay({ token, locale }: { token: string; locale: string 
 
   const name = (r: ArrivalRow) => (locale === 'ar' ? r.patientNameAr : r.patientNameEn);
   const therapist = (r: ArrivalRow) => (locale === 'ar' ? r.therapistNameAr : r.therapistNameEn);
-  const time = (iso: string) =>
-    new Date(iso).toLocaleTimeString(locale === 'ar' ? 'ar-JO' : 'en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const time = (iso: string) => formatTime(new Date(iso), locale === 'ar' ? 'ar' : 'en');
   const waitMinutes = (iso: string) =>
     Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60_000));
 

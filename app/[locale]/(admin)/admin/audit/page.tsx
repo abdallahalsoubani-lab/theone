@@ -4,6 +4,7 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { listAuditLogs } from '@/lib/admin/audit/queries';
+import { formatDateTime } from '@/lib/format/date';
 import { requirePermission } from '@/lib/rbac/guards';
 
 /**
@@ -154,7 +155,7 @@ export default async function AuditLogPage({
             {rows.map((r) => (
               <tr key={r.id} className="align-top">
                 <td className="px-2 py-2 font-mono text-[11px]">
-                  {r.createdAt.toISOString().replace('T', ' ').slice(0, 19)}
+                  {formatDateTime(r.createdAt, locale === 'ar' ? 'ar' : 'en')}
                 </td>
                 <td className="px-2 py-2">
                   <div className="flex flex-col gap-1">

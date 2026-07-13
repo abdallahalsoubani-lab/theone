@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { SessionNoteForm } from '@/components/clinical/SessionNoteForm';
 import { getSessionNoteById } from '@/lib/clinical/session-notes/queries';
 import { db } from '@/lib/db';
+import { formatDateTime } from '@/lib/format/date';
 import { requirePermission } from '@/lib/rbac/guards';
 
 export default async function AddAddendumPage({
@@ -38,7 +39,7 @@ export default async function AddAddendumPage({
       <SessionNoteForm
         mode="addendum"
         targetId={parent.id}
-        appointmentLabel={appt.startsAt.toLocaleString(locale === 'ar' ? 'ar' : 'en')}
+        appointmentLabel={formatDateTime(appt.startsAt, locale === 'ar' ? 'ar' : 'en')}
         patientLabel={patientName}
         redirectTo={`/therapist/patients/${parent.patientId}`}
       />

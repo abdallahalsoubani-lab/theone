@@ -3,6 +3,8 @@
 import { CheckCircle2, XCircle } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 
+import { formatDateTime } from '@/lib/format/date';
+
 interface Props {
   reachable: boolean;
   lastDeliveryAt: Date | null;
@@ -43,7 +45,7 @@ export function PatientWhatsAppSection({
             <div>{t('reachable')}</div>
             {lastDeliveryAt ? (
               <div className="mt-1 text-xs text-brand-textMuted">
-                {t('lastDeliveryAt', { date: lastDeliveryAt.toLocaleString(localeTag) })}
+                {t('lastDeliveryAt', { date: formatDateTime(lastDeliveryAt, localeTag) })}
               </div>
             ) : null}
           </div>
@@ -55,7 +57,7 @@ export function PatientWhatsAppSection({
             <div>{t('unreachable', { reason: lastFailureReason ?? '—' })}</div>
             {lastFailureAt ? (
               <div className="mt-1 text-xs text-brand-textMuted">
-                {t('lastFailureAt', { date: lastFailureAt.toLocaleString(localeTag) })}
+                {t('lastFailureAt', { date: formatDateTime(lastFailureAt, localeTag) })}
               </div>
             ) : null}
           </div>

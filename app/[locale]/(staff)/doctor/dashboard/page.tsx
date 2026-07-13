@@ -9,6 +9,7 @@ import { Link } from '@/i18n/navigation';
 import { getComplianceTrendForDoctor } from '@/lib/analytics/queries';
 import { listPendingProposalsForDoctor } from '@/lib/clinical/plans/queries';
 import { db } from '@/lib/db';
+import { formatShortDate } from '@/lib/format/date';
 import { countUnreadNotificationsForCurrentUser } from '@/lib/notifications/queries';
 
 /**
@@ -119,7 +120,7 @@ export default async function DoctorDashboard({ params }: { params: Promise<{ lo
                   {locale === 'ar' ? r.therapist.fullNameAr : r.therapist.fullNameEn}
                 </span>
                 <span className="text-xs text-brand-textMuted">
-                  {r.date.toISOString().slice(0, 10)}
+                  {formatShortDate(r.date, locale === 'ar' ? 'ar' : 'en')}
                 </span>
               </li>
             ))}

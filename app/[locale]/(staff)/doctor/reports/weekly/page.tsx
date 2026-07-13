@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Link } from '@/i18n/navigation';
 import { listDayReportsForDoctorWeek } from '@/lib/clinical/day-reports/queries';
 import { db } from '@/lib/db';
+import { formatShortDate } from '@/lib/format/date';
 import { requirePermission } from '@/lib/rbac/guards';
 
 /**
@@ -113,7 +114,7 @@ export default async function WeeklyReviewPage({
                   {entries.map((e, i) => (
                     <li key={i} className="border-s-2 border-brand-cyan/40 ps-3">
                       <p className="text-xs text-brand-textMuted">
-                        {e.date.toISOString().slice(0, 10)} ·{' '}
+                        {formatShortDate(e.date, locale === 'ar' ? 'ar' : 'en')} ·{' '}
                         {locale === 'ar' ? e.therapistFullNameAr : e.therapistFullNameEn}
                       </p>
                       <p className="whitespace-pre-wrap text-brand-text">{e.note}</p>

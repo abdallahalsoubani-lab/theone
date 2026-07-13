@@ -3,6 +3,7 @@ import { Document, Page, StyleSheet, Text, View, pdf } from '@react-pdf/renderer
 
 import { withAudit } from '@/lib/audit/withAudit';
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
+import { formatDateTime, formatShortDate } from '@/lib/format/date';
 import { getPatientFile } from '@/lib/patients/queries';
 import { type PermissionUser } from '@/lib/rbac/can';
 
@@ -241,7 +242,7 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
         <View style={styles.header}>
           <Text style={styles.clinicName}>Theone.pt — {ar ? 'ملف المريض' : 'Patient File'}</Text>
           <Text style={styles.generated}>
-            {ar ? 'تم التوليد' : 'Generated'}: {new Date().toISOString()} ·{' '}
+            {ar ? 'تم التوليد' : 'Generated'}: {formatDateTime(new Date(), locale)} ·{' '}
             {ar ? 'النطاق' : 'Scope'}: {redaction}
           </Text>
         </View>
@@ -255,7 +256,7 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
           <Row label={ar ? 'البريد' : 'Email'} value={patient.email ?? '—'} />
           <Row
             label={ar ? 'تاريخ الميلاد' : 'Date of birth'}
-            value={patient.dateOfBirth.toISOString().slice(0, 10)}
+            value={formatShortDate(patient.dateOfBirth, locale, { timeZone: 'UTC' })}
           />
           <Row label={ar ? 'الجنس' : 'Gender'} value={patient.gender} />
           <Row label={ar ? 'العنوان' : 'Address'} value={patient.address ?? '—'} />
@@ -264,10 +265,7 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
         {intake ? (
           <View style={styles.section}>
             <Text style={styles.h2}>{ar ? 'تقييم القبول' : 'Intake'}</Text>
-            <Row
-              label={ar ? 'تاريخ' : 'Date'}
-              value={intake.createdAt.toISOString().slice(0, 10)}
-            />
+            <Row label={ar ? 'تاريخ' : 'Date'} value={formatShortDate(intake.createdAt, locale)} />
             <Row
               label={ar ? 'الشكوى' : 'Primary complaint'}
               value={intake.primaryComplaint ?? '—'}
@@ -286,7 +284,7 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
             </View>
             {appointments.slice(0, 50).map((a) => (
               <View key={a.id} style={styles.tableRow}>
-                <Text style={styles.tdSmall}>{a.startsAt.toISOString().slice(0, 10)}</Text>
+                <Text style={styles.tdSmall}>{formatShortDate(a.startsAt, locale)}</Text>
                 <Text style={styles.td}>{ar ? a.therapistFullNameAr : a.therapistFullNameEn}</Text>
                 <Text style={styles.tdSmall}>{a.status}</Text>
                 <Text style={styles.tdSmall}>{a.durationMinutes}</Text>
@@ -314,7 +312,7 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
                 <View style={styles.table}>
                   {plans.map((p) => (
                     <View key={p.id} style={styles.tableRow}>
-                      <Text style={styles.tdSmall}>{p.createdAt.toISOString().slice(0, 10)}</Text>
+                      <Text style={styles.tdSmall}>{formatShortDate(p.createdAt, locale)}</Text>
                       <Text style={styles.td}>{p.diagnosisPrimary}</Text>
                       <Text style={styles.tdSmall}>{p.status}</Text>
                     </View>

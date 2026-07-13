@@ -2,6 +2,7 @@ import { getTranslations } from 'next-intl/server';
 
 import { Link } from '@/i18n/navigation';
 import type { SessionNoteRow } from '@/lib/clinical/session-notes/queries';
+import { formatDateTime } from '@/lib/format/date';
 
 interface Props {
   notes: SessionNoteRow[];
@@ -50,7 +51,7 @@ export async function PatientNotesTab({ notes, viewerRole, actorId, locale }: Pr
               <div>
                 <p className="text-sm font-medium text-brand-navy">{therapistName}</p>
                 <p className="text-xs text-brand-textMuted">
-                  {note.createdAt.toLocaleString(localeTag)}
+                  {formatDateTime(note.createdAt, localeTag)}
                   {note.painScore != null ? ` · ${t('painScore')} ${note.painScore}/10` : ''}
                 </p>
               </div>
@@ -93,7 +94,7 @@ export async function PatientNotesTab({ notes, viewerRole, actorId, locale }: Pr
                   return (
                     <div key={a.id} className="space-y-2 border-t border-brand-border pt-2">
                       <p className="text-xs text-brand-textMuted">
-                        {aTherapist} · {a.createdAt.toLocaleString(localeTag)}
+                        {aTherapist} · {formatDateTime(a.createdAt, localeTag)}
                         {a.painScore != null ? ` · ${t('painScore')} ${a.painScore}/10` : ''}
                       </p>
                       <Soap label={t('subjective')} value={a.subjective} />

@@ -1,10 +1,11 @@
 import { Plus } from 'lucide-react';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 
 import { PlanCard } from '@/components/clinical/PlanCard';
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 import type { PatientPlanState } from '@/lib/clinical/plans/queries';
+import { formatShortDate } from '@/lib/format/date';
 
 interface Props {
   state: PatientPlanState;
@@ -25,6 +26,8 @@ interface Props {
  */
 export async function PatientPlanTab({ state, patientId, viewerRole }: Props) {
   const t = await getTranslations('clinical.plans');
+  const locale = await getLocale();
+  const localeTag: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
   const isDoctor = viewerRole === 'DOCTOR' || viewerRole === 'ADMIN';
   const planBasePath =
     viewerRole === 'THERAPIST'
@@ -84,7 +87,7 @@ export async function PatientPlanTab({ state, patientId, viewerRole }: Props) {
                   <span className="text-xs text-brand-textMuted">{h.status}</span>
                 </div>
                 <div className="mt-1 text-xs text-brand-textMuted">
-                  {h.createdAt.toLocaleDateString()}
+                  {formatShortDate(h.createdAt, localeTag)}
                 </div>
               </li>
             ))}

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
 import { DayReportForm } from '@/components/clinical/DayReportForm';
 import { buildDayReportDraft } from '@/lib/clinical/day-reports/queries';
+import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
 import { requirePermission } from '@/lib/rbac/guards';
 
 export default async function EndOfDayReportPage({
@@ -18,9 +19,16 @@ export default async function EndOfDayReportPage({
   const session = await auth();
   if (!session?.user) redirect(`/${locale}/login`);
 
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  const dateIso = today.toISOString().slice(0, 10);
+  // Clinic-local calendar day, not the UTC day (they differ 21:00–24:00 UTC).
+  // The report key stays midnight-UTC of that YYYY-MM-DD so the @db.Date
+  // column round-trips (see lib/clinical/day-reports/services.ts parseDate).
+  const dateIso = new Intl.DateTimeFormat('en-CA', {
+    timeZone: CLINIC_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
+  const today = new Date(`${dateIso}T00:00:00.000Z`);
   const { patientEntries, existing } = await buildDayReportDraft({
     therapistId: session.user.id,
     date: today,

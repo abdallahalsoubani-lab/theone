@@ -19,10 +19,11 @@
  */
 
 import { tzOffsetMs } from '@/lib/arrivals/time';
+import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
 
 import { DAY_KEYS, type DayKey } from './conflicts-time';
 
-export const CLINIC_DEFAULT_TZ = 'Asia/Amman';
+export const CLINIC_DEFAULT_TZ = CLINIC_TIME_ZONE;
 
 export interface DayHours {
   open: string; // "HH:MM" clinic-local

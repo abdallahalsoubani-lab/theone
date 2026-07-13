@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Link } from '@/i18n/navigation';
 import type { TimelineEntry, TimelineEntryKind } from '@/lib/clinical/timeline/types';
+import { formatDateTime } from '@/lib/format/date';
 
 interface Props {
   entries: TimelineEntry[];
@@ -115,7 +116,7 @@ export function PatientTimelineTab({ entries, total, page, pageSize }: Props) {
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
                     <p className="text-sm font-medium text-brand-navy">{e.title}</p>
                     <p className="text-xs text-brand-textMuted">
-                      {e.occurredAt.toLocaleString(localeTag)}
+                      {formatDateTime(e.occurredAt, localeTag)}
                     </p>
                   </div>
                   {e.author ? <p className="text-xs text-brand-textMuted">{e.author}</p> : null}

@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
+import { formatDateTime } from '@/lib/format/date';
 import { resolveInboxItemAction } from '@/lib/inbox/actions';
 import type { InboxListRow } from '@/lib/inbox/queries';
 
@@ -108,7 +109,7 @@ export function InboxTable({ rows }: Props) {
                   ) : null}
                 </td>
                 <td className="px-3 py-3 align-top text-brand-textMuted">
-                  {row.createdAt.toLocaleString(locale === 'ar' ? 'ar' : 'en')}
+                  {formatDateTime(row.createdAt, locale === 'ar' ? 'ar' : 'en')}
                 </td>
                 <td className="px-3 py-3 text-end align-top">
                   <Button

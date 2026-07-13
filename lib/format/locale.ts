@@ -10,6 +10,15 @@
 
 export type AppLocale = 'en' | 'ar';
 
+/**
+ * Display-layer clinic timezone. All DateTime storage is UTC; the format
+ * helpers pin rendering to this zone so server-rendered timestamps show
+ * clinic wall-clock time regardless of the host machine's TZ. The
+ * server-side override source is `ClinicSettings.timezone` (pinned
+ * read-only in the admin UI).
+ */
+export const CLINIC_TIME_ZONE = 'Asia/Amman';
+
 export function resolveIntlLocale(locale: AppLocale): string {
   return locale === 'ar' ? 'ar-JO' : 'en-US';
 }

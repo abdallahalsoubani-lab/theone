@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { markHomeExerciseDoneAction } from '@/lib/clinical/home-program/actions';
+import { formatTime } from '@/lib/format/date';
 
 interface Props {
   itemId: string;
@@ -44,12 +45,7 @@ export function MarkAsDoneButton({ itemId, alreadyDoneToday, completedAt }: Prop
   }
 
   if (done) {
-    const time = completedAt
-      ? completedAt.toLocaleTimeString(locale === 'ar' ? 'ar' : 'en', {
-          hour: '2-digit',
-          minute: '2-digit',
-        })
-      : '';
+    const time = completedAt ? formatTime(completedAt, locale === 'ar' ? 'ar' : 'en') : '';
     return (
       <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100 px-3 py-1.5 text-sm font-medium text-emerald-900">
         <Check className="size-4" />

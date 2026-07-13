@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl';
 import { ExportPediatricAssessmentButton } from '@/components/exports/ExportPediatricAssessmentButton';
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
+import { formatDate } from '@/lib/format/date';
 import type { AssessmentListRow } from '@/lib/pediatric-assessment/queries';
 
 interface Props {
@@ -28,12 +29,7 @@ export function PediatricAssessmentTab({
   const t = useTranslations('pediatricAssessment');
   const ar = locale === 'ar';
 
-  const fmt = (iso: string) =>
-    new Date(iso).toLocaleDateString(ar ? 'ar-JO' : 'en-GB', {
-      year: 'numeric',
-      month: 'short',
-      day: '2-digit',
-    });
+  const fmt = (iso: string) => formatDate(new Date(iso), locale);
 
   return (
     <div className="space-y-4">

@@ -3,6 +3,7 @@ import { AuditAction } from '@prisma/client';
 import { withAudit } from '@/lib/audit/withAudit';
 import { getPlanById } from '@/lib/clinical/plans/queries';
 import { toLocalizedError, type LocalizedError } from '@/lib/db';
+import { formatShortDate } from '@/lib/format/date';
 
 import { ReportDocument, renderReportToBuffer, type ReportSection } from './reportLayout';
 
@@ -53,7 +54,7 @@ const generateInner = async ({
   const meta = [
     `${ar ? 'المراجع' : 'Patient'}: ${patientName}`,
     `${ar ? 'النسخة' : 'Version'}: ${plan.version}`,
-    `${ar ? 'التاريخ' : 'Date'}: ${plan.createdAt.toISOString().slice(0, 10)}`,
+    `${ar ? 'التاريخ' : 'Date'}: ${formatShortDate(plan.createdAt, locale)}`,
   ].join('  ·  ');
 
   const sections: ReportSection[] = [

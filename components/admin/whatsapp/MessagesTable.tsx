@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { resendMessageAction } from '@/lib/admin/whatsapp/actions';
 import type { MessageListRow } from '@/lib/admin/whatsapp/queries';
+import { formatDateTime } from '@/lib/format/date';
 import { parseFailureReasonCode, parseMetaErrorCode } from '@/lib/whatsapp/errors';
 
 interface Props {
@@ -120,7 +121,7 @@ export function MessagesTable({ rows, initialFilters }: Props) {
               {rows.map((row) => (
                 <tr key={row.id} className="border-b border-brand-border align-top last:border-0">
                   <td className="px-3 py-3 text-xs text-brand-textMuted">
-                    {row.sentAt.toLocaleString(locale === 'ar' ? 'ar' : 'en')}
+                    {formatDateTime(row.sentAt, locale === 'ar' ? 'ar' : 'en')}
                   </td>
                   <td className="px-3 py-3">
                     <Badge variant={row.direction === 'INBOUND' ? 'outline' : 'muted'}>

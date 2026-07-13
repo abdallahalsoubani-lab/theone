@@ -7,8 +7,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { getScheduleDensityForTherapist } from '@/lib/analytics/queries';
 import { therapistAppointmentHref } from '@/lib/appointments/links';
+import { clinicDayRange } from '@/lib/arrivals/time';
 import { listAppointmentsPendingNote } from '@/lib/clinical/session-notes/queries';
 import { db } from '@/lib/db';
+import { formatDateTime, formatTime } from '@/lib/format/date';
+import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
 import { countUnreadNotificationsForCurrentUser } from '@/lib/notifications/queries';
 
 /**
@@ -29,11 +32,15 @@ export default async function TherapistDashboard({
   if (!session?.user) redirect(`/${locale}/login`);
   const t = await getTranslations('clinical.dashboard');
   const therapistId = session.user.id;
+  const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
 
-  const today = new Date();
-  today.setUTCHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+  // Clinic-local "today", not the UTC day (mirrors lib/waitlist/queries.ts).
+  const settings = await db.clinicSettings.findUnique({
+    where: { id: 'default' },
+    select: { timezone: true },
+  });
+  const tz = settings?.timezone ?? CLINIC_TIME_ZONE;
+  const { start: today, end: tomorrow } = clinicDayRange(new Date(), tz);
 
   const [todayAppts, pendingNotes, assignedCount, unread, scheduleDensity] = await Promise.all([
     db.appointment.findMany({
@@ -101,10 +108,7 @@ export default async function TherapistDashboard({
                     className="block rounded-md border border-brand-border bg-brand-surface p-3 transition-colors hover:border-brand-cyan hover:bg-brand-bg"
                   >
                     <p className="text-xs text-brand-textMuted">
-                      {a.startsAt.toLocaleTimeString(locale === 'ar' ? 'ar' : 'en', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {formatTime(a.startsAt, intlLocale)}
                     </p>
                     <p className="line-clamp-1 text-sm font-medium text-brand-navy">{name}</p>
                     {a.checkedInAt ? (
@@ -142,7 +146,7 @@ export default async function TherapistDashboard({
                       {name}
                     </Link>
                     <p className="text-xs text-brand-textMuted">
-                      {a.startsAt.toLocaleString(locale === 'ar' ? 'ar' : 'en')}
+                      {formatDateTime(a.startsAt, intlLocale)}
                     </p>
                   </div>
                 </li>

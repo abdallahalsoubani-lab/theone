@@ -1,4 +1,4 @@
-import { LATIN_NUMBERING, resolveIntlLocale, type AppLocale } from './locale';
+import { CLINIC_TIME_ZONE, LATIN_NUMBERING, resolveIntlLocale, type AppLocale } from './locale';
 
 /**
  * Hijri support: pass `calendar: 'islamic-umalqura'` to render the Umm al-Qura
@@ -10,18 +10,31 @@ import { LATIN_NUMBERING, resolveIntlLocale, type AppLocale } from './locale';
  */
 export type CalendarSystem = 'gregory' | 'islamic-umalqura';
 
-interface CalendarOption {
+interface TimeZoneOption {
+  /**
+   * IANA zone the timestamp is rendered in. Defaults to the clinic zone
+   * (Asia/Amman) — storage is UTC, so without a pinned zone the output
+   * would follow the host machine's clock (UTC on the prod server).
+   */
+  timeZone?: string;
+}
+
+interface CalendarOption extends TimeZoneOption {
   calendar?: CalendarSystem;
 }
 
-function baseOptions(calendar?: CalendarSystem): Intl.DateTimeFormatOptions {
-  return calendar ? { ...LATIN_NUMBERING, calendar } : { ...LATIN_NUMBERING };
+function baseOptions(opts: CalendarOption): Intl.DateTimeFormatOptions {
+  return {
+    ...LATIN_NUMBERING,
+    timeZone: opts.timeZone ?? CLINIC_TIME_ZONE,
+    ...(opts.calendar ? { calendar: opts.calendar } : {}),
+  };
 }
 
 /** Long, human-friendly date — "June 1, 2026" / "1 يونيو 2026". */
 export function formatDate(date: Date, locale: AppLocale, opts: CalendarOption = {}): string {
   return new Intl.DateTimeFormat(resolveIntlLocale(locale), {
-    ...baseOptions(opts.calendar),
+    ...baseOptions(opts),
     year: 'numeric',
     month: 'long',
     day: 'numeric',
@@ -31,7 +44,7 @@ export function formatDate(date: Date, locale: AppLocale, opts: CalendarOption =
 /** Short numeric date — "06/01/2026" (en-US) / "1‏/6‏/2026" (ar-JO). */
 export function formatShortDate(date: Date, locale: AppLocale, opts: CalendarOption = {}): string {
   return new Intl.DateTimeFormat(resolveIntlLocale(locale), {
-    ...baseOptions(opts.calendar),
+    ...baseOptions(opts),
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -39,9 +52,10 @@ export function formatShortDate(date: Date, locale: AppLocale, opts: CalendarOpt
 }
 
 /** 12-hour clock time with AM/PM — "2:30 PM" / "2:30 م". */
-export function formatTime(date: Date, locale: AppLocale): string {
+export function formatTime(date: Date, locale: AppLocale, opts: TimeZoneOption = {}): string {
   return new Intl.DateTimeFormat(resolveIntlLocale(locale), {
     ...LATIN_NUMBERING,
+    timeZone: opts.timeZone ?? CLINIC_TIME_ZONE,
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
@@ -51,7 +65,7 @@ export function formatTime(date: Date, locale: AppLocale): string {
 /** Combined long date + time. */
 export function formatDateTime(date: Date, locale: AppLocale, opts: CalendarOption = {}): string {
   return new Intl.DateTimeFormat(resolveIntlLocale(locale), {
-    ...baseOptions(opts.calendar),
+    ...baseOptions(opts),
     year: 'numeric',
     month: 'long',
     day: 'numeric',

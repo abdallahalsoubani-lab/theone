@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { SessionNoteForm } from '@/components/clinical/SessionNoteForm';
 import { db } from '@/lib/db';
+import { formatDateTime } from '@/lib/format/date';
 import { requirePermission } from '@/lib/rbac/guards';
 
 /**
@@ -53,7 +54,7 @@ export default async function NewSessionNotePage({
       <SessionNoteForm
         mode="create"
         targetId={appt.id}
-        appointmentLabel={appt.startsAt.toLocaleString(locale === 'ar' ? 'ar' : 'en')}
+        appointmentLabel={formatDateTime(appt.startsAt, locale === 'ar' ? 'ar' : 'en')}
         patientLabel={patientName}
         redirectTo={`/therapist/patients/${appt.patientId}`}
       />

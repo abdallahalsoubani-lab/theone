@@ -49,6 +49,44 @@ describe('formatShortDate / formatTime / formatDateTime', () => {
   });
 });
 
+describe('clinic timezone pinning (QA 2.2)', () => {
+  // Newer ICU builds separate the dayPeriod with U+202F / U+00A0 — normalise
+  // so the assertions stay exact on the digits without pinning the space kind.
+  const norm = (s: string) => s.replace(/[  ]/g, ' ');
+
+  it('renders a UTC instant as Amman wall-clock regardless of host TZ', () => {
+    // 07:00 UTC = 10:00 Asia/Amman (UTC+3).
+    expect(norm(formatTime(new Date('2026-07-13T07:00:00Z'), 'en'))).toBe('10:00 AM');
+  });
+
+  it('renders Arabic afternoon time in clinic wall-clock', () => {
+    // 11:56 UTC = 14:56 Amman → "2:56 م" on a 12-hour clock.
+    const out = norm(formatDateTime(new Date('2026-07-13T11:56:00Z'), 'ar'));
+    expect(out).toContain('2:56');
+    expect(out).toContain('م');
+  });
+
+  it('rolls the calendar day over at clinic midnight, not UTC midnight', () => {
+    // 21:30 UTC July 13 = 00:30 Amman July 14.
+    const out = norm(formatDateTime(new Date('2026-07-13T21:30:00Z'), 'en'));
+    expect(out).toContain('July 14');
+    expect(out).toContain('12:30 AM');
+  });
+
+  it('round-trips a 10:00 Amman booking stored as 07:00 UTC in both locales', () => {
+    const stored = new Date('2026-07-14T07:00:00Z');
+    expect(norm(formatTime(stored, 'en'))).toBe('10:00 AM');
+    // Latin digits per LATIN_NUMBERING, Arabic dayPeriod marker.
+    expect(norm(formatTime(stored, 'ar'))).toBe('10:00 ص');
+  });
+
+  it('honours an explicit timeZone override', () => {
+    expect(norm(formatTime(new Date('2026-07-13T07:00:00Z'), 'en', { timeZone: 'UTC' }))).toBe(
+      '7:00 AM',
+    );
+  });
+});
+
 describe('formatRelative', () => {
   const now = new Date('2026-06-01T12:00:00Z');
 

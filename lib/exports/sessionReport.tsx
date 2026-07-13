@@ -6,6 +6,7 @@ import {
   getSessionNoteById,
 } from '@/lib/clinical/session-notes/queries';
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
+import { formatShortDate, formatTime } from '@/lib/format/date';
 
 import { ReportDocument, renderReportToBuffer, type ReportSection } from './reportLayout';
 
@@ -41,8 +42,8 @@ interface Args {
   locale: 'en' | 'ar';
 }
 
-function dt(d: Date): string {
-  return `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)}`;
+function dt(d: Date, locale: 'en' | 'ar'): string {
+  return `${formatShortDate(d, locale)} ${formatTime(d, locale)}`;
 }
 
 const generateInner = async ({
@@ -67,7 +68,7 @@ const generateInner = async ({
   const meta = [
     `${ar ? 'المراجع' : 'Patient'}: ${patientName}`,
     `${ar ? 'المعالج' : 'Therapist'}: ${therapistName}`,
-    `${ar ? 'التاريخ' : 'Date'}: ${dt(note.createdAt)}`,
+    `${ar ? 'التاريخ' : 'Date'}: ${dt(note.createdAt, locale)}`,
   ].join('  ·  ');
 
   const sections: ReportSection[] = [
@@ -89,7 +90,7 @@ const generateInner = async ({
 
   for (const a of addenda) {
     sections.push({
-      heading: `${ar ? 'إضافة' : 'Addendum'} — ${dt(a.createdAt)}`,
+      heading: `${ar ? 'إضافة' : 'Addendum'} — ${dt(a.createdAt, locale)}`,
       body: [a.subjective, a.objective, a.assessment, a.plan].filter(Boolean).join('\n'),
     });
   }

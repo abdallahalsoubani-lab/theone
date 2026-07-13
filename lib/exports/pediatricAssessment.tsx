@@ -3,6 +3,7 @@ import { AuditAction } from '@prisma/client';
 
 import { withAudit } from '@/lib/audit/withAudit';
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
+import { formatShortDate } from '@/lib/format/date';
 import { PedAssessmentError, PED_ERRORS } from '@/lib/pediatric-assessment/errors';
 import { CORE_FIELDS, CORE_SECTIONS } from '@/lib/pediatric-assessment/coreFields';
 import {
@@ -170,9 +171,9 @@ const generateInner = async ({
 
   const assessor = ar ? assessment.createdByNameAr : assessment.createdByNameEn;
   const dateStr =
-    typeof core.date === 'string' ? core.date : assessment.createdAt.toISOString().slice(0, 10);
+    typeof core.date === 'string' ? core.date : formatShortDate(assessment.createdAt, locale);
   const dobLine = dob
-    ? `${ar ? 'تاريخ الميلاد' : 'DOB'}: ${dob.toISOString().slice(0, 10)} (${ageString(dob, new Date())})`
+    ? `${ar ? 'تاريخ الميلاد' : 'DOB'}: ${formatShortDate(dob, locale, { timeZone: 'UTC' })} (${ageString(dob, new Date())})`
     : '';
   const meta = [
     `${ar ? 'المراجع' : 'Patient'}: ${patientName}`,

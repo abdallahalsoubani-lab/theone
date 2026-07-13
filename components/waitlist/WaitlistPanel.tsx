@@ -18,6 +18,8 @@ import {
   ResponsiveModalTitle,
 } from '@/components/ui/responsive-modal';
 import { Link, useRouter } from '@/i18n/navigation';
+import { formatTime } from '@/lib/format/date';
+import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
 import type { WaitlistRow } from '@/lib/waitlist/queries';
 import { addWaitlistEntryAction, removeWaitlistEntryAction } from '@/lib/waitlist/actions';
 import type { WaitlistStatusFilter } from '@/lib/waitlist/schemas';
@@ -81,17 +83,16 @@ export function WaitlistPanel({
   const therapistName = (r: WaitlistRow) =>
     locale === 'ar' ? r.preferredTherapistNameAr : r.preferredTherapistNameEn;
 
+  // Clinic wall-clock, not browser TZ. The weekday+short-month form has no
+  // shared-helper equivalent, so the date keeps Intl with the zone pinned.
   const dateStr = (iso: string) =>
     new Date(iso).toLocaleDateString(locale === 'ar' ? 'ar-JO' : 'en-GB', {
+      timeZone: CLINIC_TIME_ZONE,
       weekday: 'short',
       day: '2-digit',
       month: 'short',
     });
-  const timeStr = (iso: string) =>
-    new Date(iso).toLocaleTimeString(locale === 'ar' ? 'ar-JO' : 'en-GB', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const timeStr = (iso: string) => formatTime(new Date(iso), locale === 'ar' ? 'ar' : 'en');
 
   function remove(id: string) {
     startTransition(async () => {

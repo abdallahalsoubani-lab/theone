@@ -17,6 +17,7 @@ import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 
 import type { CalendarAppointment } from '@/lib/appointments/queries';
+import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
 import { cn } from '@/lib/utils';
 
 import { CalendarToolbar } from './CalendarToolbar';
@@ -335,8 +336,8 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
       </div>
     );
   }
-  const startLabel = `${pad(event.start.getHours())}:${pad(event.start.getMinutes())}`;
-  const endLabel = `${pad(event.end.getHours())}:${pad(event.end.getMinutes())}`;
+  const startLabel = chipTime(event.start);
+  const endLabel = chipTime(event.end);
   // Show the therapist whose lane this is; a co-therapist count hints that the
   // same session also appears in another column (Prompt 20).
   const laneTherapist = event.appointment.therapists.find((th) => th.id === event.resourceId);
@@ -398,6 +399,17 @@ function TherapistResourceHeader({
   );
 }
 
-function pad(n: number): string {
-  return n.toString().padStart(2, '0');
+/**
+ * Zero-padded 24h chip label ("13:05") in CLINIC wall-clock time so the grid
+ * chips agree with the side panel (formatTime, also clinic-pinned) instead of
+ * following the browser's timezone. Latin digits in both locales, so a fixed
+ * en-GB locale keeps the exact historical look.
+ */
+function chipTime(d: Date): string {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: CLINIC_TIME_ZONE,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(d);
 }

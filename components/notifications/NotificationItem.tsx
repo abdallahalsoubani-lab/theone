@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 
 import { Link } from '@/i18n/navigation';
+import { formatDateTime } from '@/lib/format/date';
 import { cn } from '@/lib/utils';
 
 export interface NotificationView {
@@ -41,10 +42,6 @@ export function NotificationItem({ item, locale, onClick }: Props) {
   const namespace = segments.join('.');
   const bodyLeaf = item.bodyKey.split('.').pop() ?? '';
   const t = useTranslations(namespace);
-  const formatter = new Intl.DateTimeFormat(locale === 'ar' ? 'ar' : 'en', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  });
 
   const inner = (
     <div
@@ -64,7 +61,7 @@ export function NotificationItem({ item, locale, onClick }: Props) {
         <div className="font-medium text-brand-navy">{t(leaf, item.params)}</div>
         <div className="line-clamp-2 text-xs text-brand-textMuted">{t(bodyLeaf, item.params)}</div>
         <div className="mt-1 text-[10px] text-brand-textMuted">
-          {formatter.format(item.createdAt)}
+          {formatDateTime(item.createdAt, locale)}
         </div>
       </div>
     </div>
