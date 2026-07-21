@@ -1,4 +1,4 @@
-import { AppointmentStatus, AuditAction, UserRole } from '@prisma/client';
+import { AppointmentStatus, AppointmentType, AuditAction, UserRole } from '@prisma/client';
 import type { CancellationCategory, Prisma } from '@prisma/client';
 
 import { auth } from '@/auth';
@@ -217,10 +217,17 @@ export const createAppointment = withAudit<
     }
 
     const therapistIds = [...new Set(input.therapistIds)];
+    // GROUP therapy / workshops (July #8 part 3): patients live in the
+    // AppointmentPatient M2M, not the scalar patientId. Non-GROUP types keep
+    // the single scalar patient (choice B — Hybrid). One list drives the
+    // care-team loop + per-patient reminder seam regardless of mechanism.
+    const isGroup = input.appointmentType === AppointmentType.GROUP;
+    const groupPatientIds = isGroup ? [...new Set(input.patientIds)] : [];
+    const carePatientIds = isGroup ? groupPatientIds : input.patientId ? [input.patientId] : [];
     const appointment = await db.$transaction(async (tx) => {
       const appt = await tx.appointment.create({
         data: {
-          patientId: input.patientId ?? null,
+          patientId: isGroup ? null : (input.patientId ?? null),
           appointmentType: input.appointmentType,
           title: input.title ?? null,
           roomId: input.roomId ?? null,
@@ -230,22 +237,27 @@ export const createAppointment = withAudit<
           notes: input.notes ?? null,
           createdById: session.user.id,
           therapists: { create: therapistIds.map((therapistId) => ({ therapistId })) },
+          groupPatients: isGroup
+            ? { create: groupPatientIds.map((patientId) => ({ patientId })) }
+            : undefined,
         },
       });
-      // Booking a patient with therapists makes EACH of them part of the
-      // patient's care team so they appear in "My patients" + dashboard.
-      // A patient-less EVENT has no care team to touch (July #8).
-      if (input.patientId) {
+      // Booking a patient with therapists makes EACH of them part of that
+      // patient's care team so they appear in "My patients" + dashboard. A
+      // GROUP fans this out across every member × every therapist; a
+      // patient-less EVENT has no care team to touch (July #8).
+      for (const patientId of carePatientIds) {
         for (const therapistId of therapistIds) {
-          await addCareTeamMemberTx(tx, input.patientId, therapistId, session.user.id);
+          await addCareTeamMemberTx(tx, patientId, therapistId, session.user.id);
         }
       }
       return appt;
     });
 
     // A patient-less EVENT gets no reminder (no one to remind) and no
-    // confirmation message. It still auto-completes at its scheduled end.
-    if (input.patientId) {
+    // confirmation message. It still auto-completes at its scheduled end. A
+    // GROUP enqueues one reminder job; the worker fans it out per member (#6).
+    if (carePatientIds.length > 0) {
       const config = await getReminderConfig();
       await enqueueAppointmentReminder({
         appointmentId: appointment.id,

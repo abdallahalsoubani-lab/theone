@@ -103,8 +103,17 @@ export function SecretaryCalendarBoard({
     setPanelAppt({
       id: found.id,
       patientId: found.patientId ?? '',
-      patientFullNameEn: found.patientFullNameEn || (found.title ?? ''),
-      patientFullNameAr: found.patientFullNameAr || (found.title ?? ''),
+      // GROUP has no scalar patient — head the panel with the workshop label if
+      // set, else the members' names (July #8 part 3). EVENT falls back to its
+      // title as before.
+      patientFullNameEn:
+        found.patientFullNameEn ||
+        found.title ||
+        found.groupPatients.map((p) => p.fullNameEn).join(', '),
+      patientFullNameAr:
+        found.patientFullNameAr ||
+        found.title ||
+        found.groupPatients.map((p) => p.fullNameAr).join('، '),
       // Phone is fetched lazily; the calendar list query is lean. For now,
       // leave blank and Prompt 7b can fetch on open if needed.
       patientPhone: '',

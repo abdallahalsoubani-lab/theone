@@ -110,3 +110,79 @@ describe('appointmentCreateSchema — EVENT (July #8 part 2)', () => {
     ).toBe(false);
   });
 });
+
+describe('appointmentCreateSchema — GROUP (July #8 part 3)', () => {
+  const { patientId: _p, roomId: _r, ...noPatientNoRoom } = base;
+
+  it('accepts a GROUP with several patients + ≥1 therapist (room optional)', () => {
+    const r = appointmentCreateSchema.safeParse({
+      ...noPatientNoRoom,
+      appointmentType: 'GROUP',
+      patientIds: ['p1', 'p2', 'p3'],
+      therapistIds: ['t1'],
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.appointmentType).toBe('GROUP');
+      expect(r.data.patientIds).toEqual(['p1', 'p2', 'p3']);
+    }
+    // An optional workshop label + a room are both allowed.
+    expect(
+      appointmentCreateSchema.safeParse({
+        ...noPatientNoRoom,
+        roomId: 'r1',
+        appointmentType: 'GROUP',
+        title: 'Back-care workshop',
+        patientIds: ['p1', 'p2'],
+        therapistIds: ['t1', 't2'],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('REQUIRES at least one patient', () => {
+    expect(
+      appointmentCreateSchema.safeParse({
+        ...noPatientNoRoom,
+        appointmentType: 'GROUP',
+        patientIds: [],
+        therapistIds: ['t1'],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('REQUIRES at least one therapist', () => {
+    expect(
+      appointmentCreateSchema.safeParse({
+        ...noPatientNoRoom,
+        appointmentType: 'GROUP',
+        patientIds: ['p1'],
+        therapistIds: [],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('FORBIDS the single scalar patientId (members live in the set)', () => {
+    expect(
+      appointmentCreateSchema.safeParse({
+        ...noPatientNoRoom,
+        patientId: 'p1',
+        appointmentType: 'GROUP',
+        patientIds: ['p1', 'p2'],
+        therapistIds: ['t1'],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('non-GROUP types REJECT a patient set', () => {
+    // SESSION with patientIds populated is invalid.
+    expect(
+      appointmentCreateSchema.safeParse({
+        ...base,
+        therapistIds: ['t1'],
+        patientIds: ['p2', 'p3'],
+      }).success,
+    ).toBe(false);
+    // A plain SESSION with no patientIds still parses (regression).
+    expect(appointmentCreateSchema.safeParse({ ...base, therapistIds: ['t1'] }).success).toBe(true);
+  });
+});

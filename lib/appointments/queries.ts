@@ -21,8 +21,12 @@ export interface CalendarAppointment {
   patientId: string | null;
   patientFullNameEn: string;
   patientFullNameAr: string;
-  /** EVENT label (null for patient bookings) — the chip title for events. */
+  /** EVENT label (null for patient bookings) — the chip title for events; the
+   *  optional workshop label for a GROUP (July #8 part 3). */
   title: string | null;
+  /** GROUP members (July #8 part 3) — empty for every non-GROUP type. The
+   *  calendar chip shows the count + names for a group. */
+  groupPatients: PersonRef[];
   /** All therapists on this session (Prompt 20) — the calendar renders the
    *  appointment in each one's resource column. */
   therapists: PersonRef[];
@@ -64,6 +68,10 @@ export async function listAppointmentsForCalendar(
     orderBy: { startsAt: 'asc' },
     include: {
       patient: { select: { id: true, fullNameEn: true, fullNameAr: true } },
+      groupPatients: {
+        orderBy: { createdAt: 'asc' },
+        include: { patient: { select: { id: true, fullNameEn: true, fullNameAr: true } } },
+      },
       therapists: {
         orderBy: { createdAt: 'asc' },
         include: { therapist: { select: { id: true, fullNameEn: true, fullNameAr: true } } },
@@ -78,6 +86,7 @@ export async function listAppointmentsForCalendar(
     patientFullNameEn: r.patient?.fullNameEn ?? '',
     patientFullNameAr: r.patient?.fullNameAr ?? '',
     title: r.title,
+    groupPatients: r.groupPatients.map((g) => g.patient),
     therapists: r.therapists.map((t) => t.therapist),
     roomId: r.room?.id ?? null,
     roomName: r.room?.name ?? null,

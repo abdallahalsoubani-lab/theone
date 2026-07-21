@@ -102,11 +102,14 @@ export function CreateAppointmentModal({
   const [seriesOpen, setSeriesOpen] = useState(false);
 
   const [patientId, setPatientId] = useState(defaultPatientId ?? '');
-  // July #8 — booking type. SESSION + STRETCHING + EVENT are selectable here;
-  // GROUP/WORKSHOP arrive in Prompt 30.
+  // July #8 — booking type. SESSION + STRETCHING + EVENT + GROUP are all
+  // selectable. GROUP therapy / workshops (part 3) carry a SET of patients.
   const [appointmentType, setAppointmentType] = useState<AppointmentType>(AppointmentType.SESSION);
   const isStretching = appointmentType === AppointmentType.STRETCHING;
   const isEvent = appointmentType === AppointmentType.EVENT;
+  const isGroup = appointmentType === AppointmentType.GROUP;
+  // GROUP members (July #8 part 3) — open capacity, ≥1 required.
+  const [patientIds, setPatientIds] = useState<string[]>([]);
   const [title, setTitle] = useState('');
   const [therapistIds, setTherapistIds] = useState<string[]>(
     defaultTherapistId ? [defaultTherapistId] : [],
@@ -122,6 +125,7 @@ export function CreateAppointmentModal({
   useEffect(() => {
     if (!open) return;
     setPatientId(defaultPatientId ?? '');
+    setPatientIds([]);
     setAppointmentType(AppointmentType.SESSION);
     setTitle('');
     setTherapistIds(defaultTherapistId ? [defaultTherapistId] : []);
@@ -134,10 +138,18 @@ export function CreateAppointmentModal({
     if (isStretching && therapistIds.length > 0) setTherapistIds([]);
   }, [isStretching, therapistIds.length]);
 
-  // Switching to EVENT clears the patient (it is patient-less).
+  // Switching to EVENT clears the patient (it is patient-less). Both EVENT and
+  // the single-patient types clear the GROUP member set; GROUP clears the
+  // single patient (its patients live in the set instead).
   useEffect(() => {
     if (isEvent && patientId) setPatientId('');
   }, [isEvent, patientId]);
+  useEffect(() => {
+    if (isGroup && patientId) setPatientId('');
+  }, [isGroup, patientId]);
+  useEffect(() => {
+    if (!isGroup && patientIds.length > 0) setPatientIds([]);
+  }, [isGroup, patientIds.length]);
 
   const therapistKey = therapistIds.join(',');
 
@@ -147,16 +159,20 @@ export function CreateAppointmentModal({
   useEffect(() => {
     const ready = isEvent
       ? startsAt && (therapistIds.length > 0 || roomId)
-      : isStretching
-        ? patientId && roomId && startsAt
-        : patientId && therapistIds.length > 0 && startsAt;
+      : isGroup
+        ? startsAt && therapistIds.length > 0
+        : isStretching
+          ? patientId && roomId && startsAt
+          : patientId && therapistIds.length > 0 && startsAt;
     if (!ready) {
       setConflicts(null);
       return;
     }
     const handle = setTimeout(() => {
       void previewConflictsAction({
-        patientId: isEvent ? null : patientId,
+        // GROUP previews therapist/room/hours conflicts only — its members
+        // live in the set, so no single patient drives the check.
+        patientId: isEvent || isGroup ? null : patientId,
         therapistIds,
         startsAt: new Date(startsAt).toISOString(),
         durationMinutes: duration,
@@ -178,27 +194,35 @@ export function CreateAppointmentModal({
   );
   // Per-type submit gate (July #8). SESSION: patient + room + ≥1 therapist.
   // STRETCHING: patient + room + 0 therapists. EVENT: a title + start (patient
-  // forbidden; therapists + room optional).
+  // forbidden; therapists + room optional). GROUP: ≥1 member + ≥1 therapist +
+  // start (room optional; title is the optional workshop label).
   const canSubmit = Boolean(
     startsAt &&
     (isEvent
       ? Boolean(title.trim())
-      : patientId &&
-        roomId &&
-        (isStretching ? therapistIds.length === 0 : therapistIds.length > 0)),
+      : isGroup
+        ? patientIds.length > 0 && therapistIds.length > 0
+        : patientId &&
+          roomId &&
+          (isStretching ? therapistIds.length === 0 : therapistIds.length > 0)),
   );
 
   const toggleTherapist = (id: string) =>
     setTherapistIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
+  const togglePatient = (id: string) =>
+    setPatientIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
   const submit = (override: boolean) =>
     startTransition(async () => {
       const r = await createAppointmentAction({
-        patientId: isEvent ? null : patientId,
+        patientId: isEvent || isGroup ? null : patientId,
+        patientIds: isGroup ? patientIds : [],
         therapistIds,
         roomId: roomId || null,
         appointmentType,
-        title: isEvent ? title.trim() : null,
+        // EVENT: required label. GROUP: optional workshop name.
+        title: isEvent ? title.trim() : isGroup && title.trim() ? title.trim() : null,
         startsAt: new Date(startsAt),
         durationMinutes: duration,
         notes: notes || null,
@@ -268,11 +292,13 @@ export function CreateAppointmentModal({
                 <option value={AppointmentType.SESSION}>{t('typeSession')}</option>
                 <option value={AppointmentType.STRETCHING}>{t('typeStretching')}</option>
                 <option value={AppointmentType.EVENT}>{t('typeEvent')}</option>
+                <option value={AppointmentType.GROUP}>{t('typeGroup')}</option>
               </select>
               {isStretching ? (
                 <p className="text-xs text-brand-textMuted">{t('stretchingHint')}</p>
               ) : null}
               {isEvent ? <p className="text-xs text-brand-textMuted">{t('eventHint')}</p> : null}
+              {isGroup ? <p className="text-xs text-brand-textMuted">{t('groupHint')}</p> : null}
             </div>
 
             {isEvent ? (
@@ -288,6 +314,49 @@ export function CreateAppointmentModal({
                   placeholder={t('eventTitlePlaceholder')}
                 />
               </div>
+            ) : isGroup ? (
+              <>
+                <div className="space-y-1">
+                  <Label htmlFor="appt-title">{t('groupTitle')}</Label>
+                  <Input
+                    id="appt-title"
+                    value={title}
+                    maxLength={200}
+                    onChange={(e) => setTitle(e.target.value)}
+                    placeholder={t('groupTitlePlaceholder')}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>
+                    {t('groupPatients')} <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="flex flex-wrap gap-1.5 rounded-md border border-input bg-background p-2">
+                    {patients.map((p) => {
+                      const selected = patientIds.includes(p.id);
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          aria-pressed={selected}
+                          onClick={() => togglePatient(p.id)}
+                          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                            selected
+                              ? 'bg-brand-teal text-white'
+                              : 'bg-brand-bg text-brand-navy hover:bg-brand-teal/10'
+                          }`}
+                        >
+                          {locale === 'ar' ? p.fullNameAr : p.fullNameEn}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-brand-textMuted">
+                    {patientIds.length > 0
+                      ? t('groupPatientsCount', { count: String(patientIds.length) })
+                      : t('groupPatientsHint')}
+                  </p>
+                </div>
+              </>
             ) : (
               <div className="space-y-1">
                 <Label htmlFor="appt-patient">{t('patient')}</Label>
@@ -339,7 +408,8 @@ export function CreateAppointmentModal({
 
             <div className="space-y-1">
               <Label htmlFor="appt-room">
-                {t('room')} {isEvent ? null : <span className="text-destructive">*</span>}
+                {t('room')}{' '}
+                {isEvent || isGroup ? null : <span className="text-destructive">*</span>}
               </Label>
               <select
                 id="appt-room"
@@ -355,7 +425,7 @@ export function CreateAppointmentModal({
                   </option>
                 ))}
               </select>
-              {!roomId && !isEvent ? (
+              {!roomId && !isEvent && !isGroup ? (
                 <p className="text-xs text-brand-textMuted">{t('roomRequired')}</p>
               ) : null}
             </div>

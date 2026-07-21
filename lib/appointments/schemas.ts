@@ -17,7 +17,11 @@ export const appointmentCreateSchema = z
     // #7/#13; STRETCHING is room-based) and OPTIONAL for EVENT (a meeting may
     // hold a room, or not). Enforced in superRefine.
     roomId: z.string().min(1).optional().nullable(),
-    // Free-text label — required for EVENT (patient-less), forbidden otherwise.
+    // GROUP therapy / workshops (July #8 part 3) — the group's patients. Open
+    // capacity (no fixed max beyond a sanity cap). Empty for non-GROUP types.
+    patientIds: z.array(z.string().min(1)).max(200).default([]),
+    // Free-text label — required for EVENT (patient-less); the optional
+    // "Workshop X" name for a GROUP; forbidden for SESSION/STRETCHING.
     title: z.string().min(1).max(200).optional().nullable(),
     appointmentType: z.nativeEnum(AppointmentType).default(AppointmentType.SESSION),
     startsAt: z.coerce.date(),
@@ -52,7 +56,19 @@ export const appointmentCreateSchema = z
       // Patient-less internal block: no patient, a title is the label; room +
       // therapists are optional.
       if (data.patientId) issue('patientId', 'eventNoPatient');
+      if (data.patientIds.length > 0) issue('patientIds', 'eventNoPatient');
       if (!data.title) issue('title', 'eventTitleRequired');
+    }
+    if (data.appointmentType === AppointmentType.GROUP) {
+      // Many patients (open), ≥1 therapist. The single scalar patientId is
+      // unused (patients live in the M2M); the title is the optional label.
+      if (data.patientIds.length < 1) issue('patientIds', 'groupPatientsRequired');
+      if (data.therapistIds.length < 1) issue('therapistIds', 'therapistRequired');
+      if (data.patientId) issue('patientId', 'groupUsesPatientIds');
+    }
+    // Non-GROUP types never carry a patient SET.
+    if (data.appointmentType !== AppointmentType.GROUP && data.patientIds.length > 0) {
+      issue('patientIds', 'patientIdsGroupOnly');
     }
   });
 

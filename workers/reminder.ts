@@ -38,18 +38,20 @@ export function startReminderWorker(): Worker {
     REMINDER_QUEUE,
     async (job) => {
       const { appointmentId } = job.data;
+      const patientSelect = {
+        id: true,
+        fullNameEn: true,
+        fullNameAr: true,
+        phone: true,
+        languagePref: true,
+      } as const;
       const appt = await db.appointment.findUnique({
         where: { id: appointmentId },
         include: {
-          patient: {
-            select: {
-              id: true,
-              fullNameEn: true,
-              fullNameAr: true,
-              phone: true,
-              languagePref: true,
-            },
-          },
+          patient: { select: patientSelect },
+          // GROUP therapy / workshops (July #8 part 3): members live in the
+          // M2M, so the reminder fans out one message per member (#6).
+          groupPatients: { include: { patient: { select: patientSelect } } },
           therapists: {
             orderBy: { createdAt: 'asc' },
             include: { therapist: { select: { fullNameEn: true, fullNameAr: true } } },
@@ -68,32 +70,43 @@ export function startReminderWorker(): Worker {
         console.warn(`[reminder] appointment ${appointmentId} already past — skipping`);
         return;
       }
-      // A patient-less EVENT has no one to remind (July #8) — reminders are
-      // never enqueued for it, but guard here too in case one lingers.
-      if (!appt.patient) {
+      // Recipients: a GROUP reminds every member (#6); a single-patient
+      // SESSION/STRETCHING reminds the one patient; a patient-less EVENT has
+      // no one to remind (July #8) and is skipped.
+      const recipients =
+        appt.appointmentType === 'GROUP'
+          ? appt.groupPatients.map((g) => g.patient)
+          : appt.patient
+            ? [appt.patient]
+            : [];
+      if (recipients.length === 0) {
         console.warn(`[reminder] appointment ${appointmentId} has no patient — skipping`);
         return;
       }
 
-      const lang = appt.patient.languagePref;
-      // One reminder to the patient (Prompt 20). The template already names a
-      // therapist; keep naming the first-assigned one rather than listing all.
+      // The template already names a therapist; keep naming the first-assigned
+      // one rather than listing all.
       const firstTherapist = appt.therapists[0]?.therapist;
-      const therapistName =
-        (lang === 'AR' ? firstTherapist?.fullNameAr : firstTherapist?.fullNameEn) ?? '';
       const timeLabel = appt.startsAt.toISOString();
 
-      const id = await enqueueWhatsappOutbound({
-        kind: 'template',
-        templateName: 'appointment_reminder_v2',
-        language: lang,
-        parameters: [therapistName, timeLabel],
-        recipientPhone: appt.patient.phone,
-        recipientUserId: appt.patientId,
-        appointmentId: appt.id,
-        source: 'queue',
-      });
-      console.warn(`[reminder] appointment=${appointmentId} enqueued outbound=${id ?? 'n/a'}`);
+      for (const recipient of recipients) {
+        const lang = recipient.languagePref;
+        const therapistName =
+          (lang === 'AR' ? firstTherapist?.fullNameAr : firstTherapist?.fullNameEn) ?? '';
+        const id = await enqueueWhatsappOutbound({
+          kind: 'template',
+          templateName: 'appointment_reminder_v2',
+          language: lang,
+          parameters: [therapistName, timeLabel],
+          recipientPhone: recipient.phone,
+          recipientUserId: recipient.id,
+          appointmentId: appt.id,
+          source: 'queue',
+        });
+        console.warn(
+          `[reminder] appointment=${appointmentId} patient=${recipient.id} enqueued outbound=${id ?? 'n/a'}`,
+        );
+      }
     },
     { connection: queueRedis },
   );

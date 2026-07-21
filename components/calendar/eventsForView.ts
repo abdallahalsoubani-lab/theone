@@ -40,10 +40,18 @@ export function eventsForView(
   view: View,
   locale: string,
 ): CalendarEvent[] {
-  const title = (a: CalendarAppointment) =>
-    a.appointmentType === 'EVENT'
-      ? (a.title ?? '')
-      : patientDisplayName(a.patientFullNameEn, a.patientFullNameAr, locale);
+  const title = (a: CalendarAppointment) => {
+    if (a.appointmentType === 'EVENT') return a.title ?? '';
+    // GROUP (July #8 part 3): the workshop label when set, else the first
+    // member's name; the member count is appended so the chip reads as a group.
+    if (a.appointmentType === 'GROUP') {
+      const first = a.groupPatients[0];
+      const base =
+        a.title ?? (first ? patientDisplayName(first.fullNameEn, first.fullNameAr, locale) : '');
+      return a.groupPatients.length > 0 ? `${base} (${a.groupPatients.length})` : base;
+    }
+    return patientDisplayName(a.patientFullNameEn, a.patientFullNameAr, locale);
+  };
   const end = (a: CalendarAppointment) => addMinutes(a.startsAt, a.durationMinutes);
 
   if (view === 'day') {

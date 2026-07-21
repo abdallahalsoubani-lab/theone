@@ -9,6 +9,7 @@ const base: Omit<CalendarAppointment, 'therapists'> = {
   patientId: 'p1',
   patientFullNameEn: 'John Doe',
   patientFullNameAr: 'جون دو',
+  groupPatients: [],
   roomId: null,
   roomName: null,
   startsAt: new Date('2026-06-01T09:00:00Z'),
@@ -74,6 +75,50 @@ describe('eventsForView', () => {
     const week = eventsForView([stretch], 'week', 'en');
     expect(week).toHaveLength(1);
     expect(week[0]!.resourceId).toBe(OTHER_LANE_ID);
+  });
+
+  it('GROUP chip titles by workshop label + member count, renders per therapist (July #8 pt3)', () => {
+    const group: CalendarAppointment = {
+      ...base,
+      id: 'grp-1',
+      patientId: null,
+      patientFullNameEn: '',
+      patientFullNameAr: '',
+      appointmentType: 'GROUP',
+      title: 'Back-care workshop',
+      groupPatients: [
+        { id: 'p1', fullNameEn: 'John', fullNameAr: 'جون' },
+        { id: 'p2', fullNameEn: 'Mona', fullNameAr: 'منى' },
+      ],
+      therapists: [
+        { id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' },
+        { id: 't2', fullNameEn: 'Layan', fullNameAr: 'ليان' },
+      ],
+    };
+    // Day view: one chip per therapist column, both carrying the group label.
+    const day = eventsForView([group], 'day', 'en');
+    expect(day).toHaveLength(2);
+    expect(day.map((e) => e.id)).toEqual(['grp-1::t1', 'grp-1::t2']);
+    expect(day.every((e) => e.title === 'Back-care workshop (2)')).toBe(true);
+  });
+
+  it('GROUP without a label falls back to the first member name + count', () => {
+    const group: CalendarAppointment = {
+      ...base,
+      id: 'grp-2',
+      patientId: null,
+      patientFullNameEn: '',
+      patientFullNameAr: '',
+      appointmentType: 'GROUP',
+      title: null,
+      groupPatients: [
+        { id: 'p1', fullNameEn: 'John', fullNameAr: 'جون' },
+        { id: 'p2', fullNameEn: 'Mona', fullNameAr: 'منى' },
+      ],
+      therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
+    };
+    expect(eventsForView([group], 'week', 'en')[0]!.title).toBe('John (2)');
+    expect(eventsForView([group], 'week', 'ar')[0]!.title).toBe('جون (2)');
   });
 
   it('single-therapist appointment is one event in every view', () => {

@@ -344,6 +344,7 @@ model User {
   // tables reference User multiple times (e.g. Appointment has patientId, therapistId,
   // createdById) and Prisma needs disambiguation.
   appointmentsAsPatient    Appointment[]          @relation("AppointmentPatient")
+  groupAppointments        AppointmentPatient[]   @relation("AppointmentGroupPatient")
   appointmentTherapists    AppointmentTherapist[] @relation("AppointmentTherapistTherapist")
   appointmentsCreatedBy    Appointment[]          @relation("AppointmentCreatedBy")
   treatmentPlansAsPatient  TreatmentPlan[]        @relation("PlanPatient")
@@ -555,6 +556,12 @@ model Appointment {
   // their parentNoteId chain.
   sessionNotes SessionNote[]
 
+  // GROUP therapy / workshops (July #8 part 3). A GROUP appointment's patients
+  // live here (many); SESSION/STRETCHING keep the single scalar `patientId`
+  // above and EVENT keeps it null. `getAppointmentPatients()` hides which
+  // mechanism a given appointment uses.
+  groupPatients AppointmentPatient[] @relation("AppointmentGroupPatients")
+
   whatsappMessages WhatsAppMessage[]
   inboxItems       InboxItem[]
   // Prompt 19 — the booking-waitlist entry (if any) this appointment fulfilled.
@@ -588,6 +595,25 @@ model AppointmentTherapist {
 
   @@unique([appointmentId, therapistId])
   @@index([therapistId])
+  @@index([appointmentId])
+}
+
+// GROUP-therapy membership (July #8 part 3). One row per patient in a GROUP
+// appointment. Arrival is PER MEMBERSHIP (decision #4) — group members check in
+// independently — so the check-in fields live here, mirroring the appointment-
+// level ones used by single-patient types.
+model AppointmentPatient {
+  id            String      @id @default(cuid())
+  appointmentId String
+  patientId     String
+  checkedInAt   DateTime?
+  checkedInVia  CheckInVia?
+  createdAt     DateTime    @default(now())
+  appointment   Appointment @relation("AppointmentGroupPatients", fields: [appointmentId], references: [id], onDelete: Cascade)
+  patient       User        @relation("AppointmentGroupPatient", fields: [patientId], references: [id], onDelete: Restrict)
+
+  @@unique([appointmentId, patientId])
+  @@index([patientId])
   @@index([appointmentId])
 }
 
