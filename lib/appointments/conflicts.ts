@@ -1,4 +1,4 @@
-import { AppointmentStatus, type LanguagePref } from '@prisma/client';
+import { AppointmentStatus, AppointmentType, type LanguagePref } from '@prisma/client';
 
 import { db } from '@/lib/db';
 
@@ -30,11 +30,16 @@ export interface ConflictCheckInput {
   /** When updating an existing appointment, exclude it from overlap calc. */
   appointmentId?: string;
   patientId: string;
-  /** One or more therapists assigned to the session (min 1). */
+  /** Therapists on the session. SESSION has ≥1; STRETCHING has none (July #8). */
   therapistIds: string[];
   /** UTC start. Timezone display is the locale layer's concern. */
   startsAt: Date;
   durationMinutes: number;
+  /** Booking type (July #8). Defaults to SESSION. STRETCHING runs a room
+   *  bed-capacity check instead of relying on a therapist column. */
+  appointmentType?: AppointmentType;
+  /** Room — required for the STRETCHING capacity check. */
+  roomId?: string | null;
 }
 
 export interface PersonName {
@@ -71,7 +76,11 @@ export type Conflict =
       closeTime: string;
       dayKey: DayKey;
     }
-  | { kind: 'CLINIC_CLOSED_THIS_DAY'; dayKey: DayKey };
+  | { kind: 'CLINIC_CLOSED_THIS_DAY'; dayKey: DayKey }
+  // July #8 — a STRETCHING booking would exceed the room's bed capacity: as
+  // many concurrent stretching appointments as beds are allowed; one more is
+  // blocked.
+  | { kind: 'ROOM_AT_CAPACITY'; roomId: string; roomName: string; bedCount: number };
 
 export type ConflictResult = { ok: true } | { ok: false; conflicts: Conflict[] };
 
@@ -87,7 +96,12 @@ export type ConflictResult = { ok: true } | { ok: false; conflicts: Conflict[] }
  * server-side for these kinds.
  */
 export function isHardBlockedConflict(c: Conflict): boolean {
-  return c.kind === 'PATIENT_OVERLAP' || c.kind === 'CLINIC_CLOSED_THIS_DAY';
+  return (
+    c.kind === 'PATIENT_OVERLAP' ||
+    c.kind === 'CLINIC_CLOSED_THIS_DAY' ||
+    // Bed capacity is a physical limit — it can't be "overridden" (July #8).
+    c.kind === 'ROOM_AT_CAPACITY'
+  );
 }
 
 export function hasHardBlockedConflict(conflicts: Conflict[]): boolean {
@@ -195,7 +209,69 @@ export async function checkConflicts(
     }
   }
 
+  // ── 5. STRETCHING bed capacity (July #8) ──────────────────────────────
+  // Rooms are NOT exclusively booked for SESSIONs (no room conflict exists for
+  // them). For STRETCHING the room is capacity-limited: at most `bedCount`
+  // concurrent stretching appointments. Therapist/leave checks above are
+  // no-ops for stretching (it carries no therapists).
+  if (input.appointmentType === AppointmentType.STRETCHING && input.roomId) {
+    const room = await db.room.findUnique({
+      where: { id: input.roomId },
+      select: { name: true, bedCount: true },
+    });
+    if (room) {
+      const used = await countOverlappingStretching({
+        roomId: input.roomId,
+        startsAt: input.startsAt,
+        endsAt,
+        excludeId: input.appointmentId,
+      });
+      if (used >= room.bedCount) {
+        conflicts.push({
+          kind: 'ROOM_AT_CAPACITY',
+          roomId: input.roomId,
+          roomName: room.name,
+          bedCount: room.bedCount,
+        });
+      }
+    }
+  }
+
   return conflicts.length === 0 ? { ok: true } : { ok: false, conflicts };
+}
+
+/**
+ * Count active STRETCHING appointments overlapping [startsAt, endsAt) in a
+ * room — each occupies one bed. Same window+precise-overlap technique as
+ * findOverlappingAppointments.
+ */
+async function countOverlappingStretching(args: {
+  roomId: string;
+  startsAt: Date;
+  endsAt: Date;
+  excludeId?: string;
+}): Promise<number> {
+  const windowStart = new Date(args.startsAt.getTime() - 12 * 60 * 60 * 1000);
+  const windowEnd = new Date(args.endsAt.getTime() + 12 * 60 * 60 * 1000);
+
+  const candidates = await db.appointment.findMany({
+    where: {
+      roomId: args.roomId,
+      appointmentType: AppointmentType.STRETCHING,
+      status: { in: ACTIVE_STATUSES },
+      startsAt: { gte: windowStart, lte: windowEnd },
+      ...(args.excludeId ? { id: { not: args.excludeId } } : {}),
+    },
+    select: { startsAt: true, durationMinutes: true },
+  });
+
+  const ts = args.startsAt.getTime();
+  const te = args.endsAt.getTime();
+  return candidates.filter((c) => {
+    const cs = c.startsAt.getTime();
+    const ce = cs + c.durationMinutes * 60_000;
+    return cs < te && ce > ts; // precise half-open overlap
+  }).length;
 }
 
 async function findOverlappingAppointments(args: {

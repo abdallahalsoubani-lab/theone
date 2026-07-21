@@ -22,7 +22,7 @@ import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
 import { cn } from '@/lib/utils';
 
 import { CalendarToolbar } from './CalendarToolbar';
-import { eventsForView } from './eventsForView';
+import { OTHER_LANE_ID, eventsForView } from './eventsForView';
 import { resourcesForView } from './resourcesForView';
 
 interface CalendarResource {
@@ -183,14 +183,22 @@ export function SecretaryCalendar({
     });
   }, [leaves, tLeave]);
 
-  const rbcResources = useMemo<CalendarResource[]>(
-    () =>
-      resources.map((r) => ({
-        resourceId: r.id,
-        resourceTitle: locale === 'ar' ? r.fullNameAr : r.fullNameEn,
-      })),
-    [resources, locale],
+  // A synthetic "Other" lane holds therapist-less appointments (STRETCHING —
+  // July #8) in day view, but only when at least one exists so it doesn't
+  // clutter the resource view otherwise.
+  const hasOtherLane = useMemo(
+    () => appointments.some((a) => a.therapists.length === 0),
+    [appointments],
   );
+  const rbcResources = useMemo<CalendarResource[]>(() => {
+    const base = resources.map((r) => ({
+      resourceId: r.id,
+      resourceTitle: locale === 'ar' ? r.fullNameAr : r.fullNameEn,
+    }));
+    return hasOtherLane
+      ? [...base, { resourceId: OTHER_LANE_ID, resourceTitle: t('otherLane') }]
+      : base;
+  }, [resources, locale, hasOtherLane, t]);
 
   const minTime = useMemo(() => {
     const d = new Date(date);
@@ -350,6 +358,7 @@ export function SecretaryCalendar({
 function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
   const locale = useLocale();
   const tStatus = useTranslations('appointments.status');
+  const tForm = useTranslations('appointments.form');
   // react-big-calendar reuses `components.event` for backgroundEvents too,
   // which are leave overlays without an `appointment` field — render just
   // the title for those.
@@ -389,6 +398,11 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
           style={{ backgroundColor: tint.swatch }}
         />
         <span className="truncate text-[13px] font-semibold leading-tight">{event.title}</span>
+        {event.appointment.appointmentType === 'STRETCHING' ? (
+          <span className="shrink-0 rounded-full bg-brand-teal/15 px-1.5 py-px text-[9px] font-semibold uppercase text-brand-teal ring-1 ring-inset ring-brand-teal/25">
+            {tForm('typeStretchingShort')}
+          </span>
+        ) : null}
       </div>
       <div className="ps-3 text-[11px] font-medium tabular-nums leading-tight opacity-80">
         {startLabel}–{endLabel}

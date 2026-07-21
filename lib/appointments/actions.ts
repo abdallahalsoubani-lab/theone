@@ -1,6 +1,6 @@
 'use server';
 
-import { AppointmentStatus } from '@prisma/client';
+import { AppointmentStatus, type AppointmentType } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 
 import { fail, ok, type Result } from '@/lib/auth/result';
@@ -59,6 +59,8 @@ export async function previewConflictsAction(input: {
   therapistIds: string[];
   startsAt: string;
   durationMinutes: number;
+  appointmentType?: AppointmentType;
+  roomId?: string | null;
 }): Promise<Result<ConflictResult>> {
   await requirePermission('appointments.read');
   try {

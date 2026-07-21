@@ -1,5 +1,6 @@
 'use client';
 
+import { AppointmentType } from '@prisma/client';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
@@ -101,6 +102,10 @@ export function CreateAppointmentModal({
   const [seriesOpen, setSeriesOpen] = useState(false);
 
   const [patientId, setPatientId] = useState(defaultPatientId ?? '');
+  // July #8 — booking type. Only SESSION + STRETCHING are selectable here;
+  // EVENT/GROUP/WORKSHOP arrive in Prompts 29/30.
+  const [appointmentType, setAppointmentType] = useState<AppointmentType>(AppointmentType.SESSION);
+  const isStretching = appointmentType === AppointmentType.STRETCHING;
   const [therapistIds, setTherapistIds] = useState<string[]>(
     defaultTherapistId ? [defaultTherapistId] : [],
   );
@@ -115,16 +120,26 @@ export function CreateAppointmentModal({
   useEffect(() => {
     if (!open) return;
     setPatientId(defaultPatientId ?? '');
+    setAppointmentType(AppointmentType.SESSION);
     setTherapistIds(defaultTherapistId ? [defaultTherapistId] : []);
     setStartsAt(defaultStartsAt ? toLocalInput(defaultStartsAt) : '');
     setDuration(defaultDurationMinutes);
   }, [open, defaultStartsAt, defaultTherapistId, defaultDurationMinutes, defaultPatientId]);
 
+  // Switching to STRETCHING clears any picked therapists (it has none).
+  useEffect(() => {
+    if (isStretching && therapistIds.length > 0) setTherapistIds([]);
+  }, [isStretching, therapistIds.length]);
+
   const therapistKey = therapistIds.join(',');
 
-  // Live conflict preview — debounced.
+  // Live conflict preview — debounced. STRETCHING has no therapist but still
+  // needs a preview (room bed-capacity), so it gates on a room instead.
   useEffect(() => {
-    if (!patientId || therapistIds.length === 0 || !startsAt) {
+    const ready = isStretching
+      ? patientId && roomId && startsAt
+      : patientId && therapistIds.length > 0 && startsAt;
+    if (!ready) {
       setConflicts(null);
       return;
     }
@@ -134,13 +149,15 @@ export function CreateAppointmentModal({
         therapistIds,
         startsAt: new Date(startsAt).toISOString(),
         durationMinutes: duration,
+        appointmentType,
+        roomId: roomId || null,
       }).then((r) => {
         if (r.ok) setConflicts(r.data);
       });
     }, 300);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId, therapistKey, startsAt, duration]);
+  }, [patientId, therapistKey, startsAt, duration, appointmentType, roomId]);
 
   const hasConflicts = conflicts && !conflicts.ok;
   // QA retest #15 — same-patient overlap is a hard block: no override, no
@@ -148,8 +165,14 @@ export function CreateAppointmentModal({
   const hardBlocked = Boolean(
     conflicts && !conflicts.ok && hasHardBlockedConflict(conflicts.conflicts),
   );
-  // Room is required (QA retest #7/#13).
-  const canSubmit = Boolean(patientId && therapistIds.length > 0 && startsAt && roomId);
+  // Room is always required (QA retest #7/#13). SESSION needs ≥1 therapist;
+  // STRETCHING needs NO therapist (July #8).
+  const canSubmit = Boolean(
+    patientId &&
+    startsAt &&
+    roomId &&
+    (isStretching ? therapistIds.length === 0 : therapistIds.length > 0),
+  );
 
   const toggleTherapist = (id: string) =>
     setTherapistIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -160,6 +183,7 @@ export function CreateAppointmentModal({
         patientId,
         therapistIds,
         roomId,
+        appointmentType,
         startsAt: new Date(startsAt),
         durationMinutes: duration,
         notes: notes || null,
@@ -219,6 +243,22 @@ export function CreateAppointmentModal({
 
           <div className="space-y-3">
             <div className="space-y-1">
+              <Label htmlFor="appt-type">{t('type')}</Label>
+              <select
+                id="appt-type"
+                value={appointmentType}
+                onChange={(e) => setAppointmentType(e.target.value as AppointmentType)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value={AppointmentType.SESSION}>{t('typeSession')}</option>
+                <option value={AppointmentType.STRETCHING}>{t('typeStretching')}</option>
+              </select>
+              {isStretching ? (
+                <p className="text-xs text-brand-textMuted">{t('stretchingHint')}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-1">
               <Label htmlFor="appt-patient">{t('patient')}</Label>
               <select
                 id="appt-patient"
@@ -236,32 +276,34 @@ export function CreateAppointmentModal({
               </select>
             </div>
 
-            <div className="space-y-1">
-              <Label>{t('therapists')}</Label>
-              <div className="flex flex-wrap gap-1.5 rounded-md border border-input bg-background p-2">
-                {clinicians.map((c) => {
-                  const selected = therapistIds.includes(c.id);
-                  return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      aria-pressed={selected}
-                      onClick={() => toggleTherapist(c.id)}
-                      className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                        selected
-                          ? 'bg-brand-cyan text-white'
-                          : 'bg-brand-bg text-brand-navy hover:bg-brand-cyan/10'
-                      }`}
-                    >
-                      {locale === 'ar' ? c.fullNameAr : c.fullNameEn}
-                    </button>
-                  );
-                })}
+            {isStretching ? null : (
+              <div className="space-y-1">
+                <Label>{t('therapists')}</Label>
+                <div className="flex flex-wrap gap-1.5 rounded-md border border-input bg-background p-2">
+                  {clinicians.map((c) => {
+                    const selected = therapistIds.includes(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => toggleTherapist(c.id)}
+                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                          selected
+                            ? 'bg-brand-cyan text-white'
+                            : 'bg-brand-bg text-brand-navy hover:bg-brand-cyan/10'
+                        }`}
+                      >
+                        {locale === 'ar' ? c.fullNameAr : c.fullNameEn}
+                      </button>
+                    );
+                  })}
+                </div>
+                {therapistIds.length === 0 ? (
+                  <p className="text-xs text-brand-textMuted">{t('therapistsHint')}</p>
+                ) : null}
               </div>
-              {therapistIds.length === 0 ? (
-                <p className="text-xs text-brand-textMuted">{t('therapistsHint')}</p>
-              ) : null}
-            </div>
+            )}
 
             <div className="space-y-1">
               <Label htmlFor="appt-room">
@@ -450,7 +492,8 @@ type ConflictType =
       openTime: string;
       closeTime: string;
     }
-  | { kind: 'CLINIC_CLOSED_THIS_DAY' };
+  | { kind: 'CLINIC_CLOSED_THIS_DAY' }
+  | { kind: 'ROOM_AT_CAPACITY'; roomName: string; bedCount: number };
 
 function nm(p: Person, locale: string): string {
   return locale === 'ar' ? p.fullNameAr : p.fullNameEn;
@@ -485,6 +528,11 @@ function describeConflict(
       });
     case 'CLINIC_CLOSED_THIS_DAY':
       return t('clinicClosedThisDay');
+    case 'ROOM_AT_CAPACITY':
+      return t('roomAtCapacity', {
+        room: conflict.roomName,
+        beds: String(conflict.bedCount),
+      });
   }
 }
 

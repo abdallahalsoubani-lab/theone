@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 
-import { eventsForView } from '../eventsForView';
+import { OTHER_LANE_ID, eventsForView } from '../eventsForView';
 
 const base: Omit<CalendarAppointment, 'therapists'> = {
   id: 'appt-1',
@@ -14,6 +14,7 @@ const base: Omit<CalendarAppointment, 'therapists'> = {
   startsAt: new Date('2026-06-01T09:00:00Z'),
   durationMinutes: 30,
   status: 'SCHEDULED',
+  appointmentType: 'SESSION',
   notes: null,
   seriesId: null,
 };
@@ -54,6 +55,24 @@ describe('eventsForView', () => {
     expect(en!.title).toBe('John Doe');
     expect(ar!.title).toBe('جون دو');
     expect(en!.end.getTime() - en!.start.getTime()).toBe(30 * 60_000);
+  });
+
+  it('therapist-less STRETCHING renders once in the synthetic Other lane (July #8)', () => {
+    const stretch: CalendarAppointment = {
+      ...base,
+      appointmentType: 'STRETCHING',
+      roomId: 'r1',
+      roomName: 'Room A',
+      therapists: [], // no therapist column
+    };
+    const day = eventsForView([stretch], 'day', 'en');
+    expect(day).toHaveLength(1); // does NOT vanish
+    expect(day[0]!.resourceId).toBe(OTHER_LANE_ID);
+    expect(day[0]!.id).toBe('appt-1');
+    // Non-day views: one chip, falls back to the Other lane id.
+    const week = eventsForView([stretch], 'week', 'en');
+    expect(week).toHaveLength(1);
+    expect(week[0]!.resourceId).toBe(OTHER_LANE_ID);
   });
 
   it('single-therapist appointment is one event in every view', () => {

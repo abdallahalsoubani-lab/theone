@@ -20,6 +20,11 @@ import { patientDisplayName } from '@/lib/format/patientName';
  * Pure (only `date-fns` + a type-only rbc import) so it unit-tests without React
  * or the calendar runtime.
  */
+/** Synthetic day-view lane for therapist-less appointments (July #8 — a
+ *  STRETCHING booking has no therapist column). The matching resource is added
+ *  in resourcesForView so the lane exists. */
+export const OTHER_LANE_ID = '__other__';
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -40,8 +45,23 @@ export function eventsForView(
   const end = (a: CalendarAppointment) => addMinutes(a.startsAt, a.durationMinutes);
 
   if (view === 'day') {
-    return appointments.flatMap((a) =>
-      a.therapists.map((th) => ({
+    return appointments.flatMap((a) => {
+      // Therapist-less appointments (STRETCHING) have no therapist column —
+      // render them once in the synthetic "Other" lane so they don't vanish.
+      if (a.therapists.length === 0) {
+        return [
+          {
+            id: a.id,
+            title: title(a),
+            start: a.startsAt,
+            end: end(a),
+            resourceId: OTHER_LANE_ID,
+            status: a.status,
+            appointment: a,
+          },
+        ];
+      }
+      return a.therapists.map((th) => ({
         id: `${a.id}::${th.id}`,
         title: title(a),
         start: a.startsAt,
@@ -49,8 +69,8 @@ export function eventsForView(
         resourceId: th.id,
         status: a.status,
         appointment: a,
-      })),
-    );
+      }));
+    });
   }
 
   // Non-day views: one chip per appointment (no resource lanes).
@@ -59,7 +79,7 @@ export function eventsForView(
     title: title(a),
     start: a.startsAt,
     end: end(a),
-    resourceId: a.therapists[0]?.id ?? '',
+    resourceId: a.therapists[0]?.id ?? OTHER_LANE_ID,
     status: a.status,
     appointment: a,
   }));

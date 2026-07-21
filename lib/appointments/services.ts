@@ -60,21 +60,34 @@ const conflictError = (conflicts: Conflict[]): LocalizedError => ({
 // overridden or waitlisted. Thrown even when overrideConflicts is set. The
 // message names the dominant blocker: same-patient overlap wins over the
 // closed-day case when both are present.
-const hardBlockedError = (conflicts: Conflict[]): LocalizedError =>
-  conflicts.some((c) => c.kind === 'PATIENT_OVERLAP')
-    ? {
-        code: 'APPOINTMENT_SAME_PATIENT_OVERLAP',
-        message_en: 'This patient already has an appointment at this time. Pick another slot.',
-        message_ar: 'لدى هذا المريض موعد آخر في نفس الوقت. الرجاء اختيار وقت آخر.',
-        details: { conflicts: conflicts as unknown as Record<string, unknown> },
-      }
-    : {
-        code: 'APPOINTMENT_ON_CLOSED_DAY',
-        message_en:
-          'The clinic is closed on this day. Appointments cannot be booked on non-working days.',
-        message_ar: 'العيادة مغلقة في هذا اليوم. لا يمكن حجز مواعيد في أيام العطلة.',
-        details: { conflicts: conflicts as unknown as Record<string, unknown> },
-      };
+const hardBlockedError = (conflicts: Conflict[]): LocalizedError => {
+  const details = { conflicts: conflicts as unknown as Record<string, unknown> };
+  if (conflicts.some((c) => c.kind === 'PATIENT_OVERLAP')) {
+    return {
+      code: 'APPOINTMENT_SAME_PATIENT_OVERLAP',
+      message_en: 'This patient already has an appointment at this time. Pick another slot.',
+      message_ar: 'لدى هذا المريض موعد آخر في نفس الوقت. الرجاء اختيار وقت آخر.',
+      details,
+    };
+  }
+  // July #8 — the stretching room has no free bed in this time window.
+  const capacity = conflicts.find((c) => c.kind === 'ROOM_AT_CAPACITY');
+  if (capacity && capacity.kind === 'ROOM_AT_CAPACITY') {
+    return {
+      code: 'APPOINTMENT_ROOM_AT_CAPACITY',
+      message_en: `${capacity.roomName} is at bed capacity (${capacity.bedCount}) for this time. Pick another room or time.`,
+      message_ar: `الغرفة ${capacity.roomName} ممتلئة بالكامل (${capacity.bedCount} سرير) في هذا الوقت. اختر غرفة أو وقتًا آخر.`,
+      details,
+    };
+  }
+  return {
+    code: 'APPOINTMENT_ON_CLOSED_DAY',
+    message_en:
+      'The clinic is closed on this day. Appointments cannot be booked on non-working days.',
+    message_ar: 'العيادة مغلقة في هذا اليوم. لا يمكن حجز مواعيد في أيام العطلة.',
+    details,
+  };
+};
 
 const unauthenticated: LocalizedError = {
   code: 'UNAUTHENTICATED',
@@ -178,6 +191,8 @@ export const createAppointment = withAudit<
       therapistIds: input.therapistIds,
       startsAt: input.startsAt,
       durationMinutes: input.durationMinutes,
+      appointmentType: input.appointmentType,
+      roomId: input.roomId,
     });
 
     if (!conflicts.ok) {
@@ -196,6 +211,7 @@ export const createAppointment = withAudit<
       const appt = await tx.appointment.create({
         data: {
           patientId: input.patientId,
+          appointmentType: input.appointmentType,
           roomId: input.roomId ?? null,
           startsAt: input.startsAt,
           durationMinutes: input.durationMinutes,
@@ -311,7 +327,7 @@ export const rescheduleAppointment = withAudit<
     const session = await auth();
     const existing = await db.appointment.findUnique({
       where: { id: input.id },
-      select: { id: true, patientId: true, status: true },
+      select: { id: true, patientId: true, status: true, appointmentType: true, roomId: true },
     });
     if (!existing) throw new AppointmentError(notFound);
 
@@ -343,10 +359,14 @@ export const rescheduleAppointment = withAudit<
         therapistIds,
         startsAt: input.startsAt,
         durationMinutes,
+        // A drag of a STRETCHING appointment re-runs the bed-capacity check
+        // at the new time (July #8). roomId omitted on a drag → keep existing.
+        appointmentType: existing.appointmentType,
+        roomId: input.roomId ?? existing.roomId,
       });
       if (!conflicts.ok) {
-        // Hard-blocked kinds (same-patient overlap, closed day) reject even
-        // with overrideConflicts + the override permission (Prompt 22 §4.1).
+        // Hard-blocked kinds (same-patient overlap, closed day, bed capacity)
+        // reject even with overrideConflicts + the permission (Prompt 22 §4.1).
         if (hasHardBlockedConflict(conflicts.conflicts)) {
           throw new AppointmentError(hardBlockedError(conflicts.conflicts));
         }
@@ -558,13 +578,7 @@ export const changeAppointmentTherapist = withAudit<
 export interface TherapistAvailabilityRow {
   therapistId: string;
   available: boolean;
-  conflictKinds: Array<
-    | 'THERAPIST_OVERLAP'
-    | 'PATIENT_OVERLAP'
-    | 'THERAPIST_ON_LEAVE'
-    | 'OUTSIDE_BUSINESS_HOURS'
-    | 'CLINIC_CLOSED_THIS_DAY'
-  >;
+  conflictKinds: Array<Conflict['kind']>;
 }
 
 /**

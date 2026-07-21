@@ -1,4 +1,9 @@
-import { AppointmentStatus, type CancellationCategory, type Prisma } from '@prisma/client';
+import {
+  AppointmentStatus,
+  type AppointmentType,
+  type CancellationCategory,
+  type Prisma,
+} from '@prisma/client';
 
 import { db } from '@/lib/db';
 
@@ -23,6 +28,7 @@ export interface CalendarAppointment {
   startsAt: Date;
   durationMinutes: number;
   status: 'SCHEDULED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+  appointmentType: AppointmentType;
   notes: string | null;
   seriesId: string | null;
 }
@@ -74,6 +80,7 @@ export async function listAppointmentsForCalendar(
     startsAt: r.startsAt,
     durationMinutes: r.durationMinutes,
     status: r.status,
+    appointmentType: r.appointmentType,
     notes: r.notes,
     seriesId: r.seriesId,
   }));

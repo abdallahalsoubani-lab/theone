@@ -1,30 +1,51 @@
-import { AppointmentStatus, CancellationCategory } from '@prisma/client';
+import { AppointmentStatus, AppointmentType, CancellationCategory } from '@prisma/client';
 import { z } from 'zod';
 
-/** At least one therapist per appointment (Prompt 20). */
+/** At least one therapist per appointment (Prompt 20 — SESSION only). */
 const therapistIdsSchema = z.array(z.string().min(1)).min(1).max(10);
 
-export const appointmentCreateSchema = z.object({
-  patientId: z.string().min(1),
-  therapistIds: therapistIdsSchema,
-  // Room is required for every booking (QA retest #7/#13). Enforced here so a
-  // direct server-action/API call can't bypass the UI. Reschedule keeps it
-  // optional (omitted → preserve the existing room on a drag-move).
-  roomId: z.string().min(1),
-  startsAt: z.coerce.date(),
-  durationMinutes: z
-    .number()
-    .int()
-    .positive()
-    .max(8 * 60),
-  notes: z.string().max(2000).optional().nullable(),
-  /**
-   * When true and conflicts are present, the action proceeds anyway and
-   * writes an OVERRIDE_CONFLICT audit marker. Requires the
-   * appointments.override_conflict permission.
-   */
-  overrideConflicts: z.boolean().default(false),
-});
+export const appointmentCreateSchema = z
+  .object({
+    patientId: z.string().min(1),
+    // July #8 — type-aware: SESSION requires ≥1 therapist; STRETCHING forbids
+    // therapists (room + beds, no therapist). Allow empty here and enforce the
+    // per-type rule in superRefine below.
+    therapistIds: z.array(z.string().min(1)).max(10).default([]),
+    // Room is required for every booking (QA retest #7/#13; and STRETCHING is
+    // room-based). Enforced here so a direct server-action/API call can't
+    // bypass the UI. Reschedule keeps it optional (drag-move preserves room).
+    roomId: z.string().min(1),
+    appointmentType: z.nativeEnum(AppointmentType).default(AppointmentType.SESSION),
+    startsAt: z.coerce.date(),
+    durationMinutes: z
+      .number()
+      .int()
+      .positive()
+      .max(8 * 60),
+    notes: z.string().max(2000).optional().nullable(),
+    /**
+     * When true and conflicts are present, the action proceeds anyway and
+     * writes an OVERRIDE_CONFLICT audit marker. Requires the
+     * appointments.override_conflict permission.
+     */
+    overrideConflicts: z.boolean().default(false),
+  })
+  .superRefine((data, ctx) => {
+    if (data.appointmentType === AppointmentType.SESSION && data.therapistIds.length < 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['therapistIds'],
+        message: 'therapistRequired',
+      });
+    }
+    if (data.appointmentType === AppointmentType.STRETCHING && data.therapistIds.length > 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['therapistIds'],
+        message: 'stretchingNoTherapist',
+      });
+    }
+  });
 
 export type AppointmentCreateInput = z.infer<typeof appointmentCreateSchema>;
 

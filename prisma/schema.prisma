@@ -55,6 +55,20 @@ enum AppointmentStatus {
   NO_SHOW
 }
 
+// Booking type discriminator (July change request #8). All types live on the
+// one Appointment table; per-type rules are enforced by type-aware Zod
+// validation, not schema forks. SESSION is today's behaviour (1 patient, ≥1
+// therapist) and the default for every existing row. Only STRETCHING gets
+// behaviour in this prompt; EVENT / GROUP / WORKSHOP are defined now (avoids a
+// second enum migration) and implemented in Prompts 29/30.
+enum AppointmentType {
+  SESSION // 1 patient, ≥1 therapist — the existing default
+  STRETCHING // room + beds, NO therapist, 1 patient
+  EVENT // no patient (internal meeting/event) — Prompt 29
+  GROUP // multiple patients — Prompt 30
+  WORKSHOP // multiple patients (workshop flavour) — Prompt 30
+}
+
 // How a patient was checked in / marked as arrived (Prompt 18 arrivals).
 enum CheckInVia {
   KIOSK
@@ -472,6 +486,10 @@ model Room {
   id     String  @id @default(cuid())
   name   String
   active Boolean @default(true)
+  // Simultaneous-STRETCHING capacity (July #8): a room with 4 beds allows 4
+  // concurrent stretching appointments in the same time window. Default 1 is
+  // safe; the clinic sets real bed counts per stretching room in Admin.
+  bedCount Int @default(1)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -486,6 +504,9 @@ model Room {
 model Appointment {
   id                   String                @id @default(cuid())
   patientId            String
+  // Booking type (July #8). Defaults to SESSION so every existing row and any
+  // caller that doesn't specify a type keeps today's behaviour.
+  appointmentType      AppointmentType       @default(SESSION)
   // Therapists are a many-to-many via AppointmentTherapist (Prompt 20) — a
   // single session can have two or more therapists at the same time. There is
   // no single `therapistId` column anymore; at least one therapist is required

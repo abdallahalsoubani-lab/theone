@@ -33,6 +33,7 @@
     "allDay": "اليوم بأكمله",
     "noEventsInRange": "لا توجد مواعيد في هذا النطاق.",
     "showMore": "+{count} المزيد",
+    "otherLane": "أخرى",
     "status": {
       "scheduled": "مجدول",
       "confirmed": "مؤكد",
@@ -64,12 +65,18 @@
       "afterClose": "يبدأ بعد إغلاق العيادة ({open}–{close}).",
       "endExceedsClose": "تنتهي الجلسة بعد ساعات العيادة (تغلق {close}).",
       "clinicClosedThisDay": "العيادة مغلقة في هذا اليوم.",
+      "roomAtCapacity": "الغرفة {room} ممتلئة بالكامل ({beds} سرير) في هذا الوقت.",
       "overrideConfirmTitle": "تجاوز التعارض؟",
       "overrideConfirmDescription": "الحفظ سيؤدي إلى إنشاء الموعد رغم التعارض. سيُسجل التجاوز في سجل التدقيق.",
       "overrideButton": "حفظ على أي حال",
       "cancelButton": "تعديل الموعد"
     },
     "form": {
+      "type": "نوع الحجز",
+      "typeSession": "جلسة (مع معالج)",
+      "typeStretching": "استطالة (غرفة وأسرّة، بلا معالج)",
+      "typeStretchingShort": "استطالة",
+      "stretchingHint": "بلا معالج — تُحجز على غرفة؛ السعة بعدد أسرّة الغرفة.",
       "patient": "المراجع",
       "therapist": "المعالج",
       "therapists": "المعالجون",

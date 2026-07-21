@@ -457,6 +457,7 @@
     "allDay": "All day",
     "noEventsInRange": "No appointments in this range.",
     "showMore": "+{count} more",
+    "otherLane": "Other",
     "status": {
       "scheduled": "Scheduled",
       "confirmed": "Confirmed",
@@ -488,12 +489,18 @@
       "afterClose": "Starts after the clinic closes ({open}–{close}).",
       "endExceedsClose": "Session ends after clinic hours (closes {close}).",
       "clinicClosedThisDay": "The clinic is closed on this day.",
+      "roomAtCapacity": "{room} is at bed capacity ({beds}) for this time.",
       "overrideConfirmTitle": "Override conflict?",
       "overrideConfirmDescription": "Saving anyway will create the appointment despite the conflicts. The override will be recorded in the audit log.",
       "overrideButton": "Save anyway",
       "cancelButton": "Adjust the slot"
     },
     "form": {
+      "type": "Booking type",
+      "typeSession": "Session (with therapist)",
+      "typeStretching": "Stretching (room + beds, no therapist)",
+      "typeStretchingShort": "Stretch",
+      "stretchingHint": "No therapist — booked on a room; capacity is the room's bed count.",
       "patient": "Patient",
       "therapist": "Therapist",
       "therapists": "Therapists",
