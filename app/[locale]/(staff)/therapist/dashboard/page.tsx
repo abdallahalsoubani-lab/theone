@@ -95,12 +95,13 @@ export default async function TherapistDashboard({
         ) : (
           <ul className="flex gap-2 overflow-x-auto pb-2 text-sm">
             {todayAppts.map((a) => {
-              const name = locale === 'ar' ? a.patient.fullNameAr : a.patient.fullNameEn;
+              const name =
+                locale === 'ar' ? (a.patient?.fullNameAr ?? '') : (a.patient?.fullNameEn ?? '');
               // Deep-link to the session note if one exists, else the patient
               // file (which reaches plan / session reports / home program and
               // the new-note flow). No more dead-end cards.
               const href = therapistAppointmentHref({
-                patientId: a.patientId,
+                patientId: a.patientId ?? '',
                 sessionNoteId: a.sessionNotes[0]?.id,
               }) as `/${string}`;
               return (

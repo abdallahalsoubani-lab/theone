@@ -43,7 +43,8 @@ export default async function NewSessionNotePage({
     redirect(`/${locale}/therapist/sessions/notes/${existing.id}/edit`);
   }
 
-  const patientName = locale === 'ar' ? appt.patient.fullNameAr : appt.patient.fullNameEn;
+  const patientName =
+    locale === 'ar' ? (appt.patient?.fullNameAr ?? '') : (appt.patient?.fullNameEn ?? '');
 
   return (
     <section className="mx-auto max-w-3xl space-y-6 p-6">

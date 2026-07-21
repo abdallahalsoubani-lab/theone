@@ -29,8 +29,11 @@ import {
 export interface ConflictCheckInput {
   /** When updating an existing appointment, exclude it from overlap calc. */
   appointmentId?: string;
-  patientId: string;
-  /** Therapists on the session. SESSION has ≥1; STRETCHING has none (July #8). */
+  /** Null/absent for a patient-less EVENT (July #8 part 2) — skips the
+   *  patient-overlap check. */
+  patientId?: string | null;
+  /** Therapists on the session. SESSION has ≥1; STRETCHING has none; EVENT has
+   *  0..N (July #8). */
   therapistIds: string[];
   /** UTC start. Timezone display is the locale layer's concern. */
   startsAt: Date;
@@ -53,7 +56,11 @@ export interface AppointmentSummary {
   startsAt: Date;
   durationMinutes: number;
   status: AppointmentStatus;
-  patient: { id: string; fullNameEn: string; fullNameAr: string };
+  /** Null for a patient-less EVENT (July #8) — the UI shows `title` instead. */
+  patient: { id: string; fullNameEn: string; fullNameAr: string } | null;
+  appointmentType: AppointmentType;
+  /** EVENT label (null for patient bookings). */
+  title: string | null;
   /** Therapists on the clashing appointment (for PATIENT_OVERLAP display). */
   therapists: PersonName[];
 }
@@ -77,6 +84,9 @@ export type Conflict =
       dayKey: DayKey;
     }
   | { kind: 'CLINIC_CLOSED_THIS_DAY'; dayKey: DayKey }
+  // July #8 part 2 — the room is held by an overlapping EVENT (e.g. maintenance
+  // / a meeting): it can't take another booking of any type at that time.
+  | { kind: 'ROOM_BLOCKED_BY_EVENT'; roomId: string; roomName: string; event: AppointmentSummary }
   // July #8 — a STRETCHING booking would exceed the room's bed capacity: as
   // many concurrent stretching appointments as beds are allowed; one more is
   // blocked.
@@ -100,7 +110,9 @@ export function isHardBlockedConflict(c: Conflict): boolean {
     c.kind === 'PATIENT_OVERLAP' ||
     c.kind === 'CLINIC_CLOSED_THIS_DAY' ||
     // Bed capacity is a physical limit — it can't be "overridden" (July #8).
-    c.kind === 'ROOM_AT_CAPACITY'
+    c.kind === 'ROOM_AT_CAPACITY' ||
+    // A room held by an event (maintenance/meeting) is physically unavailable.
+    c.kind === 'ROOM_BLOCKED_BY_EVENT'
   );
 }
 
@@ -155,15 +167,17 @@ export async function checkConflicts(
     }
   }
 
-  // ── 2. Patient overlap ────────────────────────────────────────────────
-  const patientOverlaps = await findOverlappingAppointments({
-    scope: { patientId: input.patientId },
-    startsAt: input.startsAt,
-    endsAt,
-    excludeId: input.appointmentId,
-  });
-  for (const a of patientOverlaps) {
-    conflicts.push({ kind: 'PATIENT_OVERLAP', appointment: a });
+  // ── 2. Patient overlap (skipped for a patient-less EVENT) ─────────────
+  if (input.patientId) {
+    const patientOverlaps = await findOverlappingAppointments({
+      scope: { patientId: input.patientId },
+      startsAt: input.startsAt,
+      endsAt,
+      excludeId: input.appointmentId,
+    });
+    for (const a of patientOverlaps) {
+      conflicts.push({ kind: 'PATIENT_OVERLAP', appointment: a });
+    }
   }
 
   // ── 3. Therapist(s) on approved leave ─────────────────────────────────
@@ -214,6 +228,34 @@ export async function checkConflicts(
   // them). For STRETCHING the room is capacity-limited: at most `bedCount`
   // concurrent stretching appointments. Therapist/leave checks above are
   // no-ops for stretching (it carries no therapists).
+  //
+  // ── 5a. Room held by an overlapping EVENT (July #8 part 2) ────────────
+  // Any booking that wants a room is blocked if a maintenance/meeting EVENT
+  // holds that room at the same time (an event takes the room exclusively).
+  // The new booking being created can itself be an EVENT — two events can't
+  // hold the same room at once either.
+  if (input.roomId) {
+    const blocker = await findRoomBlockingEvent({
+      roomId: input.roomId,
+      startsAt: input.startsAt,
+      endsAt,
+      excludeId: input.appointmentId,
+    });
+    if (blocker) {
+      const room = await db.room.findUnique({
+        where: { id: input.roomId },
+        select: { name: true },
+      });
+      conflicts.push({
+        kind: 'ROOM_BLOCKED_BY_EVENT',
+        roomId: input.roomId,
+        roomName: room?.name ?? input.roomId,
+        event: blocker,
+      });
+    }
+  }
+
+  // ── 5b. STRETCHING bed capacity (July #8) ─────────────────────────────
   if (input.appointmentType === AppointmentType.STRETCHING && input.roomId) {
     const room = await db.room.findUnique({
       where: { id: input.roomId },
@@ -238,6 +280,57 @@ export async function checkConflicts(
   }
 
   return conflicts.length === 0 ? { ok: true } : { ok: false, conflicts };
+}
+
+/**
+ * Find an active EVENT that holds `roomId` and overlaps [startsAt, endsAt) —
+ * the first one is enough to block the room (July #8 part 2). Returns a summary
+ * (title/therapists) for the conflict message, or null if the room is free of
+ * events.
+ */
+async function findRoomBlockingEvent(args: {
+  roomId: string;
+  startsAt: Date;
+  endsAt: Date;
+  excludeId?: string;
+}): Promise<AppointmentSummary | null> {
+  const windowStart = new Date(args.startsAt.getTime() - 12 * 60 * 60 * 1000);
+  const windowEnd = new Date(args.endsAt.getTime() + 12 * 60 * 60 * 1000);
+
+  const candidates = await db.appointment.findMany({
+    where: {
+      roomId: args.roomId,
+      appointmentType: AppointmentType.EVENT,
+      status: { in: ACTIVE_STATUSES },
+      startsAt: { gte: windowStart, lte: windowEnd },
+      ...(args.excludeId ? { id: { not: args.excludeId } } : {}),
+    },
+    include: {
+      patient: { select: { id: true, fullNameEn: true, fullNameAr: true } },
+      therapists: {
+        include: { therapist: { select: { id: true, fullNameEn: true, fullNameAr: true } } },
+      },
+    },
+  });
+
+  const ts = args.startsAt.getTime();
+  const te = args.endsAt.getTime();
+  const hit = candidates.find((c) => {
+    const cs = c.startsAt.getTime();
+    const ce = cs + c.durationMinutes * 60_000;
+    return cs < te && ce > ts;
+  });
+  if (!hit) return null;
+  return {
+    id: hit.id,
+    startsAt: hit.startsAt,
+    durationMinutes: hit.durationMinutes,
+    status: hit.status,
+    patient: hit.patient,
+    appointmentType: hit.appointmentType,
+    title: hit.title,
+    therapists: hit.therapists.map((t) => t.therapist),
+  };
 }
 
 /**
@@ -321,6 +414,8 @@ async function findOverlappingAppointments(args: {
       durationMinutes: c.durationMinutes,
       status: c.status,
       patient: c.patient,
+      appointmentType: c.appointmentType,
+      title: c.title,
       therapists: c.therapists.map((t) => t.therapist),
     }));
 }

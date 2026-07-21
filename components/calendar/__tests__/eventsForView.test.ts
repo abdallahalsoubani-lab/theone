@@ -15,6 +15,7 @@ const base: Omit<CalendarAppointment, 'therapists'> = {
   durationMinutes: 30,
   status: 'SCHEDULED',
   appointmentType: 'SESSION',
+  title: null,
   notes: null,
   seriesId: null,
 };

@@ -120,7 +120,7 @@ export const createSessionNote = withAudit<
       const created = await tx.sessionNote.create({
         data: {
           appointmentId: appt.id,
-          patientId: appt.patientId,
+          patientId: appt.patientId!, // session notes are only created for patient SESSIONs
           therapistId: ctx.therapistId,
           subjective: input.subjective ?? '',
           objective: input.objective ?? '',

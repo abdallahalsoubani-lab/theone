@@ -41,7 +41,9 @@ export function eventsForView(
   locale: string,
 ): CalendarEvent[] {
   const title = (a: CalendarAppointment) =>
-    patientDisplayName(a.patientFullNameEn, a.patientFullNameAr, locale);
+    a.appointmentType === 'EVENT'
+      ? (a.title ?? '')
+      : patientDisplayName(a.patientFullNameEn, a.patientFullNameAr, locale);
   const end = (a: CalendarAppointment) => addMinutes(a.startsAt, a.durationMinutes);
 
   if (view === 'day') {

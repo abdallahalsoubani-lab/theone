@@ -86,6 +86,7 @@ export async function buildDayReportDraft(args: { therapistId: string; date: Dat
       therapists: { some: { therapistId: args.therapistId } },
       status: AppointmentStatus.COMPLETED,
       startsAt: { gte: start, lt: end },
+      patientId: { not: null }, // day report covers patient sessions, not EVENTs
     },
     orderBy: { startsAt: 'asc' },
     select: {
@@ -101,9 +102,9 @@ export async function buildDayReportDraft(args: { therapistId: string; date: Dat
 
   const patientEntries = appts.map((a) => ({
     appointmentId: a.id,
-    patientId: a.patientId,
-    patientFullNameEn: a.patient.fullNameEn,
-    patientFullNameAr: a.patient.fullNameAr,
+    patientId: a.patientId ?? '',
+    patientFullNameEn: a.patient?.fullNameEn ?? '',
+    patientFullNameAr: a.patient?.fullNameAr ?? '',
     note: existingByAppt.get(a.id) ?? 'Completed session. See session note for details.',
   }));
 

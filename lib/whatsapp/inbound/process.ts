@@ -215,7 +215,7 @@ async function handleConfirm(args: {
     // sending the WhatsApp reply through the signed-and-verified webhook.
     await db.auditLog.create({
       data: {
-        actorId: appt.patientId,
+        actorId: appt.patientId!, // a WhatsApp reply always comes from a patient
         entityType: 'Appointment',
         entityId: appt.id,
         action: AuditAction.UPDATE,

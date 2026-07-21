@@ -102,9 +102,9 @@ export function SecretaryCalendarBoard({
     if (!found) return;
     setPanelAppt({
       id: found.id,
-      patientId: found.patientId,
-      patientFullNameEn: found.patientFullNameEn,
-      patientFullNameAr: found.patientFullNameAr,
+      patientId: found.patientId ?? '',
+      patientFullNameEn: found.patientFullNameEn || (found.title ?? ''),
+      patientFullNameAr: found.patientFullNameAr || (found.title ?? ''),
       // Phone is fetched lazily; the calendar list query is lean. For now,
       // leave blank and Prompt 7b can fetch on open if needed.
       patientPhone: '',

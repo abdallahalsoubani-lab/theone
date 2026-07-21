@@ -68,6 +68,12 @@ export function startReminderWorker(): Worker {
         console.warn(`[reminder] appointment ${appointmentId} already past — skipping`);
         return;
       }
+      // A patient-less EVENT has no one to remind (July #8) — reminders are
+      // never enqueued for it, but guard here too in case one lingers.
+      if (!appt.patient) {
+        console.warn(`[reminder] appointment ${appointmentId} has no patient — skipping`);
+        return;
+      }
 
       const lang = appt.patient.languagePref;
       // One reminder to the patient (Prompt 20). The template already names a

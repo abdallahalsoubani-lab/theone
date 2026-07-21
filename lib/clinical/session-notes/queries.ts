@@ -151,6 +151,7 @@ export async function listAppointmentsPendingNote(
       therapists: { some: { therapistId } },
       status: 'COMPLETED',
       sessionNotes: { none: { parentNoteId: null } },
+      patientId: { not: null }, // patient-less EVENTs never need a session note
     },
     orderBy: { startsAt: 'desc' },
     take: limit,
@@ -164,9 +165,9 @@ export async function listAppointmentsPendingNote(
   });
   return rows.map((r) => ({
     id: r.id,
-    patientId: r.patientId,
-    patientFullNameEn: r.patient.fullNameEn,
-    patientFullNameAr: r.patient.fullNameAr,
+    patientId: r.patientId ?? '',
+    patientFullNameEn: r.patient?.fullNameEn ?? '',
+    patientFullNameAr: r.patient?.fullNameAr ?? '',
     startsAt: r.startsAt,
     durationMinutes: r.durationMinutes,
   }));

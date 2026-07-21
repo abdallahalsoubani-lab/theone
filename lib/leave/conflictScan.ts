@@ -59,9 +59,9 @@ export async function scanLeaveConflicts(
 
   return rows.map((r) => ({
     appointmentId: r.id,
-    patientId: r.patient.id,
-    patientFullNameEn: r.patient.fullNameEn,
-    patientFullNameAr: r.patient.fullNameAr,
+    patientId: r.patient?.id ?? '',
+    patientFullNameEn: r.patient?.fullNameEn ?? '',
+    patientFullNameAr: r.patient?.fullNameAr ?? '',
     startsAt: r.startsAt,
     durationMinutes: r.durationMinutes,
   }));

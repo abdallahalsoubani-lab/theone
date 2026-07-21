@@ -6,15 +6,19 @@ const therapistIdsSchema = z.array(z.string().min(1)).min(1).max(10);
 
 export const appointmentCreateSchema = z
   .object({
-    patientId: z.string().min(1),
+    // Optional for EVENT (patient-less internal block — July #8 part 2).
+    // SESSION + STRETCHING require it (enforced in superRefine).
+    patientId: z.string().min(1).optional().nullable(),
     // July #8 — type-aware: SESSION requires ≥1 therapist; STRETCHING forbids
-    // therapists (room + beds, no therapist). Allow empty here and enforce the
-    // per-type rule in superRefine below.
+    // therapists (room + beds, no therapist); EVENT allows 0..N. The per-type
+    // rule is enforced in superRefine below.
     therapistIds: z.array(z.string().min(1)).max(10).default([]),
-    // Room is required for every booking (QA retest #7/#13; and STRETCHING is
-    // room-based). Enforced here so a direct server-action/API call can't
-    // bypass the UI. Reschedule keeps it optional (drag-move preserves room).
-    roomId: z.string().min(1),
+    // Optional at the base — required for SESSION + STRETCHING (QA retest
+    // #7/#13; STRETCHING is room-based) and OPTIONAL for EVENT (a meeting may
+    // hold a room, or not). Enforced in superRefine.
+    roomId: z.string().min(1).optional().nullable(),
+    // Free-text label — required for EVENT (patient-less), forbidden otherwise.
+    title: z.string().min(1).max(200).optional().nullable(),
     appointmentType: z.nativeEnum(AppointmentType).default(AppointmentType.SESSION),
     startsAt: z.coerce.date(),
     durationMinutes: z
@@ -31,19 +35,24 @@ export const appointmentCreateSchema = z
     overrideConflicts: z.boolean().default(false),
   })
   .superRefine((data, ctx) => {
-    if (data.appointmentType === AppointmentType.SESSION && data.therapistIds.length < 1) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['therapistIds'],
-        message: 'therapistRequired',
-      });
+    const issue = (path: string, message: string) =>
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+
+    if (data.appointmentType === AppointmentType.SESSION) {
+      if (data.therapistIds.length < 1) issue('therapistIds', 'therapistRequired');
+      if (!data.patientId) issue('patientId', 'patientRequired');
+      if (!data.roomId) issue('roomId', 'roomRequired');
     }
-    if (data.appointmentType === AppointmentType.STRETCHING && data.therapistIds.length > 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['therapistIds'],
-        message: 'stretchingNoTherapist',
-      });
+    if (data.appointmentType === AppointmentType.STRETCHING) {
+      if (data.therapistIds.length > 0) issue('therapistIds', 'stretchingNoTherapist');
+      if (!data.patientId) issue('patientId', 'patientRequired');
+      if (!data.roomId) issue('roomId', 'roomRequired');
+    }
+    if (data.appointmentType === AppointmentType.EVENT) {
+      // Patient-less internal block: no patient, a title is the label; room +
+      // therapists are optional.
+      if (data.patientId) issue('patientId', 'eventNoPatient');
+      if (!data.title) issue('title', 'eventTitleRequired');
     }
   });
 

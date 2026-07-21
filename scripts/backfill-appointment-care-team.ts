@@ -64,6 +64,7 @@ async function main() {
   const pairMap = new Map<string, { patientId: string; therapistId: string }>();
   for (const r of pairRows) {
     const patientId = r.appointment.patientId;
+    if (!patientId) continue;
     pairMap.set(`${patientId}:${r.therapistId}`, { patientId, therapistId: r.therapistId });
   }
   const pairs = [...pairMap.values()];

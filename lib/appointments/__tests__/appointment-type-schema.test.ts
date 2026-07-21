@@ -49,12 +49,62 @@ describe('appointmentCreateSchema — type-aware (July #8)', () => {
     ).toBe(false);
   });
 
-  it('a room is always required', () => {
+  it('a room is required for SESSION + STRETCHING', () => {
     const { roomId: _omit, ...noRoom } = base;
     expect(
       appointmentCreateSchema.safeParse({
         ...noRoom,
         appointmentType: 'STRETCHING',
+        therapistIds: [],
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('appointmentCreateSchema — EVENT (July #8 part 2)', () => {
+  const { patientId: _p, ...noPatient } = base;
+
+  it('accepts an EVENT with a title, no patient, and optional room/therapists', () => {
+    // Title only (no room, no therapist) is valid.
+    const { roomId: _r, ...noRoom } = noPatient;
+    const r = appointmentCreateSchema.safeParse({
+      ...noRoom,
+      appointmentType: 'EVENT',
+      title: 'Staff meeting',
+      therapistIds: [],
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.appointmentType).toBe('EVENT');
+      expect(r.data.title).toBe('Staff meeting');
+    }
+    // With therapists + a room is also valid.
+    expect(
+      appointmentCreateSchema.safeParse({
+        ...noPatient,
+        appointmentType: 'EVENT',
+        title: 'Training',
+        therapistIds: ['t1', 't2'],
+      }).success,
+    ).toBe(true);
+  });
+
+  it('REQUIRES a title', () => {
+    expect(
+      appointmentCreateSchema.safeParse({
+        ...noPatient,
+        appointmentType: 'EVENT',
+        therapistIds: [],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('FORBIDS a patient', () => {
+    expect(
+      appointmentCreateSchema.safeParse({
+        ...base,
+        appointmentType: 'EVENT',
+        title: 'Meeting',
         therapistIds: [],
       }).success,
     ).toBe(false);

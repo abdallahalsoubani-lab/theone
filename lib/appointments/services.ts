@@ -70,6 +70,16 @@ const hardBlockedError = (conflicts: Conflict[]): LocalizedError => {
       details,
     };
   }
+  // July #8 part 2 — the room is held by an event (maintenance / meeting).
+  const blocked = conflicts.find((c) => c.kind === 'ROOM_BLOCKED_BY_EVENT');
+  if (blocked && blocked.kind === 'ROOM_BLOCKED_BY_EVENT') {
+    return {
+      code: 'APPOINTMENT_ROOM_BLOCKED_BY_EVENT',
+      message_en: `${blocked.roomName} is held by an event (${blocked.event.title ?? 'event'}) at this time. Pick another room or time.`,
+      message_ar: `الغرفة ${blocked.roomName} محجوزة لفعالية (${blocked.event.title ?? 'فعالية'}) في هذا الوقت. اختر غرفة أو وقتًا آخر.`,
+      details,
+    };
+  }
   // July #8 — the stretching room has no free bed in this time window.
   const capacity = conflicts.find((c) => c.kind === 'ROOM_AT_CAPACITY');
   if (capacity && capacity.kind === 'ROOM_AT_CAPACITY') {
@@ -210,8 +220,9 @@ export const createAppointment = withAudit<
     const appointment = await db.$transaction(async (tx) => {
       const appt = await tx.appointment.create({
         data: {
-          patientId: input.patientId,
+          patientId: input.patientId ?? null,
           appointmentType: input.appointmentType,
+          title: input.title ?? null,
           roomId: input.roomId ?? null,
           startsAt: input.startsAt,
           durationMinutes: input.durationMinutes,
@@ -223,20 +234,25 @@ export const createAppointment = withAudit<
       });
       // Booking a patient with therapists makes EACH of them part of the
       // patient's care team so they appear in "My patients" + dashboard.
-      // Idempotent, add-never-replace (Prompt 15.5; extended to the set in
-      // Prompt 20). Covered by this appointment's CREATE audit.
-      for (const therapistId of therapistIds) {
-        await addCareTeamMemberTx(tx, input.patientId, therapistId, session.user.id);
+      // A patient-less EVENT has no care team to touch (July #8).
+      if (input.patientId) {
+        for (const therapistId of therapistIds) {
+          await addCareTeamMemberTx(tx, input.patientId, therapistId, session.user.id);
+        }
       }
       return appt;
     });
 
-    const config = await getReminderConfig();
-    await enqueueAppointmentReminder({
-      appointmentId: appointment.id,
-      startsAt: appointment.startsAt,
-      config,
-    });
+    // A patient-less EVENT gets no reminder (no one to remind) and no
+    // confirmation message. It still auto-completes at its scheduled end.
+    if (input.patientId) {
+      const config = await getReminderConfig();
+      await enqueueAppointmentReminder({
+        appointmentId: appointment.id,
+        startsAt: appointment.startsAt,
+        config,
+      });
+    }
     // July #4 — schedule the zero-grace auto-complete for the session's end.
     await enqueueAutoCompleteSession({
       appointmentId: appointment.id,
@@ -252,23 +268,27 @@ export const createAppointment = withAudit<
     // date, time}. Skip when the patient is flagged unreachable —
     // re-enabled automatically on the next successful delivery
     // (User.whatsappReachable; see Prompt 8 §4.12).
-    const [patient, therapist] = await Promise.all([
-      db.user.findUnique({
-        where: { id: input.patientId },
-        select: {
-          phone: true,
-          languagePref: true,
-          whatsappReachable: true,
-          fullNameEn: true,
-          fullNameAr: true,
-        },
-      }),
-      db.user.findUnique({
-        where: { id: therapistIds[0] },
-        select: { fullNameEn: true, fullNameAr: true },
-      }),
-    ]);
-    if (patient && therapist && patient.whatsappReachable) {
+    const [patient, therapist] = input.patientId
+      ? await Promise.all([
+          db.user.findUnique({
+            where: { id: input.patientId },
+            select: {
+              phone: true,
+              languagePref: true,
+              whatsappReachable: true,
+              fullNameEn: true,
+              fullNameAr: true,
+            },
+          }),
+          therapistIds[0]
+            ? db.user.findUnique({
+                where: { id: therapistIds[0] },
+                select: { fullNameEn: true, fullNameAr: true },
+              })
+            : null,
+        ])
+      : [null, null];
+    if (input.patientId && patient && therapist && patient.whatsappReachable) {
       const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
       const dateStr = appointment.startsAt.toISOString().slice(0, 10);
       const timeStr = appointment.startsAt.toISOString().slice(11, 16);
@@ -390,14 +410,13 @@ export const rescheduleAppointment = withAudit<
         await setAppointmentTherapistsTx(tx, input.id, therapistIds);
       }
       // Adding a therapist (e.g. dragging to another resource column) adds them
-      // to the care team — add-never-replace, idempotent when unchanged.
-      for (const therapistId of therapistIds) {
-        await addCareTeamMemberTx(
-          tx,
-          existing.patientId,
-          therapistId,
-          session?.user?.id ?? therapistId,
-        );
+      // to the care team — add-never-replace, idempotent when unchanged. A
+      // patient-less EVENT has no care team (July #8).
+      if (existing.patientId) {
+        const patientId = existing.patientId;
+        for (const therapistId of therapistIds) {
+          await addCareTeamMemberTx(tx, patientId, therapistId, session?.user?.id ?? therapistId);
+        }
       }
     });
 
@@ -523,13 +542,11 @@ export const changeAppointmentTherapist = withAudit<
       await setAppointmentTherapistsTx(tx, input.id, newTherapistIds);
       // Add the newly-assigned therapists to the care team (add-never-replace
       // — removed therapists stay on the care team unless removed elsewhere).
-      for (const therapistId of added) {
-        await addCareTeamMemberTx(
-          tx,
-          existing.patientId,
-          therapistId,
-          session?.user?.id ?? therapistId,
-        );
+      if (existing.patientId) {
+        const patientId = existing.patientId;
+        for (const therapistId of added) {
+          await addCareTeamMemberTx(tx, patientId, therapistId, session?.user?.id ?? therapistId);
+        }
       }
     });
 
@@ -537,7 +554,7 @@ export const changeAppointmentTherapist = withAudit<
     // set in Prompt 20). Fire-and-forget; the audit row already captured it.
     const { createNotification } = await import('@/lib/notifications/actions');
     const dateStr = existing.startsAt.toISOString().slice(0, 10);
-    const patientName = existing.patient.fullNameEn;
+    const patientName = existing.patient?.fullNameEn ?? '';
     for (const therapistId of removed) {
       void createNotification({
         recipientId: therapistId,
@@ -695,7 +712,7 @@ export const cancelAppointment = withAudit<
     // template's three placeholders are date, time, and reason — we
     // pass the localized category label as the reason. Best-effort
     // fan-out: failures log + continue so cancel still succeeds.
-    if (input.notifyPatient && existing.patient.whatsappReachable) {
+    if (input.notifyPatient && existing.patient?.whatsappReachable) {
       const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
       const dateStr = existing.startsAt.toISOString().slice(0, 10);
       const timeStr = existing.startsAt.toISOString().slice(11, 16);
@@ -709,7 +726,7 @@ export const cancelAppointment = withAudit<
           categoryLabelForLocale(input.cancellationCategory, existing.patient.languagePref),
         ],
         recipientPhone: existing.patient.phone,
-        recipientUserId: existing.patientId,
+        recipientUserId: existing.patientId ?? undefined,
         appointmentId: existing.id,
         source: 'queue',
       }).catch((err: unknown) => {
@@ -851,7 +868,7 @@ export const cancelAppointmentSeries = withAudit<
       });
       const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
       for (const row of enriched) {
-        if (!row.patient.whatsappReachable) continue;
+        if (!row.patient?.whatsappReachable) continue;
         const dateStr = row.startsAt.toISOString().slice(0, 10);
         const timeStr = row.startsAt.toISOString().slice(11, 16);
         void enqueueWhatsappOutbound({
@@ -864,7 +881,7 @@ export const cancelAppointmentSeries = withAudit<
             categoryLabelForLocale(input.cancellationCategory, row.patient.languagePref),
           ],
           recipientPhone: row.patient.phone,
-          recipientUserId: row.patientId,
+          recipientUserId: row.patientId ?? undefined,
           appointmentId: row.id,
           source: 'queue',
         }).catch((err: unknown) => {
@@ -1107,7 +1124,7 @@ export const changeAppointmentTherapistSeries = withAudit<
           where: { id: input.id },
           select: { patient: { select: { fullNameEn: true } } },
         })
-        .then((r) => r?.patient.fullNameEn ?? '');
+        .then((r) => r?.patient?.fullNameEn ?? '');
       const firstStart = occurrences[0]!.startsAt.toISOString().slice(0, 10);
       const { createNotification } = await import('@/lib/notifications/actions');
       for (const therapistId of removed) {

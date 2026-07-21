@@ -102,10 +102,12 @@ export function CreateAppointmentModal({
   const [seriesOpen, setSeriesOpen] = useState(false);
 
   const [patientId, setPatientId] = useState(defaultPatientId ?? '');
-  // July #8 — booking type. Only SESSION + STRETCHING are selectable here;
-  // EVENT/GROUP/WORKSHOP arrive in Prompts 29/30.
+  // July #8 — booking type. SESSION + STRETCHING + EVENT are selectable here;
+  // GROUP/WORKSHOP arrive in Prompt 30.
   const [appointmentType, setAppointmentType] = useState<AppointmentType>(AppointmentType.SESSION);
   const isStretching = appointmentType === AppointmentType.STRETCHING;
+  const isEvent = appointmentType === AppointmentType.EVENT;
+  const [title, setTitle] = useState('');
   const [therapistIds, setTherapistIds] = useState<string[]>(
     defaultTherapistId ? [defaultTherapistId] : [],
   );
@@ -121,6 +123,7 @@ export function CreateAppointmentModal({
     if (!open) return;
     setPatientId(defaultPatientId ?? '');
     setAppointmentType(AppointmentType.SESSION);
+    setTitle('');
     setTherapistIds(defaultTherapistId ? [defaultTherapistId] : []);
     setStartsAt(defaultStartsAt ? toLocalInput(defaultStartsAt) : '');
     setDuration(defaultDurationMinutes);
@@ -131,21 +134,29 @@ export function CreateAppointmentModal({
     if (isStretching && therapistIds.length > 0) setTherapistIds([]);
   }, [isStretching, therapistIds.length]);
 
+  // Switching to EVENT clears the patient (it is patient-less).
+  useEffect(() => {
+    if (isEvent && patientId) setPatientId('');
+  }, [isEvent, patientId]);
+
   const therapistKey = therapistIds.join(',');
 
-  // Live conflict preview — debounced. STRETCHING has no therapist but still
-  // needs a preview (room bed-capacity), so it gates on a room instead.
+  // Live conflict preview — debounced. Each type gates on what it needs:
+  // SESSION on a therapist, STRETCHING on a room (bed capacity), EVENT on a
+  // therapist OR room (either can clash).
   useEffect(() => {
-    const ready = isStretching
-      ? patientId && roomId && startsAt
-      : patientId && therapistIds.length > 0 && startsAt;
+    const ready = isEvent
+      ? startsAt && (therapistIds.length > 0 || roomId)
+      : isStretching
+        ? patientId && roomId && startsAt
+        : patientId && therapistIds.length > 0 && startsAt;
     if (!ready) {
       setConflicts(null);
       return;
     }
     const handle = setTimeout(() => {
       void previewConflictsAction({
-        patientId,
+        patientId: isEvent ? null : patientId,
         therapistIds,
         startsAt: new Date(startsAt).toISOString(),
         durationMinutes: duration,
@@ -165,13 +176,16 @@ export function CreateAppointmentModal({
   const hardBlocked = Boolean(
     conflicts && !conflicts.ok && hasHardBlockedConflict(conflicts.conflicts),
   );
-  // Room is always required (QA retest #7/#13). SESSION needs ≥1 therapist;
-  // STRETCHING needs NO therapist (July #8).
+  // Per-type submit gate (July #8). SESSION: patient + room + ≥1 therapist.
+  // STRETCHING: patient + room + 0 therapists. EVENT: a title + start (patient
+  // forbidden; therapists + room optional).
   const canSubmit = Boolean(
-    patientId &&
     startsAt &&
-    roomId &&
-    (isStretching ? therapistIds.length === 0 : therapistIds.length > 0),
+    (isEvent
+      ? Boolean(title.trim())
+      : patientId &&
+        roomId &&
+        (isStretching ? therapistIds.length === 0 : therapistIds.length > 0)),
   );
 
   const toggleTherapist = (id: string) =>
@@ -180,10 +194,11 @@ export function CreateAppointmentModal({
   const submit = (override: boolean) =>
     startTransition(async () => {
       const r = await createAppointmentAction({
-        patientId,
+        patientId: isEvent ? null : patientId,
         therapistIds,
-        roomId,
+        roomId: roomId || null,
         appointmentType,
+        title: isEvent ? title.trim() : null,
         startsAt: new Date(startsAt),
         durationMinutes: duration,
         notes: notes || null,
@@ -252,29 +267,46 @@ export function CreateAppointmentModal({
               >
                 <option value={AppointmentType.SESSION}>{t('typeSession')}</option>
                 <option value={AppointmentType.STRETCHING}>{t('typeStretching')}</option>
+                <option value={AppointmentType.EVENT}>{t('typeEvent')}</option>
               </select>
               {isStretching ? (
                 <p className="text-xs text-brand-textMuted">{t('stretchingHint')}</p>
               ) : null}
+              {isEvent ? <p className="text-xs text-brand-textMuted">{t('eventHint')}</p> : null}
             </div>
 
-            <div className="space-y-1">
-              <Label htmlFor="appt-patient">{t('patient')}</Label>
-              <select
-                id="appt-patient"
-                value={patientId}
-                onChange={(e) => setPatientId(e.target.value)}
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="">—</option>
-                {patients.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {locale === 'ar' ? p.fullNameAr : p.fullNameEn}
-                    {p.phone ? ` (${p.phone})` : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {isEvent ? (
+              <div className="space-y-1">
+                <Label htmlFor="appt-title">
+                  {t('eventTitle')} <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="appt-title"
+                  value={title}
+                  maxLength={200}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder={t('eventTitlePlaceholder')}
+                />
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <Label htmlFor="appt-patient">{t('patient')}</Label>
+                <select
+                  id="appt-patient"
+                  value={patientId}
+                  onChange={(e) => setPatientId(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="">—</option>
+                  {patients.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {locale === 'ar' ? p.fullNameAr : p.fullNameEn}
+                      {p.phone ? ` (${p.phone})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {isStretching ? null : (
               <div className="space-y-1">
@@ -307,7 +339,7 @@ export function CreateAppointmentModal({
 
             <div className="space-y-1">
               <Label htmlFor="appt-room">
-                {t('room')} <span className="text-destructive">*</span>
+                {t('room')} {isEvent ? null : <span className="text-destructive">*</span>}
               </Label>
               <select
                 id="appt-room"
@@ -323,7 +355,9 @@ export function CreateAppointmentModal({
                   </option>
                 ))}
               </select>
-              {!roomId ? <p className="text-xs text-brand-textMuted">{t('roomRequired')}</p> : null}
+              {!roomId && !isEvent ? (
+                <p className="text-xs text-brand-textMuted">{t('roomRequired')}</p>
+              ) : null}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-[2fr_1fr]">
@@ -479,7 +513,12 @@ type ConflictType =
   | {
       kind: 'THERAPIST_OVERLAP';
       therapist: Person;
-      appointment: { patient: Person; startsAt: Date };
+      appointment: {
+        patient: Person | null;
+        appointmentType: string;
+        title: string | null;
+        startsAt: Date;
+      };
     }
   | {
       kind: 'PATIENT_OVERLAP';
@@ -493,7 +532,8 @@ type ConflictType =
       closeTime: string;
     }
   | { kind: 'CLINIC_CLOSED_THIS_DAY' }
-  | { kind: 'ROOM_AT_CAPACITY'; roomName: string; bedCount: number };
+  | { kind: 'ROOM_AT_CAPACITY'; roomName: string; bedCount: number }
+  | { kind: 'ROOM_BLOCKED_BY_EVENT'; roomName: string; event: { title: string | null } };
 
 function nm(p: Person, locale: string): string {
   return locale === 'ar' ? p.fullNameAr : p.fullNameEn;
@@ -507,9 +547,18 @@ function describeConflict(
   const conflict = c as ConflictType;
   switch (conflict.kind) {
     case 'THERAPIST_OVERLAP':
+      // The clashing booking may be a patient-less EVENT — say "in an event"
+      // (July #8) instead of naming a (null) patient.
+      if (conflict.appointment.appointmentType === 'EVENT') {
+        return t('therapistInEvent', {
+          therapist: nm(conflict.therapist, locale),
+          event: conflict.appointment.title ?? '',
+          time: new Date(conflict.appointment.startsAt).toISOString(),
+        });
+      }
       return t('therapistOverlap', {
         therapist: nm(conflict.therapist, locale),
-        patient: nm(conflict.appointment.patient, locale),
+        patient: conflict.appointment.patient ? nm(conflict.appointment.patient, locale) : '',
         time: new Date(conflict.appointment.startsAt).toISOString(),
       });
     case 'PATIENT_OVERLAP':
@@ -532,6 +581,11 @@ function describeConflict(
       return t('roomAtCapacity', {
         room: conflict.roomName,
         beds: String(conflict.bedCount),
+      });
+    case 'ROOM_BLOCKED_BY_EVENT':
+      return t('roomBlockedByEvent', {
+        room: conflict.roomName,
+        event: conflict.event.title ?? '',
       });
   }
 }

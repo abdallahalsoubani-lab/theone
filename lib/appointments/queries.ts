@@ -17,9 +17,12 @@ export interface PersonRef {
 
 export interface CalendarAppointment {
   id: string;
-  patientId: string;
+  /** Null for a patient-less EVENT (July #8 part 2). */
+  patientId: string | null;
   patientFullNameEn: string;
   patientFullNameAr: string;
+  /** EVENT label (null for patient bookings) — the chip title for events. */
+  title: string | null;
   /** All therapists on this session (Prompt 20) — the calendar renders the
    *  appointment in each one's resource column. */
   therapists: PersonRef[];
@@ -71,9 +74,10 @@ export async function listAppointmentsForCalendar(
 
   return rows.map((r) => ({
     id: r.id,
-    patientId: r.patient.id,
-    patientFullNameEn: r.patient.fullNameEn,
-    patientFullNameAr: r.patient.fullNameAr,
+    patientId: r.patient?.id ?? null,
+    patientFullNameEn: r.patient?.fullNameEn ?? '',
+    patientFullNameAr: r.patient?.fullNameAr ?? '',
+    title: r.title,
     therapists: r.therapists.map((t) => t.therapist),
     roomId: r.room?.id ?? null,
     roomName: r.room?.name ?? null,
@@ -161,6 +165,8 @@ export async function listCancelledAppointments(args: {
   const { filters, canSeePhone } = args;
   const where: Prisma.AppointmentWhereInput = {
     status: AppointmentStatus.CANCELLED,
+    // Patient-centric view — never lists patient-less EVENTs (July #8).
+    patientId: { not: null },
     ...(filters.from || filters.to
       ? {
           cancelledAt: {
@@ -205,9 +211,9 @@ export async function listCancelledAppointments(args: {
     total,
     rows: rows.map((r) => ({
       id: r.id,
-      patientFullNameEn: r.patient.fullNameEn,
-      patientFullNameAr: r.patient.fullNameAr,
-      patientPhone: canSeePhone ? r.patient.phone : null,
+      patientFullNameEn: r.patient?.fullNameEn ?? '',
+      patientFullNameAr: r.patient?.fullNameAr ?? '',
+      patientPhone: canSeePhone ? (r.patient?.phone ?? null) : null,
       startsAt: r.startsAt,
       durationMinutes: r.durationMinutes,
       therapists: r.therapists.map((t) => t.therapist),

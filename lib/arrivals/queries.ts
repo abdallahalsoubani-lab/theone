@@ -68,9 +68,10 @@ type RawRow = Prisma.AppointmentGetPayload<{ select: typeof ROW_SELECT }>;
 function toRow(a: RawRow): ArrivalRow {
   return {
     appointmentId: a.id,
-    patientId: a.patientId,
-    patientNameEn: a.patient.fullNameEn,
-    patientNameAr: a.patient.fullNameAr,
+    // The board query filters patientId != null, so these are always present.
+    patientId: a.patientId ?? '',
+    patientNameEn: a.patient?.fullNameEn ?? '',
+    patientNameAr: a.patient?.fullNameAr ?? '',
     // Show every assigned therapist on the board (Prompt 20).
     therapistNameEn: a.therapists.map((t) => t.therapist.fullNameEn).join(', '),
     therapistNameAr: a.therapists.map((t) => t.therapist.fullNameAr).join('، '),
@@ -95,7 +96,8 @@ export async function getArrivalsBoard(opts?: { now?: Date }): Promise<ArrivalsB
   const { start, end } = clinicDayRange(now, timeZone);
 
   const todays = await db.appointment.findMany({
-    where: { startsAt: { gte: start, lt: end } },
+    // Patient-less EVENTs never appear on the arrivals board (July #8).
+    where: { startsAt: { gte: start, lt: end }, patientId: { not: null } },
     orderBy: { startsAt: 'asc' },
     select: ROW_SELECT,
   });

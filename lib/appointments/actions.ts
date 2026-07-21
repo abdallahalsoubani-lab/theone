@@ -55,7 +55,7 @@ const revalidate = () => {
  */
 export async function previewConflictsAction(input: {
   appointmentId?: string;
-  patientId: string;
+  patientId?: string | null;
   therapistIds: string[];
   startsAt: string;
   durationMinutes: number;

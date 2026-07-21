@@ -402,6 +402,10 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
           <span className="shrink-0 rounded-full bg-brand-teal/15 px-1.5 py-px text-[9px] font-semibold uppercase text-brand-teal ring-1 ring-inset ring-brand-teal/25">
             {tForm('typeStretchingShort')}
           </span>
+        ) : event.appointment.appointmentType === 'EVENT' ? (
+          <span className="shrink-0 rounded-full bg-brand-blue/15 px-1.5 py-px text-[9px] font-semibold uppercase text-brand-blue ring-1 ring-inset ring-brand-blue/25">
+            {tForm('typeEventShort')}
+          </span>
         ) : null}
       </div>
       <div className="ps-3 text-[11px] font-medium tabular-nums leading-tight opacity-80">

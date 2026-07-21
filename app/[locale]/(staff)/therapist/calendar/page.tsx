@@ -53,7 +53,7 @@ export default async function TherapistCalendarPage({
   const navById = Object.fromEntries(
     appointments.map((a) => [
       a.id,
-      { patientId: a.patientId, sessionNoteId: noteByAppt.get(a.id) },
+      { patientId: a.patientId ?? '', sessionNoteId: noteByAppt.get(a.id) },
     ]),
   );
 

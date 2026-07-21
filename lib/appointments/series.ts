@@ -48,7 +48,7 @@ function toRow(r: RawOccurrence): SeriesOccurrenceRow {
     id: r.id,
     startsAt: r.startsAt,
     durationMinutes: r.durationMinutes,
-    patientId: r.patientId,
+    patientId: r.patientId ?? '', // series are patient SESSIONs (never events)
     therapistIds: r.therapists.map((t) => t.therapistId),
     status: r.status,
     seriesId: r.seriesId,

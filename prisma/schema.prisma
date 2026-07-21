@@ -503,7 +503,13 @@ model Room {
 
 model Appointment {
   id                   String                @id @default(cuid())
-  patientId            String
+  // Nullable for EVENT bookings (July #8 part 2) — a patient-less internal
+  // block (meeting / maintenance / training). SESSION + STRETCHING always
+  // carry a patient; the Zod schema enforces per-type presence/absence.
+  patientId            String?
+  // Free-text label for patient-less EVENTs (SESSIONs derive their label from
+  // the patient). Null for non-EVENT rows.
+  title                String?
   // Booking type (July #8). Defaults to SESSION so every existing row and any
   // caller that doesn't specify a type keeps today's behaviour.
   appointmentType      AppointmentType       @default(SESSION)
@@ -538,7 +544,7 @@ model Appointment {
   // (cancel series, reschedule series) join on this column.
   seriesId             String?
 
-  patient      User          @relation("AppointmentPatient", fields: [patientId], references: [id], onDelete: Restrict)
+  patient      User?         @relation("AppointmentPatient", fields: [patientId], references: [id], onDelete: Restrict)
   therapists   AppointmentTherapist[] @relation("AppointmentTherapists")
   room         Room?         @relation(fields: [roomId], references: [id], onDelete: Restrict)
   createdBy    User          @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
