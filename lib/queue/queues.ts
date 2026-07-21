@@ -25,8 +25,9 @@ export const REMINDER_QUEUE = 'reminders';
 export const HOME_PROGRAM_QUEUE = 'homeProgramReminders';
 export const COMPLIANCE_QUEUE = 'complianceChecks';
 export const WHATSAPP_OUTBOUND_QUEUE = 'whatsappOutbound';
-// Session maintenance — recurring auto-complete of overdue IN_PROGRESS
-// sessions (Fix Prompt 2). Its own queue so the tick is never consumed by
+// Session maintenance — per-appointment delayed jobs that auto-complete an
+// IN_PROGRESS session at its scheduled end (July change request #4; replaces
+// the legacy recurring sweep). Its own queue so the job is never consumed by
 // another worker (see the worker-race note above).
 export const SESSION_MAINTENANCE_QUEUE = 'sessionMaintenance';
 

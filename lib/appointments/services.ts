@@ -9,6 +9,10 @@ import {
   cancelAppointmentReminder,
   enqueueAppointmentReminder,
 } from '@/lib/queue/jobs/appointmentReminder';
+import {
+  cancelAutoCompleteSession,
+  enqueueAutoCompleteSession,
+} from '@/lib/queue/jobs/autoCompleteSession';
 import { notifyWaitlistForFreedSlot } from '@/lib/waitlist/services';
 
 import {
@@ -216,6 +220,12 @@ export const createAppointment = withAudit<
       startsAt: appointment.startsAt,
       config,
     });
+    // July #4 — schedule the zero-grace auto-complete for the session's end.
+    await enqueueAutoCompleteSession({
+      appointmentId: appointment.id,
+      startsAt: appointment.startsAt,
+      durationMinutes: input.durationMinutes,
+    });
 
     // Best-effort confirmation send via the `appointment_confirmation_v2`
     // template seeded in Prompt 2. Mirrors the cancel-side fan-out in
@@ -351,8 +361,9 @@ export const rescheduleAppointment = withAudit<
       }
     });
 
-    // Re-enqueue the reminder against the new fire time.
+    // Re-enqueue the reminder + auto-complete against the new fire time.
     await cancelAppointmentReminder(input.id);
+    await cancelAutoCompleteSession(input.id);
     if (
       existing.status === AppointmentStatus.SCHEDULED ||
       existing.status === AppointmentStatus.CONFIRMED
@@ -362,6 +373,11 @@ export const rescheduleAppointment = withAudit<
         appointmentId: input.id,
         startsAt: input.startsAt,
         config,
+      });
+      await enqueueAutoCompleteSession({
+        appointmentId: input.id,
+        startsAt: input.startsAt,
+        durationMinutes: input.durationMinutes,
       });
     }
 
@@ -630,6 +646,7 @@ export const cancelAppointment = withAudit<
       },
     });
     await cancelAppointmentReminder(input.id);
+    await cancelAutoCompleteSession(input.id);
 
     // Prompt 19 — the slot just freed; suggest it to anyone on the booking
     // waitlist whose window covers it. A multi-therapist session frees the slot
@@ -771,6 +788,7 @@ export const cancelAppointmentSeries = withAudit<
 
     // Side effects after commit.
     await Promise.all(ids.map((id) => cancelAppointmentReminder(id)));
+    await Promise.all(ids.map((id) => cancelAutoCompleteSession(id)));
 
     // Prompt 19 — every freed occurrence may match a waitlisted patient; a
     // multi-therapist occurrence frees the slot per assigned therapist (P20).
@@ -925,26 +943,37 @@ export const rescheduleAppointmentSeries = withAudit<
       }
     });
 
-    // Re-enqueue reminders for active occurrences.
+    // Re-enqueue reminders + auto-complete for active occurrences.
     const ids = planned.map((p) => p.occ.id);
     await Promise.all(ids.map((id) => cancelAppointmentReminder(id)));
+    await Promise.all(ids.map((id) => cancelAutoCompleteSession(id)));
     const config = await getReminderConfig();
+    const activePlanned = planned.filter(
+      (p) =>
+        p.occ.status === AppointmentStatus.SCHEDULED ||
+        p.occ.status === AppointmentStatus.CONFIRMED,
+    );
     await Promise.all(
-      planned
-        .filter(
-          (p) =>
-            p.occ.status === AppointmentStatus.SCHEDULED ||
-            p.occ.status === AppointmentStatus.CONFIRMED,
-        )
-        .map((p) =>
-          enqueueAppointmentReminder({
-            appointmentId: p.occ.id,
-            startsAt: p.newStartsAt,
-            config,
-          }).catch((err: unknown) => {
-            console.error('[appointments.rescheduleSeries] reminder enqueue failed', err);
-          }),
-        ),
+      activePlanned.map((p) =>
+        enqueueAppointmentReminder({
+          appointmentId: p.occ.id,
+          startsAt: p.newStartsAt,
+          config,
+        }).catch((err: unknown) => {
+          console.error('[appointments.rescheduleSeries] reminder enqueue failed', err);
+        }),
+      ),
+    );
+    await Promise.all(
+      activePlanned.map((p) =>
+        enqueueAutoCompleteSession({
+          appointmentId: p.occ.id,
+          startsAt: p.newStartsAt,
+          durationMinutes: p.newDurationMinutes,
+        }).catch((err: unknown) => {
+          console.error('[appointments.rescheduleSeries] auto-complete enqueue failed', err);
+        }),
+      ),
     );
 
     return { appointmentIds: ids, conflictsOverridden: false };
@@ -1169,6 +1198,17 @@ export const updateAppointmentStatus = withAudit<
     // completed, or any terminal state).
     if (to !== AppointmentStatus.SCHEDULED && to !== AppointmentStatus.CONFIRMED) {
       await cancelAppointmentReminder(id);
+    }
+    // Drop the pending auto-complete once the session reaches a terminal state
+    // (manual complete via the arrivals fallback, cancel, or no-show). On
+    // IN_PROGRESS we KEEP it — that job is exactly what completes the session
+    // at its scheduled end (July #4).
+    if (
+      to === AppointmentStatus.COMPLETED ||
+      to === AppointmentStatus.CANCELLED ||
+      to === AppointmentStatus.NO_SHOW
+    ) {
+      await cancelAutoCompleteSession(id);
     }
 
     // Prompt 19 — a no-show frees the slot exactly like a cancellation does;
@@ -1444,6 +1484,18 @@ export const createSeries = withAudit<
           config,
         }).catch((err: unknown) => {
           console.error('[series.create] reminder enqueue failed', { id, err });
+        }),
+      ),
+    );
+    // July #4 — schedule each occurrence's zero-grace auto-complete.
+    await Promise.all(
+      appointmentIds.map((id, i) =>
+        enqueueAutoCompleteSession({
+          appointmentId: id,
+          startsAt: finalOccurrences[i]!.startsAt,
+          durationMinutes: finalOccurrences[i]!.durationMinutes,
+        }).catch((err: unknown) => {
+          console.error('[series.create] auto-complete enqueue failed', { id, err });
         }),
       ),
     );

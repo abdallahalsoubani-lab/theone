@@ -25,6 +25,10 @@ vi.mock('@/lib/queue/jobs/appointmentReminder', () => ({
   enqueueAppointmentReminder: vi.fn(async () => {}),
   cancelAppointmentReminder: vi.fn(async () => {}),
 }));
+vi.mock('@/lib/queue/jobs/autoCompleteSession', () => ({
+  enqueueAutoCompleteSession: vi.fn(async () => {}),
+  cancelAutoCompleteSession: vi.fn(async () => {}),
+}));
 vi.mock('@/lib/notifications/actions', () => ({
   createNotification: vi.fn(async () => ({ id: 'n' })),
 }));

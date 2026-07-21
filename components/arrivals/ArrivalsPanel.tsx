@@ -5,11 +5,10 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useTransition } from 'react';
 import { toast } from 'sonner';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useRouter } from '@/i18n/navigation';
 import { updateStatusAction } from '@/lib/appointments/actions';
-import { canStartSessionAt, minutesOverdue } from '@/lib/appointments/session-timing';
+import { canStartSessionAt } from '@/lib/appointments/session-timing';
 import {
   manualCheckInAction,
   setCurrentDelayAction,
@@ -30,7 +29,6 @@ const REFRESH_MS = 15_000;
  */
 export function ArrivalsPanel({ board, locale }: { board: ArrivalsBoard; locale: string }) {
   const t = useTranslations('arrivals');
-  const tStatus = useTranslations('appointments.status');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
@@ -125,36 +123,30 @@ export function ArrivalsPanel({ board, locale }: { board: ArrivalsBoard; locale:
         {/* In session */}
         <Column title={t('inSession')} count={board.inSession.length} accent="teal">
           {board.inSession.length === 0 && <Empty label={t('noneInSession')} />}
-          {board.inSession.map((r) => {
-            // Overdue while IN_PROGRESS past scheduled end (Prompt 22 §4.4).
-            // No auto-transition — the 15s refresh keeps the minutes fresh.
-            const overdue = minutesOverdue(new Date(), new Date(r.startsAt), r.durationMinutes);
-            return (
-              <Card key={r.appointmentId}>
-                <div className="flex items-start justify-between gap-2">
-                  <Meta
-                    title={name(r)}
-                    lines={[therapist(r), `${t('appointmentAt')} ${time(r.startsAt)}`]}
-                  />
-                  {overdue > 0 ? (
-                    <Badge variant="amber" className="shrink-0 tabular-nums">
-                      {tStatus('overdue', { minutes: overdue })}
-                    </Badge>
-                  ) : null}
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() =>
-                    run(() => updateStatusAction({ id: r.appointmentId, to: 'COMPLETED' }))
-                  }
-                >
-                  <Check className="size-4" /> {t('markDone')}
-                </Button>
-              </Card>
-            );
-          })}
+          {board.inSession.map((r) => (
+            <Card key={r.appointmentId}>
+              <Meta
+                title={name(r)}
+                lines={[therapist(r), `${t('appointmentAt')} ${time(r.startsAt)}`]}
+              />
+              {/* July change request #4 — sessions auto-complete at their
+                  scheduled end (zero grace). This manual complete stays only
+                  as a low-prominence fallback for a session that over-runs or
+                  a missed job (§3.3); the amber "Overdue" badge is gone. */}
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-brand-textMuted"
+                disabled={pending}
+                title={t('markDoneManualHint')}
+                onClick={() =>
+                  run(() => updateStatusAction({ id: r.appointmentId, to: 'COMPLETED' }))
+                }
+              >
+                <Check className="size-4" /> {t('markDone')}
+              </Button>
+            </Card>
+          ))}
         </Column>
 
         {/* Up next — walk-ups checked in manually here */}

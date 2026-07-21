@@ -1651,6 +1651,7 @@
     "viaKiosk": "kiosk",
     "markInSession": "In session",
     "markDone": "Done",
+    "markDoneManualHint": "Sessions finish on their own at their end time — use this only if one over-runs or needs completing early.",
     "startTooEarlyHint": "The session can only be started shortly before its scheduled time.",
     "undoCheckIn": "Undo",
     "checkIn": "Check in",

@@ -197,7 +197,7 @@ function Row({
         <p className="truncate text-lg text-brand-navy/60">{secondary}</p>
       </div>
       {badge && (
-        <span className="shrink-0 rounded-full bg-waiting-green px-3 py-1 text-lg font-medium text-brand-navy tabular-nums">
+        <span className="shrink-0 rounded-full bg-waiting-green px-3 py-1 text-lg font-medium tabular-nums text-brand-navy">
           {badge}
         </span>
       )}

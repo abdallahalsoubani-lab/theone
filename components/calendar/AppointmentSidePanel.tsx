@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/sheet';
 import { Link } from '@/i18n/navigation';
 import { updateStatusAction } from '@/lib/appointments/actions';
-import { canStartSessionAt, minutesOverdue } from '@/lib/appointments/session-timing';
+import { canStartSessionAt } from '@/lib/appointments/session-timing';
 import { formatDate, formatTime } from '@/lib/format/date';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { formatPhone } from '@/lib/format/phone';
@@ -129,16 +129,9 @@ export function AppointmentSidePanel({
     appointment.startsAt,
     sessionStartGraceMinutes,
   );
-  const canComplete = status === AppointmentStatus.IN_PROGRESS;
-  // QA retest #14 — a session is NEVER auto-completed when its scheduled end
-  // passes. Instead, while it stays IN_PROGRESS past the scheduled end we surface
-  // an "Overdue" badge (+ elapsed overtime) and keep End Session available.
-  // minutesOverdue is the single source for this math (Prompt 22 §4.4).
-  const overdueMinutes =
-    status === AppointmentStatus.IN_PROGRESS
-      ? minutesOverdue(new Date(), appointment.startsAt, appointment.durationMinutes)
-      : 0;
-  const isOverdue = overdueMinutes > 0;
+  // July change request #4 — sessions auto-complete at their scheduled end
+  // (worker-driven, zero grace), so there is no manual "End session" here and
+  // no "Overdue" badge (a session no longer sits un-ended past its time).
   const canCancel =
     status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED;
   const canNoShow =
@@ -176,9 +169,6 @@ export function AppointmentSidePanel({
             </span>
             <div className="flex items-center gap-1.5">
               <Badge variant="cyan">{tStatus(statusLabelKey(status))}</Badge>
-              {isOverdue ? (
-                <Badge variant="amber">{tStatus('overdue', { minutes: overdueMinutes })}</Badge>
-              ) : null}
             </div>
           </div>
           <p className="font-medium text-brand-navy">
@@ -225,23 +215,8 @@ export function AppointmentSidePanel({
               {tActions('checkIn')}
             </Button>
           ) : null}
-          {canComplete ? (
-            // End Session (Fix Prompt 2 — Receptionist #3). Calls the same
-            // status action the arrivals panel uses, so the transition works
-            // for anyone with `appointments.complete` from the calendar popup —
-            // it no longer depends on the therapist-only session-note route.
-            // A therapist can still write the SOAP note from the patient file.
-            <Button
-              type="button"
-              className="w-full justify-start"
-              variant="outline"
-              disabled={pending}
-              onClick={() => handleStatus(AppointmentStatus.COMPLETED, 'markedCompleted')}
-            >
-              <Check className="me-2 size-4" />
-              {tActions('endSession')}
-            </Button>
-          ) : null}
+          {/* July change request #4 — the manual "End session" button was
+              removed here; sessions auto-complete at their scheduled end. */}
           {canNoShow ? (
             <Button
               type="button"
