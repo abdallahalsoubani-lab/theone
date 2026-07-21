@@ -30,6 +30,7 @@ import {
   isStartInPast,
   sessionStartTooEarly,
 } from './session-timing';
+import { RESIZE_MIN_MINUTES } from './schemas';
 import type {
   AppointmentCancelParsed,
   AppointmentChangeTherapistParsed,
@@ -281,7 +282,7 @@ export const createAppointment = withAudit<
 
 export const rescheduleAppointment = withAudit<
   [AppointmentRescheduleParsed],
-  { appointmentId: string; conflictsOverridden: boolean }
+  { appointmentId: string; conflictsOverridden: boolean; resized: boolean }
 >(
   {
     entityType: 'Appointment',
@@ -297,12 +298,16 @@ export const rescheduleAppointment = withAudit<
         },
       }),
     extractAfter: (result) => ({
-      event: result.conflictsOverridden ? 'OVERRIDE_CONFLICT' : 'APPOINTMENT_RESCHEDULED',
+      event: result.resized
+        ? 'APPOINTMENT_RESIZED'
+        : result.conflictsOverridden
+          ? 'OVERRIDE_CONFLICT'
+          : 'APPOINTMENT_RESCHEDULED',
     }),
   },
   async function rescheduleInner(
     input: AppointmentRescheduleParsed,
-  ): Promise<{ appointmentId: string; conflictsOverridden: boolean }> {
+  ): Promise<{ appointmentId: string; conflictsOverridden: boolean; resized: boolean }> {
     const session = await auth();
     const existing = await db.appointment.findUnique({
       where: { id: input.id },
@@ -310,7 +315,9 @@ export const rescheduleAppointment = withAudit<
     });
     if (!existing) throw new AppointmentError(notFound);
 
-    if (isStartInPast(input.startsAt)) throw new AppointmentError(inPast);
+    // A resize keeps the start time, so the "start in the past" guard doesn't
+    // apply (nothing is moving into the past). A real reschedule still blocks.
+    if (!input.resize && isStartInPast(input.startsAt)) throw new AppointmentError(inPast);
 
     // Omitted therapistIds → keep the existing set (pure time/room move, e.g.
     // dragging a multi-therapist session). Provided → replace it (e.g. dragging
@@ -318,33 +325,46 @@ export const rescheduleAppointment = withAudit<
     const existingTherapistIds = await getAppointmentTherapistIds(input.id);
     const therapistIds = input.therapistIds ?? existingTherapistIds;
 
-    const conflicts = await checkConflicts({
-      appointmentId: input.id,
-      patientId: existing.patientId,
-      therapistIds,
-      startsAt: input.startsAt,
-      durationMinutes: input.durationMinutes,
-    });
+    // Duration-only resize (July #6): clamp to the calendar grid floor so a
+    // drag never creates a zero/negative-length appointment.
+    const durationMinutes = input.resize
+      ? Math.max(RESIZE_MIN_MINUTES, input.durationMinutes)
+      : input.durationMinutes;
 
-    if (!conflicts.ok) {
-      // Hard-blocked kinds (same-patient overlap, closed day) reject even
-      // with overrideConflicts + the override permission (Prompt 22 §4.1).
-      if (hasHardBlockedConflict(conflicts.conflicts)) {
-        throw new AppointmentError(hardBlockedError(conflicts.conflicts));
-      }
-      if (!input.overrideConflicts) {
-        throw new AppointmentError(conflictError(conflicts.conflicts));
+    // Free resize: the clinic explicitly allows a resize to overlap another
+    // appointment / leave / room booking (confirmed decision #1), so we SKIP
+    // the conflict check entirely for a resize. Booking and drag-to-reschedule
+    // are unaffected — they still run the full check below.
+    let conflictsOverridden = false;
+    if (!input.resize) {
+      const conflicts = await checkConflicts({
+        appointmentId: input.id,
+        patientId: existing.patientId,
+        therapistIds,
+        startsAt: input.startsAt,
+        durationMinutes,
+      });
+      if (!conflicts.ok) {
+        // Hard-blocked kinds (same-patient overlap, closed day) reject even
+        // with overrideConflicts + the override permission (Prompt 22 §4.1).
+        if (hasHardBlockedConflict(conflicts.conflicts)) {
+          throw new AppointmentError(hardBlockedError(conflicts.conflicts));
+        }
+        if (!input.overrideConflicts) {
+          throw new AppointmentError(conflictError(conflicts.conflicts));
+        }
+        conflictsOverridden = true;
       }
     }
 
     await db.$transaction(async (tx) => {
       await tx.appointment.update({
         where: { id: input.id },
-        data: {
-          startsAt: input.startsAt,
-          durationMinutes: input.durationMinutes,
-          roomId: input.roomId ?? null,
-        },
+        // A resize touches ONLY the duration — start time and room are left
+        // exactly as they were. A reschedule moves start + room too.
+        data: input.resize
+          ? { durationMinutes }
+          : { startsAt: input.startsAt, durationMinutes, roomId: input.roomId ?? null },
       });
       if (input.therapistIds) {
         await setAppointmentTherapistsTx(tx, input.id, therapistIds);
@@ -377,13 +397,14 @@ export const rescheduleAppointment = withAudit<
       await enqueueAutoCompleteSession({
         appointmentId: input.id,
         startsAt: input.startsAt,
-        durationMinutes: input.durationMinutes,
+        durationMinutes,
       });
     }
 
     return {
       appointmentId: input.id,
-      conflictsOverridden: !conflicts.ok && input.overrideConflicts,
+      conflictsOverridden,
+      resized: input.resize,
     };
   },
 );

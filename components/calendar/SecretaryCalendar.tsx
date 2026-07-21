@@ -47,6 +47,9 @@ export interface SecretaryCalendarProps {
   onSelectEvent?: (appointmentId: string) => void;
   /** Called when an event is dragged to a new slot/resource (reschedule). */
   onEventDrop?: (args: { appointmentId: string; start: Date; resourceId?: string }) => void;
+  /** Called when an event's edge is dragged to change its DURATION (July #6).
+   *  Start is unchanged; `end` is the new end time. */
+  onEventResize?: (args: { appointmentId: string; start: Date; end: Date }) => void;
   /**
    * When true (Secretary / Admin / Doctor — Prompt 15 §2), events are
    * drag-to-reschedule and empty slots are click-to-book. When false the
@@ -123,6 +126,7 @@ export function SecretaryCalendar({
   onSelectSlot,
   onSelectEvent,
   onEventDrop,
+  onEventResize,
   editable = true,
 }: SecretaryCalendarProps) {
   const locale = useLocale();
@@ -240,7 +244,12 @@ export function SecretaryCalendar({
           draggableAccessor={(event) =>
             Boolean(editable && (event as AppointmentEvent).appointment)
           }
-          resizable={false}
+          // Edge-resize to change duration (July #6) — gated on the same
+          // `editable` role flag as drag; never on the leave overlays.
+          resizable={editable}
+          resizableAccessor={(event) =>
+            Boolean(editable && (event as AppointmentEvent).appointment)
+          }
           onEventDrop={
             editable
               ? ({ event, start, resourceId }) => {
@@ -250,6 +259,19 @@ export function SecretaryCalendar({
                     appointmentId: appt.id,
                     start: start as Date,
                     resourceId: typeof resourceId === 'string' ? resourceId : undefined,
+                  });
+                }
+              : undefined
+          }
+          onEventResize={
+            editable
+              ? ({ event, start, end }) => {
+                  const appt = (event as AppointmentEvent).appointment;
+                  if (!appt) return;
+                  onEventResize?.({
+                    appointmentId: appt.id,
+                    start: start as Date,
+                    end: end as Date,
                   });
                 }
               : undefined

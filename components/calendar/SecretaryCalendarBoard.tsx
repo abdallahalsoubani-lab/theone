@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { rescheduleAppointmentAction } from '@/lib/appointments/actions';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
 import type { CalendarAppointment } from '@/lib/appointments/queries';
+import { RESIZE_MIN_MINUTES } from '@/lib/appointments/schemas';
 import type { SeriesEditMode } from '@/lib/appointments/schemas';
 
 interface Props {
@@ -176,6 +177,36 @@ export function SecretaryCalendarBoard({
     dispatchReschedule(drop, 'ONE');
   };
 
+  // Edge-resize → duration-only change (July #6). Start is unchanged; free
+  // resize (overlaps allowed, conflict check skipped server-side). Always a
+  // single-appointment op — no series scope picker, even for a series member.
+  const handleEventResize = (args: { appointmentId: string; start: Date; end: Date }) => {
+    const existing = appointments.find((a) => a.id === args.appointmentId);
+    if (!existing) return;
+    const durationMinutes = Math.max(
+      RESIZE_MIN_MINUTES,
+      Math.round((args.end.getTime() - existing.startsAt.getTime()) / 60_000),
+    );
+    if (durationMinutes === existing.durationMinutes) return; // no real change
+    startTransition(async () => {
+      const r = await rescheduleAppointmentAction({
+        id: args.appointmentId,
+        startsAt: existing.startsAt, // unchanged — duration-only
+        durationMinutes,
+        resize: true,
+        overrideConflicts: false,
+        seriesMode: 'ONE',
+      });
+      if (!r.ok) {
+        toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
+        router.refresh(); // revert the optimistic resize
+        return;
+      }
+      toast.success(locale === 'ar' ? 'تم تعديل مدة الموعد' : 'Appointment duration updated');
+      router.refresh();
+    });
+  };
+
   return (
     <div className={pending ? 'opacity-90' : ''}>
       <div className="mb-3 flex justify-end">
@@ -199,6 +230,7 @@ export function SecretaryCalendarBoard({
         onSelectSlot={handleSlotSelect}
         onSelectEvent={handleEventSelect}
         onEventDrop={handleEventDrop}
+        onEventResize={handleEventResize}
       />
 
       <CreateAppointmentModal

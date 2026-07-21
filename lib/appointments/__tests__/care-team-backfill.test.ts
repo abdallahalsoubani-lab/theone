@@ -337,3 +337,86 @@ describe('hard-blocked conflicts reject even with override (Prompt 22 §4.1/§4.
     ).resolves.toBeDefined();
   });
 });
+
+describe('appointment resize — duration-only, free (July #6)', () => {
+  const auditLogs = (__state as unknown as { auditLogs: Array<Record<string, unknown>> }).auditLogs;
+  const startOf = (id: string) => __state.appointments.find((a) => a.id === id)!.startsAt as Date;
+
+  it('changes duration, keeps startsAt, audits RESIZED, and NEVER calls the conflict engine', async () => {
+    const { appointmentId } = await createAppointment(baseCreate);
+    const start = startOf(appointmentId);
+    auditLogs.length = 0;
+    vi.mocked(checkConflicts).mockClear();
+
+    const res = await rescheduleAppointment({
+      id: appointmentId,
+      startsAt: start, // unchanged — duration-only
+      durationMinutes: 60,
+      overrideConflicts: false,
+      seriesMode: 'ONE',
+      resize: true,
+    } as Parameters<typeof rescheduleAppointment>[0]);
+
+    expect(res).toMatchObject({ resized: true });
+    const appt = __state.appointments.find((a) => a.id === appointmentId)!;
+    expect(appt.durationMinutes).toBe(60);
+    expect(appt.startsAt).toEqual(start); // start not moved
+    expect(checkConflicts).not.toHaveBeenCalled(); // free resize
+    expect(auditLogs.at(-1)).toMatchObject({ after: { event: 'APPOINTMENT_RESIZED' } });
+  });
+
+  it('is allowed even when it would overlap — the case that differs from drop', async () => {
+    const { appointmentId } = await createAppointment(baseCreate);
+    const start = startOf(appointmentId);
+    // Even if the engine WOULD flag an overlap, resize never consults it.
+    vi.mocked(checkConflicts).mockResolvedValue({
+      ok: false,
+      conflicts: [{ kind: 'THERAPIST_OVERLAP', therapist: {}, appointment: {} }],
+    } as never);
+    vi.mocked(checkConflicts).mockClear();
+    await expect(
+      rescheduleAppointment({
+        id: appointmentId,
+        startsAt: start,
+        durationMinutes: 90,
+        overrideConflicts: false,
+        seriesMode: 'ONE',
+        resize: true,
+      } as Parameters<typeof rescheduleAppointment>[0]),
+    ).resolves.toMatchObject({ resized: true });
+    expect(checkConflicts).not.toHaveBeenCalled();
+    vi.mocked(checkConflicts).mockResolvedValue({ ok: true } as never); // restore default
+  });
+
+  it('clamps a sub-floor resize up to the 15-min grid minimum', async () => {
+    const { appointmentId } = await createAppointment(baseCreate);
+    await rescheduleAppointment({
+      id: appointmentId,
+      startsAt: startOf(appointmentId),
+      durationMinutes: 5,
+      overrideConflicts: false,
+      seriesMode: 'ONE',
+      resize: true,
+    } as Parameters<typeof rescheduleAppointment>[0]);
+    expect(__state.appointments.find((a) => a.id === appointmentId)!.durationMinutes).toBe(15);
+  });
+
+  it('REGRESSION: a non-resize reschedule STILL blocks on a conflict', async () => {
+    const { appointmentId } = await createAppointment(baseCreate);
+    vi.mocked(checkConflicts).mockResolvedValueOnce({
+      ok: false,
+      conflicts: [{ kind: 'THERAPIST_OVERLAP', therapist: {}, appointment: {} }],
+    } as never);
+    await expect(
+      rescheduleAppointment({
+        id: appointmentId,
+        startsAt: new Date(futureStart().getTime() + 60 * 60 * 1000),
+        durationMinutes: 30,
+        roomId: null,
+        overrideConflicts: false,
+        seriesMode: 'ONE',
+        resize: false,
+      } as Parameters<typeof rescheduleAppointment>[0]),
+    ).rejects.toBeDefined();
+  });
+});

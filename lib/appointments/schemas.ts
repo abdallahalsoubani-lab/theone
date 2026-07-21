@@ -37,6 +37,13 @@ export type AppointmentCreateInput = z.infer<typeof appointmentCreateSchema>;
 export const seriesEditModeSchema = z.enum(['ONE', 'FOLLOWING', 'ALL']);
 export type SeriesEditMode = z.infer<typeof seriesEditModeSchema>;
 
+/**
+ * Minimum appointment length a calendar edge-resize can produce — the grid
+ * slot size (step=15). A resize dragged below this clamps up to it so a drag
+ * never creates a zero/negative-length appointment (July #6).
+ */
+export const RESIZE_MIN_MINUTES = 15;
+
 export const appointmentRescheduleSchema = z.object({
   id: z.string().min(1),
   startsAt: z.coerce.date(),
@@ -62,6 +69,15 @@ export const appointmentRescheduleSchema = z.object({
   /** Defaults to ONE so the existing single-appointment paths continue
    *  to work unchanged. FOLLOWING / ALL fan out across the series. */
   seriesMode: seriesEditModeSchema.default('ONE'),
+  /**
+   * Duration-only resize from the calendar edge (July change request #6).
+   * When true this is NOT a reschedule: `startsAt` is unchanged and only the
+   * end (durationMinutes) moves. The clinic wants free resize — it SKIPS the
+   * conflict check (overlaps allowed) and the "start in the past" guard, and
+   * is audited as APPOINTMENT_RESIZED. Always a single-appointment op
+   * (seriesMode ONE); no therapist/room change.
+   */
+  resize: z.boolean().default(false),
 });
 
 export type AppointmentRescheduleInput = z.input<typeof appointmentRescheduleSchema>;
