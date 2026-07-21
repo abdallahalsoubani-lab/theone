@@ -2,31 +2,79 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/auth', () => ({ auth: vi.fn(async () => null) }));
 
+interface MockUser {
+  id: string;
+  fullNameEn: string;
+  fullNameAr: string;
+  deletedAt: Date | null;
+}
+interface MockAppt {
+  id: string;
+  patientId: string;
+  startsAt: Date;
+  durationMinutes: number;
+  status: string;
+  checkedInAt: Date | null;
+  checkedInVia: string | null;
+}
+
 vi.mock('@/lib/db', () => {
-  type Appt = {
-    id: string;
-    patientId: string;
-    startsAt: Date;
-    durationMinutes: number;
-    status: string;
-    checkedInAt: Date | null;
-    checkedInVia: string | null;
-  };
   const state = {
     settings: { timezone: 'Asia/Amman', currentDelayMinutes: 10 },
-    users: [] as Array<{ id: string; phone: string; fullNameEn: string; fullNameAr: string }>,
-    appts: [] as Appt[],
+    users: [] as MockUser[],
+    appts: [] as MockAppt[],
     audits: [] as Array<{ actorId: string; entityId: string }>,
   };
+  const inWindow = (a: MockAppt, w: { gte: Date; lt: Date }) =>
+    a.startsAt.getTime() >= w.gte.getTime() && a.startsAt.getTime() < w.lt.getTime();
   return {
     __state: state,
     db: {
       clinicSettings: { findUnique: vi.fn(async () => state.settings) },
       user: {
-        findFirst: vi.fn(async ({ where }: { where: { phone: string } }) => {
-          const u = state.users.find((x) => x.phone === where.phone);
+        // checkInByName looks up by id; a helper still supports phone-less lookup.
+        findFirst: vi.fn(async ({ where }: { where: { id?: string } }) => {
+          const u = state.users.find((x) => x.id === where.id && !x.deletedAt);
           return u ?? null;
         }),
+        // searchTodaysPatients: name-contains among today's appointment-holders.
+        findMany: vi.fn(
+          async ({
+            where,
+            take,
+          }: {
+            where: {
+              OR: Array<{ fullNameEn?: { contains: string }; fullNameAr?: { contains: string } }>;
+              appointmentsAsPatient: { some: { startsAt: { gte: Date; lt: Date } } };
+            };
+            take: number;
+          }) => {
+            const win = where.appointmentsAsPatient.some.startsAt;
+            const en = where.OR.find((o) => o.fullNameEn)?.fullNameEn?.contains ?? '';
+            const ar = where.OR.find((o) => o.fullNameAr)?.fullNameAr?.contains ?? '';
+            const matched = state.users.filter((u) => {
+              if (u.deletedAt) return false;
+              const nameHit =
+                (en && u.fullNameEn.toLowerCase().includes(en.toLowerCase())) ||
+                (ar && u.fullNameAr.includes(ar));
+              if (!nameHit) return false;
+              return state.appts.some((a) => a.patientId === u.id && inWindow(a, win));
+            });
+            return matched.slice(0, take).map((u) => ({
+              id: u.id,
+              fullNameEn: u.fullNameEn,
+              fullNameAr: u.fullNameAr,
+              appointmentsAsPatient: state.appts
+                .filter((a) => a.patientId === u.id && inWindow(a, win))
+                .sort((x, y) => x.startsAt.getTime() - y.startsAt.getTime())
+                .map((a) => ({
+                  id: a.id,
+                  startsAt: a.startsAt,
+                  durationMinutes: a.durationMinutes,
+                })),
+            }));
+          },
+        ),
       },
       appointment: {
         findMany: vi.fn(
@@ -43,8 +91,7 @@ vi.mock('@/lib/db', () => {
               .filter(
                 (a) =>
                   a.patientId === where.patientId &&
-                  a.startsAt.getTime() >= where.startsAt.gte.getTime() &&
-                  a.startsAt.getTime() < where.startsAt.lt.getTime() &&
+                  inWindow(a, where.startsAt) &&
                   where.status.in.includes(a.status),
               )
               .sort((x, y) => x.startsAt.getTime() - y.startsAt.getTime()),
@@ -78,40 +125,24 @@ import * as dbModule from '@/lib/db';
 
 import { CheckInVia } from '@prisma/client';
 
-import { checkInByPhone, recordCheckIn } from '../kiosk';
+import { checkInByName, recordCheckIn, searchTodaysPatients } from '../kiosk';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const state = (dbModule as any).__state as {
   settings: { timezone: string; currentDelayMinutes: number };
-  users: Array<{ id: string; phone: string; fullNameEn: string; fullNameAr: string }>;
-  appts: Array<{
-    id: string;
-    patientId: string;
-    startsAt: Date;
-    durationMinutes: number;
-    status: string;
-    checkedInAt: Date | null;
-    checkedInVia: string | null;
-  }>;
+  users: MockUser[];
+  appts: MockAppt[];
   audits: Array<{ actorId: string; entityId: string }>;
 };
 
-// Fixed reference instant: 2026-06-10 12:00 Amman (09:00Z). Clinic day window
-// is 2026-06-09T21:00Z .. 2026-06-10T21:00Z.
+// 2026-06-10 12:00 Amman (09:00Z). Clinic day: 2026-06-09T21:00Z .. 2026-06-10T21:00Z.
 const NOW = new Date('2026-06-10T09:00:00Z');
-const PHONE = '+962790123456';
 
-function seedPatientWithAppt(over?: Partial<(typeof state.appts)[number]>) {
-  state.users.push({
-    id: 'pat-1',
-    phone: PHONE,
-    fullNameEn: 'Abdullah Khalil',
-    fullNameAr: 'عبدالله خليل',
-  });
+function addPatient(id: string, en: string, ar: string) {
+  state.users.push({ id, fullNameEn: en, fullNameAr: ar, deletedAt: null });
+}
+function addAppt(over: Partial<MockAppt> & Pick<MockAppt, 'id' | 'patientId' | 'startsAt'>) {
   state.appts.push({
-    id: 'appt-1',
-    patientId: 'pat-1',
-    startsAt: new Date('2026-06-10T10:00:00Z'),
     durationMinutes: 30,
     status: 'CONFIRMED',
     checkedInAt: null,
@@ -127,164 +158,150 @@ beforeEach(() => {
   state.audits = [];
 });
 
-describe('checkInByPhone', () => {
-  it('checks in a known phone with a today appointment (audited, via KIOSK)', async () => {
-    seedPatientWithAppt();
-    const res = await checkInByPhone({ phone: '0790123456', now: NOW });
-    expect(res).toEqual({ kind: 'CHECKED_IN', firstName: 'Abdullah', delayMinutes: 10 });
+describe('checkInByName', () => {
+  it('checks in a selected patient with a today appointment (audited, via KIOSK)', async () => {
+    addPatient('pat-1', 'Abdullah Khalil', 'عبدالله خليل');
+    addAppt({ id: 'appt-1', patientId: 'pat-1', startsAt: new Date('2026-06-10T10:00:00Z') });
+    const res = await checkInByName({ patientId: 'pat-1', now: NOW });
+    expect(res).toEqual({
+      kind: 'CHECKED_IN',
+      firstName: 'Abdullah',
+      delayMinutes: 10,
+      appointmentCount: 1,
+    });
     expect(state.appts[0]!.checkedInAt).toEqual(NOW);
     expect(state.appts[0]!.checkedInVia).toBe('KIOSK');
-    // Actor is the patient themselves.
     expect(state.audits).toEqual([{ actorId: 'pat-1', entityId: 'appt-1' }]);
   });
 
-  it('returns the generic NO_APPOINTMENT for an unknown phone (nothing written)', async () => {
-    const res = await checkInByPhone({ phone: '0799999999', now: NOW });
+  it('returns generic NO_APPOINTMENT for an unknown patient id (nothing written)', async () => {
+    const res = await checkInByName({ patientId: 'nope', now: NOW });
     expect(res).toEqual({ kind: 'NO_APPOINTMENT' });
     expect(state.audits).toHaveLength(0);
   });
 
-  it('returns NO_APPOINTMENT when the patient has no appointment today', async () => {
-    state.users.push({ id: 'pat-1', phone: PHONE, fullNameEn: 'Abdullah', fullNameAr: 'عبدالله' });
-    state.appts.push({
-      id: 'appt-x',
+  it('reports ALREADY_CHECKED_IN on a second check-in (no second write)', async () => {
+    addPatient('pat-1', 'Abdullah', 'عبدالله');
+    addAppt({
+      id: 'appt-1',
       patientId: 'pat-1',
-      startsAt: new Date('2026-06-12T10:00:00Z'), // different day
-      durationMinutes: 30,
-      status: 'CONFIRMED',
-      checkedInAt: null,
-      checkedInVia: null,
+      startsAt: new Date('2026-06-10T10:00:00Z'),
+      checkedInAt: new Date('2026-06-10T08:30:00Z'),
+      checkedInVia: 'KIOSK',
     });
-    const res = await checkInByPhone({ phone: PHONE, now: NOW });
-    expect(res).toEqual({ kind: 'NO_APPOINTMENT' });
-  });
-
-  it('reports ALREADY_CHECKED_IN on a second submit (no second write)', async () => {
-    seedPatientWithAppt({ checkedInAt: new Date('2026-06-10T08:30:00Z'), checkedInVia: 'KIOSK' });
-    const res = await checkInByPhone({ phone: PHONE, now: NOW });
+    const res = await checkInByName({ patientId: 'pat-1', now: NOW });
     expect(res.kind).toBe('ALREADY_CHECKED_IN');
     expect(state.audits).toHaveLength(0);
   });
 
-  it('checks into the NEXT UPCOMING appointment when there are two today', async () => {
-    state.users.push({ id: 'pat-1', phone: PHONE, fullNameEn: 'Abdullah', fullNameAr: 'عبدالله' });
-    state.appts.push(
-      {
-        id: 'late',
-        patientId: 'pat-1',
-        startsAt: new Date('2026-06-10T12:00:00Z'),
-        durationMinutes: 30,
-        status: 'CONFIRMED',
-        checkedInAt: null,
-        checkedInVia: null,
-      },
-      {
-        id: 'early',
-        patientId: 'pat-1',
-        startsAt: new Date('2026-06-10T10:00:00Z'),
-        durationMinutes: 30,
-        status: 'SCHEDULED',
-        checkedInAt: null,
-        checkedInVia: null,
-      },
-    );
-    const res = await checkInByPhone({ phone: PHONE, now: NOW });
-    expect(res.kind).toBe('CHECKED_IN');
-    expect(state.appts.find((a) => a.id === 'early')!.checkedInAt).toEqual(NOW);
-    expect(state.appts.find((a) => a.id === 'late')!.checkedInAt).toBeNull();
-  });
-
-  it('rejects an invalid phone shape generically', async () => {
-    seedPatientWithAppt();
-    const res = await checkInByPhone({ phone: 'not-a-phone', now: NOW });
-    expect(res).toEqual({ kind: 'NO_APPOINTMENT' });
-  });
-
-  it('reflects the live currentDelayMinutes setting in the result', async () => {
-    seedPatientWithAppt();
+  it('reflects the live currentDelayMinutes setting', async () => {
+    addPatient('pat-1', 'Abdullah', 'عبدالله');
+    addAppt({ id: 'appt-1', patientId: 'pat-1', startsAt: new Date('2026-06-10T10:00:00Z') });
     state.settings.currentDelayMinutes = 25;
-    const res = await checkInByPhone({ phone: PHONE, now: NOW });
+    const res = await checkInByName({ patientId: 'pat-1', now: NOW });
     expect(res).toMatchObject({ kind: 'CHECKED_IN', delayMinutes: 25 });
   });
 });
 
-describe('checkInByPhone — passed appointment (Prompt 22 §4.3)', () => {
-  // Appointment 13:00 Amman (10:00Z) + 30m; patient shows up at 17:00 Amman.
-  const LATE_NOW = new Date('2026-06-10T14:00:00Z');
+describe('checkInByName — arrival grouping (July #3)', () => {
+  it('back-to-back run → ONE check-in marks the whole run arrived', async () => {
+    addPatient('pat-1', 'Sara', 'سارة');
+    addAppt({ id: 'a', patientId: 'pat-1', startsAt: new Date('2026-06-10T10:00:00Z') }); // 10:00-10:30
+    addAppt({ id: 'b', patientId: 'pat-1', startsAt: new Date('2026-06-10T10:30:00Z') }); // 10:30-11:00
+    const res = await checkInByName({ patientId: 'pat-1', now: NOW });
+    expect(res).toMatchObject({ kind: 'CHECKED_IN', appointmentCount: 2 });
+    expect(state.appts.find((a) => a.id === 'a')!.checkedInAt).toEqual(NOW);
+    expect(state.appts.find((a) => a.id === 'b')!.checkedInAt).toEqual(NOW);
+    expect(state.audits.map((x) => x.entityId).sort()).toEqual(['a', 'b']);
+  });
 
-  it('records the arrival but returns APPOINTMENT_PASSED (never a future wait)', async () => {
-    seedPatientWithAppt();
-    const res = await checkInByPhone({ phone: PHONE, now: LATE_NOW });
+  it('spaced-apart → only the current one is arrived; the later stays open', async () => {
+    addPatient('pat-1', 'Sara', 'سارة');
+    addAppt({ id: 'a', patientId: 'pat-1', startsAt: new Date('2026-06-10T10:00:00Z') });
+    addAppt({ id: 'c', patientId: 'pat-1', startsAt: new Date('2026-06-10T13:00:00Z') }); // gap
+    const res = await checkInByName({ patientId: 'pat-1', now: NOW });
+    expect(res).toMatchObject({ kind: 'CHECKED_IN', appointmentCount: 1 });
+    expect(state.appts.find((a) => a.id === 'a')!.checkedInAt).toEqual(NOW);
+    expect(state.appts.find((a) => a.id === 'c')!.checkedInAt).toBeNull();
+  });
+
+  it('already-arrived appointments are excluded from the run', async () => {
+    addPatient('pat-1', 'Sara', 'سارة');
+    addAppt({
+      id: 'a',
+      patientId: 'pat-1',
+      startsAt: new Date('2026-06-10T10:00:00Z'),
+      checkedInAt: NOW,
+      checkedInVia: 'KIOSK',
+    });
+    addAppt({ id: 'b', patientId: 'pat-1', startsAt: new Date('2026-06-10T10:30:00Z') });
+    const res = await checkInByName({ patientId: 'pat-1', now: NOW });
+    // Only 'b' is open → it alone is the arrival.
+    expect(res).toMatchObject({ kind: 'CHECKED_IN', appointmentCount: 1 });
+    expect(state.audits.map((x) => x.entityId)).toEqual(['b']);
+  });
+});
+
+describe('checkInByName — passed appointment (Prompt 22 §4.3)', () => {
+  const LATE_NOW = new Date('2026-06-10T14:00:00Z');
+  it('records the arrival but returns APPOINTMENT_PASSED', async () => {
+    addPatient('pat-1', 'Abdullah', 'عبدالله');
+    addAppt({ id: 'appt-1', patientId: 'pat-1', startsAt: new Date('2026-06-10T10:00:00Z') });
+    const res = await checkInByName({ patientId: 'pat-1', now: LATE_NOW });
     expect(res).toEqual({
       kind: 'APPOINTMENT_PASSED',
       firstName: 'Abdullah',
       startsAtIso: '2026-06-10T10:00:00.000Z',
     });
-    // Owner decision: the patient is physically present — the check-in IS
-    // recorded so reception sees them on the arrivals board.
     expect(state.appts[0]!.checkedInAt).toEqual(LATE_NOW);
-    expect(state.audits).toEqual([{ actorId: 'pat-1', entityId: 'appt-1' }]);
+  });
+});
+
+describe('searchTodaysPatients (July #1 — privacy)', () => {
+  beforeEach(() => {
+    addPatient('pat-1', 'Abdullah Khalil', 'عبدالله خليل');
+    addPatient('pat-2', 'Abeer Nasser', 'عبير ناصر');
+    addPatient('pat-3', 'Omar Ziad', 'عمر زياد'); // no appointment today
+    addAppt({ id: 'a1', patientId: 'pat-1', startsAt: new Date('2026-06-10T10:00:00Z') });
+    addAppt({ id: 'a2', patientId: 'pat-2', startsAt: new Date('2026-06-10T11:00:00Z') });
+    addAppt({ id: 'a3', patientId: 'pat-3', startsAt: new Date('2026-06-12T11:00:00Z') }); // other day
   });
 
-  it('one minute past the end is already "passed" (boundary)', async () => {
-    seedPatientWithAppt();
-    const res = await checkInByPhone({ phone: PHONE, now: new Date('2026-06-10T10:31:00Z') });
-    expect(res.kind).toBe('APPOINTMENT_PASSED');
+  it('returns NOTHING for a query shorter than the minimum (no full-list reveal)', async () => {
+    expect(await searchTodaysPatients({ query: 'a', now: NOW })).toEqual([]);
+    expect(await searchTodaysPatients({ query: '', now: NOW })).toEqual([]);
   });
 
-  it('a mid-slot latecomer still checks in normally', async () => {
-    seedPatientWithAppt();
-    const res = await checkInByPhone({ phone: PHONE, now: new Date('2026-06-10T10:10:00Z') });
-    expect(res).toMatchObject({ kind: 'CHECKED_IN', delayMinutes: 10 });
+  it('matches on the English name and returns both scripts + appointment times, no phone', async () => {
+    const res = await searchTodaysPatients({ query: 'Abd', now: NOW });
+    expect(res).toHaveLength(1);
+    expect(res[0]).toMatchObject({
+      patientId: 'pat-1',
+      fullNameEn: 'Abdullah Khalil',
+      fullNameAr: 'عبدالله خليل',
+    });
+    expect(res[0]!.appointments[0]).toMatchObject({ id: 'a1', durationMinutes: 30 });
+    expect(JSON.stringify(res)).not.toContain('phone');
   });
 
-  it('an upcoming appointment wins over a passed one (two appts today)', async () => {
-    state.users.push({ id: 'pat-1', phone: PHONE, fullNameEn: 'Abdullah', fullNameAr: 'عبدالله' });
-    state.appts.push(
-      {
-        id: 'passed',
-        patientId: 'pat-1',
-        startsAt: new Date('2026-06-10T06:00:00Z'),
-        durationMinutes: 30,
-        status: 'CONFIRMED',
-        checkedInAt: null,
-        checkedInVia: null,
-      },
-      {
-        id: 'upcoming',
-        patientId: 'pat-1',
-        startsAt: new Date('2026-06-10T15:00:00Z'),
-        durationMinutes: 30,
-        status: 'CONFIRMED',
-        checkedInAt: null,
-        checkedInVia: null,
-      },
-    );
-    const res = await checkInByPhone({ phone: PHONE, now: LATE_NOW });
-    expect(res.kind).toBe('CHECKED_IN');
-    expect(state.appts.find((a) => a.id === 'upcoming')!.checkedInAt).toEqual(LATE_NOW);
-    expect(state.appts.find((a) => a.id === 'passed')!.checkedInAt).toBeNull();
+  it('matches on the Arabic name', async () => {
+    const res = await searchTodaysPatients({ query: 'عبير', now: NOW });
+    expect(res.map((r) => r.patientId)).toEqual(['pat-2']);
   });
 
-  it('re-submitting after a passed check-in stays APPOINTMENT_PASSED (no second write)', async () => {
-    seedPatientWithAppt({ checkedInAt: new Date('2026-06-10T13:45:00Z'), checkedInVia: 'KIOSK' });
-    const res = await checkInByPhone({ phone: PHONE, now: LATE_NOW });
-    expect(res.kind).toBe('APPOINTMENT_PASSED');
-    expect(state.audits).toHaveLength(0);
+  it('excludes patients with no appointment today', async () => {
+    const res = await searchTodaysPatients({ query: 'Omar', now: NOW });
+    expect(res).toEqual([]);
+  });
+
+  it('an unknown name returns an empty list (generic negative)', async () => {
+    expect(await searchTodaysPatients({ query: 'Zzzz', now: NOW })).toEqual([]);
   });
 });
 
 describe('recordCheckIn (staff manual)', () => {
   it('marks via STAFF with the staff member as the audit actor', async () => {
-    state.appts.push({
-      id: 'appt-1',
-      patientId: 'pat-1',
-      startsAt: new Date('2026-06-10T10:00:00Z'),
-      durationMinutes: 30,
-      status: 'CONFIRMED',
-      checkedInAt: null,
-      checkedInVia: null,
-    });
+    addAppt({ id: 'appt-1', patientId: 'pat-1', startsAt: new Date('2026-06-10T10:00:00Z') });
     await recordCheckIn({
       appointmentId: 'appt-1',
       via: CheckInVia.STAFF,

@@ -11,16 +11,24 @@ import { withAudit } from '@/lib/audit/withAudit';
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac/guards';
 
-import { checkInByPhone, recordCheckIn, type KioskCheckInResult } from './kiosk';
+import {
+  checkInByName,
+  recordCheckIn,
+  searchTodaysPatients,
+  type KioskCheckInResult,
+  type KioskSearchMatch,
+} from './kiosk';
 import {
   arrivalActionSchema,
   arrivalsSurfaceSchema,
   currentDelaySchema,
-  kioskCheckInSchema,
+  kioskCheckInByNameSchema,
+  kioskSearchSchema,
   type ArrivalActionInput,
   type ArrivalsSurfaceInput,
   type CurrentDelayInput,
-  type KioskCheckInInput,
+  type KioskCheckInByNameInput,
+  type KioskSearchInput,
 } from './schemas';
 import { generateAccessToken, validateArrivalsToken } from './tokens';
 
@@ -46,15 +54,47 @@ export type KioskActionResult =
   | { kind: 'INVALID_TOKEN' }
   | { kind: 'RATE_LIMITED' };
 
+export type KioskSearchResult =
+  | { kind: 'MATCHES'; matches: KioskSearchMatch[] }
+  | { kind: 'INVALID_TOKEN' }
+  | { kind: 'RATE_LIMITED' };
+
 /**
- * Public kiosk check-in (Prompt 18 §1). No staff session — gated by the kiosk
- * device token and rate-limited per device IP (10 attempts/min). Every attempt
- * is rate-counted; matches are audited inside `recordCheckIn` (actor = patient).
- * Returns a generic `NO_APPOINTMENT` for both unknown phone and no-appointment
- * so the kiosk can never be used to probe whether a number is registered.
+ * Public kiosk NAME SEARCH (July #1). Token-gated + rate-limited per device IP
+ * (search-as-you-type gets a more generous bucket than the commit). PRIVACY:
+ * `searchTodaysPatients` never returns the full day's list — only matches for a
+ * typed query, capped, name-only. Any error → empty matches (reveals nothing).
  */
-export async function kioskCheckInAction(input: KioskCheckInInput): Promise<KioskActionResult> {
-  const parsed = kioskCheckInSchema.safeParse(input);
+export async function kioskSearchAction(input: KioskSearchInput): Promise<KioskSearchResult> {
+  const parsed = kioskSearchSchema.safeParse(input);
+  if (!parsed.success) return { kind: 'INVALID_TOKEN' };
+
+  if (!(await validateArrivalsToken('kiosk', parsed.data.token))) {
+    return { kind: 'INVALID_TOKEN' };
+  }
+
+  const ip = await clientIp();
+  const rl = await rateLimit(`kiosk-search:${ip}`, 40, 60);
+  if (!rl.allowed) return { kind: 'RATE_LIMITED' };
+
+  try {
+    return { kind: 'MATCHES', matches: await searchTodaysPatients({ query: parsed.data.query }) };
+  } catch {
+    return { kind: 'MATCHES', matches: [] };
+  }
+}
+
+/**
+ * Public kiosk CHECK-IN COMMIT (July #1 confirm → #3 grouping). Called only
+ * after the patient selects their name and taps Confirm. Token-gated +
+ * rate-limited (10/min). Matches are audited inside `recordCheckIn`
+ * (actor = patient); a back-to-back run is one arrival. Generic
+ * `NO_APPOINTMENT` on any miss so the screen reveals nothing.
+ */
+export async function kioskCheckInByNameAction(
+  input: KioskCheckInByNameInput,
+): Promise<KioskActionResult> {
+  const parsed = kioskCheckInByNameSchema.safeParse(input);
   if (!parsed.success) return { kind: 'INVALID_TOKEN' };
 
   if (!(await validateArrivalsToken('kiosk', parsed.data.token))) {
@@ -66,7 +106,7 @@ export async function kioskCheckInAction(input: KioskCheckInInput): Promise<Kios
   if (!rl.allowed) return { kind: 'RATE_LIMITED' };
 
   try {
-    return await checkInByPhone({ phone: parsed.data.phone });
+    return await checkInByName({ patientId: parsed.data.patientId });
   } catch {
     // Never leak internals to the public screen — generic rejection.
     return { kind: 'NO_APPOINTMENT' };

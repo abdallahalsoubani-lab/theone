@@ -1,11 +1,18 @@
 import { z } from 'zod';
 
-/** Kiosk submit: the device token + the typed phone (any accepted shape). */
-export const kioskCheckInSchema = z.object({
+/** Kiosk name search (July #1): the device token + the typed query. */
+export const kioskSearchSchema = z.object({
   token: z.string().min(16),
-  phone: z.string().min(1).max(32),
+  query: z.string().min(1).max(64),
 });
-export type KioskCheckInInput = z.infer<typeof kioskCheckInSchema>;
+export type KioskSearchInput = z.infer<typeof kioskSearchSchema>;
+
+/** Kiosk commit (July #1): the device token + the selected patient id. */
+export const kioskCheckInByNameSchema = z.object({
+  token: z.string().min(16),
+  patientId: z.string().min(1).max(64),
+});
+export type KioskCheckInByNameInput = z.infer<typeof kioskCheckInByNameSchema>;
 
 /** Staff manual check-in / undo target. */
 export const arrivalActionSchema = z.object({

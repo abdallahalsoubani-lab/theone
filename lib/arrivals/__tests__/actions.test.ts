@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   rateLimitMock,
   validateTokenMock,
-  checkInByPhoneMock,
+  checkInByNameMock,
+  searchTodaysPatientsMock,
   recordCheckInMock,
   requirePermissionMock,
   updateAppt,
@@ -11,11 +12,15 @@ const {
 } = vi.hoisted(() => ({
   rateLimitMock: vi.fn(async () => ({ allowed: true, count: 1, remainingTtlSeconds: 60 })),
   validateTokenMock: vi.fn(async () => true),
-  checkInByPhoneMock: vi.fn(async () => ({
+  checkInByNameMock: vi.fn(async () => ({
     kind: 'CHECKED_IN',
     firstName: 'Abdullah',
     delayMinutes: 10,
+    appointmentCount: 1,
   })),
+  searchTodaysPatientsMock: vi.fn(async () => [
+    { patientId: 'pat-1', fullNameEn: 'Abdullah', fullNameAr: 'عبدالله', appointments: [] },
+  ]),
   recordCheckInMock: vi.fn(async () => undefined),
   requirePermissionMock: vi.fn(async () => undefined),
   updateAppt: vi.fn(async (..._args: unknown[]) => ({})),
@@ -35,7 +40,8 @@ vi.mock('@/lib/arrivals/tokens', () => ({
   generateAccessToken: () => 'x'.repeat(32),
 }));
 vi.mock('@/lib/arrivals/kiosk', () => ({
-  checkInByPhone: checkInByPhoneMock,
+  checkInByName: checkInByNameMock,
+  searchTodaysPatients: searchTodaysPatientsMock,
   recordCheckIn: recordCheckInMock,
 }));
 
@@ -49,7 +55,8 @@ vi.mock('@/lib/db', () => ({
 }));
 
 import {
-  kioskCheckInAction,
+  kioskCheckInByNameAction,
+  kioskSearchAction,
   manualCheckInAction,
   setCurrentDelayAction,
   undoCheckInAction,
@@ -61,33 +68,56 @@ beforeEach(() => {
   vi.clearAllMocks();
   rateLimitMock.mockResolvedValue({ allowed: true, count: 1, remainingTtlSeconds: 60 });
   validateTokenMock.mockResolvedValue(true);
-  checkInByPhoneMock.mockResolvedValue({
+  checkInByNameMock.mockResolvedValue({
     kind: 'CHECKED_IN',
     firstName: 'Abdullah',
     delayMinutes: 10,
+    appointmentCount: 1,
   });
   requirePermissionMock.mockResolvedValue(undefined);
 });
 
-describe('kioskCheckInAction — gating', () => {
-  it('denies an invalid token without touching the matcher', async () => {
+describe('kioskSearchAction — gating (July #1)', () => {
+  it('denies an invalid token without searching', async () => {
     validateTokenMock.mockResolvedValue(false);
-    const res = await kioskCheckInAction({ token: TOKEN, phone: '0790123456' });
+    const res = await kioskSearchAction({ token: TOKEN, query: 'Abd' });
     expect(res).toEqual({ kind: 'INVALID_TOKEN' });
-    expect(checkInByPhoneMock).not.toHaveBeenCalled();
+    expect(searchTodaysPatientsMock).not.toHaveBeenCalled();
   });
 
-  it('rate-limits after the cap, before matching', async () => {
-    rateLimitMock.mockResolvedValue({ allowed: false, count: 11, remainingTtlSeconds: 50 });
-    const res = await kioskCheckInAction({ token: TOKEN, phone: '0790123456' });
+  it('rate-limits before searching', async () => {
+    rateLimitMock.mockResolvedValue({ allowed: false, count: 99, remainingTtlSeconds: 50 });
+    const res = await kioskSearchAction({ token: TOKEN, query: 'Abd' });
     expect(res).toEqual({ kind: 'RATE_LIMITED' });
-    expect(checkInByPhoneMock).not.toHaveBeenCalled();
+    expect(searchTodaysPatientsMock).not.toHaveBeenCalled();
   });
 
-  it('delegates to the matcher when token + rate-limit pass', async () => {
-    const res = await kioskCheckInAction({ token: TOKEN, phone: '0790123456' });
+  it('returns matches when token + rate-limit pass', async () => {
+    const res = await kioskSearchAction({ token: TOKEN, query: 'Abd' });
+    expect(res).toMatchObject({ kind: 'MATCHES' });
+    expect(searchTodaysPatientsMock).toHaveBeenCalledWith({ query: 'Abd' });
+  });
+});
+
+describe('kioskCheckInByNameAction — gating (July #1 confirm → commit)', () => {
+  it('denies an invalid token without committing', async () => {
+    validateTokenMock.mockResolvedValue(false);
+    const res = await kioskCheckInByNameAction({ token: TOKEN, patientId: 'pat-1' });
+    expect(res).toEqual({ kind: 'INVALID_TOKEN' });
+    expect(checkInByNameMock).not.toHaveBeenCalled();
+  });
+
+  it('rate-limits before committing', async () => {
+    rateLimitMock.mockResolvedValue({ allowed: false, count: 11, remainingTtlSeconds: 50 });
+    const res = await kioskCheckInByNameAction({ token: TOKEN, patientId: 'pat-1' });
+    expect(res).toEqual({ kind: 'RATE_LIMITED' });
+    expect(checkInByNameMock).not.toHaveBeenCalled();
+  });
+
+  it('commits by patientId when token + rate-limit pass', async () => {
+    const res = await kioskCheckInByNameAction({ token: TOKEN, patientId: 'pat-1' });
     expect(res).toMatchObject({ kind: 'CHECKED_IN' });
-    expect(checkInByPhoneMock).toHaveBeenCalledWith({ phone: '0790123456' });
+    expect(checkInByNameMock).toHaveBeenCalledWith({ patientId: 'pat-1' });
   });
 });
 
