@@ -11,7 +11,11 @@ import { z } from 'zod';
  */
 export const patientCreateSchema = z.object({
   fullNameEn: z.string().min(3).max(120),
-  fullNameAr: z.string().min(3).max(120),
+  // Arabic name is optional (July change request #10). Stored as '' when
+  // omitted; the UI falls back to the English name via patientDisplayName().
+  // Kept as a plain string (not nullable) so the shared User.fullNameAr column
+  // stays NOT NULL and staff/patient name reads don't become `string | null`.
+  fullNameAr: z.string().max(120).optional().default(''),
   phone: z.string().regex(/^\+9627\d{8}$/, 'phoneJordan'),
   email: z
     .string()
@@ -29,7 +33,9 @@ export const patientCreateSchema = z.object({
     }),
   gender: z.nativeEnum(Gender),
   nationalId: z.string().max(40).optional().or(z.literal('')).nullable(),
-  address: z.string().min(5).max(500),
+  // Address is optional (July change request #10); stored as null when omitted
+  // (the PatientProfile.address column is already nullable).
+  address: z.string().max(500).optional().default(''),
   occupation: z.string().max(120).optional().or(z.literal('')).nullable(),
   emergencyContactName: z.string().max(120).optional().or(z.literal('')).nullable(),
   emergencyContactPhone: z
@@ -69,7 +75,8 @@ export const patientSelfEditSchema = z.object({
     .or(z.literal(''))
     .transform((v) => (v ? v.toLowerCase() : null))
     .nullable(),
-  address: z.string().min(5).max(500),
+  // Optional (July change request #10) — matches the create form.
+  address: z.string().max(500).optional().default(''),
   emergencyContactName: z.string().max(120).optional().or(z.literal('')).nullable(),
   emergencyContactPhone: z
     .string()

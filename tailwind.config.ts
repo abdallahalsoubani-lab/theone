@@ -27,6 +27,13 @@ const config: Config = {
           textMuted: '#5A6580',
           border: '#D8DEE8',
         },
+        // Lobby / waiting-display theme (July change request #9). Kept separate
+        // from the brand.* palette — used only by the wall-mounted waiting
+        // screen, not the app chrome.
+        waiting: {
+          green: '#91c684',
+          cream: '#f4f0e5',
+        },
         // shadcn/ui semantic tokens — mapped to brand in globals.css
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',

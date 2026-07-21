@@ -94,7 +94,7 @@ export const createPatient = withAudit<[PatientCreateInput, string], CreatePatie
           dateOfBirth: input.dateOfBirth,
           gender: input.gender,
           nationalId: input.nationalId || null,
-          address: input.address,
+          address: input.address || null,
           occupation: input.occupation || null,
           emergencyContactName: input.emergencyContactName || null,
           emergencyContactPhone: input.emergencyContactPhone || null,
@@ -127,7 +127,8 @@ export const createPatient = withAudit<[PatientCreateInput, string], CreatePatie
       await sendPatientCredentials({
         recipientUserId: patient.id,
         recipientPhone: patient.phone,
-        recipientName: input.languagePref === 'AR' ? input.fullNameAr : input.fullNameEn,
+        recipientName:
+          input.languagePref === 'AR' ? input.fullNameAr || input.fullNameEn : input.fullNameEn,
         username: patient.phone,
         tempPassword,
         portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/${input.languagePref === 'AR' ? 'ar' : 'en'}/login`,
@@ -199,7 +200,7 @@ export const updatePatient = withAudit<[PatientUpdateInput], { patientId: string
           dateOfBirth: input.dateOfBirth,
           gender: input.gender,
           nationalId: input.nationalId || null,
-          address: input.address,
+          address: input.address || null,
           occupation: input.occupation || null,
           emergencyContactName: input.emergencyContactName || null,
           emergencyContactPhone: input.emergencyContactPhone || null,
@@ -238,7 +239,7 @@ export const updateOwnPatientProfile = withAudit<
       await tx.patientProfile.update({
         where: { userId },
         data: {
-          address: input.address,
+          address: input.address || null,
           emergencyContactName: input.emergencyContactName || null,
           emergencyContactPhone: input.emergencyContactPhone || null,
           hijriCalendarPref: input.hijriCalendarPref,
@@ -290,7 +291,10 @@ export const resetPatientPassword = withAudit<[string], ResetPasswordResult>(
       await sendPatientCredentials({
         recipientUserId: patient.id,
         recipientPhone: patient.phone,
-        recipientName: patient.languagePref === 'AR' ? patient.fullNameAr : patient.fullNameEn,
+        recipientName:
+          patient.languagePref === 'AR'
+            ? patient.fullNameAr || patient.fullNameEn
+            : patient.fullNameEn,
         username: patient.phone,
         tempPassword,
         portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/${patient.languagePref === 'AR' ? 'ar' : 'en'}/login`,

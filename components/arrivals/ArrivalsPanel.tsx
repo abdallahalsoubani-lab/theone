@@ -17,6 +17,7 @@ import {
 } from '@/lib/arrivals/actions';
 import type { ArrivalRow, ArrivalsBoard } from '@/lib/arrivals/queries';
 import { formatTime } from '@/lib/format/date';
+import { patientDisplayName } from '@/lib/format/patientName';
 
 const DELAY_PRESETS = [5, 10, 15, 20, 25, 30, 45];
 const REFRESH_MS = 15_000;
@@ -39,7 +40,7 @@ export function ArrivalsPanel({ board, locale }: { board: ArrivalsBoard; locale:
     return () => clearInterval(id);
   }, [router]);
 
-  const name = (r: ArrivalRow) => (locale === 'ar' ? r.patientNameAr : r.patientNameEn);
+  const name = (r: ArrivalRow) => patientDisplayName(r.patientNameEn, r.patientNameAr, locale);
   const therapist = (r: ArrivalRow) => (locale === 'ar' ? r.therapistNameAr : r.therapistNameEn);
   const time = (iso: string) => formatTime(new Date(iso), locale === 'ar' ? 'ar' : 'en');
 

@@ -225,12 +225,11 @@
   border-color: rgba(90, 101, 128, 0.3);
   color: var(--brand-text-muted);
 }
-.rbc-event.rbc-event-status-CANCELLED {
-  background-color: rgba(216, 222, 232, 0.5);
-  border-color: var(--brand-border);
-  color: var(--brand-text-muted);
-  text-decoration: line-through;
-}
+/* Cancelled appointments are no longer rendered on the calendar grid at all
+ * (July change request #7) — they are excluded at the query layer
+ * (lib/appointments/queries.ts). The old strikethrough style is therefore
+ * dead and has been removed; cancelled appointments live in the dedicated
+ * Cancelled view (Prompt 17). */
 .rbc-event.rbc-event-status-NO_SHOW {
   background-color: rgba(220, 38, 38, 0.1);
   border-color: rgba(220, 38, 38, 0.45);

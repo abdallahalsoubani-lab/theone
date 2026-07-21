@@ -7,6 +7,7 @@ import type { ArrivalRow, ArrivalsBoard } from '@/lib/arrivals/queries';
 import { bidiIsolate } from '@/lib/format/bidi';
 import { formatTime } from '@/lib/format/date';
 import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
+import { patientDisplayName } from '@/lib/format/patientName';
 
 const POLL_MS = 10_000;
 const STALE_AFTER_MS = 35_000; // ~3 missed polls → show the stale badge
@@ -71,16 +72,16 @@ export function LobbyDisplay({ token, locale }: { token: string; locale: string 
     return () => clearInterval(id);
   }, [locale]);
 
-  const name = (r: ArrivalRow) => (locale === 'ar' ? r.patientNameAr : r.patientNameEn);
+  const name = (r: ArrivalRow) => patientDisplayName(r.patientNameEn, r.patientNameAr, locale);
   const therapist = (r: ArrivalRow) => (locale === 'ar' ? r.therapistNameAr : r.therapistNameEn);
   const time = (iso: string) => formatTime(new Date(iso), locale === 'ar' ? 'ar' : 'en');
   const waitMinutes = (iso: string) =>
     Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60_000));
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col gap-6 overflow-hidden bg-brand-navy p-8 text-white">
-      <header className="flex items-center justify-between">
-        <h1 className="text-3xl font-medium">{t('title')}</h1>
+    <div className="fixed inset-0 z-50 flex flex-col gap-6 overflow-hidden bg-waiting-cream p-8 text-brand-navy">
+      <header className="flex items-center justify-between border-b-4 border-waiting-green pb-4">
+        <h1 className="text-3xl font-semibold">{t('title')}</h1>
         <div className="flex items-center gap-4">
           {stale && (
             <span className="rounded-full bg-amber-500/90 px-4 py-1 text-lg font-medium text-brand-navy">
@@ -90,7 +91,7 @@ export function LobbyDisplay({ token, locale }: { token: string; locale: string 
           <div className="text-end">
             <span className="block text-4xl font-medium tabular-nums">{clock}</span>
             {lastUpdated && (
-              <span className="block text-sm text-white/50">
+              <span className="block text-sm text-brand-navy/50">
                 {t('lastUpdated', { time: lastUpdated })}
               </span>
             )}
@@ -101,7 +102,7 @@ export function LobbyDisplay({ token, locale }: { token: string; locale: string 
       <div className="grid flex-1 grid-cols-1 gap-6 overflow-hidden lg:grid-cols-3">
         <Section
           title={t('waitingNow')}
-          accent="cyan"
+          accent="green"
           empty={!board?.waiting.length}
           emptyLabel={t('noneWaiting')}
         >
@@ -156,21 +157,25 @@ function Section({
   children,
 }: {
   title: string;
-  accent: 'cyan' | 'teal' | 'muted';
+  accent: 'green' | 'teal' | 'muted';
   empty?: boolean;
   emptyLabel: string;
   children: React.ReactNode;
 }) {
   const bar =
-    accent === 'cyan' ? 'bg-brand-cyan' : accent === 'teal' ? 'bg-brand-teal' : 'bg-white/40';
+    accent === 'green'
+      ? 'bg-waiting-green'
+      : accent === 'teal'
+        ? 'bg-brand-teal'
+        : 'bg-brand-navy/30';
   return (
-    <section className="flex min-h-0 flex-col rounded-2xl bg-white/5">
-      <h2 className="flex items-center gap-3 px-5 py-4 text-2xl font-medium">
+    <section className="flex min-h-0 flex-col rounded-2xl bg-white shadow-sm ring-1 ring-brand-navy/5">
+      <h2 className="flex items-center gap-3 px-5 py-4 text-2xl font-semibold">
         <span className={`inline-block h-6 w-2 rounded-full ${bar}`} />
         {title}
       </h2>
       <ul className="flex-1 space-y-2 overflow-y-auto px-5 pb-5">
-        {empty ? <li className="text-xl text-white/50">{emptyLabel}</li> : children}
+        {empty ? <li className="text-xl text-brand-navy/40">{emptyLabel}</li> : children}
       </ul>
     </section>
   );
@@ -186,13 +191,13 @@ function Row({
   badge?: string;
 }) {
   return (
-    <li className="flex items-center justify-between gap-4 rounded-xl bg-white/10 px-4 py-3">
+    <li className="flex items-center justify-between gap-4 rounded-xl bg-waiting-green/10 px-4 py-3">
       <div className="min-w-0">
-        <p className="truncate text-2xl font-medium">{primary}</p>
-        <p className="truncate text-lg text-white/70">{secondary}</p>
+        <p className="truncate text-2xl font-semibold">{primary}</p>
+        <p className="truncate text-lg text-brand-navy/60">{secondary}</p>
       </div>
       {badge && (
-        <span className="shrink-0 rounded-full bg-white/15 px-3 py-1 text-lg tabular-nums">
+        <span className="shrink-0 rounded-full bg-waiting-green px-3 py-1 text-lg font-medium text-brand-navy tabular-nums">
           {badge}
         </span>
       )}

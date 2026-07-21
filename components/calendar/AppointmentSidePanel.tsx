@@ -20,6 +20,7 @@ import { Link } from '@/i18n/navigation';
 import { updateStatusAction } from '@/lib/appointments/actions';
 import { canStartSessionAt, minutesOverdue } from '@/lib/appointments/session-timing';
 import { formatDate, formatTime } from '@/lib/format/date';
+import { patientDisplayName } from '@/lib/format/patientName';
 import { formatPhone } from '@/lib/format/phone';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 
@@ -94,8 +95,11 @@ export function AppointmentSidePanel({
     );
   }
 
-  const patientName =
-    locale === 'ar' ? appointment.patientFullNameAr : appointment.patientFullNameEn;
+  const patientName = patientDisplayName(
+    appointment.patientFullNameEn,
+    appointment.patientFullNameAr,
+    locale,
+  );
   const therapistName = appointment.therapists
     .map((th) => (locale === 'ar' ? th.fullNameAr : th.fullNameEn))
     .join(locale === 'ar' ? '، ' : ', ');

@@ -16,6 +16,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Link } from '@/i18n/navigation';
+import { patientDisplayName } from '@/lib/format/patientName';
 import { formatPhone } from '@/lib/format/phone';
 import type { PatientListRow } from '@/lib/patients/queries';
 
@@ -71,7 +72,7 @@ export function PatientsTable({
           header: t('columnName'),
           cell: ({ row }) => {
             const p = row.original;
-            const name = locale === 'ar' ? p.fullNameAr : p.fullNameEn;
+            const name = patientDisplayName(p.fullNameEn, p.fullNameAr, locale);
             const alt = locale === 'ar' ? p.fullNameEn : p.fullNameAr;
             const initials = name
               .split(/\s+/)
@@ -90,7 +91,9 @@ export function PatientsTable({
                 </Avatar>
                 <div className="flex flex-col">
                   <span className="font-medium text-brand-navy">{name}</span>
-                  <span className="text-xs text-brand-textMuted">{alt}</span>
+                  {alt && alt !== name ? (
+                    <span className="text-xs text-brand-textMuted">{alt}</span>
+                  ) : null}
                 </div>
               </Link>
             );

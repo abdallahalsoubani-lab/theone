@@ -40,7 +40,14 @@ export async function listAppointmentsForCalendar(
       ? { therapists: { some: { therapistId: { in: filters.therapistIds } } } }
       : {}),
     ...(filters.patientId ? { patientId: filters.patientId } : {}),
-    ...(filters.status ? { status: filters.status } : {}),
+    // Cancelled appointments no longer render on the calendar grid (July change
+    // request #7) — they live only in the dedicated Cancelled view (Prompt 17).
+    // When the caller asks for a specific status we honour it (keeps that
+    // escape hatch, e.g. an explicit CANCELLED drill-down); otherwise we
+    // exclude cancelled while leaving every other status (incl. NO_SHOW) shown.
+    ...(filters.status
+      ? { status: filters.status }
+      : { status: { not: AppointmentStatus.CANCELLED } }),
   };
 
   const rows = await db.appointment.findMany({

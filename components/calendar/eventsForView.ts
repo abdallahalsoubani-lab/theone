@@ -2,6 +2,7 @@ import { addMinutes } from 'date-fns';
 import type { View } from 'react-big-calendar';
 
 import type { CalendarAppointment } from '@/lib/appointments/queries';
+import { patientDisplayName } from '@/lib/format/patientName';
 
 /**
  * Maps appointments to react-big-calendar events, VIEW-AWARE (Calendar overlap
@@ -35,7 +36,7 @@ export function eventsForView(
   locale: string,
 ): CalendarEvent[] {
   const title = (a: CalendarAppointment) =>
-    locale === 'ar' ? a.patientFullNameAr : a.patientFullNameEn;
+    patientDisplayName(a.patientFullNameEn, a.patientFullNameAr, locale);
   const end = (a: CalendarAppointment) => addMinutes(a.startsAt, a.durationMinutes);
 
   if (view === 'day') {

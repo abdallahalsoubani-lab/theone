@@ -6,6 +6,7 @@ import { ExportPatientFileButton } from '@/components/exports/ExportPatientFileB
 import { ActAsButton } from '@/components/impersonation/ActAsButton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { patientDisplayName } from '@/lib/format/patientName';
 import { formatPhone } from '@/lib/format/phone';
 import type { PatientFileData } from '@/lib/patients/queries';
 
@@ -30,7 +31,7 @@ export function PatientHeader({
   showActAs?: boolean;
 }) {
   const locale = useLocale();
-  const name = locale === 'ar' ? patient.fullNameAr : patient.fullNameEn;
+  const name = patientDisplayName(patient.fullNameEn, patient.fullNameAr, locale);
   const alt = locale === 'ar' ? patient.fullNameEn : patient.fullNameAr;
   const initials = name
     .split(/\s+/)
@@ -51,7 +52,9 @@ export function PatientHeader({
         <h1 className="text-2xl font-medium text-brand-navy">{name}</h1>
         {/* Legacy intake rows copied one name into both locale fields — show
             the alternate-locale name only when it actually differs (QA 5.2). */}
-        {alt.trim() !== name.trim() ? <p className="text-sm text-brand-textMuted">{alt}</p> : null}
+        {alt.trim() && alt.trim() !== name.trim() ? (
+          <p className="text-sm text-brand-textMuted">{alt}</p>
+        ) : null}
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <Badge variant="muted">{ageYears}y</Badge>
           <Badge variant="muted">{patient.gender}</Badge>
