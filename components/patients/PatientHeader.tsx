@@ -1,11 +1,14 @@
 'use client';
 
+import { Stethoscope } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 
 import { ExportPatientFileButton } from '@/components/exports/ExportPatientFileButton';
 import { ActAsButton } from '@/components/impersonation/ActAsButton';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Link } from '@/i18n/navigation';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { formatPhone } from '@/lib/format/phone';
 import type { PatientFileData } from '@/lib/patients/queries';
@@ -26,12 +29,19 @@ import type { PatientFileData } from '@/lib/patients/queries';
 export function PatientHeader({
   patient,
   showActAs = false,
+  pendingFirstVisit = false,
+  bookDoctorHref = null,
 }: {
   patient: PatientFileData;
   showActAs?: boolean;
+  /** NI-5 (Prompt 41): derived — no completed doctor visit yet. */
+  pendingFirstVisit?: boolean;
+  /** NI-5 CTA target (secretary/admin only); null hides the button. */
+  bookDoctorHref?: string | null;
 }) {
   const locale = useLocale();
   const tForm = useTranslations('patients.form');
+  const tFirstVisit = useTranslations('patients.firstVisit');
   const name = patientDisplayName(patient.fullNameEn, patient.fullNameAr, locale);
   const alt = locale === 'ar' ? patient.fullNameEn : patient.fullNameAr;
   const initials = name
@@ -61,6 +71,13 @@ export function PatientHeader({
           <Badge variant="muted">
             {patient.gender === 'FEMALE' ? tForm('genderFemale') : tForm('genderMale')}
           </Badge>
+          {/* NI-5 soft flag (Prompt 41): calm chip until the first COMPLETED
+              doctor visit; cancelled/no-show keep it on. */}
+          {pendingFirstVisit ? (
+            <Badge variant="outline" className="border-amber-400/60 bg-amber-50 text-amber-800">
+              {tFirstVisit('awaitingBadge')}
+            </Badge>
+          ) : null}
           {/* Phone is null for Doctor/Therapist viewers (Prompt 15 §1) — omit it. */}
           {patient.phone ? (
             <span className="font-mono text-brand-textMuted" dir="ltr">
@@ -70,6 +87,16 @@ export function PatientHeader({
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2">
+        {/* NI-5 CTA (Prompt 41, owner ruling: SOFT) — prominent while the
+            first doctor visit is pending; disappears once completed. */}
+        {pendingFirstVisit && bookDoctorHref ? (
+          <Button asChild size="sm">
+            <Link href={bookDoctorHref as `/${string}`}>
+              <Stethoscope className="me-2 size-4" />
+              {tFirstVisit('bookDoctorCta')}
+            </Link>
+          </Button>
+        ) : null}
         {showActAs ? (
           <ActAsButton targetUserId={patient.id} targetName={name} variant="button" />
         ) : null}

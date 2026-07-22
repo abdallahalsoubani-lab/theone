@@ -51,6 +51,7 @@ export default async function DoctorPatientsPage({
         basePath="/doctor/patients"
         canCreate={false}
         canEdit={false}
+        showFirstVisitBadge
       />
     </section>
   );

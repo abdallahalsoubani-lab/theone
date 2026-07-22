@@ -20,6 +20,7 @@ import {
 import { createAppointmentAction, previewConflictsAction } from '@/lib/appointments/actions';
 import { hasHardBlockedConflict, type ConflictResult } from '@/lib/appointments/conflicts';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
+import { showFirstVisitNotice } from '@/lib/patients/first-visit-policy';
 import { formatClinicDateTimeLocal, parseClinicDateTimeLocal } from '@/lib/time/clinic';
 import { addWaitlistEntryAction, fulfillWaitlistEntryAction } from '@/lib/waitlist/actions';
 
@@ -31,6 +32,9 @@ interface Patient {
   fullNameAr: string;
   /** Null for Doctor viewers — phone hidden from them (Prompt 15 §1). */
   phone: string | null;
+  /** NI-5 soft flag (Prompt 41): no completed doctor visit yet. Optional so
+   *  older callers (waitlist placement) stay source-compatible. */
+  pendingFirstVisit?: boolean;
 }
 
 interface Clinician {
@@ -94,6 +98,7 @@ export function CreateAppointmentModal({
   const tConflicts = useTranslations('appointments.conflicts');
   const tSeries = useTranslations('calendar.series');
   const tWaitlist = useTranslations('waitlist');
+  const tFirstVisit = useTranslations('patients.firstVisit');
   const router = useRouter();
   const locale = useLocale();
   const [pending, startTransition] = useTransition();
@@ -377,6 +382,16 @@ export function CreateAppointmentModal({
                     </option>
                   ))}
                 </select>
+                {/* NI-5 SOFT notice (Prompt 41, owner ruling): purely
+                    informational — never blocks, no confirmation. */}
+                {showFirstVisitNotice(
+                  appointmentType,
+                  patients.find((p) => p.id === patientId)?.pendingFirstVisit,
+                ) ? (
+                  <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-xs text-amber-800">
+                    {tFirstVisit('notice')}
+                  </p>
+                ) : null}
               </div>
             )}
 

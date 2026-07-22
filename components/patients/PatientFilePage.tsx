@@ -42,6 +42,9 @@ interface Props {
   documents?: ReactNode;
   viewerRole?: 'DOCTOR' | 'THERAPIST' | 'SECRETARY' | 'ADMIN' | 'PATIENT';
   actorId?: string;
+  /** NI-5 (Prompt 41): derived pending-first-visit flag + optional CTA href. */
+  pendingFirstVisit?: boolean;
+  bookDoctorHref?: string | null;
 }
 
 /**
@@ -68,6 +71,8 @@ export async function PatientFilePage({
   documents,
   viewerRole,
   actorId,
+  pendingFirstVisit = false,
+  bookDoctorHref = null,
 }: Props) {
   // A-20 (Prompt 39 addendum — owner ruling): patient accounts are NOT
   // impersonatable, and this page's subject is always a patient, so the
@@ -76,7 +81,12 @@ export async function PatientFilePage({
   const showActAs = false;
   return (
     <section className="space-y-6 p-6">
-      <PatientHeader patient={patient} showActAs={showActAs} />
+      <PatientHeader
+        patient={patient}
+        showActAs={showActAs}
+        pendingFirstVisit={pendingFirstVisit}
+        bookDoctorHref={bookDoctorHref}
+      />
       <PatientFileTabs
         appointments={appointments}
         profile={

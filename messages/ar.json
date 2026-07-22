@@ -301,6 +301,11 @@
       "colTherapists": "المعالجون",
       "colRoom": "الغرفة",
       "colStatus": "الحالة"
+    },
+    "firstVisit": {
+      "awaitingBadge": "بانتظار زيارة الدكتورة",
+      "bookDoctorCta": "حجز موعد مع الدكتورة",
+      "notice": "هذا المريض لم يزر الدكتورة بعد."
     }
   },
   "intake": {

@@ -725,6 +725,11 @@
       "colTherapists": "Therapists",
       "colRoom": "Room",
       "colStatus": "Status"
+    },
+    "firstVisit": {
+      "awaitingBadge": "Awaiting doctor visit",
+      "bookDoctorCta": "Book doctor visit",
+      "notice": "This patient hasn't seen the doctor yet."
     }
   },
   "intake": {

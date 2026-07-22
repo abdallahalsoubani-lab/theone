@@ -7,9 +7,19 @@ import { CalendarPageContent } from '@/components/calendar/CalendarPageContent';
  */
 export default async function DoctorCalendarPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<Record<string, string>>;
 }) {
   const { locale } = await params;
-  return <CalendarPageContent locale={locale} />;
+  const sp = await searchParams;
+  return (
+    <CalendarPageContent
+      locale={locale}
+      autoBook={
+        sp.bookPatient ? { patientId: sp.bookPatient, doctorsOnly: sp.doctors === '1' } : undefined
+      }
+    />
+  );
 }

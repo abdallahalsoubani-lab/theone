@@ -14,6 +14,7 @@ import { getPatientTimeline } from '@/lib/clinical/timeline/query';
 import { PediatricAssessmentTab } from '@/components/pediatric-assessment/PediatricAssessmentTab';
 import { listIntakesForPatient } from '@/lib/intake/queries';
 import { ensureCanReadPatient } from '@/lib/patients/access';
+import { hasCompletedDoctorVisit } from '@/lib/patients/first-visit';
 import { listAssessmentsForPatient } from '@/lib/pediatric-assessment/queries';
 import { listAppointmentsForPatientFile } from '@/lib/appointments/queries';
 import { getPatientFile } from '@/lib/patients/queries';
@@ -73,9 +74,13 @@ export default async function DoctorPatientFilePage({
     ? can(session.user, 'pediatric_assessment.read.assigned', {})
     : false;
   const canEditPed = session?.user ? can(session.user, 'pediatric_assessment.create') : false;
+  // NI-5 (Prompt 41): the doctor sees the awaiting-first-visit chip but has
+  // no booking CTA — booking stays with secretary/admin.
+  const pendingFirstVisit = !(await hasCompletedDoctorVisit(id));
   return (
     <PatientFilePage
       patient={patient}
+      pendingFirstVisit={pendingFirstVisit}
       appointments={
         <PatientAppointmentsTab
           appointments={fileAppointments}

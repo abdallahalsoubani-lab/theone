@@ -122,6 +122,7 @@ export async function getAppointmentById(id: string) {
  */
 export async function listActivePatientsBrief(limit = 200) {
   const { viewerCanSeePatientPhone } = await import('@/lib/patients/access');
+  const { pendingFirstVisitIds } = await import('@/lib/patients/first-visit');
   const canSeePhone = await viewerCanSeePatientPhone();
   const rows = await db.user.findMany({
     where: { role: 'PATIENT', deletedAt: null },
@@ -129,7 +130,14 @@ export async function listActivePatientsBrief(limit = 200) {
     orderBy: { fullNameEn: 'asc' },
     take: limit,
   });
-  return rows.map((r) => ({ ...r, phone: canSeePhone ? r.phone : null }));
+  // Doctor-first-visit soft flag (Prompt 41 — NI-5): one batch query for the
+  // whole list so the booking modal can show its informational notice.
+  const pending = await pendingFirstVisitIds(rows.map((r) => r.id));
+  return rows.map((r) => ({
+    ...r,
+    phone: canSeePhone ? r.phone : null,
+    pendingFirstVisit: pending.has(r.id),
+  }));
 }
 
 /**

@@ -164,6 +164,8 @@ vi.mock('@/lib/db', () => {
           return data;
         }),
       },
+      // NI-5 (Prompt 41): listPatients batch-derives pending-first-visit.
+      appointment: { findMany: vi.fn(async () => []) },
     },
   };
 });

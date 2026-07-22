@@ -113,6 +113,8 @@ vi.mock('@/lib/db', () => {
         }),
       },
       whatsAppMessage: { findFirst: vi.fn(async () => null) },
+      // NI-5 (Prompt 41): listPatients batch-derives pending-first-visit.
+      appointment: { findMany: vi.fn(async () => []) },
     },
   };
 });

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 
 import { fail, ok, type Result } from '@/lib/auth/result';
+import { patientProfileHref } from '@/lib/patients/links';
 import { requirePermission } from '@/lib/rbac/guards';
 
 import { submissionToLocalized } from './errors';
@@ -17,8 +18,8 @@ function revalidate(): void {
 /** Approve → create a new patient. SECRETARY + ADMIN only. */
 export async function approveSubmissionNewAction(
   input: unknown,
-): Promise<Result<{ patientId: string }>> {
-  await requirePermission('intake_submission.review');
+): Promise<Result<{ patientId: string; redirectTo: string }>> {
+  const viewer = await requirePermission('intake_submission.review');
   // Patient creation also routes through its own permission + audited service.
   await requirePermission('patients.create');
   const parsed = approveNewSchema.safeParse(input);
@@ -26,7 +27,12 @@ export async function approveSubmissionNewAction(
   try {
     const result = await approveSubmissionNew({ submissionId: parsed.data.submissionId });
     revalidate();
-    return ok({ patientId: result.patientId });
+    // NI-5 (Prompt 41): approval lands directly on the new patient's file —
+    // role-correct so an Admin reviewer stays in the Admin shell (A-19).
+    return ok({
+      patientId: result.patientId,
+      redirectTo: patientProfileHref(viewer.role, result.patientId),
+    });
   } catch (err) {
     return fail(submissionToLocalized(err));
   }
@@ -35,8 +41,8 @@ export async function approveSubmissionNewAction(
 /** Approve → link to an existing patient (duplicate phone). */
 export async function approveSubmissionLinkAction(
   input: unknown,
-): Promise<Result<{ patientId: string }>> {
-  await requirePermission('intake_submission.review');
+): Promise<Result<{ patientId: string; redirectTo: string }>> {
+  const viewer = await requirePermission('intake_submission.review');
   const parsed = approveLinkSchema.safeParse(input);
   if (!parsed.success) return fail(submissionToLocalized(parsed.error));
   try {
@@ -45,7 +51,10 @@ export async function approveSubmissionLinkAction(
       patientId: parsed.data.patientId,
     });
     revalidate();
-    return ok({ patientId: result.patientId });
+    return ok({
+      patientId: result.patientId,
+      redirectTo: patientProfileHref(viewer.role, result.patientId),
+    });
   } catch (err) {
     return fail(submissionToLocalized(err));
   }

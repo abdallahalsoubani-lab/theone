@@ -14,6 +14,8 @@ import { listSessionNotesForPatient } from '@/lib/clinical/session-notes/queries
 import { getPatientTimeline } from '@/lib/clinical/timeline/query';
 import { listIntakesForPatient } from '@/lib/intake/queries';
 import { ensureCanReadPatient } from '@/lib/patients/access';
+import { hasCompletedDoctorVisit } from '@/lib/patients/first-visit';
+import { bookDoctorVisitHref } from '@/lib/patients/first-visit-policy';
 import { getPatientFile } from '@/lib/patients/queries';
 import { listPatientActivity } from '@/lib/patients/queries-audit';
 import { requirePermission } from '@/lib/rbac/guards';
@@ -64,9 +66,14 @@ export default async function AdminPatientFilePage({
     ]);
   if (!patient) notFound();
   const fileAppointments = await listAppointmentsForPatientFile(id);
+  // NI-5 (Prompt 41, soft): derived flag + doctor-scoped booking deep link
+  // into the ADMIN calendar (A-19 — stay in the admin shell).
+  const pendingFirstVisit = !(await hasCompletedDoctorVisit(id));
   return (
     <PatientFilePage
       patient={patient}
+      pendingFirstVisit={pendingFirstVisit}
+      bookDoctorHref={bookDoctorVisitHref('ADMIN', id, pendingFirstVisit)}
       appointments={
         <PatientAppointmentsTab
           appointments={fileAppointments}

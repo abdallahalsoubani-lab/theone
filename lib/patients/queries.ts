@@ -9,6 +9,7 @@ import {
 import { db } from '@/lib/db';
 
 import { type CareTeam, type ClinicianRef } from './assignment';
+import { pendingFirstVisitIds } from './first-visit';
 import { computeAgeYears, isPediatric, type PatientListFilters } from './schemas';
 
 // Re-export so the patient-file gate and can() resource check keep importing
@@ -32,6 +33,9 @@ export interface PatientListRow {
   doctors: ClinicianRef[];
   intakeCount: number;
   hasCompletedIntake: boolean;
+  /** NI-5 soft flag (Prompt 41): no COMPLETED doctor visit yet — derived per
+   *  page in one batch query, never stored. */
+  pendingFirstVisit: boolean;
 }
 
 const careTeamInclude = {
@@ -112,6 +116,10 @@ export async function listPatients({
     db.user.count({ where }),
   ]);
 
+  // NI-5 (Prompt 41): pending-first-visit for the whole page in ONE batch
+  // query — the list badge must not introduce a per-row N+1.
+  const pendingSet = await pendingFirstVisitIds(users.map((u) => u.id));
+
   let rows = users
     .filter((u) => u.patientProfile !== null)
     .map((u): PatientListRow => {
@@ -134,6 +142,7 @@ export async function listPatients({
         doctors: careTeam.doctors,
         intakeCount: u.intakesAsPatient.length,
         hasCompletedIntake: hasCompleted,
+        pendingFirstVisit: pendingSet.has(u.id),
       };
     });
 

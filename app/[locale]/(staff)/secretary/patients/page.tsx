@@ -54,6 +54,7 @@ export default async function SecretaryPatientsPage({
         basePath="/secretary/patients"
         canCreate
         canEdit
+        showFirstVisitBadge
       />
     </section>
   );

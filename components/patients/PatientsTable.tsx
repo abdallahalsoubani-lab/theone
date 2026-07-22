@@ -32,6 +32,9 @@ interface Props {
   canCreate: boolean;
   /** Secretary/Admin can edit profile inline; clinical roles read-only. */
   canEdit: boolean;
+  /** NI-5 (Prompt 41): show the "Awaiting doctor visit" chip — secretary,
+   *  admin, and doctor lists only (therapists don't see it). */
+  showFirstVisitBadge?: boolean;
 }
 
 export function PatientsTable({
@@ -43,8 +46,10 @@ export function PatientsTable({
   basePath,
   canCreate,
   canEdit,
+  showFirstVisitBadge = false,
 }: Props) {
   const t = useTranslations('patients.list');
+  const tFirstVisit = useTranslations('patients.firstVisit');
   const tCommon = useTranslations('common');
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -93,6 +98,16 @@ export function PatientsTable({
                   <span className="font-medium text-brand-navy">{name}</span>
                   {alt && alt !== name ? (
                     <span className="text-xs text-brand-textMuted">{alt}</span>
+                  ) : null}
+                  {/* NI-5 soft flag (Prompt 41): calm chip until the first
+                      COMPLETED doctor visit. */}
+                  {showFirstVisitBadge && p.pendingFirstVisit ? (
+                    <Badge
+                      variant="outline"
+                      className="mt-0.5 w-fit border-amber-400/60 bg-amber-50 text-[10px] text-amber-800"
+                    >
+                      {tFirstVisit('awaitingBadge')}
+                    </Badge>
                   ) : null}
                 </div>
               </Link>

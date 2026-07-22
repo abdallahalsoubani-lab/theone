@@ -19,7 +19,15 @@ import { requirePermission } from '@/lib/rbac/guards';
  * renders this so we don't fork a second calendar; permission is enforced
  * here and again in every server action the board calls.
  */
-export async function CalendarPageContent({ locale }: { locale: string }) {
+export async function CalendarPageContent({
+  locale,
+  autoBook,
+}: {
+  locale: string;
+  /** NI-5 (Prompt 41): deep-link from the patient-file "Book doctor visit"
+   *  CTA — opens the booking modal prefilled + doctor-scoped. */
+  autoBook?: { patientId: string; doctorsOnly: boolean };
+}) {
   setRequestLocale(locale);
   // requirePermission resolves the impersonation-aware effective user —
   // chain it so canOverride matches the role RBAC will actually enforce.
@@ -76,6 +84,7 @@ export async function CalendarPageContent({ locale }: { locale: string }) {
         // must stay inside the VIEWER's interface (A-19), and the effective
         // role keeps Act-As consistent too.
         viewerRole={viewer.role}
+        autoBook={autoBook}
       />
     </section>
   );

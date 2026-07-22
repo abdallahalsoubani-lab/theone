@@ -39,8 +39,9 @@ export function SubmissionReviewActions({ submissionId, locale, duplicate }: Pro
   const [reason, setReason] = useState('');
   const [showReject, setShowReject] = useState(false);
 
-  const toPatient = (patientId: string) =>
-    router.push(`/${locale}/secretary/patients/${patientId}`);
+  // Role-correct patient-file landing (NI-5, Prompt 41) — the action builds
+  // the href from the effective viewer role so Admin reviewers stay in /admin.
+  const toPatient = (redirectTo: string) => router.push(`/${locale}${redirectTo}`);
 
   function approveNew() {
     startTransition(async () => {
@@ -50,7 +51,7 @@ export function SubmissionReviewActions({ submissionId, locale, duplicate }: Pro
         return;
       }
       toast.success(t('approvedNewToast'));
-      toPatient(res.data.patientId);
+      toPatient(res.data.redirectTo);
     });
   }
 
@@ -66,7 +67,7 @@ export function SubmissionReviewActions({ submissionId, locale, duplicate }: Pro
         return;
       }
       toast.success(t('linkedToast'));
-      toPatient(res.data.patientId);
+      toPatient(res.data.redirectTo);
     });
   }
 

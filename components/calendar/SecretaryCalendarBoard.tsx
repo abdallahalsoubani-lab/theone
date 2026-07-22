@@ -24,10 +24,17 @@ import type { SeriesEditMode } from '@/lib/appointments/schemas';
 
 interface Props {
   appointments: CalendarAppointment[];
-  resources: Array<{ id: string; fullNameEn: string; fullNameAr: string }>;
+  resources: Array<{ id: string; fullNameEn: string; fullNameAr: string; role?: string }>;
   /** Approved leaves overlapping the visible range (Prompt 11 §4.1.5). */
   leaves?: Array<{ id: string; userId: string; startDate: Date; endDate: Date }>;
-  patients: Array<{ id: string; fullNameEn: string; fullNameAr: string; phone: string | null }>;
+  patients: Array<{
+    id: string;
+    fullNameEn: string;
+    fullNameAr: string;
+    phone: string | null;
+    /** NI-5 (Prompt 41): feeds the booking modal's soft first-visit notice. */
+    pendingFirstVisit?: boolean;
+  }>;
   rooms: Array<{ id: string; name: string }>;
   defaultDurationMinutes: number;
   minHour: number;
@@ -40,6 +47,10 @@ interface Props {
   /** Effective viewer role — patient-file links stay inside this role's
    *  interface (Prompt 33, A-19). */
   viewerRole: UserRole;
+  /** NI-5 (Prompt 41): open the booking modal on load, prefilled with this
+   *  patient; doctorsOnly scopes the clinician picker to doctors (the
+   *  patient-file "Book doctor visit" CTA path). */
+  autoBook?: { patientId: string; doctorsOnly: boolean };
 }
 
 /**
@@ -66,13 +77,17 @@ export function SecretaryCalendarBoard({
   canOverride,
   newAppointmentLabel,
   viewerRole,
+  autoBook,
 }: Props) {
   const router = useRouter();
   const locale = useLocale();
   const [pending, startTransition] = useTransition();
 
-  // Create modal state.
-  const [createOpen, setCreateOpen] = useState(false);
+  // Create modal state. autoBook (NI-5 CTA deep-link) opens it immediately,
+  // prefilled with the patient — but only for that first open: once the
+  // modal closes, the URL param must stop scoping later manual bookings.
+  const [createOpen, setCreateOpen] = useState(Boolean(autoBook));
+  const [autoBookActive, setAutoBookActive] = useState(Boolean(autoBook));
   const [createSlot, setCreateSlot] = useState<{
     start: Date | null;
     therapistId?: string;
@@ -245,15 +260,25 @@ export function SecretaryCalendarBoard({
 
       <CreateAppointmentModal
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => {
+          setCreateOpen(false);
+          setAutoBookActive(false);
+        }}
         patients={patients}
-        clinicians={resources}
+        // NI-5 CTA path: the doctor-visit deep link scopes the clinician
+        // picker to doctors so the secretary can't mis-pick a therapist here.
+        clinicians={
+          autoBookActive && autoBook?.doctorsOnly
+            ? resources.filter((r) => r.role === 'DOCTOR')
+            : resources
+        }
         rooms={rooms}
         defaultStartsAt={createSlot.start}
         defaultTherapistId={createSlot.therapistId}
         defaultDurationMinutes={defaultDurationMinutes}
         closedDays={closedDays}
         canOverride={canOverride}
+        defaultPatientId={autoBookActive ? autoBook?.patientId : undefined}
       />
 
       <AppointmentSidePanel
