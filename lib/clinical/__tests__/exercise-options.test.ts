@@ -16,6 +16,7 @@ const { findMany } = vi.hoisted(() => ({
           nameEn: 'Squat',
           nameAr: 'قرفصاء',
           category: 'STRENGTH',
+          version: 2,
           active: true,
           replacedById: null,
         },
@@ -24,6 +25,7 @@ const { findMany } = vi.hoisted(() => ({
           nameEn: 'Old Squat',
           nameAr: 'قرفصاء قديمة',
           category: 'STRENGTH',
+          version: 1,
           active: false,
           replacedById: 'ex-1',
         },
@@ -72,5 +74,26 @@ describe('listExerciseOptionsIncluding (QA 6.3 edit surfaces)', () => {
     expect(where.OR).toBeUndefined();
     expect(where.replacedById).toBeNull();
     expect(where.active).toBe(true);
+  });
+});
+
+describe('version visibility (Prompt 36 — D-23 note)', () => {
+  it('options carry the version number so pickers can label "v2" etc.', async () => {
+    const options = await listExerciseOptionsIncluding(['ex-old']);
+    const current = options.find((o) => o.id === 'ex-1');
+    const superseded = options.find((o) => o.id === 'ex-old');
+    expect(current).toMatchObject({ version: 2, archived: false });
+    expect(superseded).toMatchObject({ version: 1, archived: true });
+  });
+
+  it('the plain picker filters at the QUERY layer: a v1-archived + v2-active chain yields only the v2 row', async () => {
+    await listExerciseOptions();
+    // The where clause is the guarantee — active, un-replaced rows only, so a
+    // chain contributes exactly its current version (the DB does the dedupe).
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { replacedById: null, active: true },
+      }),
+    );
   });
 });

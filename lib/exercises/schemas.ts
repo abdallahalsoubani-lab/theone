@@ -18,8 +18,10 @@ const mediaUrl = z
   .nullable();
 
 export const exerciseCreateSchema = z.object({
-  nameEn: z.string().min(3).max(200),
-  nameAr: z.string().min(3).max(200),
+  // Trimmed so "  Hamstring stretch " can't dodge the duplicate-name guard
+  // (Prompt 36 — D-23 note) or render with stray whitespace.
+  nameEn: z.string().trim().min(3).max(200),
+  nameAr: z.string().trim().min(3).max(200),
   category: z.string().refine(isValidCategory, 'Invalid category.'),
   anatomicalRegion: z.string().refine(isValidRegion, 'Invalid anatomical region.'),
   descriptionEn: z.string().min(10).max(5000),

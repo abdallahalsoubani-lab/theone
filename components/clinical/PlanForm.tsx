@@ -307,8 +307,9 @@ export function PlanForm({
                   className="block w-full rounded-md border border-brand-border bg-brand-surface px-2 py-1.5 text-sm"
                 >
                   {exerciseOptions.map((opt) => (
-                    <option key={opt.id} value={opt.id}>
+                    <option key={opt.id} value={opt.id} disabled={opt.archived}>
                       {locale === 'ar' ? opt.nameAr : opt.nameEn}
+                      {opt.version > 1 ? ` (v${opt.version})` : ''}
                       {opt.archived ? ` (${tEx('archived')})` : ''}
                     </option>
                   ))}

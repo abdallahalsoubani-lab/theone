@@ -89,6 +89,38 @@ vi.mock('@/lib/db', () => {
           async ({ where }: { where: { id: string } }) =>
             state.exercises.find((e) => e.id === where.id) ?? null,
         ),
+        // Supports the duplicate-name guard (Prompt 36): active current rows,
+        // optional id exclusion, case-insensitive equals on either name.
+        findFirst: vi.fn(
+          async ({
+            where,
+          }: {
+            where: {
+              active: boolean;
+              replacedById: null;
+              id?: { not: string };
+              OR: Array<
+                | { nameEn: { equals: string; mode: string } }
+                | { nameAr: { equals: string; mode: string } }
+              >;
+            };
+          }) => {
+            const eq = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
+            return (
+              state.exercises.find(
+                (e) =>
+                  e.active === where.active &&
+                  e.replacedById === null &&
+                  (!where.id?.not || e.id !== where.id.not) &&
+                  where.OR.some((clause) =>
+                    'nameEn' in clause
+                      ? eq(e.nameEn, clause.nameEn.equals)
+                      : eq(e.nameAr, clause.nameAr.equals),
+                  ),
+              ) ?? null
+            );
+          },
+        ),
         update: vi.fn(
           async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
             const e = state.exercises.find((x) => x.id === where.id)!;
@@ -261,5 +293,64 @@ describe('archiveExercise', () => {
     await expect(
       archiveExercise({ id: first.exerciseId }, { actorId: 'actor' }),
     ).rejects.toBeInstanceOf(ExerciseError);
+  });
+});
+
+describe('duplicate-name guard (Prompt 36 — D-23 note)', () => {
+  it('rejects a new exercise whose EN name matches an active one (case-insensitive, trimmed)', async () => {
+    await createExercise(baseInput, { actorId: 'actor' });
+    await expect(
+      createExercise(
+        { ...baseInput, nameEn: '  wall PUSHUP ', nameAr: 'اسم عربي مختلف تماماً' },
+        { actorId: 'actor' },
+      ),
+    ).rejects.toSatisfy((e: unknown) => {
+      expect(e).toBeInstanceOf(ExerciseError);
+      expect((e as ExerciseError).error.code).toBe('EXERCISE_NAME_TAKEN');
+      return true;
+    });
+  });
+
+  it('rejects a clash on the ARABIC name too', async () => {
+    await createExercise(baseInput, { actorId: 'actor' });
+    await expect(
+      createExercise(
+        { ...baseInput, nameEn: 'Totally different', nameAr: baseInput.nameAr },
+        { actorId: 'actor' },
+      ),
+    ).rejects.toBeInstanceOf(ExerciseError);
+  });
+
+  it('a version chain legitimately KEEPS its name (edit is not a duplicate)', async () => {
+    const v1 = await createExercise(baseInput, { actorId: 'actor' });
+    const v2 = await updateExercise({ ...baseInput, id: v1.exerciseId }, { actorId: 'actor' });
+    expect(v2.exerciseId).not.toBe(v1.exerciseId); // new row, same name — allowed
+  });
+
+  it('renaming (via edit) onto ANOTHER active exercise name is blocked', async () => {
+    await createExercise(baseInput, { actorId: 'actor' });
+    const other = await createExercise(
+      { ...baseInput, nameEn: 'Bridge', nameAr: 'الجسر' },
+      { actorId: 'actor' },
+    );
+    await expect(
+      updateExercise(
+        { ...baseInput, id: other.exerciseId, nameEn: 'Wall pushup', nameAr: 'الجسر' },
+        { actorId: 'actor' },
+      ),
+    ).rejects.toSatisfy((e: unknown) => {
+      expect((e as ExerciseError).error.code).toBe('EXERCISE_NAME_TAKEN');
+      return true;
+    });
+  });
+
+  it('archiving the only active holder frees the name', async () => {
+    const first = await createExercise(baseInput, { actorId: 'actor' });
+    // Flip active=false directly (the archive service enforces Admin via auth,
+    // whose mock returns THERAPIST here — the guard itself is what we test).
+    state.exercises.find((e) => e.id === first.exerciseId)!.active = false;
+    await expect(createExercise(baseInput, { actorId: 'actor' })).resolves.toMatchObject({
+      exerciseId: expect.any(String),
+    });
   });
 });

@@ -53,6 +53,42 @@ const forbiddenArchive: LocalizedError = {
   message_ar: 'يستطيع المسؤولون فقط أرشفة التمارين.',
 };
 
+const nameTaken: LocalizedError = {
+  code: 'EXERCISE_NAME_TAKEN',
+  message_en: 'An exercise with this name already exists.',
+  message_ar: 'يوجد تمرين بهذا الاسم.',
+};
+
+/**
+ * Duplicate-name guard (Prompt 36 — D-23 note). A name (EN or AR) may belong
+ * to at most ONE current exercise: active, un-replaced rows only, so version
+ * chains legitimately keep their name (the predecessor is superseded and no
+ * longer counts) and archiving frees the name. Case-insensitive + trimmed.
+ * Service-level only: a matching DB constraint would need a partial
+ * functional unique index (lower(name) WHERE active AND "replacedById" IS
+ * NULL) that Prisma can't express in schema.prisma — at single-clinic write
+ * volume the race window is negligible.
+ */
+async function assertExerciseNameAvailable(
+  nameEn: string,
+  nameAr: string,
+  excludeId?: string,
+): Promise<void> {
+  const clash = await db.exercise.findFirst({
+    where: {
+      active: true,
+      replacedById: null,
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+      OR: [
+        { nameEn: { equals: nameEn.trim(), mode: 'insensitive' } },
+        { nameAr: { equals: nameAr.trim(), mode: 'insensitive' } },
+      ],
+    },
+    select: { id: true },
+  });
+  if (clash) throw new ExerciseError(nameTaken);
+}
+
 export const createExercise = withAudit<
   [ExerciseCreateInput, { actorId: string }],
   { exerciseId: string }
@@ -64,6 +100,7 @@ export const createExercise = withAudit<
     extractAfter: () => ({ event: 'CREATED' }) as Prisma.InputJsonValue,
   },
   async function createInner(input, ctx): Promise<{ exerciseId: string }> {
+    await assertExerciseNameAvailable(input.nameEn, input.nameAr);
     const row = await db.exercise.create({
       data: {
         nameEn: input.nameEn,
@@ -107,6 +144,10 @@ export const updateExercise = withAudit<
     });
     if (!current) throw new ExerciseError(notFound);
     if (current.replacedById) throw new ExerciseError(supersededAlready);
+
+    // A new version keeps its predecessor's name legitimately (the old row is
+    // excluded); renaming onto another current exercise's name is blocked.
+    await assertExerciseNameAvailable(input.nameEn, input.nameAr, current.id);
 
     const result = await db.$transaction(async (tx) => {
       const created = await tx.exercise.create({

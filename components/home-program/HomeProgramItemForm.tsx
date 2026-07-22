@@ -104,9 +104,14 @@ export function HomeProgramItemForm({ patientId, exerciseOptions, initial, onDon
           className="block w-full rounded-md border border-brand-border bg-brand-surface px-2 py-1.5 text-sm"
           required
         >
+          {/* Archived/superseded versions are listed only because an existing
+              item references them — they stay VISIBLE (the item keeps its
+              historical label) but are never selectable (Prompt 36 — D-23:
+              choosing one used to bounce off the server guard mid-flow). */}
           {exerciseOptions.map((opt) => (
-            <option key={opt.id} value={opt.id}>
+            <option key={opt.id} value={opt.id} disabled={opt.archived}>
               {locale === 'ar' ? opt.nameAr : opt.nameEn}
+              {opt.version > 1 ? ` (v${opt.version})` : ''}
               {opt.archived ? ` (${tEx('archived')})` : ''}
             </option>
           ))}

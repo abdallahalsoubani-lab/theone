@@ -18,6 +18,9 @@ export interface ExerciseOption {
   nameEn: string;
   nameAr: string;
   category: string;
+  /** Version number — shown in picker labels when > 1 so a clinician can
+   *  tell WHICH version an item references (Prompt 36 — D-23 note). */
+  version: number;
   /** True for archived (active=false) or superseded (replacedById set)
    *  versions surfaced only because an existing row references them. */
   archived: boolean;
@@ -28,6 +31,7 @@ const OPTION_SELECT = {
   nameEn: true,
   nameAr: true,
   category: true,
+  version: true,
   active: true,
   replacedById: true,
 } as const;
@@ -37,6 +41,7 @@ type OptionRow = {
   nameEn: string;
   nameAr: string;
   category: string;
+  version: number;
   active: boolean;
   replacedById: string | null;
 };
@@ -47,6 +52,7 @@ function shapeOption(row: OptionRow): ExerciseOption {
     nameEn: row.nameEn,
     nameAr: row.nameAr,
     category: row.category,
+    version: row.version,
     archived: !row.active || row.replacedById !== null,
   };
 }

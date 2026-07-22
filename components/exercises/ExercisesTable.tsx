@@ -198,7 +198,11 @@ export function ExercisesTable({ rows, total, page, pageSize, showArchived, canA
                     >
                       {name}
                     </Link>
-                    <span className="font-mono text-xs text-brand-textMuted">v{row.version}</span>
+                    {/* Version badge only where history exists — no "v1" noise
+                        on never-edited exercises (Prompt 36 §3.2). */}
+                    {row.version > 1 ? (
+                      <span className="font-mono text-xs text-brand-textMuted">v{row.version}</span>
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap gap-1">
                     <Badge variant="muted">
