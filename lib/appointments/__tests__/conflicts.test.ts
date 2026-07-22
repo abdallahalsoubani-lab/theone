@@ -9,7 +9,9 @@ vi.mock('@/lib/db', () => {
   const state = {
     appointments: [] as Array<{
       id: string;
-      patientId: string;
+      patientId: string | null;
+      /** GROUP members (AppointmentPatient M2M) — R-22, Prompt 42. */
+      groupPatientIds?: string[];
       therapistIds: string[];
       startsAt: Date;
       durationMinutes: number;
@@ -37,6 +39,23 @@ vi.mock('@/lib/db', () => {
             .filter((a) => {
               if (therapistScope && !a.therapistIds.includes(therapistScope)) return false;
               if ('patientId' in where && a.patientId !== where.patientId) return false;
+              // Patient scope (R-22, Prompt 42): the engine matches an
+              // existing appointment holding the patient either via the
+              // scalar patientId OR via GROUP membership.
+              const or = (where as { OR?: Array<Record<string, unknown>> }).OR;
+              if (or) {
+                const scalar = (or.find((c) => 'patientId' in c) as { patientId?: string })
+                  ?.patientId;
+                const member = (
+                  or.find((c) => 'groupPatients' in c) as
+                    | { groupPatients?: { some?: { patientId?: string } } }
+                    | undefined
+                )?.groupPatients?.some?.patientId;
+                const holds =
+                  (scalar != null && a.patientId === scalar) ||
+                  (member != null && (a.groupPatientIds ?? []).includes(member));
+                if (!holds) return false;
+              }
               const statusWhere = where.status as { in?: AppointmentStatus[] } | undefined;
               if (statusWhere?.in && !statusWhere.in.includes(a.status)) return false;
               const idWhere = where.id as { not?: string } | undefined;
@@ -78,7 +97,8 @@ vi.mock('@/lib/db', () => {
 
 const dbMock = await import('@/lib/db');
 const state = (dbMock as unknown as { __state: BlankState }).__state;
-const { checkConflicts } = await import('../conflicts');
+const { checkConflicts, isHardBlockedConflict, hasSamePatientOverlap } =
+  await import('../conflicts');
 
 type BlankState = {
   appointments: Array<unknown>;
@@ -99,7 +119,9 @@ const HOURS_M_TO_F_9_TO_18 = {
 function addExistingAppt(args: {
   id?: string;
   therapistIds: string[];
-  patientId: string;
+  patientId: string | null;
+  /** Members of an existing GROUP appointment (R-22, Prompt 42). */
+  groupPatientIds?: string[];
   startsAt: string; // ISO
   durationMinutes: number;
   status?: AppointmentStatus;
@@ -108,6 +130,7 @@ function addExistingAppt(args: {
     id: args.id ?? `appt-${state.appointments.length + 1}`,
     therapistIds: args.therapistIds,
     patientId: args.patientId,
+    groupPatientIds: args.groupPatientIds ?? [],
     startsAt: new Date(args.startsAt),
     durationMinutes: args.durationMinutes,
     status: args.status ?? AppointmentStatus.SCHEDULED,
@@ -586,5 +609,136 @@ describe('checkConflicts — multiple therapists (Prompt 20)', () => {
       durationMinutes: 30,
     });
     expect(result.ok).toBe(true);
+  });
+});
+
+describe('same-patient overlap — R-22 hard block (Prompt 42)', () => {
+  it('rejects the exact same slot («اذا نفس الوقت بالضبط لا ممنوع ابدا»)', async () => {
+    addExistingAppt({
+      therapistIds: ['t1'],
+      patientId: 'p1',
+      startsAt: `${MONDAY}T10:00:00Z`,
+      durationMinutes: 60,
+    });
+    const result = await checkConflicts({
+      patientId: 'p1',
+      therapistIds: ['t2'],
+      startsAt: new Date(`${MONDAY}T10:00:00Z`),
+      durationMinutes: 60,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const overlap = result.conflicts.find((c) => c.kind === 'PATIENT_OVERLAP');
+    expect(overlap).toBeDefined();
+    // The rule is a HARD block: no "Add anyway" — but waitlisting stays open.
+    expect(isHardBlockedConflict(overlap!)).toBe(true);
+    expect(hasSamePatientOverlap(result.conflicts)).toBe(true);
+  });
+
+  it('rejects a partial overlap, not only exact-equal starts (10:00–11:00 vs 10:30–11:30)', async () => {
+    addExistingAppt({
+      therapistIds: ['t1'],
+      patientId: 'p1',
+      startsAt: `${MONDAY}T10:00:00Z`,
+      durationMinutes: 60,
+    });
+    const result = await checkConflicts({
+      patientId: 'p1',
+      therapistIds: ['t2'],
+      startsAt: new Date(`${MONDAY}T10:30:00Z`),
+      durationMinutes: 60,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(hasSamePatientOverlap(result.conflicts)).toBe(true);
+  });
+
+  it('allows zero-gap back-to-back (10:00–10:30 then 10:30–11:00 — the P27 grouping case)', async () => {
+    addExistingAppt({
+      therapistIds: ['t1'],
+      patientId: 'p1',
+      startsAt: `${MONDAY}T10:00:00Z`,
+      durationMinutes: 30,
+    });
+    const result = await checkConflicts({
+      patientId: 'p1',
+      therapistIds: ['t2'],
+      startsAt: new Date(`${MONDAY}T10:30:00Z`),
+      durationMinutes: 30,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('different patients in the same slot are unaffected', async () => {
+    addExistingAppt({
+      therapistIds: ['t1'],
+      patientId: 'p1',
+      startsAt: `${MONDAY}T10:00:00Z`,
+      durationMinutes: 60,
+    });
+    const result = await checkConflicts({
+      patientId: 'p2',
+      therapistIds: ['t2'],
+      startsAt: new Date(`${MONDAY}T10:00:00Z`),
+      durationMinutes: 60,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('a cancelled existing appointment does not block the slot', async () => {
+    addExistingAppt({
+      therapistIds: ['t1'],
+      patientId: 'p1',
+      startsAt: `${MONDAY}T10:00:00Z`,
+      durationMinutes: 60,
+      status: AppointmentStatus.CANCELLED,
+    });
+    const result = await checkConflicts({
+      patientId: 'p1',
+      therapistIds: ['t1'],
+      startsAt: new Date(`${MONDAY}T10:00:00Z`),
+      durationMinutes: 60,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it('GROUP create: an overlapping member is caught via `patientIds` and named', async () => {
+    addExistingAppt({
+      therapistIds: ['t1'],
+      patientId: 'p2',
+      startsAt: `${MONDAY}T10:00:00Z`,
+      durationMinutes: 60,
+    });
+    const result = await checkConflicts({
+      patientId: null,
+      patientIds: ['p1', 'p2', 'p3'],
+      therapistIds: ['t9'],
+      startsAt: new Date(`${MONDAY}T10:00:00Z`),
+      durationMinutes: 60,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const overlaps = result.conflicts.filter((c) => c.kind === 'PATIENT_OVERLAP');
+    expect(overlaps).toHaveLength(1);
+    expect(overlaps[0]!.kind === 'PATIENT_OVERLAP' && overlaps[0]!.patient?.id).toBe('p2');
+  });
+
+  it('an existing GROUP appointment holding the patient blocks their SESSION booking', async () => {
+    addExistingAppt({
+      therapistIds: ['t1'],
+      patientId: null,
+      groupPatientIds: ['p1', 'p7'],
+      startsAt: `${MONDAY}T10:00:00Z`,
+      durationMinutes: 60,
+    });
+    const result = await checkConflicts({
+      patientId: 'p1',
+      therapistIds: ['t2'],
+      startsAt: new Date(`${MONDAY}T10:00:00Z`),
+      durationMinutes: 60,
+    });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(hasSamePatientOverlap(result.conflicts)).toBe(true);
   });
 });

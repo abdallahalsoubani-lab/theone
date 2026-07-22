@@ -56,6 +56,8 @@ const revalidate = () => {
 export async function previewConflictsAction(input: {
   appointmentId?: string;
   patientId?: string | null;
+  /** GROUP members (R-22, Prompt 42) — each runs the patient-overlap check. */
+  patientIds?: string[];
   therapistIds: string[];
   startsAt: string;
   durationMinutes: number;

@@ -113,6 +113,8 @@ vi.mock('@/lib/db', () => {
           patient: patient
             ? { fullNameEn: patient.fullNameEn, fullNameAr: patient.fullNameAr }
             : null,
+          // Reschedule selects GROUP membership (R-22, Prompt 42).
+          groupPatients: [],
         };
       }),
     },
@@ -418,5 +420,29 @@ describe('appointment resize — duration-only, free (July #6)', () => {
         resize: false,
       } as Parameters<typeof rescheduleAppointment>[0]),
     ).rejects.toBeDefined();
+  });
+});
+
+describe('same-patient overlap on CREATE — R-22 hard block (Prompt 42)', () => {
+  it('rejects even with overrideConflicts=true, naming the clashing time', async () => {
+    const clashAt = futureStart();
+    vi.mocked(checkConflicts).mockResolvedValueOnce({
+      ok: false,
+      conflicts: [{ kind: 'PATIENT_OVERLAP', appointment: { startsAt: clashAt } }],
+    } as never);
+    await expect(
+      createAppointment({ ...baseCreate, overrideConflicts: true }),
+    ).rejects.toMatchObject({ error: { code: 'APPOINTMENT_SAME_PATIENT_OVERLAP' } });
+    expect(__state.appointments).toHaveLength(0);
+  });
+
+  it('soft conflicts (therapist overlap) remain overridable — semantics untouched', async () => {
+    vi.mocked(checkConflicts).mockResolvedValueOnce({
+      ok: false,
+      conflicts: [{ kind: 'THERAPIST_OVERLAP', therapist: {}, appointment: {} }],
+    } as never);
+    const r = await createAppointment({ ...baseCreate, overrideConflicts: true });
+    expect(r.conflictsOverridden).toBe(true);
+    expect(__state.appointments).toHaveLength(1);
   });
 });

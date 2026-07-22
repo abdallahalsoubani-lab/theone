@@ -85,4 +85,14 @@ describe('recurring day cap (Prompt 22 §4.2)', () => {
     expect(seriesPreviewSchema.safeParse(series(['MON', 'WED', 'THU'])).success).toBe(false);
     expect(seriesPreviewSchema.safeParse(series([])).success).toBe(false);
   });
+
+  it('R-6 (Prompt 42): rejects more weekdays than appointments — days ≤ count', () => {
+    const two = series(['MON', 'WED']);
+    const withCount = (count: number) => ({ ...two, rule: { ...two.rule, count } });
+    // 2 days over a 1-appointment series is a crafted request — rejected.
+    expect(seriesPreviewSchema.safeParse(withCount(1)).success).toBe(false);
+    // days == count and days < count are both fine.
+    expect(seriesPreviewSchema.safeParse(withCount(2)).success).toBe(true);
+    expect(seriesPreviewSchema.safeParse(withCount(3)).success).toBe(true);
+  });
 });

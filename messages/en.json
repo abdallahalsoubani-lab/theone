@@ -1493,7 +1493,9 @@
       "switchToSingle": "Single appointment",
       "hardBlockedHint": "This occurrence conflicts with the same patient's existing appointment or a closed day — skip or shift it.",
       "weekdayMaxHint": "Choose up to 2 days per week.",
-      "closedDay": "Non-working day"
+      "closedDay": "Non-working day",
+      "daysLeCountHint": "Selected days ≤ number of appointments",
+      "daysExceedCount": "Too many days selected (max {max}) — remove a day or increase the appointment count."
     }
   },
   "leave": {

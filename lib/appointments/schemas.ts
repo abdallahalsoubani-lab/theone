@@ -189,14 +189,22 @@ export type CancelledAppointmentFilters = z.infer<typeof cancelledAppointmentFil
 
 const weekdayEnum = z.enum(['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']);
 
-export const recurrenceRuleSchema = z.object({
-  frequency: z.literal('WEEKLY'),
-  interval: z.number().int().min(1).max(8),
-  // Max 2 days per week (Prompt 22 §4.2) — the schema is the single source
-  // of truth, so preview + create actions enforce the cap server-side.
-  byWeekday: z.array(weekdayEnum).min(1).max(2),
-  count: z.number().int().min(1).max(52),
-});
+export const recurrenceRuleSchema = z
+  .object({
+    frequency: z.literal('WEEKLY'),
+    interval: z.number().int().min(1).max(8),
+    // Max 2 days per week (Prompt 22 §4.2) — the schema is the single source
+    // of truth, so preview + create actions enforce the cap server-side.
+    byWeekday: z.array(weekdayEnum).min(1).max(2),
+    count: z.number().int().min(1).max(52),
+  })
+  // R-6 (Prompt 42): you can't spread the pattern over more weekdays than the
+  // series has appointments (count=1 → 1 selectable day). The picker enforces
+  // this in the UI; the refine rejects crafted requests server-side.
+  .refine((r) => r.byWeekday.length <= r.count, {
+    message: 'byWeekday must not exceed count (R-6)',
+    path: ['byWeekday'],
+  });
 
 export type RecurrenceRuleInput = z.infer<typeof recurrenceRuleSchema>;
 

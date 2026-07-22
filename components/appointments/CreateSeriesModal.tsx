@@ -148,9 +148,21 @@ export function CreateSeriesModal({
   const therapistKey = therapistIds.join(',');
   const toggleTherapist = (id: string) =>
     setTherapistIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  // R-6 (Prompt 42): selectable weekdays ≤ appointment count, on top of the
+  // 2-days-per-week cap (Prompt 22 §4.2). Lowering the count below the
+  // current selection surfaces a validation state — days are never silently
+  // dropped, and preview/save stay disabled until the user fixes it.
+  const maxSelectableWeekdays = Math.min(MAX_WEEKDAYS, Math.max(1, count || 1));
+  const daysExceedCount = byWeekday.length > maxSelectableWeekdays;
   // Room required for recurring create too (QA retest #7/#13).
   const canPreview = Boolean(
-    patientId && therapistIds.length > 0 && roomId && startsAt && byWeekday.length > 0 && count > 0,
+    patientId &&
+    therapistIds.length > 0 &&
+    roomId &&
+    startsAt &&
+    byWeekday.length > 0 &&
+    count > 0 &&
+    !daysExceedCount,
   );
 
   // Run the initial preview when the pattern + actors are settled.
@@ -433,8 +445,8 @@ export function CreateSeriesModal({
                 // Non-working days are unselectable (Prompt 22 §4.2); an
                 // already-active day stays clickable so it can be deselected.
                 const closed = (closedDays ?? []).includes(weekdayToDayKey(day));
-                // Once the 2-day cap is reached, the remaining buttons disable.
-                const capReached = !active && byWeekday.length >= MAX_WEEKDAYS;
+                // Cap = min(2-day weekly cap, appointment count) — R-6.
+                const capReached = !active && byWeekday.length >= maxSelectableWeekdays;
                 const disabled = (closed && !active) || capReached;
                 return (
                   <button
@@ -459,7 +471,14 @@ export function CreateSeriesModal({
                 );
               })}
             </div>
-            <p className="mt-1 text-xs text-brand-textMuted">{t('weekdayMaxHint')}</p>
+            <p className="mt-1 text-xs text-brand-textMuted">
+              {t('weekdayMaxHint')} · {t('daysLeCountHint')}
+            </p>
+            {daysExceedCount ? (
+              <p className="mt-1 text-xs font-medium text-red-700" role="alert">
+                {t('daysExceedCount', { max: String(maxSelectableWeekdays) })}
+              </p>
+            ) : null}
           </div>
         </fieldset>
 
@@ -620,11 +639,18 @@ function toLocalInput(d: Date): string {
 type ConflictType =
   | {
       kind: 'THERAPIST_OVERLAP';
-      appointment: { patient: { fullNameEn: string; fullNameAr: string }; startsAt: Date };
+      therapist: { fullNameEn: string; fullNameAr: string };
+      appointment: { patient: { fullNameEn: string; fullNameAr: string } | null; startsAt: Date };
     }
   | {
       kind: 'PATIENT_OVERLAP';
-      appointment: { therapist: { fullNameEn: string; fullNameAr: string }; startsAt: Date };
+      // The engine ships `therapists` (plural, Prompt 20) — the singular
+      // shape this file assumed crashed the preview row for a same-patient
+      // clash (fixed with R-22 / Prompt 42).
+      appointment: {
+        therapists: Array<{ fullNameEn: string; fullNameAr: string }>;
+        startsAt: Date;
+      };
     }
   | { kind: 'THERAPIST_ON_LEAVE' }
   | {
@@ -641,25 +667,28 @@ function describeConflict(
   locale: string,
 ): string {
   const conflict = c as ConflictType;
+  const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
+  const clashTime = (startsAt: Date | string) => {
+    const d = new Date(startsAt);
+    return `${formatDate(d, intlLocale)} ${formatTime(d, intlLocale)}`;
+  };
   switch (conflict.kind) {
     case 'THERAPIST_OVERLAP': {
-      const name =
-        locale === 'ar'
-          ? conflict.appointment.patient.fullNameAr
-          : conflict.appointment.patient.fullNameEn;
+      const p = conflict.appointment.patient;
+      const th = conflict.therapist;
       return t('therapistOverlap', {
-        patient: name,
-        time: new Date(conflict.appointment.startsAt).toISOString(),
+        therapist: locale === 'ar' ? th.fullNameAr : th.fullNameEn,
+        patient: p ? (locale === 'ar' ? p.fullNameAr : p.fullNameEn) : '',
+        time: clashTime(conflict.appointment.startsAt),
       });
     }
     case 'PATIENT_OVERLAP': {
-      const name =
-        locale === 'ar'
-          ? conflict.appointment.therapist.fullNameAr
-          : conflict.appointment.therapist.fullNameEn;
+      const names = conflict.appointment.therapists
+        .map((th) => (locale === 'ar' ? th.fullNameAr : th.fullNameEn))
+        .join(locale === 'ar' ? '، ' : ', ');
       return t('patientOverlap', {
-        therapist: name,
-        time: new Date(conflict.appointment.startsAt).toISOString(),
+        therapist: names,
+        time: clashTime(conflict.appointment.startsAt),
       });
     }
     case 'THERAPIST_ON_LEAVE':

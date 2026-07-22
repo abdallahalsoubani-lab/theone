@@ -18,8 +18,13 @@ import {
   ResponsiveModalTitle,
 } from '@/components/ui/responsive-modal';
 import { createAppointmentAction, previewConflictsAction } from '@/lib/appointments/actions';
-import { hasHardBlockedConflict, type ConflictResult } from '@/lib/appointments/conflicts';
+import {
+  hasHardBlockedConflict,
+  hasSamePatientOverlap,
+  type ConflictResult,
+} from '@/lib/appointments/conflicts';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
+import { formatDate, formatTime } from '@/lib/format/date';
 import { showFirstVisitNotice } from '@/lib/patients/first-visit-policy';
 import { formatClinicDateTimeLocal, parseClinicDateTimeLocal } from '@/lib/time/clinic';
 import { addWaitlistEntryAction, fulfillWaitlistEntryAction } from '@/lib/waitlist/actions';
@@ -158,6 +163,7 @@ export function CreateAppointmentModal({
   }, [isGroup, patientIds.length]);
 
   const therapistKey = therapistIds.join(',');
+  const groupPatientsKey = patientIds.join(',');
 
   // Live conflict preview — debounced. Each type gates on what it needs:
   // SESSION on a therapist, STRETCHING on a room (bed capacity), EVENT on a
@@ -176,9 +182,10 @@ export function CreateAppointmentModal({
     }
     const handle = setTimeout(() => {
       void previewConflictsAction({
-        // GROUP previews therapist/room/hours conflicts only — its members
-        // live in the set, so no single patient drives the check.
+        // GROUP members ride in `patientIds` — every member runs the
+        // same-patient overlap check (R-22, Prompt 42).
         patientId: isEvent || isGroup ? null : patientId,
+        patientIds: isGroup ? patientIds : [],
         therapistIds,
         // The picker value is CLINIC wall time — parse it as such, never via
         // `new Date(string)` (machine-timezone dependent). Prompt 31.
@@ -192,13 +199,22 @@ export function CreateAppointmentModal({
     }, 300);
     return () => clearTimeout(handle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [patientId, therapistKey, startsAt, duration, appointmentType, roomId]);
+  }, [patientId, groupPatientsKey, therapistKey, startsAt, duration, appointmentType, roomId]);
 
   const hasConflicts = conflicts && !conflicts.ok;
-  // QA retest #15 — same-patient overlap is a hard block: no override, no
-  // waitlist. The server enforces this too; the UI just hides the bypass paths.
+  // Same-patient overlap is a hard block (QA retest #15, re-ruled in R-22 /
+  // Prompt 42): "Add anyway" is never offered — but "Add to waiting list"
+  // REMAINS available for it (parking for a freed slot books nothing). The
+  // server enforces the block; the UI hides only the override path.
   const hardBlocked = Boolean(
     conflicts && !conflicts.ok && hasHardBlockedConflict(conflicts.conflicts),
+  );
+  const waitlistStillAllowed = Boolean(
+    conflicts &&
+    !conflicts.ok &&
+    hasSamePatientOverlap(conflicts.conflicts) &&
+    !waitlistEntryId &&
+    patientId,
   );
   // Per-type submit gate (July #8). SESSION: patient + room + ≥1 therapist.
   // STRETCHING: patient + room + 0 therapists. EVENT: a title + start (patient
@@ -525,10 +541,24 @@ export function CreateAppointmentModal({
             </Button>
             {hasConflicts ? (
               hardBlocked ? (
-                // Same-patient overlap (QA retest #15): no override, no waitlist.
-                <Button type="button" disabled>
-                  {tConflicts('cancelButton')}
-                </Button>
+                // R-22 ruling (Prompt 42): the same-patient overlap rejection
+                // keeps "Add to waiting list" (books nothing) — "Add anyway"
+                // stays withheld for every hard-blocked kind.
+                <>
+                  {waitlistStillAllowed ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={pending || !canSubmit}
+                      onClick={addToWaitlist}
+                    >
+                      {tWaitlist('addToWaitlist')}
+                    </Button>
+                  ) : null}
+                  <Button type="button" disabled>
+                    {tConflicts('cancelButton')}
+                  </Button>
+                </>
               ) : (
                 <>
                   {!waitlistEntryId ? (
@@ -623,6 +653,14 @@ function nm(p: Person, locale: string): string {
   return locale === 'ar' ? p.fullNameAr : p.fullNameEn;
 }
 
+/** Clinic-local, localized "{date} {time}" for a clashing appointment — the
+ *  R-22 messages name the existing appointment's time, not a raw ISO string. */
+function fmtClashTime(startsAt: Date | string, locale: string): string {
+  const l = locale === 'ar' ? ('ar' as const) : ('en' as const);
+  const d = new Date(startsAt);
+  return `${formatDate(d, l)} ${formatTime(d, l)}`;
+}
+
 function describeConflict(
   c: unknown,
   t: (key: string, params?: Record<string, string>) => string,
@@ -637,20 +675,20 @@ function describeConflict(
         return t('therapistInEvent', {
           therapist: nm(conflict.therapist, locale),
           event: conflict.appointment.title ?? '',
-          time: new Date(conflict.appointment.startsAt).toISOString(),
+          time: fmtClashTime(conflict.appointment.startsAt, locale),
         });
       }
       return t('therapistOverlap', {
         therapist: nm(conflict.therapist, locale),
         patient: conflict.appointment.patient ? nm(conflict.appointment.patient, locale) : '',
-        time: new Date(conflict.appointment.startsAt).toISOString(),
+        time: fmtClashTime(conflict.appointment.startsAt, locale),
       });
     case 'PATIENT_OVERLAP':
       return t('patientOverlap', {
         therapist: conflict.appointment.therapists
           .map((th) => nm(th, locale))
           .join(locale === 'ar' ? '، ' : ', '),
-        time: new Date(conflict.appointment.startsAt).toISOString(),
+        time: fmtClashTime(conflict.appointment.startsAt, locale),
       });
     case 'THERAPIST_ON_LEAVE':
       return t('therapistOnLeave', { therapist: nm(conflict.therapist, locale) });

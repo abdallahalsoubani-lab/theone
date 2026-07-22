@@ -186,3 +186,32 @@ describe('GROUP create path (July #8 part 3)', () => {
     expect(enqueueAppointmentReminder).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('GROUP same-patient overlap wiring (R-22, Prompt 42)', () => {
+  it('createAppointment hands every member to the conflict engine via patientIds', async () => {
+    const { checkConflicts } = await import('../conflicts');
+    await createAppointment(groupCreate);
+    expect(vi.mocked(checkConflicts).mock.calls.at(-1)![0]).toMatchObject({
+      patientId: null,
+      patientIds: ['patient-1', 'patient-2', 'patient-3'],
+    });
+  });
+
+  it('a hard-blocked member overlap aborts the group create even with override', async () => {
+    const { checkConflicts } = await import('../conflicts');
+    vi.mocked(checkConflicts).mockResolvedValueOnce({
+      ok: false,
+      conflicts: [
+        {
+          kind: 'PATIENT_OVERLAP',
+          appointment: { startsAt: futureStart(), durationMinutes: 45 },
+          patient: { id: 'patient-2', fullNameEn: 'P2', fullNameAr: 'م٢' },
+        },
+      ],
+    } as never);
+    await expect(
+      createAppointment({ ...groupCreate, overrideConflicts: true } as never),
+    ).rejects.toMatchObject({ error: { code: 'APPOINTMENT_SAME_PATIENT_OVERLAP' } });
+    expect(__state.appointments).toHaveLength(0);
+  });
+});

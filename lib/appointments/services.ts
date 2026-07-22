@@ -17,13 +17,19 @@ import { clinicDateKey, clinicHm } from '@/lib/time/clinic';
 import { getClinicTimeZone } from '@/lib/time/clinic-server';
 import { notifyWaitlistForFreedSlot } from '@/lib/waitlist/services';
 
+import { closedDayKeys, weekdayToDayKey } from './closed-days';
 import {
   checkConflicts,
   hasHardBlockedConflict,
   type Conflict,
   type ConflictResult,
 } from './conflicts';
-import { expandRecurrence, MAX_SERIES_OCCURRENCES, type PlannedOccurrence } from './recurrence';
+import {
+  expandRecurrence,
+  MAX_SERIES_OCCURRENCES,
+  type PlannedOccurrence,
+  type Weekday,
+} from './recurrence';
 import { parseHhMm, type ReminderConfig } from './reminderWindow';
 import { getSessionGraceConfig } from './session-settings';
 import {
@@ -58,17 +64,26 @@ const conflictError = (conflicts: Conflict[]): LocalizedError => ({
   details: { conflicts: conflicts as unknown as Record<string, unknown> },
 });
 
-// QA retest #15 + Prompt 22 §4.1/§4.2 — hard-blocked conflicts can never be
-// overridden or waitlisted. Thrown even when overrideConflicts is set. The
-// message names the dominant blocker: same-patient overlap wins over the
-// closed-day case when both are present.
-const hardBlockedError = (conflicts: Conflict[]): LocalizedError => {
+// QA retest #15 + Prompt 22 §4.1/§4.2 + R-22 ruling (Prompt 42) — hard-blocked
+// conflicts can never be overridden. Thrown even when overrideConflicts is
+// set. The message names the dominant blocker: same-patient overlap wins over
+// the closed-day case when both are present.
+const hardBlockedError = async (conflicts: Conflict[]): Promise<LocalizedError> => {
   const details = { conflicts: conflicts as unknown as Record<string, unknown> };
-  if (conflicts.some((c) => c.kind === 'PATIENT_OVERLAP')) {
+  const patientOverlap = conflicts.find((c) => c.kind === 'PATIENT_OVERLAP');
+  if (patientOverlap && patientOverlap.kind === 'PATIENT_OVERLAP') {
+    // R-22: the rejection names the existing appointment's clinic-local time
+    // («لدى المريض موعد آخر في هذا الوقت ({time})»).
+    const clash = patientOverlap.appointment?.startsAt;
+    let time = '';
+    if (clash) {
+      const tz = await getClinicTimeZone();
+      time = ` (${clinicDateKey(clash, tz)} ${clinicHm(clash, tz)})`;
+    }
     return {
       code: 'APPOINTMENT_SAME_PATIENT_OVERLAP',
-      message_en: 'This patient already has an appointment at this time. Pick another slot.',
-      message_ar: 'لدى هذا المريض موعد آخر في نفس الوقت. الرجاء اختيار وقت آخر.',
+      message_en: `This patient already has another appointment at this time${time}. Pick another slot.`,
+      message_ar: `لدى هذا المريض موعد آخر في هذا الوقت${time}. الرجاء اختيار وقت آخر.`,
       details,
     };
   }
@@ -198,8 +213,15 @@ export const createAppointment = withAudit<
 
     if (isStartInPast(input.startsAt)) throw new AppointmentError(inPast);
 
+    // GROUP therapy / workshops (July #8 part 3): patients live in the
+    // AppointmentPatient M2M, not the scalar patientId. R-22 (Prompt 42):
+    // every member runs the same-patient overlap check via `patientIds`.
+    const isGroup = input.appointmentType === AppointmentType.GROUP;
+    const groupPatientIds = isGroup ? [...new Set(input.patientIds)] : [];
+
     const conflicts = await checkConflicts({
       patientId: input.patientId,
+      patientIds: groupPatientIds,
       therapistIds: input.therapistIds,
       startsAt: input.startsAt,
       durationMinutes: input.durationMinutes,
@@ -211,7 +233,7 @@ export const createAppointment = withAudit<
       // Same-patient overlap is never overridable (QA retest #15) — reject even
       // when the actor passed overrideConflicts + holds the override permission.
       if (hasHardBlockedConflict(conflicts.conflicts)) {
-        throw new AppointmentError(hardBlockedError(conflicts.conflicts));
+        throw new AppointmentError(await hardBlockedError(conflicts.conflicts));
       }
       if (!input.overrideConflicts) {
         throw new AppointmentError(conflictError(conflicts.conflicts));
@@ -219,12 +241,9 @@ export const createAppointment = withAudit<
     }
 
     const therapistIds = [...new Set(input.therapistIds)];
-    // GROUP therapy / workshops (July #8 part 3): patients live in the
-    // AppointmentPatient M2M, not the scalar patientId. Non-GROUP types keep
-    // the single scalar patient (choice B — Hybrid). One list drives the
-    // care-team loop + per-patient reminder seam regardless of mechanism.
-    const isGroup = input.appointmentType === AppointmentType.GROUP;
-    const groupPatientIds = isGroup ? [...new Set(input.patientIds)] : [];
+    // Non-GROUP types keep the single scalar patient (choice B — Hybrid). One
+    // list drives the care-team loop + per-patient reminder seam regardless
+    // of mechanism.
     const carePatientIds = isGroup ? groupPatientIds : input.patientId ? [input.patientId] : [];
     const appointment = await db.$transaction(async (tx) => {
       const appt = await tx.appointment.create({
@@ -363,7 +382,16 @@ export const rescheduleAppointment = withAudit<
     const session = await auth();
     const existing = await db.appointment.findUnique({
       where: { id: input.id },
-      select: { id: true, patientId: true, status: true, appointmentType: true, roomId: true },
+      select: {
+        id: true,
+        patientId: true,
+        status: true,
+        appointmentType: true,
+        roomId: true,
+        // GROUP members — dragging a group re-checks every member's schedule
+        // at the new time (R-22, Prompt 42).
+        groupPatients: { select: { patientId: true } },
+      },
     });
     if (!existing) throw new AppointmentError(notFound);
 
@@ -392,6 +420,7 @@ export const rescheduleAppointment = withAudit<
       const conflicts = await checkConflicts({
         appointmentId: input.id,
         patientId: existing.patientId,
+        patientIds: existing.groupPatients.map((g) => g.patientId),
         therapistIds,
         startsAt: input.startsAt,
         durationMinutes,
@@ -404,7 +433,7 @@ export const rescheduleAppointment = withAudit<
         // Hard-blocked kinds (same-patient overlap, closed day, bed capacity)
         // reject even with overrideConflicts + the permission (Prompt 22 §4.1).
         if (hasHardBlockedConflict(conflicts.conflicts)) {
-          throw new AppointmentError(hardBlockedError(conflicts.conflicts));
+          throw new AppointmentError(await hardBlockedError(conflicts.conflicts));
         }
         if (!input.overrideConflicts) {
           throw new AppointmentError(conflictError(conflicts.conflicts));
@@ -538,7 +567,7 @@ export const changeAppointmentTherapist = withAudit<
     if (!conflicts.ok) {
       // Hard-blocked kinds reject even with overrideConflicts (Prompt 22 §4.1).
       if (hasHardBlockedConflict(conflicts.conflicts)) {
-        throw new AppointmentError(hardBlockedError(conflicts.conflicts));
+        throw new AppointmentError(await hardBlockedError(conflicts.conflicts));
       }
       if (!input.overrideConflicts) {
         throw new AppointmentError(conflictError(conflicts.conflicts));
@@ -1322,9 +1351,35 @@ export interface SeriesPreviewOccurrence {
  * slot never lands silently — if the +1d shift still conflicts, the
  * client surfaces the new conflicts and asks the user to resolve again.
  */
+/**
+ * R-6 (Prompt 42): the recurring rule may not include a clinic non-working
+ * day. Settings-driven — reads ClinicSettings.businessHours live, never a
+ * hardcoded Fri/Sat. The per-occurrence CLINIC_CLOSED_THIS_DAY hard block in
+ * the conflict engine stays the deeper authority; this rejects the RULE up
+ * front with a clear localized error (UI disabling alone is not enforcement).
+ */
+async function assertRuleAvoidsClosedDays(byWeekday: Weekday[]): Promise<void> {
+  const settings = await db.clinicSettings.findUnique({
+    where: { id: 'default' },
+    select: { businessHours: true },
+  });
+  const closed = new Set(closedDayKeys(settings?.businessHours));
+  const offenders = byWeekday.filter((d) => closed.has(weekdayToDayKey(d)));
+  if (offenders.length > 0) {
+    throw new AppointmentError({
+      code: 'SERIES_DAY_CLOSED',
+      message_en:
+        'The selected pattern includes a non-working day. Closed days cannot be part of a recurring series.',
+      message_ar: 'النمط المحدد يتضمن يوم عطلة. لا يمكن تضمين أيام العطلة في السلسلة المتكررة.',
+      details: { closedWeekdays: offenders },
+    });
+  }
+}
+
 export async function previewSeries(
   input: SeriesPreviewInput,
 ): Promise<{ occurrences: SeriesPreviewOccurrence[] }> {
+  await assertRuleAvoidsClosedDays(input.rule.byWeekday);
   const planned = expandRecurrence(input.rule, input.startsAt, input.durationMinutes);
   const occurrences = await Promise.all(
     planned.map(async (p) => ({
@@ -1395,6 +1450,10 @@ export const createSeries = withAudit<
     // later, so rejecting a past first-start guarantees no past occurrence is
     // created (Fix 6C item 1).
     if (isStartInPast(input.startsAt)) throw new AppointmentError(inPast);
+
+    // R-6 (Prompt 42): off-days are rejected at the rule level too — a
+    // crafted create request can't smuggle a closed weekday past the picker.
+    await assertRuleAvoidsClosedDays(input.rule.byWeekday);
 
     // Re-expand from the rule + first slot to validate the client's
     // resolution list matches the actual occurrence count. The client
@@ -1492,7 +1551,7 @@ export const createSeries = withAudit<
           // be resolved via OVERRIDE — abort the series atomically even when
           // the occurrence carries an override resolution (Prompt 22 §4.1).
           if (!conflicts.ok && hasHardBlockedConflict(conflicts.conflicts)) {
-            throw new AppointmentError(hardBlockedError(conflicts.conflicts));
+            throw new AppointmentError(await hardBlockedError(conflicts.conflicts));
           }
           if (!conflicts.ok && !occ.override) {
             // Atomic abort — Prompt 7b §4.4: any failure rolls back the

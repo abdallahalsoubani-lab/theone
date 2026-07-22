@@ -61,6 +61,7 @@ vi.mock('@/lib/db', () => {
           status: 'SCHEDULED',
           appointmentType: 'SESSION',
           roomId: 'room-1',
+          groupPatients: [],
         })),
       },
       appointmentTherapist: {

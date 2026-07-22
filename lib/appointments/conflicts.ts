@@ -32,6 +32,10 @@ export interface ConflictCheckInput {
   /** Null/absent for a patient-less EVENT (July #8 part 2) — skips the
    *  patient-overlap check. */
   patientId?: string | null;
+  /** GROUP / WORKSHOP members (R-22, Prompt 42) — every member runs the
+   *  same-patient overlap check; the scalar `patientId` stays null for
+   *  groups (choice B — Hybrid). */
+  patientIds?: string[];
   /** Therapists on the session. SESSION has ≥1; STRETCHING has none; EVENT has
    *  0..N (July #8). */
   therapistIds: string[];
@@ -74,7 +78,10 @@ export interface LeaveSummary {
 
 export type Conflict =
   | { kind: 'THERAPIST_OVERLAP'; therapist: PersonName; appointment: AppointmentSummary }
-  | { kind: 'PATIENT_OVERLAP'; appointment: AppointmentSummary }
+  // `patient` names WHOSE schedule clashes — meaningful for GROUP bookings
+  // where several members are checked (R-22, Prompt 42); optional so older
+  // constructed payloads stay valid.
+  | { kind: 'PATIENT_OVERLAP'; appointment: AppointmentSummary; patient?: PersonName }
   | { kind: 'THERAPIST_ON_LEAVE'; therapist: PersonName; leave: LeaveSummary }
   | {
       kind: 'OUTSIDE_BUSINESS_HOURS';
@@ -95,15 +102,17 @@ export type Conflict =
 export type ConflictResult = { ok: true } | { ok: false; conflicts: Conflict[] };
 
 /**
- * Hard-blocked conflicts can NEVER be overridden or waitlisted (QA retest #15
- * + Prompt 22 §4.1/§4.2):
- *   - PATIENT_OVERLAP — booking the same patient into two overlapping slots
- *     is always invalid (the patient already holds that time).
+ * Hard-blocked conflicts can NEVER be overridden (QA retest #15 + Prompt 22
+ * §4.1/§4.2, re-affirmed by the R-22 owner ruling in Prompt 42):
+ *   - PATIENT_OVERLAP — booking the same patient into two time-overlapping
+ *     slots is absolutely forbidden («اذا نفس الوقت بالضبط لا ممنوع ابدا»).
+ *     "Add anyway" is rejected server-side and hidden in the UI. "Add to
+ *     waiting list" REMAINS available for this kind (R-22): parking the
+ *     patient for a freed slot creates no appointment, so it can't violate
+ *     the rule.
  *   - CLINIC_CLOSED_THIS_DAY — non-working days (Friday/Saturday per clinic
  *     settings) are blocked server-side for everyone, including holders of
  *     appointments.override_conflict.
- * "Add anyway" / "Add to waiting list" must be hidden in the UI and rejected
- * server-side for these kinds.
  */
 export function isHardBlockedConflict(c: Conflict): boolean {
   return (
@@ -118,6 +127,15 @@ export function isHardBlockedConflict(c: Conflict): boolean {
 
 export function hasHardBlockedConflict(conflicts: Conflict[]): boolean {
   return conflicts.some(isHardBlockedConflict);
+}
+
+/**
+ * R-22 (Prompt 42) dialog rule: a same-patient overlap forbids "Add anyway"
+ * but keeps "Add to waiting list" — waitlisting books nothing, so parking
+ * the patient for a freed slot stays legitimate.
+ */
+export function hasSamePatientOverlap(conflicts: Conflict[]): boolean {
+  return conflicts.some((c) => c.kind === 'PATIENT_OVERLAP');
 }
 
 interface ClinicHoursPayload {
@@ -140,10 +158,16 @@ export async function checkConflicts(
   const conflicts: Conflict[] = [];
   const endsAt = new Date(input.startsAt.getTime() + input.durationMinutes * 60_000);
   const therapistIds = [...new Set(input.therapistIds)];
+  // Every patient on the booking — the scalar (SESSION/STRETCHING) plus the
+  // GROUP membership set (R-22, Prompt 42). Each runs the overlap check.
+  const patientIdsToCheck = [
+    ...new Set([...(input.patientId ? [input.patientId] : []), ...(input.patientIds ?? [])]),
+  ];
 
-  // Names for the assigned therapists, so overlap/leave conflicts can say who.
+  // Names for the assigned therapists + checked patients, so overlap/leave
+  // conflicts can say who — one query for both.
   const people = await db.user.findMany({
-    where: { id: { in: therapistIds } },
+    where: { id: { in: [...therapistIds, ...patientIdsToCheck] } },
     select: { id: true, fullNameEn: true, fullNameAr: true },
   });
   const personById = new Map<string, PersonName>(people.map((p) => [p.id, p]));
@@ -168,15 +192,18 @@ export async function checkConflicts(
   }
 
   // ── 2. Patient overlap (skipped for a patient-less EVENT) ─────────────
-  if (input.patientId) {
+  // Covers the scalar patient AND every GROUP member (R-22, Prompt 42). The
+  // scope matches both ways an existing appointment can hold the patient:
+  // scalar patientId or AppointmentPatient membership.
+  for (const pid of patientIdsToCheck) {
     const patientOverlaps = await findOverlappingAppointments({
-      scope: { patientId: input.patientId },
+      scope: { patientId: pid },
       startsAt: input.startsAt,
       endsAt,
       excludeId: input.appointmentId,
     });
     for (const a of patientOverlaps) {
-      conflicts.push({ kind: 'PATIENT_OVERLAP', appointment: a });
+      conflicts.push({ kind: 'PATIENT_OVERLAP', appointment: a, patient: personFor(pid) });
     }
   }
 
@@ -383,7 +410,15 @@ async function findOverlappingAppointments(args: {
   const scopeWhere =
     'therapistId' in args.scope
       ? { therapists: { some: { therapistId: args.scope.therapistId } } }
-      : { patientId: args.scope.patientId };
+      : // An existing appointment holds a patient either via the scalar
+        // patientId (SESSION/STRETCHING) or via GROUP membership in the
+        // AppointmentPatient M2M (R-22, Prompt 42) — both block the slot.
+        {
+          OR: [
+            { patientId: args.scope.patientId },
+            { groupPatients: { some: { patientId: args.scope.patientId } } },
+          ],
+        };
 
   const candidates = await db.appointment.findMany({
     where: {
