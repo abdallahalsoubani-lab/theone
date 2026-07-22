@@ -18,6 +18,15 @@ for a single-clinic Theone.pt deployment.
 
 ## Weekly
 
+- **Backup verification (Postgres + MinIO)** — batch-44 checklist item 11
+  (owner ruling: storage stays on VM-local MinIO, so the object store is
+  backed up alongside the database). A root cron on the VM runs
+  `/usr/local/sbin/theone-backup-weekly.sh` every Sunday 00:00 UTC
+  (03:00 Asia/Amman): `pg_dumpall` + a tar of `/var/lib/minio` into
+  `~/backups/`, keeping the newest 4 of each. Verify both files for the
+  last run exist and are non-trivial (`ls -lh ~/backups/`); the run log
+  is `/var/log/theone-backup.log`. Manual run: `sudo
+/usr/local/sbin/theone-backup-weekly.sh`.
 - **Low compliance review** — Therapist dashboard → home program
   trend. Patients < 50 % for 2+ weeks get a follow-up call.
 - **Failed WhatsApp report** — `/admin/whatsapp` (when shipped) or
