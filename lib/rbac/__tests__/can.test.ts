@@ -121,6 +121,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.LEAVES_READ_OWN]: 'own',
     [PERMISSIONS.REPORTS_READ]: true,
     [PERMISSIONS.REPORTS_REVIEW]: true,
+    [PERMISSIONS.REPORTS_CLINICIAN_SUMMARY]: true,
     [PERMISSIONS.DOCTOR_REVIEWS_CREATE]: true,
     [PERMISSIONS.DOCTOR_REVIEWS_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.ROOMS_READ]: true,
@@ -258,6 +259,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.WHATSAPP_MESSAGES_RESEND]: true,
     [PERMISSIONS.REPORTS_SUBMIT]: true,
     [PERMISSIONS.REPORTS_REVIEW]: true,
+    [PERMISSIONS.REPORTS_CLINICIAN_SUMMARY]: true,
     [PERMISSIONS.TREATMENT_PLANS_CREATE]: true,
     [PERMISSIONS.TREATMENT_PLANS_UPDATE_OWN]: 'own',
     [PERMISSIONS.TREATMENT_PLANS_PROPOSE]: true,
@@ -575,5 +577,17 @@ describe('catalog invariants', () => {
         expect(ALL_CODES).toContain(code);
       }
     }
+  });
+});
+
+describe('reports.clinician_summary (Prompt 40 §1.1 — admin + doctor only)', () => {
+  it('grants ADMIN and DOCTOR', () => {
+    expect(can(u('ADMIN'), PERMISSIONS.REPORTS_CLINICIAN_SUMMARY)).toBe(true);
+    expect(can(u('DOCTOR'), PERMISSIONS.REPORTS_CLINICIAN_SUMMARY)).toBe(true);
+  });
+
+  it('denies SECRETARY and THERAPIST (page, query, and export all gate on this)', () => {
+    expect(can(u('SECRETARY'), PERMISSIONS.REPORTS_CLINICIAN_SUMMARY)).toBe(false);
+    expect(can(u('THERAPIST'), PERMISSIONS.REPORTS_CLINICIAN_SUMMARY)).toBe(false);
   });
 });

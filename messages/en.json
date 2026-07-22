@@ -884,7 +884,8 @@
       "audit": "Audit log",
       "whatsappTemplates": "WhatsApp templates",
       "whatsappMessages": "WhatsApp messages",
-      "calendar": "Calendar"
+      "calendar": "Calendar",
+      "reports": "Reports"
     },
     "inbox": "Inbox",
     "exerciseLibrary": "Exercise library",
@@ -893,7 +894,8 @@
     "cancelled": "Cancelled",
     "arrivals": "Arrivals",
     "waitlist": "Waitlist",
-    "intakeSubmissions": "Intake requests"
+    "intakeSubmissions": "Intake requests",
+    "clinicianSummary": "Clinician summary"
   },
   "publicIntake": {
     "clinicName": "The One for Physiotherapy",
@@ -1729,6 +1731,31 @@
       "optEn": "English",
       "optAr": "Arabic",
       "addOption": "Add option"
+    }
+  },
+  "reports": {
+    "clinicianSummary": {
+      "title": "Clinician sessions summary",
+      "rangeLabel": "Range: {from} to {to}",
+      "presetToday": "Today",
+      "presetWeek": "This week",
+      "presetMonth": "This month",
+      "from": "From",
+      "to": "To",
+      "apply": "Apply",
+      "exportCsv": "Export CSV",
+      "colClinician": "Clinician",
+      "colRole": "Role",
+      "colCompleted": "Completed",
+      "colBooked": "Booked",
+      "colCancelled": "Cancelled",
+      "colNoShow": "No-show",
+      "totalsRow": "Total",
+      "roleDoctor": "Doctor",
+      "roleTherapist": "Therapist",
+      "legendBooked": "\"Booked\" = every non-cancelled appointment in the range (scheduled, confirmed, in progress, completed, no-show).",
+      "multiTherapistNote": "A session shared by multiple clinicians counts once for EACH of them, so column totals may exceed the number of distinct sessions.",
+      "empty": "No sessions in the selected range."
     }
   }
 }

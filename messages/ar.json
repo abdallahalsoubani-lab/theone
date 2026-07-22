@@ -460,7 +460,8 @@
       "audit": "سجل التدقيق",
       "whatsappTemplates": "قوالب واتساب",
       "whatsappMessages": "رسائل واتساب",
-      "calendar": "التقويم"
+      "calendar": "التقويم",
+      "reports": "التقارير"
     },
     "inbox": "صندوق الوارد",
     "exerciseLibrary": "مكتبة التمارين",
@@ -469,7 +470,8 @@
     "cancelled": "الملغية",
     "arrivals": "قائمة الوصول",
     "waitlist": "قائمة الانتظار",
-    "intakeSubmissions": "طلبات الاستقبال"
+    "intakeSubmissions": "طلبات الاستقبال",
+    "clinicianSummary": "ملخص الأخصائيين"
   },
   "publicIntake": {
     "clinicName": "المركز الأول للعلاج الطبيعي",
@@ -1729,6 +1731,31 @@
       "optEn": "إنجليزي",
       "optAr": "عربي",
       "addOption": "إضافة خيار"
+    }
+  },
+  "reports": {
+    "clinicianSummary": {
+      "title": "ملخص جلسات الأخصائيين",
+      "rangeLabel": "الفترة: {from} إلى {to}",
+      "presetToday": "اليوم",
+      "presetWeek": "هذا الأسبوع",
+      "presetMonth": "هذا الشهر",
+      "from": "من",
+      "to": "إلى",
+      "apply": "تطبيق",
+      "exportCsv": "تصدير CSV",
+      "colClinician": "الأخصائي",
+      "colRole": "الدور",
+      "colCompleted": "مكتملة",
+      "colBooked": "محجوزة",
+      "colCancelled": "ملغاة",
+      "colNoShow": "لم يحضر",
+      "totalsRow": "الإجمالي",
+      "roleDoctor": "طبيب",
+      "roleTherapist": "أخصائي علاج",
+      "legendBooked": "«محجوزة» = كل المواعيد غير الملغاة ضمن الفترة (مجدولة، مؤكدة، جارية، مكتملة، لم يحضر).",
+      "multiTherapistNote": "الجلسة المشتركة بين أكثر من أخصائي تُحتسب مرة لكل أخصائي، لذا قد يتجاوز مجموع الأعمدة عدد الجلسات الفعلي.",
+      "empty": "لا توجد جلسات ضمن الفترة المحددة."
     }
   }
 }

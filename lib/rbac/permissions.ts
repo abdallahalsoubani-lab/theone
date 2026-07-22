@@ -135,6 +135,9 @@ export const PERMISSIONS = {
 
   // ── Reports (end-of-day + end-of-week, Prompt 9) ─────────────────────
   REPORTS_READ: 'reports.read',
+  // Clinician sessions summary (Prompt 40) — ADMIN + DOCTOR only (owner
+  // ruling §1.1): counts per clinician, no patient PII on the surface.
+  REPORTS_CLINICIAN_SUMMARY: 'reports.clinician_summary',
   REPORTS_READ_OWN: 'reports.read.own', // therapist — own end-of-day
   REPORTS_SUBMIT: 'reports.submit', // therapist — submit a DayReport
   REPORTS_REVIEW: 'reports.review', // doctor — weekly review page
@@ -346,6 +349,7 @@ const DOCTOR_PERMS = new Set<PermissionCode>([
   PERMISSIONS.LEAVES_CREATE_OWN,
   PERMISSIONS.LEAVES_READ_OWN,
   PERMISSIONS.REPORTS_READ,
+  PERMISSIONS.REPORTS_CLINICIAN_SUMMARY,
   PERMISSIONS.REPORTS_REVIEW,
   PERMISSIONS.DOCTOR_REVIEWS_CREATE,
   PERMISSIONS.DOCTOR_REVIEWS_READ_ASSIGNED,
@@ -443,6 +447,7 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.LEAVES_UPDATE,
   PERMISSIONS.LEAVES_DELETE,
   PERMISSIONS.REPORTS_READ,
+  PERMISSIONS.REPORTS_CLINICIAN_SUMMARY,
   PERMISSIONS.REPORTS_SUBMIT,
   PERMISSIONS.REPORTS_REVIEW,
   PERMISSIONS.TREATMENT_PLANS_CREATE,

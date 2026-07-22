@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   BriefcaseMedical,
   CalendarDays,
   ClipboardList,
@@ -56,6 +57,11 @@ export default async function AdminLayout({
       label: t('whatsappMessages'),
       href: '/admin/whatsapp/messages',
       icon: <MessageSquare className="size-4" />,
+    },
+    {
+      label: t('reports'),
+      href: '/admin/reports/clinicians',
+      icon: <BarChart3 className="size-4" />,
     },
     { label: t('settings'), href: '/admin/settings', icon: <Settings className="size-4" /> },
     { label: t('audit'), href: '/admin/audit', icon: <ScrollText className="size-4" /> },

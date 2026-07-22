@@ -68,6 +68,11 @@ export function staffNavEntries(role: UserRole): StaffNavEntry[] {
       { labelKey: 'patients:navTitle', href: '/doctor/patients', icon: 'users' },
       { labelKey: 'navigation:treatmentPlans', href: '/doctor/plans', icon: 'clipboardList' },
       { labelKey: 'navigation:approvals', href: '/doctor/approvals', icon: 'clipboardCheck' },
+      {
+        labelKey: 'navigation:clinicianSummary',
+        href: '/doctor/reports/clinicians',
+        icon: 'clipboardList',
+      },
       { labelKey: 'navigation:exerciseLibrary', href: '/clinical/exercises', icon: 'dumbbell' },
     ];
   }
