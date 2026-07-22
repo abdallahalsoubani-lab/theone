@@ -57,6 +57,7 @@ export default async function DoctorHomeProgramEditPage({
         changesComment={approval.changesComment}
         canSubmit={false}
         hasApprovedSnapshot={approval.hasApprovedSnapshot}
+        submittedAt={approval.submittedAt}
       />
       <HomeProgramBuilder patientId={patient.id} items={items} exerciseOptions={exerciseOptions} />
     </section>

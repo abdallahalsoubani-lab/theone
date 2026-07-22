@@ -895,7 +895,7 @@
     "inbox": "Inbox",
     "exerciseLibrary": "Exercise library",
     "calendar": "Calendar",
-    "approvals": "Approvals",
+    "approvals": "Home-program approvals",
     "cancelled": "Cancelled",
     "arrivals": "Arrivals",
     "waitlist": "Waitlist",
@@ -1094,6 +1094,10 @@
       "BOOKING_WAITLIST_SLOT_FREED": {
         "title": "Waitlist slot freed",
         "body": "The {time} slot just freed — {patientName} is on the waitlist for it."
+      },
+      "HOME_PROGRAM_DOCTOR_EDITED": {
+        "title": "Home program edited by the doctor",
+        "body": "Dr. {doctorName} edited the home program for {patientName}."
       }
     }
   },
@@ -1374,7 +1378,7 @@
         "remindersLabel": "Send exercise reminders to the patient via WhatsApp",
         "queueTitle": "Home program approvals",
         "queueSubtitle": "Programs awaiting your review.",
-        "queueEmpty": "No programs awaiting approval.",
+        "queueEmpty": "No programs awaiting review. When a therapist submits a home program for approval, it lands here.",
         "submittedBy": "By {name}",
         "itemCount": "{count} exercises",
         "reviewLink": "Review program",
@@ -1386,7 +1390,9 @@
         "commentRequired": "A comment is required.",
         "approvedToast": "Program approved",
         "changesRequestedToast": "Changes requested",
-        "draftRevisionNote": "You are editing a draft revision — the patient still sees the last approved program until you submit it and it is approved."
+        "draftRevisionNote": "You are editing a draft revision — the patient still sees the last approved program until you submit it and it is approved.",
+        "pendingExplainer": "Awaiting the doctor’s approval — sent {date}. Nothing more to submit; you’ll be notified when it’s reviewed.",
+        "pendingExplainerNoDate": "Awaiting the doctor’s approval — already sent. Nothing more to submit; you’ll be notified when it’s reviewed."
       },
       "emptyTab": "No home program yet."
     },

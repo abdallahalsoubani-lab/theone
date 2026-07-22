@@ -32,6 +32,25 @@ import {
   updateHomeProgramItem,
 } from './services';
 
+/**
+ * NI-6 sync fix (Prompt 43): the old calls passed concrete URL paths without
+ * the locale prefix (`/therapist/patients/x`) which match no real route —
+ * silent no-ops. Routes are always `/{locale}/...`, so invalidation must use
+ * the route-PATTERN form (same as the appointments module). Every surface
+ * that renders program content is listed: both role edit pages, the patient
+ * file tabs, the doctor queue, and the patient portal.
+ */
+function revalidateProgramPages(): void {
+  revalidatePath('/[locale]/(staff)/therapist/patients/[id]', 'page');
+  revalidatePath('/[locale]/(staff)/therapist/patients/[id]/home-program/edit', 'page');
+  revalidatePath('/[locale]/(staff)/doctor/patients/[id]', 'page');
+  revalidatePath('/[locale]/(staff)/doctor/patients/[id]/home-program/edit', 'page');
+  revalidatePath('/[locale]/(staff)/secretary/patients/[id]', 'page');
+  revalidatePath('/[locale]/(admin)/admin/patients/[id]', 'page');
+  revalidatePath('/[locale]/(staff)/doctor/approvals', 'page');
+  revalidatePath('/[locale]/(patient)/patient/home-program', 'page');
+}
+
 export async function addHomeProgramItemAction(
   raw: unknown,
 ): Promise<Result<{ itemId: string }, LocalizedError>> {
@@ -50,9 +69,7 @@ export async function addHomeProgramItemAction(
   try {
     const actorId = await currentClinicianId();
     const data = await addHomeProgramItem(parsed.data, { actorId });
-    revalidatePath(`/therapist/patients/${parsed.data.patientId}`);
-    revalidatePath(`/doctor/patients/${parsed.data.patientId}`);
-    revalidatePath(`/secretary/patients/${parsed.data.patientId}`);
+    revalidateProgramPages();
     return { ok: true, data };
   } catch (err) {
     return { ok: false, error: homeProgramToLocalized(err) };
@@ -77,6 +94,7 @@ export async function updateHomeProgramItemAction(
   try {
     const actorId = await currentClinicianId();
     const data = await updateHomeProgramItem(parsed.data, { actorId });
+    revalidateProgramPages();
     return { ok: true, data };
   } catch (err) {
     return { ok: false, error: homeProgramToLocalized(err) };
@@ -101,6 +119,7 @@ export async function setHomeProgramItemActiveAction(
   try {
     const actorId = await currentClinicianId();
     const result = await setHomeProgramItemActive(parsed.data, { actorId });
+    revalidateProgramPages();
     return { ok: true, data: { itemId: result.itemId } };
   } catch (err) {
     return { ok: false, error: homeProgramToLocalized(err) };
@@ -114,6 +133,7 @@ export async function deleteHomeProgramItemAction(
   try {
     const actorId = await currentClinicianId();
     const data = await deleteHomeProgramItem({ id }, { actorId });
+    revalidateProgramPages();
     return { ok: true, data };
   } catch (err) {
     return { ok: false, error: homeProgramToLocalized(err) };
@@ -138,7 +158,9 @@ export async function markHomeExerciseDoneAction(
   try {
     const patientId = await currentPatientId();
     const data = await markHomeExerciseDone(parsed.data, { patientId });
-    revalidatePath('/patient/home-program');
+    // Same non-locale-path fix (NI-6, Prompt 43) — plus the clinician tabs
+    // that render compliance from these completions.
+    revalidatePath('/[locale]/(patient)/patient/home-program', 'page');
     return { ok: true, data };
   } catch (err) {
     return { ok: false, error: homeProgramToLocalized(err) };
@@ -162,14 +184,6 @@ function approvalError(err: unknown): LocalizedError {
   return homeProgramApprovalToLocalized(err) ?? homeProgramToLocalized(err);
 }
 
-function revalidateProgram(patientId: string): void {
-  revalidatePath(`/therapist/patients/${patientId}/home-program/edit`);
-  revalidatePath(`/therapist/patients/${patientId}`);
-  revalidatePath(`/doctor/patients/${patientId}`);
-  revalidatePath('/doctor/approvals');
-  revalidatePath('/patient/home-program');
-}
-
 export async function submitHomeProgramAction(
   patientId: string,
 ): Promise<Result<{ patientId: string }, LocalizedError>> {
@@ -181,7 +195,7 @@ export async function submitHomeProgramAction(
   }
   try {
     await submitHomeProgram(patientId);
-    revalidateProgram(patientId);
+    revalidateProgramPages();
     return { ok: true, data: { patientId } };
   } catch (err) {
     return { ok: false, error: approvalError(err) };
@@ -195,7 +209,7 @@ export async function approveHomeProgramAction(
   if (!(await isCareTeamReviewer(patientId))) return { ok: false, error: forbidden };
   try {
     await approveHomeProgram(patientId);
-    revalidateProgram(patientId);
+    revalidateProgramPages();
     return { ok: true, data: { patientId } };
   } catch (err) {
     return { ok: false, error: approvalError(err) };
@@ -210,7 +224,7 @@ export async function requestHomeProgramChangesAction(
   if (!(await isCareTeamReviewer(patientId))) return { ok: false, error: forbidden };
   try {
     await requestHomeProgramChanges(patientId, comment);
-    revalidateProgram(patientId);
+    revalidateProgramPages();
     return { ok: true, data: { patientId } };
   } catch (err) {
     return { ok: false, error: approvalError(err) };
@@ -224,7 +238,7 @@ export async function setHomeProgramRemindersAction(
   await requirePermission('home_program.update');
   try {
     const data = await setHomeProgramReminders(patientId, enabled);
-    revalidateProgram(patientId);
+    revalidateProgramPages();
     return { ok: true, data };
   } catch (err) {
     return { ok: false, error: approvalError(err) };

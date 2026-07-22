@@ -108,3 +108,17 @@ deploy-time actions here.
 
 13. **Doctor dashboard now shows ALL clinic appointments** (owner ruling c) —
     behavior change only; tell QA the NI-1 expectation changed.
+
+14. **Prompt 43 — DB migration required (`prisma migrate deploy`).** The
+    batch's only schema change: `20260723100000_home_program_doctor_edited_notification`
+    adds the `HOME_PROGRAM_DOCTOR_EDITED` value to the `NotificationType`
+    enum (NI-6 — the therapist now gets an in-app notification when a doctor
+    edits a home program). Pure `ALTER TYPE ... ADD VALUE`; no data backfill,
+    no downtime. Runs automatically with the standard migrate step — listed
+    so nobody assumes the batch is migration-free.
+
+15. **Prompt 43 UX changes for QA's re-test sheet:** the doctor sidebar tab is
+    now labeled "موافقات البرامج المنزلية / Home-program approvals" with a
+    pending-count badge (NI-7); the therapist's builder shows an explainer on
+    PENDING status — the submit button is intentionally absent there (P-2:
+    submit exists on DRAFT/CHANGES_REQUESTED only).

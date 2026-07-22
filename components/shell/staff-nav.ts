@@ -25,7 +25,7 @@ export interface StaffNavEntry {
     | 'clipboardList'
     | 'clipboardCheck'
     | 'dumbbell';
-  badge?: 'inbox' | 'waitlist' | 'intakeSubmissions';
+  badge?: 'inbox' | 'waitlist' | 'intakeSubmissions' | 'homeProgramApprovals';
 }
 
 export function staffNavEntries(role: UserRole): StaffNavEntry[] {
@@ -67,7 +67,14 @@ export function staffNavEntries(role: UserRole): StaffNavEntry[] {
       },
       { labelKey: 'patients:navTitle', href: '/doctor/patients', icon: 'users' },
       { labelKey: 'navigation:treatmentPlans', href: '/doctor/plans', icon: 'clipboardList' },
-      { labelKey: 'navigation:approvals', href: '/doctor/approvals', icon: 'clipboardCheck' },
+      // NI-7 (Prompt 43): "Home-program approvals" (relabeled i18n-side) with
+      // a pending-review count so the queue is unmistakable vs. the plans tab.
+      {
+        labelKey: 'navigation:approvals',
+        href: '/doctor/approvals',
+        icon: 'clipboardCheck',
+        badge: 'homeProgramApprovals',
+      },
       {
         labelKey: 'navigation:clinicianSummary',
         href: '/doctor/reports/clinicians',

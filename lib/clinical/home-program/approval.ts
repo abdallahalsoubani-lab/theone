@@ -266,10 +266,12 @@ export const reopenHomeProgramDraft = withAudit<
 /**
  * Approve the program (→ APPROVED) and freeze the current live items into the
  * snapshot. Used by the doctor's explicit approve AND the auto-approve when a
- * doctor/admin edits. Notifies the therapist who submitted (if any).
+ * doctor/admin edits. Notifies the therapist who submitted (if any) — the
+ * auto-approve path passes `notifySubmitter: false` and sends the accurate
+ * "doctor edited your program" notification instead (NI-6, Prompt 43).
  */
 export const approveHomeProgram = withAudit<
-  [string],
+  [string, { notifySubmitter?: boolean }?],
   { patientId: string; status: HomeProgramStatus }
 >(
   {
@@ -280,6 +282,7 @@ export const approveHomeProgram = withAudit<
   },
   async function approveInner(
     patientId,
+    opts?: { notifySubmitter?: boolean },
   ): Promise<{ patientId: string; status: HomeProgramStatus }> {
     const session = await auth();
     const reviewerId = session?.user?.id ?? null;
@@ -308,7 +311,8 @@ export const approveHomeProgram = withAudit<
       },
     });
     // Notify the therapist who submitted (skip for doctor-built programs).
-    if (before?.submittedById && before.submittedById !== reviewerId) {
+    const notifySubmitter = opts?.notifySubmitter ?? true;
+    if (notifySubmitter && before?.submittedById && before.submittedById !== reviewerId) {
       await createNotification({
         recipientId: before.submittedById,
         type: 'HOME_PROGRAM_APPROVED',
@@ -413,7 +417,20 @@ export async function onHomeProgramEdited(patientId: string): Promise<void> {
   const session = await auth();
   const role = session?.user?.role;
   if (role === 'DOCTOR' || role === 'ADMIN') {
-    await approveHomeProgram(patientId);
+    // Capture the submitter BEFORE the approve upsert (which keeps it, but
+    // being explicit here decouples the two).
+    const before = await db.homeProgramApproval.findUnique({
+      where: { patientId },
+      select: { submittedById: true },
+    });
+    // The generic "approved" notification would mislabel an edit (and repeat
+    // per item change) — suppressed in favour of the accurate one (NI-6).
+    await approveHomeProgram(patientId, { notifySubmitter: false });
+    await notifyTherapistsOfDoctorEdit(
+      patientId,
+      session?.user?.id ?? null,
+      before?.submittedById ?? null,
+    );
     return;
   }
   if (role === 'THERAPIST') {
@@ -428,6 +445,74 @@ export async function onHomeProgramEdited(patientId: string): Promise<void> {
       });
     }
   }
+}
+
+/**
+ * NI-6 (Prompt 43): a doctor/admin edited the program → tell the therapist.
+ * Recipients: the therapist who submitted the program when known, otherwise
+ * every THERAPIST on the patient's care team (doctor-built or reopened
+ * programs have no submitter). The editor never notifies themself.
+ *
+ * Deduped on UNREAD: a doctor editing five items in one sitting produces one
+ * notification, not five — a new one only fires after the therapist read the
+ * previous one.
+ */
+async function notifyTherapistsOfDoctorEdit(
+  patientId: string,
+  editorId: string | null,
+  submittedById: string | null,
+): Promise<void> {
+  const recipients = submittedById
+    ? [submittedById]
+    : (await getCareTeam(patientId)).therapists.map((t) => t.id);
+  const targets = [...new Set(recipients)].filter((id) => id && id !== editorId);
+  if (targets.length === 0) return;
+  const [doctorName, patientName] = await Promise.all([
+    editorId ? fullName(editorId) : Promise.resolve(''),
+    fullName(patientId),
+  ]);
+  await Promise.all(
+    targets.map(async (recipientId) => {
+      try {
+        const unread = await db.notification.findFirst({
+          where: {
+            recipientId,
+            type: 'HOME_PROGRAM_DOCTOR_EDITED',
+            relatedEntityId: patientId,
+            readAt: null,
+          },
+          select: { id: true },
+        });
+        if (unread) return;
+        await createNotification({
+          recipientId,
+          type: 'HOME_PROGRAM_DOCTOR_EDITED',
+          params: { doctorName, patientName },
+          linkPath: `/therapist/patients/${patientId}/home-program/edit`,
+          relatedEntityType: 'HomeProgramApproval',
+          relatedEntityId: patientId,
+        });
+      } catch (err: unknown) {
+        console.error('[home-program] doctor-edit notification failed', err);
+      }
+    }),
+  );
+}
+
+/**
+ * Pending review count for the doctor's sidebar badge (NI-7, Prompt 43) —
+ * same scope as `listPendingApprovals` (care-team for a doctor, all for
+ * Admin), count only.
+ */
+export async function countPendingApprovals(careTeamDoctorId: string | null): Promise<number> {
+  return db.homeProgramApproval.count({
+    where: {
+      status: HomeProgramStatus.PENDING_APPROVAL,
+      ...(careTeamDoctorId
+        ? { patient: { patientProfile: { careTeam: { some: { clinicianId: careTeamDoctorId } } } } }
+        : {}),
+    },
+  });
 }
 
 export function homeProgramApprovalToLocalized(err: unknown): LocalizedError | null {

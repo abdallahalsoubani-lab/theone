@@ -51,6 +51,7 @@ export default async function TherapistHomeProgramEditPage({
         changesComment={approval.changesComment}
         canSubmit
         hasApprovedSnapshot={approval.hasApprovedSnapshot}
+        submittedAt={approval.submittedAt}
       />
       <HomeProgramBuilder patientId={patient.id} items={items} exerciseOptions={exerciseOptions} />
     </section>

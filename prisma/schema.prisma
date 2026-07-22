@@ -116,6 +116,9 @@ enum NotificationType {
   HOME_PROGRAM_SUBMITTED
   HOME_PROGRAM_APPROVED
   HOME_PROGRAM_CHANGES_REQUESTED
+  // Prompt 43 (NI-6) — a doctor edited the program: tells the authoring
+  // therapist their program changed (doctor edits auto-approve, P16).
+  HOME_PROGRAM_DOCTOR_EDITED
   // Prompt 19 — a slot a waitlisted patient was waiting for just freed up
   // (cancellation / no-show). Targets SECRETARY + ADMIN; links to the
   // waitlist page for one-click placement.

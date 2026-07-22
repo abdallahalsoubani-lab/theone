@@ -1,7 +1,7 @@
 'use client';
 
 import type { HomeProgramStatus } from '@prisma/client';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -13,6 +13,8 @@ import {
   setHomeProgramRemindersAction,
   submitHomeProgramAction,
 } from '@/lib/clinical/home-program/actions';
+import { canSubmitHomeProgram } from '@/lib/clinical/home-program/policy';
+import { formatDateTime } from '@/lib/format/date';
 
 const STATUS_BADGE: Record<
   HomeProgramStatus,
@@ -36,6 +38,7 @@ export function HomeProgramApprovalPanel({
   changesComment,
   canSubmit,
   hasApprovedSnapshot = false,
+  submittedAt = null,
 }: {
   patientId: string;
   status: HomeProgramStatus;
@@ -46,13 +49,20 @@ export function HomeProgramApprovalPanel({
   /** True when a frozen approved snapshot exists — a DRAFT then means the
    *  patient still sees the last approved version (QA 7.8 hint). */
   hasApprovedSnapshot?: boolean;
+  /** When the program was sent for review — the PENDING explainer (P-2,
+   *  Prompt 43) tells the therapist it's already submitted, not missing a
+   *  submit button. */
+  submittedAt?: Date | null;
 }) {
   const t = useTranslations('clinical.homeProgram.approval');
+  const locale = useLocale();
+  const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
   const router = useRouter();
   const [reminders, setReminders] = useState(remindersEnabled);
   const [pending, startTransition] = useTransition();
   const badge = STATUS_BADGE[status];
-  const submittable = canSubmit && (status === 'DRAFT' || status === 'CHANGES_REQUESTED');
+  // One rule shared with the server-side submit guard (P-2, Prompt 43).
+  const submittable = canSubmit && canSubmitHomeProgram(status);
 
   function handleSubmit() {
     startTransition(async () => {
@@ -91,6 +101,18 @@ export function HomeProgramApprovalPanel({
             </Button>
           ) : null}
         </div>
+
+        {/* P-2 (Prompt 43): PENDING means "already sent — the doctor has it".
+            Without this line the missing submit button read as a bug. */}
+        {status === 'PENDING_APPROVAL' ? (
+          <div className="rounded-md border border-brand-cyan/40 bg-brand-cyan/5 p-3 text-sm text-brand-navy">
+            <p>
+              {submittedAt
+                ? t('pendingExplainer', { date: formatDateTime(submittedAt, intlLocale) })
+                : t('pendingExplainerNoDate')}
+            </p>
+          </div>
+        ) : null}
 
         {status === 'CHANGES_REQUESTED' && changesComment ? (
           <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">

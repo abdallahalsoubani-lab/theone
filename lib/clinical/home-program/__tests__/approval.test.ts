@@ -63,6 +63,14 @@ vi.mock('@/lib/db', () => {
     approvals: new Map<string, Record<string, unknown>>(),
     items: [] as Item[],
     auditLogs: [] as Array<Record<string, unknown>>,
+    // NI-6 (Prompt 43): rows the dedup query consults — tests push here via
+    // the createNotification mock to simulate delivered-but-unread.
+    notifications: [] as Array<{
+      recipientId: string;
+      type: string;
+      relatedEntityId: string | null;
+      readAt: Date | null;
+    }>,
     counter: 0,
   };
   const exerciseDetails = {
@@ -116,6 +124,21 @@ vi.mock('@/lib/db', () => {
             return next;
           },
         ),
+        // NI-7 (Prompt 43): the doctor queue + sidebar badge reads.
+        findMany: vi.fn(async ({ where }: { where: { status: string } }) =>
+          [...state.approvals.entries()]
+            .filter(([, row]) => row.status === where.status)
+            .map(([patientId, row]) => ({
+              patientId,
+              submittedAt: (row.submittedAt as Date | null) ?? null,
+              patient: { fullNameEn: 'P', fullNameAr: 'م' },
+              submittedBy: row.submittedById ? { fullNameEn: 'T', fullNameAr: 'ت' } : null,
+            })),
+        ),
+        count: vi.fn(
+          async ({ where }: { where: { status: string } }) =>
+            [...state.approvals.values()].filter((row) => row.status === where.status).length,
+        ),
       },
       homeProgramItem: {
         findMany: vi.fn(async ({ where }: { where: { patientId: string } }) =>
@@ -159,6 +182,18 @@ vi.mock('@/lib/db', () => {
           if (idx !== -1) state.items.splice(idx, 1);
           return { id: where.id };
         }),
+        // Reviewer item-count signal on the queue rows (NI-7 test path).
+        groupBy: vi.fn(async ({ where }: { where: { patientId: { in: string[] } } }) => {
+          const counts = new Map<string, number>();
+          for (const i of state.items) {
+            if (!i.active || !where.patientId.in.includes(i.patientId)) continue;
+            counts.set(i.patientId, (counts.get(i.patientId) ?? 0) + 1);
+          }
+          return [...counts.entries()].map(([patientId, n]) => ({
+            patientId,
+            _count: { _all: n },
+          }));
+        }),
       },
       exercise: {
         findUnique: vi.fn(async ({ where }: { where: { id: string } }) =>
@@ -167,6 +202,23 @@ vi.mock('@/lib/db', () => {
       },
       user: {
         findUnique: vi.fn(async () => ({ fullNameEn: 'Name' })),
+      },
+      // NI-6 (Prompt 43): the doctor-edit notification dedup (unread) query.
+      notification: {
+        findFirst: vi.fn(
+          async ({
+            where,
+          }: {
+            where: { recipientId: string; type: string; relatedEntityId: string };
+          }) =>
+            state.notifications.find(
+              (n) =>
+                n.recipientId === where.recipientId &&
+                n.type === where.type &&
+                n.relatedEntityId === where.relatedEntityId &&
+                n.readAt === null,
+            ) ?? null,
+        ),
       },
       auditLog: {
         create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
@@ -184,17 +236,21 @@ vi.mock('@/lib/db', () => {
 });
 
 import { createNotification } from '@/lib/notifications/actions';
+import { getCareTeam } from '@/lib/patients/assignment';
 import { ForbiddenError } from '@/lib/rbac/guards';
 
 import {
   approveHomeProgram,
+  countPendingApprovals,
   getVisibleHomeProgram,
   HomeProgramApprovalError,
+  listPendingApprovals,
   onHomeProgramEdited,
   reopenHomeProgramDraft,
   requestHomeProgramChanges,
   submitHomeProgram,
 } from '../approval';
+import { canSubmitHomeProgram } from '../policy';
 import {
   approveHomeProgramAction,
   requestHomeProgramChangesAction,
@@ -209,6 +265,12 @@ const { __state } = (await import('@/lib/db')) as unknown as {
     approvals: Map<string, Record<string, unknown>>;
     items: Array<Record<string, unknown>>;
     auditLogs: Array<Record<string, unknown>>;
+    notifications: Array<{
+      recipientId: string;
+      type: string;
+      relatedEntityId: string | null;
+      readAt: Date | null;
+    }>;
     counter: number;
   };
 };
@@ -252,6 +314,7 @@ beforeEach(() => {
   __state.approvals.clear();
   __state.items.length = 0;
   __state.auditLogs.length = 0;
+  __state.notifications.length = 0;
   __state.counter = 0;
   sessionRef.current = null;
   careTeamRef.pairs = [
@@ -535,5 +598,120 @@ describe('reminders toggle', () => {
         (a) => (a.after as { event?: string })?.event === 'HOME_PROGRAM_REMINDERS_TOGGLED',
       ),
     ).toBe(true);
+  });
+});
+
+// ─── Prompt 43 additions ────────────────────────────────────────────────────
+
+describe('doctor edit notifies the therapist (NI-6, Prompt 43)', () => {
+  it('doctor edits a submitted program → HOME_PROGRAM_DOCTOR_EDITED to the submitter, with the real builder link — and NOT a misleading "approved"', async () => {
+    seedItem('p1');
+    sessionRef.current = therapist;
+    await submitHomeProgram('p1');
+    // Submit-side notification (P16, unchanged): care-team doctor got told.
+    expect(vi.mocked(createNotification)).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'HOME_PROGRAM_SUBMITTED', recipientId: 'doctor-1' }),
+    );
+    vi.mocked(createNotification).mockClear();
+
+    sessionRef.current = doctor;
+    await onHomeProgramEdited('p1');
+
+    expect(__state.approvals.get('p1')?.status).toBe('APPROVED');
+    expect(vi.mocked(createNotification)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(createNotification)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'HOME_PROGRAM_DOCTOR_EDITED',
+        recipientId: 'therapist-1',
+        linkPath: '/therapist/patients/p1/home-program/edit',
+        relatedEntityId: 'p1',
+      }),
+    );
+  });
+
+  it('dedupes on UNREAD: editing five items in one sitting produces one notification', async () => {
+    seedItem('p1');
+    sessionRef.current = therapist;
+    await submitHomeProgram('p1');
+    vi.mocked(createNotification).mockClear();
+    // Wire the mock to actually record rows so the dedup query sees them.
+    vi.mocked(createNotification).mockImplementation(async (args) => {
+      __state.notifications.push({
+        recipientId: args.recipientId,
+        type: args.type,
+        relatedEntityId: args.relatedEntityId ?? null,
+        readAt: null,
+      });
+      return { id: 'n' };
+    });
+
+    sessionRef.current = doctor;
+    await onHomeProgramEdited('p1');
+    await onHomeProgramEdited('p1');
+    await onHomeProgramEdited('p1');
+
+    const edits = __state.notifications.filter((n) => n.type === 'HOME_PROGRAM_DOCTOR_EDITED');
+    expect(edits).toHaveLength(1);
+
+    // Once the therapist read it, the next doctor edit notifies again.
+    edits[0]!.readAt = new Date();
+    await onHomeProgramEdited('p1');
+    expect(
+      __state.notifications.filter((n) => n.type === 'HOME_PROGRAM_DOCTOR_EDITED'),
+    ).toHaveLength(2);
+  });
+
+  it('no submitter on record → falls back to the care-team therapists', async () => {
+    seedItem('p1');
+    vi.mocked(getCareTeam).mockResolvedValueOnce({
+      doctors: [{ id: 'doctor-1', fullNameEn: 'D', fullNameAr: 'د' }],
+      therapists: [{ id: 'therapist-1', fullNameEn: 'T', fullNameAr: 'ت' }],
+    } as never);
+    sessionRef.current = doctor;
+    await onHomeProgramEdited('p1');
+    expect(vi.mocked(createNotification)).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'HOME_PROGRAM_DOCTOR_EDITED', recipientId: 'therapist-1' }),
+    );
+  });
+
+  it('never notifies the editor about their own edit', async () => {
+    seedItem('p1');
+    __state.approvals.set('p1', { status: 'DRAFT', submittedById: 'doctor-1' });
+    sessionRef.current = doctor;
+    await onHomeProgramEdited('p1');
+    expect(vi.mocked(createNotification)).not.toHaveBeenCalled();
+  });
+});
+
+describe('submit availability rule (P-2, Prompt 43)', () => {
+  it('DRAFT and CHANGES_REQUESTED are submittable; PENDING_APPROVAL and APPROVED are not', () => {
+    expect(canSubmitHomeProgram('DRAFT')).toBe(true);
+    expect(canSubmitHomeProgram('CHANGES_REQUESTED')).toBe(true);
+    expect(canSubmitHomeProgram('PENDING_APPROVAL')).toBe(false);
+    expect(canSubmitHomeProgram('APPROVED')).toBe(false);
+  });
+
+  it('mirrors the server guard exactly (UI truth == submitHomeProgram truth)', async () => {
+    seedItem('p1');
+    sessionRef.current = therapist;
+    // Both non-submittable states are the exact ones the server rejects.
+    for (const status of ['PENDING_APPROVAL', 'APPROVED'] as const) {
+      __state.approvals.set('p1', { status });
+      expect(canSubmitHomeProgram(status)).toBe(false);
+      await expect(submitHomeProgram('p1')).rejects.toBeInstanceOf(HomeProgramApprovalError);
+    }
+  });
+});
+
+describe('approvals queue scope + sidebar count (NI-7, Prompt 43)', () => {
+  it('lists and counts PENDING_APPROVAL only — plans and other states never land here', async () => {
+    __state.approvals.set('p1', { status: 'PENDING_APPROVAL', submittedById: 'therapist-1' });
+    __state.approvals.set('p2', { status: 'APPROVED' });
+    __state.approvals.set('p3', { status: 'DRAFT' });
+    __state.approvals.set('p4', { status: 'CHANGES_REQUESTED' });
+
+    const rows = await listPendingApprovals(null);
+    expect(rows.map((r) => r.patientId)).toEqual(['p1']);
+    expect(await countPendingApprovals(null)).toBe(1);
   });
 });

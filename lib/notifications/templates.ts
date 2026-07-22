@@ -90,6 +90,10 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationType, NotificationTempla
     titleKey: 'notifications.types.HOME_PROGRAM_CHANGES_REQUESTED.title',
     bodyKey: 'notifications.types.HOME_PROGRAM_CHANGES_REQUESTED.body',
   },
+  HOME_PROGRAM_DOCTOR_EDITED: {
+    titleKey: 'notifications.types.HOME_PROGRAM_DOCTOR_EDITED.title',
+    bodyKey: 'notifications.types.HOME_PROGRAM_DOCTOR_EDITED.body',
+  },
   BOOKING_WAITLIST_SLOT_FREED: {
     titleKey: 'notifications.types.BOOKING_WAITLIST_SLOT_FREED.title',
     bodyKey: 'notifications.types.BOOKING_WAITLIST_SLOT_FREED.body',
@@ -119,5 +123,6 @@ export type NotificationParams = {
   HOME_PROGRAM_SUBMITTED: { therapistName: string; patientName: string };
   HOME_PROGRAM_APPROVED: { doctorName: string; patientName: string };
   HOME_PROGRAM_CHANGES_REQUESTED: { doctorName: string; patientName: string };
+  HOME_PROGRAM_DOCTOR_EDITED: { doctorName: string; patientName: string };
   BOOKING_WAITLIST_SLOT_FREED: { time: string; patientName: string };
 };

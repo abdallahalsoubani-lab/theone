@@ -16,6 +16,7 @@ import type { ReactNode } from 'react';
 
 import { Sidebar, type NavLink } from '@/components/shell/Sidebar';
 import { staffNavEntries, type StaffNavEntry } from '@/components/shell/staff-nav';
+import { countPendingApprovals } from '@/lib/clinical/home-program/approval';
 import { getEffectiveSession } from '@/lib/impersonation/session';
 import { countUnresolvedInbox } from '@/lib/inbox/queries';
 import { countPendingSubmissions } from '@/lib/intake-submissions/queries';
@@ -61,14 +62,23 @@ export default async function StaffLayout({
   const tPatients = await getTranslations('patients');
 
   const entries = staffNavEntries(role);
-  const needsBadges = entries.some((e) => e.badge);
-  const [inboxCount, waitlistCount, intakeSubmissionCount] = needsBadges
-    ? await Promise.all([countUnresolvedInbox(), countActiveWaitlist(), countPendingSubmissions()])
-    : [0, 0, 0];
+  // Only the counters this role's entries actually reference run (the doctor
+  // sidebar shouldn't pay for the secretary's inbox/waitlist counts and
+  // vice-versa — NI-7 added the doctor's approvals badge).
+  const needed = new Set(entries.map((e) => e.badge).filter(Boolean));
+  const [inboxCount, waitlistCount, intakeSubmissionCount, approvalsCount] = await Promise.all([
+    needed.has('inbox') ? countUnresolvedInbox() : Promise.resolve(0),
+    needed.has('waitlist') ? countActiveWaitlist() : Promise.resolve(0),
+    needed.has('intakeSubmissions') ? countPendingSubmissions() : Promise.resolve(0),
+    needed.has('homeProgramApprovals')
+      ? countPendingApprovals(role === 'ADMIN' ? null : session.user.id)
+      : Promise.resolve(0),
+  ]);
   const badgeValue = {
     inbox: inboxCount,
     waitlist: waitlistCount,
     intakeSubmissions: intakeSubmissionCount,
+    homeProgramApprovals: approvalsCount,
   };
 
   const links: NavLink[] = entries.map((e) => {
