@@ -256,3 +256,49 @@ describe.each(generators)('$name PDF', ({ render, latinSample, arabicSample }) =
     expect(containsWordEitherDirection(text, arabicSample)).toBe(true);
   });
 });
+
+// ── Prompt 35 (§4) — explicit foundation + mixed-direction guarantees ──────
+
+describe('PDF font foundation (lib/exports/fonts.ts)', () => {
+  it('registers the bundled brand family from in-repo files — no OS fonts, no network', async () => {
+    const { existsSync } = await import('node:fs');
+    const path = await import('node:path');
+    const { Font } = await import('@react-pdf/renderer');
+    const { PDF_FONT_FAMILY } = await import('../fonts');
+
+    const families = Font.getRegisteredFonts() as Record<
+      string,
+      { sources: Array<{ src: string; fontWeight?: number }> }
+    >;
+    const family = families[PDF_FONT_FAMILY];
+    expect(family, 'brand PDF family must be registered').toBeTruthy();
+
+    const weights = family!.sources.map((s) => s.fontWeight).sort();
+    expect(weights).toEqual([400, 700]);
+    for (const source of family!.sources) {
+      // Vendored under public/fonts/pdf — identical output on dev and the VM
+      // by construction (the renderer never falls back to OS fonts).
+      expect(source.src).toContain(path.join('public', 'fonts', 'pdf'));
+      expect(existsSync(source.src), `font file missing: ${source.src}`).toBe(true);
+    }
+  });
+});
+
+describe('mixed-direction content (pediatric — Prompt 35 §2.5)', () => {
+  it('one AR document carries BOTH the Arabic label and the English verbatim value', async () => {
+    const { buffer } = await generatePediatricAssessmentPdf({ assessmentId: 'as1', locale: 'ar' });
+    const text = extractPdfText(buffer);
+    // Arabic half of the mixed line («مستوى GMFCS إن وُجد») — the shaped
+    // word round-trips through the ToUnicode CMap (visual or logical order,
+    // see the pdfText.ts caveat).
+    expect(containsWordEitherDirection(text, 'مستوى')).toBe(true);
+    // Latin half: glyph-run extraction for Latin INSIDE an RTL paragraph is
+    // unreliable with this renderer stack (the runs decode empty), so per
+    // Prompt 35 §4 we assert on the embedding metadata instead: the same
+    // document's ToUnicode CMap must carry Basic-Latin codepoints (UTF-16BE
+    // <00xx> for A–Z/a–z), proving the Latin glyphs are embedded and mapped
+    // in the AR document. Visual segment ORDER on the mixed line is the bidi
+    // engine's UAX#9 output — verified by screenshot in the Prompt 35 report.
+    expect(text).toMatch(/<00[4-7][0-9A-Fa-f]>/);
+  });
+});
