@@ -16,6 +16,7 @@ import { CreateAppointmentModal } from '@/components/appointments/CreateAppointm
 import { SeriesScopeConfirmDialog } from '@/components/appointments/SeriesScopeConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { rescheduleAppointmentAction } from '@/lib/appointments/actions';
+import { dragReassignTherapistIds } from '@/lib/appointments/drag';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { RESIZE_MIN_MINUTES } from '@/lib/appointments/schemas';
@@ -166,17 +167,12 @@ export function SecretaryCalendarBoard({
   const handleEventDrop = (args: { appointmentId: string; start: Date; resourceId?: string }) => {
     const existing = appointments.find((a) => a.id === args.appointmentId);
     if (!existing) return;
-    // Drag interaction (Prompt 20, decision #2):
-    //  - single-therapist appointment dropped into another lane → reassign it
-    //    to that lane's therapist (today's behavior preserved);
-    //  - multi-therapist session dragged → time-only move, ALL therapists kept,
-    //    no reassignment from the target lane (to change WHO is on it, use
-    //    "Manage therapists" in the side panel).
-    const isMulti = existing.therapists.length > 1;
-    const therapistIds =
-      !isMulti && args.resourceId && args.resourceId !== existing.therapists[0]?.id
-        ? [args.resourceId]
-        : undefined;
+    // Prompt 20 decision #2 — single → lane reassign, multi → time-only move
+    // (all therapists kept). The rule lives in lib/appointments/drag.ts.
+    const therapistIds = dragReassignTherapistIds(
+      existing.therapists.map((t) => t.id),
+      args.resourceId,
+    );
     const drop = {
       appointmentId: args.appointmentId,
       start: args.start,

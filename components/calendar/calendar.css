@@ -273,3 +273,19 @@
 [dir='rtl'] .rbc-calendar {
   direction: ltr;
 }
+
+/*
+ * Drag vs resize on the TOP edge (Prompt 34 — NI-3 family).
+ *
+ * rbc's dnd addon puts a resize anchor on BOTH edges of a time-grid event.
+ * The top anchor is where users naturally grab a chip (that's where the time
+ * label sits), and a top-anchor "resize" moves the START — which our
+ * duration-only resize rule (July #6: start unchanged, end is the new end)
+ * deliberately ignores, so grabbing the top edge did NOTHING: no move, no
+ * resize, no message ("drag & drop doesn't work"). Hiding the top anchor
+ * makes the whole upper region a normal MOVE grab; duration resize stays on
+ * the bottom edge, matching the implemented rule.
+ */
+.rbc-addons-dnd-resizable > .rbc-addons-dnd-resize-ns-anchor:first-child {
+  display: none;
+}

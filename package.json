@@ -82,6 +82,7 @@
     "@commitlint/cli": "^19.6.1",
     "@commitlint/config-conventional": "^19.6.0",
     "@eslint/eslintrc": "^3.3.5",
+    "@playwright/test": "^1.61.1",
     "@size-limit/file": "^12.1.0",
     "@types/node": "^22.10.5",
     "@types/react": "^19.0.5",

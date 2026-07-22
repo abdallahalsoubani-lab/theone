@@ -7,9 +7,11 @@ import { Views, type View } from 'react-big-calendar';
 import { Button } from '@/components/ui/button';
 import { DirectionalIcon } from '@/components/ui/DirectionalIcon';
 import { formatDate } from '@/lib/format/date';
+import { fromClinicWall } from '@/lib/time/clinic';
 
 interface Props {
   view: View;
+  /** CLINIC-WALL date (SecretaryCalendar's grid space — Prompt 31). */
   date: Date;
   onViewChange: (view: View) => void;
   onNavigate: (date: Date) => void;
@@ -50,7 +52,13 @@ export function CalendarToolbar({ view, date, onViewChange, onNavigate, onToday 
           <DirectionalIcon name="chevron-end" className="size-4" />
         </Button>
         <span className="ms-2 text-sm font-medium text-brand-navy">
-          {formatDate(date, intlLocale)}
+          {/* `date` is clinic-WALL; formatDate pins Asia/Amman, so feeding it
+              the wall Date directly double-shifts on a non-Amman machine —
+              on the UTC prod server the SSR label was one day ahead, which
+              was the calendar's hydration mismatch (Prompt 34). Convert the
+              wall back to the true instant first: identical text on server
+              and client, exact historical rendering preserved. */}
+          {formatDate(fromClinicWall(date), intlLocale)}
         </span>
       </div>
 

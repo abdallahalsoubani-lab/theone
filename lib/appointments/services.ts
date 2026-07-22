@@ -417,10 +417,18 @@ export const rescheduleAppointment = withAudit<
       await tx.appointment.update({
         where: { id: input.id },
         // A resize touches ONLY the duration — start time and room are left
-        // exactly as they were. A reschedule moves start + room too.
+        // exactly as they were. A reschedule moves start (+ room only when the
+        // caller sends one): the calendar drag omits roomId entirely, and the
+        // old `?? null` here silently STRIPPED the room from every dragged
+        // appointment (Prompt 34 — found while verifying NI-3; the series
+        // variant already had the undefined-means-keep guard).
         data: input.resize
           ? { durationMinutes }
-          : { startsAt: input.startsAt, durationMinutes, roomId: input.roomId ?? null },
+          : {
+              startsAt: input.startsAt,
+              durationMinutes,
+              ...(input.roomId !== undefined ? { roomId: input.roomId } : {}),
+            },
       });
       if (input.therapistIds) {
         await setAppointmentTherapistsTx(tx, input.id, therapistIds);
