@@ -17,7 +17,7 @@ export default async function LoginPage({ params }: { params: Promise<{ locale: 
         <p className="mt-2 text-sm text-brand-textMuted">{t('subtitle')}</p>
       </div>
 
-      <Tabs defaultValue="staff" className="w-full">
+      <Tabs defaultValue="staff" className="w-full" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="staff">{t('staffTab')}</TabsTrigger>
           <TabsTrigger value="patient">{t('patientTab')}</TabsTrigger>

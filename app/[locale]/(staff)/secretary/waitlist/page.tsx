@@ -64,7 +64,7 @@ export default async function WaitlistPage({
         patients={patients}
         clinicians={clinicians}
         rooms={rooms}
-        defaultDurationMinutes={settings?.defaultAppointmentDuration ?? 30}
+        defaultDurationMinutes={settings?.defaultAppointmentDuration ?? 60}
         canManage={canManage}
         canPlace={canPlace}
         canOverride={canOverride}

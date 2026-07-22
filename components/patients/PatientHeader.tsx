@@ -1,6 +1,6 @@
 'use client';
 
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 
 import { ExportPatientFileButton } from '@/components/exports/ExportPatientFileButton';
 import { ActAsButton } from '@/components/impersonation/ActAsButton';
@@ -31,6 +31,7 @@ export function PatientHeader({
   showActAs?: boolean;
 }) {
   const locale = useLocale();
+  const tForm = useTranslations('patients.form');
   const name = patientDisplayName(patient.fullNameEn, patient.fullNameAr, locale);
   const alt = locale === 'ar' ? patient.fullNameEn : patient.fullNameAr;
   const initials = name
@@ -57,7 +58,9 @@ export function PatientHeader({
         ) : null}
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <Badge variant="muted">{ageYears}y</Badge>
-          <Badge variant="muted">{patient.gender}</Badge>
+          <Badge variant="muted">
+            {patient.gender === 'FEMALE' ? tForm('genderFemale') : tForm('genderMale')}
+          </Badge>
           {/* Phone is null for Doctor/Therapist viewers (Prompt 15 §1) — omit it. */}
           {patient.phone ? (
             <span className="font-mono text-brand-textMuted" dir="ltr">

@@ -18,7 +18,9 @@ import { z } from 'zod';
 export const adultIntakeSchema = z
   .object({
     physicalActivityLevel: z.nativeEnum(PhysicalActivityLevel),
-    medicalDiagnosis: z.string().min(1).max(2000),
+    // Optional — the label has always said «إن وجد» (NI-4, Prompt 38); the
+    // column is nullable and the view renders the empty answer as "—".
+    medicalDiagnosis: z.string().max(2000).optional().or(z.literal('')).nullable(),
     primaryComplaint: z.string().min(1).max(2000),
     painTiming: z.nativeEnum(PainTiming),
     symptomDuration: z.nativeEnum(SymptomDuration),

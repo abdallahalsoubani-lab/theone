@@ -54,8 +54,8 @@ describe('eventsForView', () => {
   it('computes end from duration and titles by locale', () => {
     const [en] = eventsForView([multiTherapist], 'week', 'en');
     const [ar] = eventsForView([multiTherapist], 'week', 'ar');
-    expect(en!.title).toBe('John Doe');
-    expect(ar!.title).toBe('جون دو');
+    expect(en!.title).toBe('12:00 John Doe');
+    expect(ar!.title).toBe('12:00 جون دو');
     expect(en!.end.getTime() - en!.start.getTime()).toBe(30 * 60_000);
   });
 
@@ -99,7 +99,7 @@ describe('eventsForView', () => {
     const day = eventsForView([group], 'day', 'en');
     expect(day).toHaveLength(2);
     expect(day.map((e) => e.id)).toEqual(['grp-1::t1', 'grp-1::t2']);
-    expect(day.every((e) => e.title === 'Back-care workshop (2)')).toBe(true);
+    expect(day.every((e) => e.title === '12:00 Back-care workshop (2)')).toBe(true);
   });
 
   it('GROUP without a label falls back to the first member name + count', () => {
@@ -117,8 +117,8 @@ describe('eventsForView', () => {
       ],
       therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
     };
-    expect(eventsForView([group], 'week', 'en')[0]!.title).toBe('John (2)');
-    expect(eventsForView([group], 'week', 'ar')[0]!.title).toBe('جون (2)');
+    expect(eventsForView([group], 'week', 'en')[0]!.title).toBe('12:00 John (2)');
+    expect(eventsForView([group], 'week', 'ar')[0]!.title).toBe('12:00 جون (2)');
   });
 
   it('single-therapist appointment is one event in every view', () => {
@@ -163,5 +163,27 @@ describe('clinic-wall grid mapping (Prompt 31 — P-8)', () => {
     expect(event!.start.getDate()).toBe(2);
     expect(event!.start.getHours()).toBe(0);
     expect(event!.start.getMinutes()).toBe(30);
+  });
+});
+
+describe('time-first chip label (Prompt 38 — NI-10)', () => {
+  it('prefixes the clinic-TZ start time to session, group, and EVENT titles', () => {
+    const event: CalendarAppointment = {
+      ...base,
+      appointmentType: 'EVENT',
+      patientId: null,
+      patientFullNameEn: '',
+      patientFullNameAr: '',
+      title: 'Maintenance',
+      startsAt: new Date('2026-06-01T06:30:00Z'), // 09:30 Amman
+      therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
+    };
+    expect(eventsForView([event], 'day', 'en')[0]!.title).toBe('09:30 Maintenance');
+    const session: CalendarAppointment = {
+      ...base,
+      startsAt: new Date('2026-06-01T13:15:00Z'), // 16:15 Amman
+      therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
+    };
+    expect(eventsForView([session], 'week', 'ar')[0]!.title).toBe('16:15 جون دو');
   });
 });

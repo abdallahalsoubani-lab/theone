@@ -66,3 +66,22 @@ deploy-time actions here.
    MP4 **and** an iPhone MOV; as a secretary, upload a PDF to a patient's
    Documents tab and download it back. Stop `minio` briefly → the UI must say
    the localized "storage unavailable" message, not the generic one; restart.
+
+## From Prompt 38 (config bundle)
+
+9. **Default session duration 60 min (NI-9)** — the SEED now says 60, but the
+   production `ClinicSettings` row already exists with 30. One idempotent data
+   update (NOT a schema migration; no prisma migrate step):
+
+   ```bash
+   sudo -u postgres psql -d theone -c \
+     "UPDATE \"ClinicSettings\" SET \"defaultAppointmentDuration\"=60 WHERE id='default' AND \"defaultAppointmentDuration\"=30;"
+   ```
+
+   (The Admin can equally set it from /admin/settings — the field is
+   settings-driven; this just saves them the click.)
+
+10. **New clinic logo (NI-11): DEFERRED** — no SVG asset was provided in
+    Prompt 38. When the owner ships it, follow public/README.md's swap
+    procedure (logo.svg + logo-dark.svg) and re-verify header/login/kiosk/
+    display/PDF surfaces; nothing was touched meanwhile.

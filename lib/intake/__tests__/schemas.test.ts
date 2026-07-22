@@ -32,8 +32,17 @@ describe('adultIntakeSchema', () => {
     expect(r.success).toBe(true);
   });
 
-  it('rejects empty medicalDiagnosis', () => {
-    const r = adultIntakeSchema.safeParse({ ...adultBase(), medicalDiagnosis: '' });
+  it('accepts an EMPTY / omitted medicalDiagnosis — the label says «إن وجد» (NI-4, Prompt 38)', () => {
+    expect(adultIntakeSchema.safeParse({ ...adultBase(), medicalDiagnosis: '' }).success).toBe(
+      true,
+    );
+    const noField = { ...adultBase() } as Record<string, unknown>;
+    delete noField.medicalDiagnosis;
+    expect(adultIntakeSchema.safeParse(noField).success).toBe(true);
+  });
+
+  it('still rejects a missing truly-required field (primaryComplaint — regression)', () => {
+    const r = adultIntakeSchema.safeParse({ ...adultBase(), primaryComplaint: '' });
     expect(r.success).toBe(false);
   });
 

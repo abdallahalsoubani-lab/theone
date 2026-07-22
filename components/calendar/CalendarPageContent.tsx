@@ -55,7 +55,7 @@ export async function CalendarPageContent({ locale }: { locale: string }) {
   // picker. The conflict engine (CLINIC_CLOSED_THIS_DAY, hard-blocked)
   // remains the server-side authority.
   const closedDays = closedDayKeys(settings?.businessHours);
-  const defaultDurationMinutes = settings?.defaultAppointmentDuration ?? 30;
+  const defaultDurationMinutes = settings?.defaultAppointmentDuration ?? 60;
   const canOverride = can(viewer, 'appointments.override_conflict');
 
   return (

@@ -53,7 +53,11 @@ export function PatientProfileTab({
           <Field label={t('fullNameEn')} value={patient.fullNameEn} />
           <Field label={t('fullNameAr')} value={patient.fullNameAr} />
           <Field label={t('dateOfBirth')} value={formatDate(patient.dateOfBirth, locale)} />
-          <Field label={t('gender')} value={patient.gender} />
+          {/* Localized, not the raw enum — «أنثى/ذكر» on /ar (R-33 family). */}
+          <Field
+            label={t('gender')}
+            value={patient.gender === 'FEMALE' ? t('genderFemale') : t('genderMale')}
+          />
           <Field label={t('nationalId')} value={patient.nationalId} />
           <Field label={t('languagePref')} value={patient.languagePref} />
         </CardContent>

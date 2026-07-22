@@ -35,8 +35,14 @@ interface Props {
 
 export function QuestionsBoard({ initialScope, adult, pediatric }: Props) {
   const t = useTranslations('admin.customQuestions');
+  const locale = useLocale();
   return (
-    <Tabs defaultValue={initialScope === 'PEDIATRIC' ? 'PEDIATRIC' : 'ADULT'}>
+    // Radix Tabs defaults to dir="ltr" — pass the locale direction so the
+    // tab strip starts from the right on /ar (NI-8).
+    <Tabs
+      defaultValue={initialScope === 'PEDIATRIC' ? 'PEDIATRIC' : 'ADULT'}
+      dir={locale === 'ar' ? 'rtl' : 'ltr'}
+    >
       <TabsList>
         <TabsTrigger value="ADULT">{t('adultTab')}</TabsTrigger>
         <TabsTrigger value="PEDIATRIC">{t('pediatricTab')}</TabsTrigger>

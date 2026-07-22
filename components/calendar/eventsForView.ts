@@ -3,7 +3,7 @@ import type { View } from 'react-big-calendar';
 
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { patientDisplayName } from '@/lib/format/patientName';
-import { toClinicWall } from '@/lib/time/clinic';
+import { clinicHm, toClinicWall } from '@/lib/time/clinic';
 
 /**
  * Maps appointments to react-big-calendar events, VIEW-AWARE (Calendar overlap
@@ -49,17 +49,25 @@ export function eventsForView(
   view: View,
   locale: string,
 ): CalendarEvent[] {
+  // Chip label = "{start} {label}" (NI-10, Prompt 38): the clinic reads the
+  // grid by time first, name second. Clinic-TZ wall time (Prompt 31), Latin
+  // digits; the calendar's internal grid is forced LTR even on /ar
+  // (calendar.css), so the time renders unambiguously before the name with no
+  // extra bidi controls. Applied here — every view and every role's calendar
+  // inherits it, including EVENT chips (time + event title) for consistency.
+  const timePrefix = (a: CalendarAppointment) => clinicHm(a.startsAt);
   const title = (a: CalendarAppointment) => {
-    if (a.appointmentType === 'EVENT') return a.title ?? '';
+    if (a.appointmentType === 'EVENT') return `${timePrefix(a)} ${a.title ?? ''}`.trim();
     // GROUP (July #8 part 3): the workshop label when set, else the first
     // member's name; the member count is appended so the chip reads as a group.
     if (a.appointmentType === 'GROUP') {
       const first = a.groupPatients[0];
       const base =
         a.title ?? (first ? patientDisplayName(first.fullNameEn, first.fullNameAr, locale) : '');
-      return a.groupPatients.length > 0 ? `${base} (${a.groupPatients.length})` : base;
+      const label = a.groupPatients.length > 0 ? `${base} (${a.groupPatients.length})` : base;
+      return `${timePrefix(a)} ${label}`;
     }
-    return patientDisplayName(a.patientFullNameEn, a.patientFullNameAr, locale);
+    return `${timePrefix(a)} ${patientDisplayName(a.patientFullNameEn, a.patientFullNameAr, locale)}`;
   };
   const start = (a: CalendarAppointment) => toClinicWall(a.startsAt);
   const end = (a: CalendarAppointment) => addMinutes(start(a), a.durationMinutes);

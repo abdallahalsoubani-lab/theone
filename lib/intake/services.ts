@@ -109,7 +109,7 @@ export const createAdultIntake = withAudit<
         data: {
           intakeId: intake.id,
           physicalActivityLevel: data.physicalActivityLevel,
-          medicalDiagnosis: data.medicalDiagnosis,
+          medicalDiagnosis: data.medicalDiagnosis || null,
           primaryComplaint: data.primaryComplaint,
           painTiming: data.painTiming,
           symptomDuration: data.symptomDuration,

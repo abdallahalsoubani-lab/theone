@@ -240,7 +240,7 @@ export async function seedReference(db: PrismaClient): Promise<void> {
       addressEn: 'Amman, Jordan',
       addressAr: 'عمّان، الأردن',
       timezone: 'Asia/Amman',
-      defaultAppointmentDuration: 30,
+      defaultAppointmentDuration: 60,
       // Prompt 17: one reminder 24h before, clamped to 08:00–18:00 clinic-local.
       defaultReminderOffsetMinutes: 1440,
       reminderWindowStart: '08:00',

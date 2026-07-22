@@ -83,7 +83,10 @@ export function ClinicSettingsForm({ initial }: Props) {
       }}
       className="space-y-6"
     >
-      <Tabs defaultValue="general" className="w-full">
+      {/* Radix Tabs defaults to dir="ltr", which pinned the tab strip and the
+          Save row to the LEFT on /ar (NI-8). Pass the locale direction like
+          PatientFileTabs does. */}
+      <Tabs defaultValue="general" className="w-full" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
         <TabsList>
           <TabsTrigger value="general">{t('tabs.general')}</TabsTrigger>
           <TabsTrigger value="hours">{t('tabs.hours')}</TabsTrigger>
@@ -171,7 +174,7 @@ export function ClinicSettingsForm({ initial }: Props) {
                 max={480}
                 value={state.defaultAppointmentDuration}
                 onChange={(e) =>
-                  setField('defaultAppointmentDuration', parseInt(e.target.value || '30', 10))
+                  setField('defaultAppointmentDuration', parseInt(e.target.value || '60', 10))
                 }
               />
             </Field>
@@ -280,7 +283,7 @@ export function ClinicSettingsForm({ initial }: Props) {
                   value={s.defaultDurationMinutes}
                   onChange={(e) =>
                     updateServiceType(setState, i, {
-                      defaultDurationMinutes: parseInt(e.target.value || '30', 10),
+                      defaultDurationMinutes: parseInt(e.target.value || '60', 10),
                     })
                   }
                 />
