@@ -72,6 +72,10 @@ export async function CalendarPageContent({ locale }: { locale: string }) {
         closedDays={closedDays}
         canOverride={canOverride}
         newAppointmentLabel={tAppointments('newAppointment')}
+        // The board serves Admin, Secretary, and Doctor — patient-file links
+        // must stay inside the VIEWER's interface (A-19), and the effective
+        // role keeps Act-As consistent too.
+        viewerRole={viewer.role}
       />
     </section>
   );

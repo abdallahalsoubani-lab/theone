@@ -33,6 +33,8 @@ interface Props {
   profile: ReactNode;
   intake: ReactNode;
   activity: ReactNode;
+  /** Appointments tab content (Prompt 33 — NI-2). Falls back to the placeholder if omitted. */
+  appointments?: ReactNode;
   /** Treatment-plan tab content (Prompt 9). Falls back to the placeholder if omitted. */
   plan?: ReactNode;
   /** Session-notes tab content (Prompt 9). Falls back to the placeholder if omitted. */
@@ -52,6 +54,7 @@ export function PatientFileTabs({
   profile,
   intake,
   activity,
+  appointments,
   plan,
   notes,
   timeline,
@@ -124,12 +127,13 @@ export function PatientFileTabs({
       <TabsContent value="profile">{profile}</TabsContent>
       <TabsContent value="intake">{intake}</TabsContent>
 
-      {/* Placeholders owned by later prompts (Prompt 7 / 9 / 10). */}
       <TabsContent value="appointments">
-        <Placeholder
-          icon={<Calendar className="size-6" />}
-          message={t('placeholderAppointments')}
-        />
+        {appointments ?? (
+          <Placeholder
+            icon={<Calendar className="size-6" />}
+            message={t('placeholderAppointments')}
+          />
+        )}
       </TabsContent>
       <TabsContent value="plan">
         {plan ?? (

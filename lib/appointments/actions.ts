@@ -44,7 +44,7 @@ import {
 
 const revalidate = () => {
   revalidatePath('/[locale]/(staff)/secretary/calendar', 'page');
-  revalidatePath('/[locale]/(staff)/therapist/schedule', 'page');
+  revalidatePath('/[locale]/(staff)/therapist/calendar', 'page');
   revalidatePath('/[locale]/(patient)/patient/appointments', 'page');
 };
 

@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { auth } from '@/auth';
 import { PatientHomeProgramTab } from '@/components/home-program/PatientHomeProgramTab';
 import { PatientDocumentsTab } from '@/components/patients/PatientDocumentsTab';
+import { PatientAppointmentsTab } from '@/components/patients/PatientAppointmentsTab';
 import { PatientFilePage } from '@/components/patients/PatientFilePage';
 import { listDocuments } from '@/lib/patient-documents/queries';
 import { getPatientHomeProgramTabData } from '@/lib/clinical/home-program/patient-tab';
@@ -12,6 +13,7 @@ import { listSessionNotesForPatient } from '@/lib/clinical/session-notes/queries
 import { getPatientTimeline } from '@/lib/clinical/timeline/query';
 import { listIntakesForPatient } from '@/lib/intake/queries';
 import { ensureCanReadPatient } from '@/lib/patients/access';
+import { listAppointmentsForPatientFile } from '@/lib/appointments/queries';
 import { getPatientFile } from '@/lib/patients/queries';
 import { listPatientActivity } from '@/lib/patients/queries-audit';
 import { requirePermission } from '@/lib/rbac/guards';
@@ -52,9 +54,16 @@ export default async function SecretaryPatientFilePage({
       listDocuments(id),
     ]);
   if (!patient) notFound();
+  const fileAppointments = await listAppointmentsForPatientFile(id);
   return (
     <PatientFilePage
       patient={patient}
+      appointments={
+        <PatientAppointmentsTab
+          appointments={fileAppointments}
+          locale={locale === 'ar' ? 'ar' : 'en'}
+        />
+      }
       activity={activity}
       intakes={intakes}
       basePath="/secretary/patients"

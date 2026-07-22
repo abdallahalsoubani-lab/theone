@@ -715,6 +715,16 @@
       "remove": "Remove",
       "addedToast": "Care-team member added",
       "removedToast": "Care-team member removed"
+    },
+    "appointmentsTab": {
+      "upcomingHeading": "Upcoming appointments",
+      "pastHeading": "Past appointments",
+      "empty": "No appointments have been booked for this patient yet.",
+      "colWhen": "Date & time",
+      "colType": "Type",
+      "colTherapists": "Therapists",
+      "colRoom": "Room",
+      "colStatus": "Status"
     }
   },
   "intake": {

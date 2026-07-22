@@ -35,6 +35,7 @@ interface Props {
    * <PatientHomeProgramTab/> with the items + compliance data fetched
    * on the server.
    */
+  appointments?: ReactNode;
   homeProgram?: ReactNode;
   /** Pediatric assessment tab (Prompt 21). Passed only when the viewer can read it. */
   pediatric?: ReactNode;
@@ -62,6 +63,7 @@ export async function PatientFilePage({
   timeline,
   timelinePage = 1,
   timelinePageSize = 25,
+  appointments,
   homeProgram,
   pediatric,
   documents,
@@ -78,6 +80,7 @@ export async function PatientFilePage({
     <section className="space-y-6 p-6">
       <PatientHeader patient={patient} showActAs={showActAs} />
       <PatientFileTabs
+        appointments={appointments}
         profile={
           <PatientProfileTab
             patient={patient}

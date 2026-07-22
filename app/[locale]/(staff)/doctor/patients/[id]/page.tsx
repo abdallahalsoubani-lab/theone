@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { auth } from '@/auth';
 import { PatientHomeProgramTab } from '@/components/home-program/PatientHomeProgramTab';
 import { PatientDocumentsTab } from '@/components/patients/PatientDocumentsTab';
+import { PatientAppointmentsTab } from '@/components/patients/PatientAppointmentsTab';
 import { PatientFilePage } from '@/components/patients/PatientFilePage';
 import { listDocuments } from '@/lib/patient-documents/queries';
 import { getPatientHomeProgramTabData } from '@/lib/clinical/home-program/patient-tab';
@@ -14,6 +15,7 @@ import { PediatricAssessmentTab } from '@/components/pediatric-assessment/Pediat
 import { listIntakesForPatient } from '@/lib/intake/queries';
 import { ensureCanReadPatient } from '@/lib/patients/access';
 import { listAssessmentsForPatient } from '@/lib/pediatric-assessment/queries';
+import { listAppointmentsForPatientFile } from '@/lib/appointments/queries';
 import { getPatientFile } from '@/lib/patients/queries';
 import { listPatientActivity } from '@/lib/patients/queries-audit';
 import { can } from '@/lib/rbac/can';
@@ -65,6 +67,7 @@ export default async function DoctorPatientFilePage({
     listDocuments(id),
   ]);
   if (!patient) notFound();
+  const fileAppointments = await listAppointmentsForPatientFile(id);
   const canReadPed = session?.user
     ? can(session.user, 'pediatric_assessment.read.assigned', {})
     : false;
@@ -72,6 +75,12 @@ export default async function DoctorPatientFilePage({
   return (
     <PatientFilePage
       patient={patient}
+      appointments={
+        <PatientAppointmentsTab
+          appointments={fileAppointments}
+          locale={locale === 'ar' ? 'ar' : 'en'}
+        />
+      }
       activity={activity}
       intakes={intakes}
       basePath="/doctor/patients"

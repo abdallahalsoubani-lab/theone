@@ -291,6 +291,16 @@
       "remove": "إزالة",
       "addedToast": "تمت إضافة عضو إلى الفريق المعالج",
       "removedToast": "تمت إزالة عضو من الفريق المعالج"
+    },
+    "appointmentsTab": {
+      "upcomingHeading": "المواعيد القادمة",
+      "pastHeading": "المواعيد السابقة",
+      "empty": "لا توجد مواعيد محجوزة لهذا المراجع بعد.",
+      "colWhen": "التاريخ والوقت",
+      "colType": "النوع",
+      "colTherapists": "المعالجون",
+      "colRoom": "الغرفة",
+      "colStatus": "الحالة"
     }
   },
   "intake": {

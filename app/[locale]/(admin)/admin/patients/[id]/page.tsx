@@ -3,27 +3,32 @@ import { notFound } from 'next/navigation';
 
 import { auth } from '@/auth';
 import { PatientHomeProgramTab } from '@/components/home-program/PatientHomeProgramTab';
-import { PatientDocumentsTab } from '@/components/patients/PatientDocumentsTab';
 import { PatientAppointmentsTab } from '@/components/patients/PatientAppointmentsTab';
+import { PatientDocumentsTab } from '@/components/patients/PatientDocumentsTab';
 import { PatientFilePage } from '@/components/patients/PatientFilePage';
+import { listAppointmentsForPatientFile } from '@/lib/appointments/queries';
 import { listDocuments } from '@/lib/patient-documents/queries';
 import { getPatientHomeProgramTabData } from '@/lib/clinical/home-program/patient-tab';
 import { getPatientPlanState } from '@/lib/clinical/plans/queries';
 import { listSessionNotesForPatient } from '@/lib/clinical/session-notes/queries';
 import { getPatientTimeline } from '@/lib/clinical/timeline/query';
-import { PediatricAssessmentTab } from '@/components/pediatric-assessment/PediatricAssessmentTab';
 import { listIntakesForPatient } from '@/lib/intake/queries';
 import { ensureCanReadPatient } from '@/lib/patients/access';
-import { listAssessmentsForPatient } from '@/lib/pediatric-assessment/queries';
-import { listAppointmentsForPatientFile } from '@/lib/appointments/queries';
 import { getPatientFile } from '@/lib/patients/queries';
 import { listPatientActivity } from '@/lib/patients/queries-audit';
-import { can } from '@/lib/rbac/can';
 import { requirePermission } from '@/lib/rbac/guards';
 
 const TIMELINE_PAGE_SIZE = 25;
 
-export default async function TherapistPatientFilePage({
+/**
+ * Admin patient file (Prompt 33 — A-19). Before this route existed, every
+ * cross-role surface (calendar side panel, etc.) sent Admins to the
+ * SECRETARY patient page, silently swapping their sidebar and navigation for
+ * the Secretary interface. Same shared PatientFilePage as the other roles,
+ * admin basePath, read-only flags (patient editing keeps its home in the
+ * Secretary flows; Admin manages accounts under /admin/users).
+ */
+export default async function AdminPatientFilePage({
   params,
   searchParams,
 }: {
@@ -32,12 +37,12 @@ export default async function TherapistPatientFilePage({
 }) {
   const { locale, id } = await params;
   setRequestLocale(locale);
-  await requirePermission('patients.read.assigned');
+  await requirePermission('patients.read');
   await ensureCanReadPatient(id);
   const sp = await searchParams;
   const timelinePage = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
   const session = await auth();
-  const [patient, activity, intakes, planState, notes, timeline, homeProgramData] =
+  const [patient, activity, intakes, planState, notes, timeline, homeProgramData, documents] =
     await Promise.all([
       getPatientFile(id),
       listPatientActivity(id),
@@ -54,16 +59,10 @@ export default async function TherapistPatientFilePage({
         { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
       ),
       getPatientHomeProgramTabData(id),
+      listDocuments(id),
     ]);
   if (!patient) notFound();
   const fileAppointments = await listAppointmentsForPatientFile(id);
-  const [pedRows, documents] = await Promise.all([
-    listAssessmentsForPatient(id),
-    listDocuments(id),
-  ]);
-  const canReadPed = session?.user
-    ? can(session.user, 'pediatric_assessment.read.assigned', {})
-    : false;
   return (
     <PatientFilePage
       patient={patient}
@@ -75,7 +74,7 @@ export default async function TherapistPatientFilePage({
       }
       activity={activity}
       intakes={intakes}
-      basePath="/therapist/patients"
+      basePath="/admin/patients"
       canEdit={false}
       canResetPassword={false}
       locale={locale === 'ar' ? 'ar' : 'en'}
@@ -92,37 +91,26 @@ export default async function TherapistPatientFilePage({
           thirtyDay={homeProgramData.thirtyDay}
           streak={homeProgramData.streak}
           lastCompletedById={homeProgramData.lastCompletedById}
-          canEdit
+          canEdit={false}
           locale={locale === 'ar' ? 'ar' : 'en'}
         />
-      }
-      pediatric={
-        canReadPed ? (
-          <PediatricAssessmentTab
-            rows={pedRows}
-            canEdit={false}
-            basePath={`/therapist/patients/${patient.id}`}
-            manageFieldsHref={null}
-            locale={locale === 'ar' ? 'ar' : 'en'}
-          />
-        ) : undefined
       }
       documents={
         <PatientDocumentsTab
           patientId={patient.id}
           locale={locale === 'ar' ? 'ar' : 'en'}
           documents={documents}
-          canUpload={false}
-          canDelete={false}
+          canUpload
+          canDelete
           reports={{
             patientId: patient.id,
             planId: planState.active?.id ?? null,
-            pediatricId: canReadPed ? (pedRows[0]?.id ?? null) : null,
+            pediatricId: null,
             noteId: notes[0]?.id ?? null,
           }}
         />
       }
-      viewerRole="THERAPIST"
+      viewerRole="ADMIN"
       actorId={session?.user?.id ?? ''}
     />
   );

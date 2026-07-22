@@ -1,6 +1,6 @@
 'use client';
 
-import { AppointmentStatus } from '@prisma/client';
+import { AppointmentStatus, UserRole } from '@prisma/client';
 import { Check, CircleDot, ExternalLink, Pencil, UserCog, X } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
@@ -22,6 +22,7 @@ import { canStartSessionAt } from '@/lib/appointments/session-timing';
 import { formatDate, formatTime } from '@/lib/format/date';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { formatPhone } from '@/lib/format/phone';
+import { patientProfileHref } from '@/lib/patients/links';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 
 import { CancelAppointmentModal } from './CancelAppointmentModal';
@@ -44,6 +45,9 @@ export interface SidePanelAppointment {
 interface Props {
   open: boolean;
   appointment: SidePanelAppointment | null;
+  /** Effective viewer role — the "open patient file" link must land inside
+   *  the viewer's OWN interface, not the Secretary's (Prompt 33, A-19). */
+  viewerRole?: UserRole;
   onClose: () => void;
   onEdit?: () => void;
   /** Opens the change-therapist picker (Prompt 7b §4.6). The parent
@@ -65,6 +69,7 @@ interface Props {
 export function AppointmentSidePanel({
   open,
   appointment,
+  viewerRole = UserRole.SECRETARY,
   onClose,
   onEdit,
   onChangeTherapist,
@@ -155,7 +160,7 @@ export function AppointmentSidePanel({
         </SheetHeader>
 
         <Link
-          href={`/secretary/patients/${appointment.patientId}`}
+          href={patientProfileHref(viewerRole, appointment.patientId) as `/${string}`}
           className="inline-flex items-center gap-1 text-sm text-brand-cyan hover:underline"
         >
           <ExternalLink className="size-3" />

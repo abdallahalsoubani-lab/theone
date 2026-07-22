@@ -236,3 +236,104 @@ export async function listCancelledAppointments(args: {
     })),
   };
 }
+
+// ── Patient-file Appointments tab (Prompt 33 — NI-2) ────────────────────────
+
+export interface PatientFileAppointment {
+  id: string;
+  startsAt: Date;
+  durationMinutes: number;
+  status: AppointmentStatus;
+  appointmentType: AppointmentType;
+  /** Workshop/event label (GROUP/EVENT bookings). */
+  title: string | null;
+  therapists: PersonRef[];
+  roomName: string | null;
+}
+
+/**
+ * Every appointment on a patient's file — both their own bookings
+ * (Appointment.patientId) and GROUP sessions they are a member of via the
+ * AppointmentPatient M2M (July #8 part 3). No phone or any other patient
+ * contact field in the shape, so the tab is safe for every role that can
+ * open the file (Prompt 15 privacy). Ordered newest-first; the tab splits
+ * upcoming vs past itself.
+ */
+export async function listAppointmentsForPatientFile(
+  patientId: string,
+): Promise<PatientFileAppointment[]> {
+  const rows = await db.appointment.findMany({
+    where: {
+      OR: [{ patientId }, { groupPatients: { some: { patientId } } }],
+    },
+    orderBy: { startsAt: 'desc' },
+    select: {
+      id: true,
+      startsAt: true,
+      durationMinutes: true,
+      status: true,
+      appointmentType: true,
+      title: true,
+      room: { select: { name: true } },
+      therapists: {
+        orderBy: { createdAt: 'asc' },
+        select: { therapist: { select: { id: true, fullNameEn: true, fullNameAr: true } } },
+      },
+    },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    startsAt: r.startsAt,
+    durationMinutes: r.durationMinutes,
+    status: r.status,
+    appointmentType: r.appointmentType,
+    title: r.title,
+    therapists: r.therapists.map((t) => t.therapist),
+    roomName: r.room?.name ?? null,
+  }));
+}
+
+// ── Doctor-dashboard "my appointments today" (Prompt 33 — NI-1) ─────────────
+
+export interface ClinicianTodayAppointment {
+  id: string;
+  startsAt: Date;
+  status: AppointmentStatus;
+  checkedInAt: Date | null;
+  patientId: string | null;
+  /** EVENT/GROUP label when there is no scalar patient. */
+  title: string | null;
+  patient: { fullNameEn: string; fullNameAr: string } | null;
+}
+
+/**
+ * Appointments the clinician (doctor or therapist) is booked ON for the
+ * clinic-local day bounded by [dayStart, dayEnd). "Booked on" means an
+ * AppointmentTherapist row — doctors are bookable resource lanes, so the old
+ * assumption that only therapists appear in the M2M left the doctor
+ * dashboard permanently empty. Cancelled rows are excluded, matching the
+ * calendar; no phone in the shape.
+ */
+export async function listTodayAppointmentsForClinician(args: {
+  clinicianId: string;
+  dayStart: Date;
+  dayEnd: Date;
+}): Promise<ClinicianTodayAppointment[]> {
+  return db.appointment.findMany({
+    where: {
+      therapists: { some: { therapistId: args.clinicianId } },
+      startsAt: { gte: args.dayStart, lt: args.dayEnd },
+      status: { not: AppointmentStatus.CANCELLED },
+    },
+    orderBy: { startsAt: 'asc' },
+    select: {
+      id: true,
+      startsAt: true,
+      status: true,
+      checkedInAt: true,
+      patientId: true,
+      title: true,
+      patient: { select: { fullNameEn: true, fullNameAr: true } },
+    },
+  });
+}

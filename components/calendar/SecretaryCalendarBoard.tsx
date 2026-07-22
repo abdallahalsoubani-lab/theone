@@ -1,5 +1,6 @@
 'use client';
 
+import type { UserRole } from '@prisma/client';
 import { useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
@@ -35,6 +36,9 @@ interface Props {
   closedDays?: DayKey[];
   canOverride: boolean;
   newAppointmentLabel: string;
+  /** Effective viewer role — patient-file links stay inside this role's
+   *  interface (Prompt 33, A-19). */
+  viewerRole: UserRole;
 }
 
 /**
@@ -60,6 +64,7 @@ export function SecretaryCalendarBoard({
   closedDays,
   canOverride,
   newAppointmentLabel,
+  viewerRole,
 }: Props) {
   const router = useRouter();
   const locale = useLocale();
@@ -258,6 +263,7 @@ export function SecretaryCalendarBoard({
       <AppointmentSidePanel
         open={panelOpen}
         appointment={panelAppt}
+        viewerRole={viewerRole}
         onClose={() => setPanelOpen(false)}
         onChangeTherapist={panelAppt ? () => setChangeTherapistOpen(true) : undefined}
       />

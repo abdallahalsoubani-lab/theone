@@ -576,7 +576,7 @@ export const changeAppointmentTherapist = withAudit<
         recipientId: therapistId,
         type: 'APPOINTMENT_THERAPIST_REMOVED',
         params: { patientName, date: dateStr },
-        linkPath: `/therapist/schedule`,
+        linkPath: `/therapist/calendar`,
         relatedEntityType: 'Appointment',
         relatedEntityId: input.id,
       }).catch((err: unknown) => {
@@ -588,7 +588,7 @@ export const changeAppointmentTherapist = withAudit<
         recipientId: therapistId,
         type: 'APPOINTMENT_THERAPIST_ASSIGNED',
         params: { patientName, date: dateStr },
-        linkPath: `/therapist/schedule`,
+        linkPath: `/therapist/calendar`,
         relatedEntityType: 'Appointment',
         relatedEntityId: input.id,
       }).catch((err: unknown) => {
@@ -1150,7 +1150,7 @@ export const changeAppointmentTherapistSeries = withAudit<
           recipientId: therapistId,
           type: 'APPOINTMENT_THERAPIST_REMOVED',
           params: { patientName: patient, date: firstStart },
-          linkPath: `/therapist/schedule`,
+          linkPath: `/therapist/calendar`,
           relatedEntityType: 'Appointment',
           relatedEntityId: input.id,
         }).catch((err: unknown) => {
@@ -1162,7 +1162,7 @@ export const changeAppointmentTherapistSeries = withAudit<
           recipientId: therapistId,
           type: 'APPOINTMENT_THERAPIST_ASSIGNED',
           params: { patientName: patient, date: firstStart },
-          linkPath: `/therapist/schedule`,
+          linkPath: `/therapist/calendar`,
           relatedEntityType: 'Appointment',
           relatedEntityId: input.id,
         }).catch((err: unknown) => {
