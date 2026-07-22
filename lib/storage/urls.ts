@@ -22,6 +22,28 @@ export function proxyUploadUrl(key: string, token: string): string {
   return `${STORAGE_ROUTE}/${key}?t=${encodeURIComponent(token)}`;
 }
 
+/**
+ * Is `value` a URL our media columns may reference? Two shapes are legal
+ * (Prompt 32 — D-8 root cause):
+ *   - the same-origin proxy path this module issues (`/api/v1/storage/...`) —
+ *     NOTE: `z.string().url()` REJECTS relative paths, which is exactly how
+ *     "exercise saves without media, fails with media" happened;
+ *   - an absolute http(s) URL (legacy rows from the presigned era / a future
+ *     CDN in front of real S3).
+ * Anything else (javascript:, data:, protocol-relative //host) is refused.
+ */
+export function isStorageUrl(value: string): boolean {
+  if (value.startsWith(`${STORAGE_ROUTE}/`) && value.length > STORAGE_ROUTE.length + 1) {
+    return !value.startsWith('//');
+  }
+  try {
+    const u = new URL(value);
+    return u.protocol === 'http:' || u.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 // Re-export the policy helpers for client components that need the size /
 // type metadata to render hint copy.
 export { getUploadPolicy } from './policies';

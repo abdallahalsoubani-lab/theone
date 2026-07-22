@@ -691,6 +691,8 @@
       "errorUnsupported": "Only PDF and image files are allowed.",
       "errorTooLarge": "The file exceeds the {maxMb} MB limit.",
       "errorUploadFailed": "Upload failed. Please try again.",
+      "errorStorageUnavailable": "File storage is currently unavailable — please tell the administrator.",
+      "errorNetwork": "Connection dropped during upload. Check your network and try again.",
       "catXRAY": "X-ray",
       "catLAB": "Lab result",
       "catCONSULT": "Consult",
@@ -1307,7 +1309,9 @@
       "errors": {
         "unsupportedType": "File type is not supported.",
         "tooLarge": "File exceeds the {maxMb} MB limit.",
-        "uploadFailed": "Upload failed. Try again."
+        "uploadFailed": "Upload failed. Try again.",
+        "storageUnavailable": "File storage is currently unavailable — please tell the administrator.",
+        "networkError": "Connection dropped during upload. Check your network and try again."
       }
     },
     "homeProgram": {

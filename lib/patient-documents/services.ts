@@ -42,6 +42,7 @@ export const createPendingDocument = withAudit<
     const validationError = validatePatientDocInput({
       contentType: input.contentType,
       sizeBytes: input.sizeBytes,
+      fileName: input.fileName,
     });
     if (validationError) {
       throw new PatientDocumentError(

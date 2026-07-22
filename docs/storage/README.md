@@ -33,7 +33,7 @@ with zero application-code changes.
 > ```nginx
 > location /api/v1/storage/ {
 >   proxy_pass http://127.0.0.1:3000;
->   client_max_body_size 55m; # ≥ the 50 MB video ceiling
+>   client_max_body_size 105m; # ≥ the 100 MB video ceiling (Prompt 32)
 > }
 > ```
 >
@@ -76,10 +76,10 @@ Enforced server-side in `lib/storage/policies.ts` AND signed into the
 presigned PUT URL so a misbehaving client can't bypass them at the
 bucket:
 
-| Kind             | Allowed MIME types                      | Max size |
-| ---------------- | --------------------------------------- | -------- |
-| `exercise_image` | `image/jpeg`, `image/png`, `image/webp` | 5 MB     |
-| `exercise_video` | `video/mp4` (H.264)                     | 50 MB    |
+| Kind             | Allowed MIME types                           | Max size |
+| ---------------- | -------------------------------------------- | -------- |
+| `exercise_image` | `image/jpeg`, `image/png`, `image/webp`      | 10 MB    |
+| `exercise_video` | `video/mp4`, `video/quicktime`, `video/webm` | 100 MB   |
 
 MP4/H.264 plays in every modern browser without transcoding. MOV / WebM /
 HEVC are rejected with a localized error asking the therapist to convert

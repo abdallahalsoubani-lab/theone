@@ -6,7 +6,7 @@ import { useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { UploadHttpError, uploadFile } from '@/lib/storage/upload';
+import { classifyUploadError, uploadFile } from '@/lib/storage/upload';
 import { getUploadPolicy, type UploadKind } from '@/lib/storage/urls';
 
 interface Props {
@@ -66,12 +66,17 @@ export function MediaUploader({ kind, value, onChange, label }: Props) {
       toast.success(t('uploadDoneToast'));
     } catch (err) {
       if ((err as DOMException).name === 'AbortError') return;
-      // 413 = body rejected by the reverse proxy / storage route before the
-      // policy check could answer — surface it as "too large", localized.
+      // Differentiated failures (Prompt 32 §3.3) — the one generic string is
+      // the last resort, not the default.
+      const kind = classifyUploadError(err);
       toast.error(
-        err instanceof UploadHttpError && err.status === 413
+        kind === 'too_large'
           ? t('errors.tooLarge', { maxMb })
-          : t('errors.uploadFailed'),
+          : kind === 'storage_unavailable'
+            ? t('errors.storageUnavailable')
+            : kind === 'network'
+              ? t('errors.networkError')
+              : t('errors.uploadFailed'),
       );
     } finally {
       setProgress(null);

@@ -14,8 +14,14 @@ import {
   deleteDocument,
   finalizeDocumentUpload,
 } from '@/lib/patient-documents/actions';
-import { PATIENT_DOC_MAX_BYTES, PATIENT_DOC_MIME_TYPES } from '@/lib/patient-documents/policy';
+import {
+  PATIENT_DOC_MAX_BYTES,
+  PATIENT_DOC_MIME_TYPES,
+  docExtensionMatchesType,
+  type PatientDocMime,
+} from '@/lib/patient-documents/policy';
 import type { DocumentListRow } from '@/lib/patient-documents/queries';
+import { classifyUploadError, putWithProgress } from '@/lib/storage/transport';
 
 type Category = 'XRAY' | 'LAB' | 'CONSULT' | 'REPORT' | 'OTHER';
 const CATEGORIES: Category[] = ['XRAY', 'LAB', 'CONSULT', 'REPORT', 'OTHER'];
@@ -66,7 +72,13 @@ export function PatientDocumentsTab({
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    // Pre-flight (Prompt 32 §3.2): reject before any bytes travel — type,
+    // filename-extension consistency, then size (mirrors the server checks).
     if (!(PATIENT_DOC_MIME_TYPES as readonly string[]).includes(file.type)) {
+      toast.error(t('errorUnsupported'));
+      return;
+    }
+    if (!docExtensionMatchesType(file.name, file.type as PatientDocMime)) {
       toast.error(t('errorUnsupported'));
       return;
     }
@@ -88,14 +100,25 @@ export function PatientDocumentsTab({
         toast.error(locale === 'ar' ? ticket.error.message_ar : ticket.error.message_en);
         return;
       }
-      const put = await fetch(ticket.data.uploadUrl, {
-        method: 'PUT',
-        headers: { 'Content-Type': file.type },
-        body: file,
-      });
-      if (!put.ok) {
-        // 413 = rejected on size by the reverse proxy / storage route.
-        toast.error(put.status === 413 ? t('errorTooLarge', { maxMb }) : t('errorUploadFailed'));
+      // Shared transport (Prompt 32 §3.1) — same PUT helper + error taxonomy
+      // as exercise media, instead of a per-feature fetch fork.
+      try {
+        await putWithProgress({
+          url: ticket.data.uploadUrl,
+          file,
+          contentType: file.type,
+        });
+      } catch (putErr) {
+        const kind = classifyUploadError(putErr);
+        toast.error(
+          kind === 'too_large'
+            ? t('errorTooLarge', { maxMb })
+            : kind === 'storage_unavailable'
+              ? t('errorStorageUnavailable')
+              : kind === 'network'
+                ? t('errorNetwork')
+                : t('errorUploadFailed'),
+        );
         return;
       }
       const fin = await finalizeDocumentUpload({ documentId: ticket.data.documentId });
@@ -113,7 +136,10 @@ export function PatientDocumentsTab({
       startTransition(() => {
         router.refresh();
       });
-    } catch {
+    } catch (err) {
+      // Last resort only — the differentiated paths above handle the known
+      // failures; log the cause so it is never silently eaten again.
+      console.error('[patient-documents] upload failed', err);
       toast.error(t('errorUploadFailed'));
     } finally {
       setBusy(false);

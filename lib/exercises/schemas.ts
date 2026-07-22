@@ -1,8 +1,21 @@
 import { z } from 'zod';
 
+import { isStorageUrl } from '@/lib/storage/urls';
+
 import { isValidCategory, isValidRegion } from './taxonomy';
 
 const optionalText = z.string().max(5000).optional().nullable();
+
+// Media URLs are same-origin proxy paths (`/api/v1/storage/...`) since the
+// Fix-Prompt-4 storage rework — `z.string().url()` rejects those, which made
+// every create/edit WITH media fail validation while media-less saves worked
+// (QA D-8 / D-1r). Absolute http(s) URLs stay accepted for legacy rows.
+const mediaUrl = z
+  .string()
+  .max(2048)
+  .refine(isStorageUrl, 'Invalid media URL.')
+  .optional()
+  .nullable();
 
 export const exerciseCreateSchema = z.object({
   nameEn: z.string().min(3).max(200),
@@ -14,10 +27,10 @@ export const exerciseCreateSchema = z.object({
   contraindications: optionalText,
   defaultInstructionEn: optionalText,
   defaultInstructionAr: optionalText,
-  videoUrl: z.string().url().optional().nullable(),
+  videoUrl: mediaUrl,
   videoMimeType: z.string().optional().nullable(),
   videoSizeBytes: z.number().int().min(0).optional().nullable(),
-  imageUrl: z.string().url().optional().nullable(),
+  imageUrl: mediaUrl,
   imageMimeType: z.string().optional().nullable(),
   imageSizeBytes: z.number().int().min(0).optional().nullable(),
 });

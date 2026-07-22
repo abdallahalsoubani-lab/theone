@@ -81,8 +81,16 @@ describe('storage proxy PUT (QA 2.3)', () => {
     expect(res.status).toBe(400);
   });
 
-  it('surfaces object-store failures as 502 (misconfigured backend, not a code bug)', async () => {
-    s3Send.mockRejectedValue(new Error('ECONNREFUSED 127.0.0.1:9000'));
+  it('answers 503 STORAGE_UNAVAILABLE when the store is unreachable (Prompt 32 — R-14/41)', async () => {
+    // What the rebuilt VM produced while the MinIO service was missing.
+    s3Send.mockRejectedValue(new Error('connect ECONNREFUSED 127.0.0.1:9000'));
+    const res = await PUT(putRequest({ token: 't', contentType: 'image/jpeg' }), params());
+    expect(res.status).toBe(503);
+    expect((await res.json()) as object).toMatchObject({ code: 'STORAGE_UNAVAILABLE' });
+  });
+
+  it('surfaces non-connection object-store failures as 502 (misconfigured backend, not a code bug)', async () => {
+    s3Send.mockRejectedValue(new Error('The specified bucket does not exist'));
     const res = await PUT(putRequest({ token: 't', contentType: 'image/jpeg' }), params());
     expect(res.status).toBe(502);
     const body = (await res.json()) as { error: string };

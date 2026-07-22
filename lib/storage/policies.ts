@@ -22,7 +22,9 @@ export interface UploadPolicy {
 }
 
 const IMAGE_POLICY: UploadPolicy = {
-  maxSizeBytes: 5 * 1024 * 1024, // 5 MB — modern browsers handle this fine without thumbnails.
+  // 10 MB (Prompt 32) — a modern phone photo is routinely 4–8 MB; the old
+  // 5 MB ceiling pre-flight-rejected exactly the pictures doctors take.
+  maxSizeBytes: 10 * 1024 * 1024,
   allowedContentTypes: ['image/jpeg', 'image/png', 'image/webp'],
   extensionFor(ct) {
     switch (ct) {
@@ -40,19 +42,51 @@ const IMAGE_POLICY: UploadPolicy = {
 };
 
 const VIDEO_POLICY: UploadPolicy = {
-  // 50 MB. Bigger files invite transcoding pipelines that are out of v1
-  // scope; the Exercise form's hint copy tells therapists to keep clips
-  // under a minute at 720p.
-  maxSizeBytes: 50 * 1024 * 1024,
-  // MP4 / H.264 plays in every modern browser without transcoding. We
-  // reject MOV / WebM / etc. with a clear localized error rather than
-  // silently accept-and-break-playback.
-  allowedContentTypes: ['video/mp4'],
+  // 100 MB (Prompt 32) — covers ~1 min of unedited 1080p phone footage; the
+  // clinic has no transcoding tooling, so raw camera output must fit. The
+  // nginx `client_max_body_size` on /api/v1/storage/ must stay above this
+  // (batch-deploy checklist bumps it to 105m).
+  maxSizeBytes: 100 * 1024 * 1024,
+  // What phone cameras actually emit: MP4/H.264 (Android, universal), MOV
+  // (iPhone — plays in every modern browser when H.264), WebM (screen
+  // recorders). Rejecting MOV was the "videos never upload" half of D-8:
+  // every iPhone clip died at the pre-flight type check.
+  allowedContentTypes: ['video/mp4', 'video/quicktime', 'video/webm'],
   extensionFor(ct) {
-    return ct === 'video/mp4' ? 'mp4' : null;
+    switch (ct) {
+      case 'video/mp4':
+        return 'mp4';
+      case 'video/quicktime':
+        return 'mov';
+      case 'video/webm':
+        return 'webm';
+      default:
+        return null;
+    }
   },
   keyPrefix: 'exercises/video',
 };
+
+/** File extensions considered consistent with each allowed MIME type —
+ *  uploads whose original filename contradicts the declared type are refused
+ *  server-side (Prompt 32 §3.4). Files with no extension pass (the key is
+ *  server-built from the MIME type either way). */
+const EXTENSIONS_FOR_TYPE: Record<string, ReadonlyArray<string>> = {
+  'image/jpeg': ['jpg', 'jpeg'],
+  'image/png': ['png'],
+  'image/webp': ['webp'],
+  'video/mp4': ['mp4', 'm4v'],
+  'video/quicktime': ['mov'],
+  'video/webm': ['webm'],
+};
+
+export function extensionMatchesType(fileName: string, contentType: string): boolean {
+  const dot = fileName.lastIndexOf('.');
+  if (dot < 0 || dot === fileName.length - 1) return true; // extension-less names pass
+  const ext = fileName.slice(dot + 1).toLowerCase();
+  const allowed = EXTENSIONS_FOR_TYPE[contentType];
+  return allowed ? allowed.includes(ext) : false;
+}
 
 const POLICIES: Record<UploadKind, UploadPolicy> = {
   exercise_image: IMAGE_POLICY,
@@ -72,6 +106,9 @@ export function validateUploadInput(args: {
   kind: UploadKind;
   contentType: string;
   sizeBytes: number;
+  /** Original filename — when present, its extension must not contradict the
+   *  declared content-type (server-side check, Prompt 32 §3.4). */
+  fileName?: string;
 }): UploadValidationError | null {
   const policy = POLICIES[args.kind];
   if (!policy) {
@@ -81,6 +118,12 @@ export function validateUploadInput(args: {
     return {
       code: 'UNSUPPORTED_TYPE',
       message: `Content type ${args.contentType} is not allowed for ${args.kind}.`,
+    };
+  }
+  if (args.fileName && !extensionMatchesType(args.fileName, args.contentType)) {
+    return {
+      code: 'UNSUPPORTED_TYPE',
+      message: `File extension of "${args.fileName}" does not match ${args.contentType}.`,
     };
   }
   if (args.sizeBytes <= 0 || args.sizeBytes > policy.maxSizeBytes) {

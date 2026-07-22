@@ -1,28 +1,20 @@
 import { createUploadUrl } from './actions/createUploadUrl';
 import type { UploadKind } from './policies';
+import { putWithProgress } from './transport';
 
 /**
- * Browser-side upload helper. Calls the server action to get a
- * presigned PUT URL, then PUTs the file directly to S3 / MinIO.
- *
- * Progress is reported via the optional `onProgress` callback so the
- * MediaUploader component can render a real loading bar instead of a
- * generic spinner. Abort is supported via AbortController — the
- * upload form should pass one in and call abort() on dismount or
- * cancel.
+ * Browser-side upload orchestrator: asks the server action for an upload
+ * ticket (validation + can() + signed capability token), then PUTs the bytes
+ * through the shared transport (lib/storage/transport.ts — progress, abort,
+ * and the differentiated error taxonomy live there; Prompt 32 §3.1).
  */
 
-/**
- * Thrown when the storage proxy answers with a non-2xx status. Carries the
- * HTTP status so the UI can map specific failures (413 → "file too large",
- * everything else → generic localized message) instead of leaking raw text.
- */
-export class UploadHttpError extends Error {
-  constructor(public readonly status: number) {
-    super(`Upload failed: HTTP ${status}`);
-    this.name = 'UploadHttpError';
-  }
-}
+export {
+  classifyUploadError,
+  putWithProgress,
+  UploadHttpError,
+  type UploadFailureKind,
+} from './transport';
 
 export interface UploadResult {
   /** Public URL the row should reference. */
@@ -47,6 +39,7 @@ export async function uploadFile(opts: UploadOptions): Promise<UploadResult> {
     kind: opts.kind,
     contentType: opts.file.type,
     sizeBytes: opts.file.size,
+    fileName: opts.file.name,
   });
   if (!ticket.ok) throw new Error(ticket.error.message_en);
 
@@ -64,42 +57,4 @@ export async function uploadFile(opts: UploadOptions): Promise<UploadResult> {
     mimeType: opts.file.type,
     sizeBytes: opts.file.size,
   };
-}
-
-function putWithProgress(args: {
-  url: string;
-  file: File;
-  contentType: string;
-  onProgress?: (fraction: number) => void;
-  signal?: AbortSignal;
-}): Promise<void> {
-  return new Promise((resolve, reject) => {
-    // XMLHttpRequest is the only browser API that exposes upload
-    // progress events. fetch's ReadableStream support for upload
-    // progress is still Chrome-only as of 2026.
-    const xhr = new XMLHttpRequest();
-    xhr.open('PUT', args.url);
-    xhr.setRequestHeader('Content-Type', args.contentType);
-    if (args.onProgress) {
-      xhr.upload.addEventListener('progress', (e) => {
-        if (e.lengthComputable && e.total > 0) {
-          args.onProgress!(e.loaded / e.total);
-        }
-      });
-    }
-    xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new UploadHttpError(xhr.status));
-    });
-    xhr.addEventListener('error', () => reject(new Error('Upload network error')));
-    xhr.addEventListener('abort', () => reject(new DOMException('Upload aborted', 'AbortError')));
-    if (args.signal) {
-      if (args.signal.aborted) {
-        xhr.abort();
-        return;
-      }
-      args.signal.addEventListener('abort', () => xhr.abort());
-    }
-    xhr.send(args.file);
-  });
 }

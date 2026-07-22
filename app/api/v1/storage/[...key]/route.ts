@@ -49,6 +49,9 @@ export async function PUT(
 
   // Surface storage failures clearly instead of an opaque 500 — a misconfigured
   // bucket/endpoint is otherwise indistinguishable from a code bug (QA retest #5).
+  // 503 = the object store can't be reached at all (service down — what the
+  // rebuilt VM had, Prompt 32 R-14/41); 502 = reachable but rejected the call
+  // (bad bucket/credentials). Clients map both to "storage unavailable".
   try {
     await s3.send(
       new PutObjectCommand({
@@ -64,9 +67,16 @@ export async function PUT(
       key,
       message: err instanceof Error ? err.message : String(err),
     });
+    const unreachable =
+      err instanceof Error &&
+      /ECONNREFUSED|ECONNRESET|ETIMEDOUT|ENOTFOUND|EHOSTUNREACH|socket|getaddrinfo/i.test(
+        `${err.message} ${(err as NodeJS.ErrnoException).code ?? ''}`,
+      );
     return NextResponse.json(
-      { error: 'Storage backend rejected the upload. Check object-store configuration.' },
-      { status: 502 },
+      unreachable
+        ? { error: 'Object store is unreachable.', code: 'STORAGE_UNAVAILABLE' }
+        : { error: 'Storage backend rejected the upload. Check object-store configuration.' },
+      { status: unreachable ? 503 : 502 },
     );
   }
 

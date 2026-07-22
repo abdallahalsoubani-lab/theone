@@ -25,6 +25,8 @@ interface CreateUploadUrlInput {
   kind: UploadKind;
   contentType: string;
   sizeBytes: number;
+  /** Original filename — extension is cross-checked against the content-type. */
+  fileName?: string;
 }
 
 export interface UploadTicket {
