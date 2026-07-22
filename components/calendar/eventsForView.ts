@@ -3,6 +3,7 @@ import type { View } from 'react-big-calendar';
 
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { patientDisplayName } from '@/lib/format/patientName';
+import { toClinicWall } from '@/lib/time/clinic';
 
 /**
  * Maps appointments to react-big-calendar events, VIEW-AWARE (Calendar overlap
@@ -28,6 +29,14 @@ export const OTHER_LANE_ID = '__other__';
 export interface CalendarEvent {
   id: string;
   title: string;
+  /**
+   * CLINIC-WALL representation (Prompt 31 / P-8): react-big-calendar positions
+   * events by the browser-LOCAL fields of these Dates, so they are pre-shifted
+   * with `toClinicWall` — the grid shows clinic time on ANY machine (identity
+   * shift when the browser is already on Asia/Amman). The true instant lives
+   * on `appointment.startsAt`; interaction handlers convert grid Dates back
+   * with `fromClinicWall` before touching the server.
+   */
   start: Date;
   end: Date;
   resourceId: string;
@@ -52,7 +61,8 @@ export function eventsForView(
     }
     return patientDisplayName(a.patientFullNameEn, a.patientFullNameAr, locale);
   };
-  const end = (a: CalendarAppointment) => addMinutes(a.startsAt, a.durationMinutes);
+  const start = (a: CalendarAppointment) => toClinicWall(a.startsAt);
+  const end = (a: CalendarAppointment) => addMinutes(start(a), a.durationMinutes);
 
   if (view === 'day') {
     return appointments.flatMap((a) => {
@@ -63,7 +73,7 @@ export function eventsForView(
           {
             id: a.id,
             title: title(a),
-            start: a.startsAt,
+            start: start(a),
             end: end(a),
             resourceId: OTHER_LANE_ID,
             status: a.status,
@@ -74,7 +84,7 @@ export function eventsForView(
       return a.therapists.map((th) => ({
         id: `${a.id}::${th.id}`,
         title: title(a),
-        start: a.startsAt,
+        start: start(a),
         end: end(a),
         resourceId: th.id,
         status: a.status,
@@ -87,7 +97,7 @@ export function eventsForView(
   return appointments.map((a) => ({
     id: a.id,
     title: title(a),
-    start: a.startsAt,
+    start: start(a),
     end: end(a),
     resourceId: a.therapists[0]?.id ?? OTHER_LANE_ID,
     status: a.status,

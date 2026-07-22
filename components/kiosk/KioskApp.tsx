@@ -1,6 +1,6 @@
 'use client';
 
-import { useLocale, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Link } from '@/i18n/navigation';
@@ -258,7 +258,6 @@ function ConfirmView({
 
 function ResultView({ result, onDone }: { result: KioskActionResult; onDone: () => void }) {
   const t = useTranslations('kiosk');
-  const locale = useLocale();
 
   let tone = 'text-brand-navy';
   let title = '';
@@ -277,15 +276,6 @@ function ResultView({ result, onDone }: { result: KioskActionResult; onDone: () 
       tone = 'text-brand-teal';
       title = t('alreadyCheckedIn', { name: result.firstName });
       detail = t('turnIn', { minutes: result.delayMinutes });
-      break;
-    case 'APPOINTMENT_PASSED':
-      // Arrival recorded, but the slot already ended — never promise a
-      // future "your turn in ~X minutes" (Prompt 22 §4.3).
-      tone = 'text-brand-navy';
-      title = t('checkedIn', { name: result.firstName });
-      detail = t('appointmentPassed', {
-        time: formatTime(new Date(result.startsAtIso), locale === 'ar' ? 'ar' : 'en'),
-      });
       break;
     case 'RATE_LIMITED':
       tone = 'text-brand-navy';

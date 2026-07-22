@@ -95,3 +95,31 @@ describe('localDayKey', () => {
     expect(localDayKey(new Date(`${MONDAY}T06:00:00Z`), 'Asia/Amman')).toBe('mon');
   });
 });
+
+describe('D-9r regression (Prompt 31): a full 11:15 recurring series inside 09:00–18:00', () => {
+  it('every expanded occurrence passes the hours check under a UTC process clock', async () => {
+    const { expandRecurrence } = await import('../recurrence');
+    // Thursday 2026-07-23 11:15 Amman = 08:15Z.
+    const first = new Date('2026-07-23T08:15:00Z');
+    const occurrences = expandRecurrence(
+      { frequency: 'WEEKLY', interval: 1, byWeekday: ['TUE', 'THU'], count: 8 },
+      first,
+      45,
+    );
+    expect(occurrences).toHaveLength(8);
+    for (const occ of occurrences) {
+      const verdict = isWithinWorkingHours(
+        occ.startsAt,
+        new Date(occ.startsAt.getTime() + 45 * 60_000),
+        SETTINGS,
+      );
+      expect(verdict).toEqual({ ok: true });
+    }
+  });
+
+  it('a 19:00 Amman occurrence still fails (the check is not neutered)', () => {
+    const start = new Date('2026-07-23T16:00:00Z'); // 19:00 Amman
+    const r = isWithinWorkingHours(start, withDuration(start, 30), SETTINGS);
+    expect(r.ok).toBe(false);
+  });
+});

@@ -26,6 +26,11 @@ import { clinicDayRange } from './time';
  *     per arrival (the deferred item-2 message seam).
  *   - The "your turn in ~X minutes" value is the manual `currentDelayMinutes`
  *     clinic setting — no queue-position math.
+ *   - PASSED = GONE (Prompt 31 §4.4, supersedes Prompt 22 §4.3): an
+ *     appointment whose scheduled END is already behind us is no longer
+ *     arrivable — it neither matches in search nor checks in. A patient with
+ *     nothing else arrivable today gets the same generic `NO_APPOINTMENT`
+ *     (no lateness-specific copy; privacy stance unchanged).
  *
  * Pure of HTTP concerns: token + rate-limit gating live in the server action
  * that calls this. The audit actor is the PATIENT themselves; `checkedInVia`
@@ -41,7 +46,6 @@ export type KioskCheckInResult =
       appointmentCount: number;
     }
   | { kind: 'ALREADY_CHECKED_IN'; firstName: string; delayMinutes: number }
-  | { kind: 'APPOINTMENT_PASSED'; firstName: string; startsAtIso: string }
   | { kind: 'NO_APPOINTMENT' };
 
 /** One search match — name in both scripts + today's appointment times. */
@@ -53,6 +57,13 @@ export interface KioskSearchMatch {
 }
 
 const BOOKABLE: AppointmentStatus[] = [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED];
+
+/** Prompt 31 §4.4 — arrivable = the scheduled end hasn't passed yet.
+ *  (Prisma can't compare `startsAt + durationMinutes` in a where clause, so
+ *  callers fetch today's rows and filter here.) */
+function endsAfter(appt: { startsAt: Date; durationMinutes: number }, now: Date): boolean {
+  return appt.startsAt.getTime() + appt.durationMinutes * 60_000 > now.getTime();
+}
 
 /** Min characters before we return any match (privacy: no full-list reveal). */
 export const MIN_QUERY = 2;
@@ -139,16 +150,22 @@ export async function searchTodaysPatients(input: {
     take: MAX_RESULTS,
   });
 
-  return patients.map((p) => ({
-    patientId: p.id,
-    fullNameEn: p.fullNameEn,
-    fullNameAr: p.fullNameAr,
-    appointments: p.appointmentsAsPatient.map((a) => ({
-      id: a.id,
-      startsAtIso: a.startsAt.toISOString(),
-      durationMinutes: a.durationMinutes,
-    })),
-  }));
+  return patients
+    .map((p) => ({
+      patientId: p.id,
+      fullNameEn: p.fullNameEn,
+      fullNameAr: p.fullNameAr,
+      // Already-ended appointments are not arrivable (§4.4) — a patient whose
+      // only appointment has passed simply doesn't match (generic path).
+      appointments: p.appointmentsAsPatient
+        .filter((a) => endsAfter(a, now))
+        .map((a) => ({
+          id: a.id,
+          startsAtIso: a.startsAt.toISOString(),
+          durationMinutes: a.durationMinutes,
+        })),
+    }))
+    .filter((p) => p.appointments.length > 0);
 }
 
 /**
@@ -182,13 +199,18 @@ export async function checkInByName(input: {
     orderBy: { startsAt: 'asc' },
     select: { id: true, startsAt: true, durationMinutes: true, checkedInAt: true },
   });
-  if (candidates.length === 0) return { kind: 'NO_APPOINTMENT' };
+
+  // §4.4 — an appointment whose scheduled end has passed is no longer
+  // arrivable. With nothing else arrivable today the answer is the same
+  // generic rejection as "no appointment at all" (no lateness copy).
+  const arrivable = candidates.filter((c) => endsAfter(c, now));
+  if (arrivable.length === 0) return { kind: 'NO_APPOINTMENT' };
 
   const greetName = firstName(patient.fullNameEn || patient.fullNameAr);
 
   // Already-arrived appointments are excluded from (re-)grouping. If nothing is
   // left open, the patient already checked in for everything today.
-  const open = candidates.filter((c) => !c.checkedInAt);
+  const open = arrivable.filter((c) => !c.checkedInAt);
   if (open.length === 0) {
     return { kind: 'ALREADY_CHECKED_IN', firstName: greetName, delayMinutes };
   }
@@ -215,17 +237,6 @@ export async function checkInByName(input: {
     patient.id,
     run.map((a) => a.id),
   );
-
-  // Prompt 22 §4.3 — the target already ENDED (patient hours late): still
-  // record the arrival so reception sees them, but don't promise a wait time.
-  const endsAt = target.startsAt.getTime() + target.durationMinutes * 60_000;
-  if (now.getTime() > endsAt) {
-    return {
-      kind: 'APPOINTMENT_PASSED',
-      firstName: greetName,
-      startsAtIso: target.startsAt.toISOString(),
-    };
-  }
 
   return { kind: 'CHECKED_IN', firstName: greetName, delayMinutes, appointmentCount: run.length };
 }

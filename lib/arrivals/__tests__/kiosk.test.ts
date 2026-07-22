@@ -242,18 +242,34 @@ describe('checkInByName — arrival grouping (July #3)', () => {
   });
 });
 
-describe('checkInByName — passed appointment (Prompt 22 §4.3)', () => {
+describe('checkInByName — passed appointment (Prompt 31 §4.4, supersedes Prompt 22 §4.3)', () => {
   const LATE_NOW = new Date('2026-06-10T14:00:00Z');
-  it('records the arrival but returns APPOINTMENT_PASSED', async () => {
+
+  it('an appointment whose scheduled end has passed is NOT arrivable → generic NO_APPOINTMENT, nothing written', async () => {
     addPatient('pat-1', 'Abdullah', 'عبدالله');
+    // 10:00Z + 30min → ended 10:30Z, long before LATE_NOW (14:00Z).
     addAppt({ id: 'appt-1', patientId: 'pat-1', startsAt: new Date('2026-06-10T10:00:00Z') });
     const res = await checkInByName({ patientId: 'pat-1', now: LATE_NOW });
-    expect(res).toEqual({
-      kind: 'APPOINTMENT_PASSED',
-      firstName: 'Abdullah',
-      startsAtIso: '2026-06-10T10:00:00.000Z',
-    });
-    expect(state.appts[0]!.checkedInAt).toEqual(LATE_NOW);
+    expect(res).toEqual({ kind: 'NO_APPOINTMENT' });
+    expect(state.appts[0]!.checkedInAt).toBeNull();
+    expect(state.audits).toHaveLength(0);
+  });
+
+  it('a still-RUNNING appointment (started, not ended) remains arrivable', async () => {
+    addPatient('pat-1', 'Abdullah', 'عبدالله');
+    // Started 08:45Z, 30min → ends 09:15Z; NOW 09:00Z is inside.
+    addAppt({ id: 'appt-1', patientId: 'pat-1', startsAt: new Date('2026-06-10T08:45:00Z') });
+    const res = await checkInByName({ patientId: 'pat-1', now: NOW });
+    expect(res).toMatchObject({ kind: 'CHECKED_IN', appointmentCount: 1 });
+  });
+
+  it('a passed appointment is skipped in favour of a later arrivable one', async () => {
+    addPatient('pat-1', 'Abdullah', 'عبدالله');
+    addAppt({ id: 'gone', patientId: 'pat-1', startsAt: new Date('2026-06-10T05:00:00Z') });
+    addAppt({ id: 'next', patientId: 'pat-1', startsAt: new Date('2026-06-10T10:00:00Z') });
+    const res = await checkInByName({ patientId: 'pat-1', now: NOW });
+    expect(res).toMatchObject({ kind: 'CHECKED_IN', appointmentCount: 1 });
+    expect(state.audits.map((x) => x.entityId)).toEqual(['next']);
   });
 });
 
@@ -296,6 +312,22 @@ describe('searchTodaysPatients (July #1 — privacy)', () => {
 
   it('an unknown name returns an empty list (generic negative)', async () => {
     expect(await searchTodaysPatients({ query: 'Zzzz', now: NOW })).toEqual([]);
+  });
+
+  it('a patient whose only appointment already ENDED does not match (Prompt 31 §4.4)', async () => {
+    addPatient('pat-9', 'Layla Hamdan', 'ليلى حمدان');
+    // 05:00Z + 30min ends 05:30Z — before NOW (09:00Z), same clinic day.
+    addAppt({ id: 'a9', patientId: 'pat-9', startsAt: new Date('2026-06-10T05:00:00Z') });
+    expect(await searchTodaysPatients({ query: 'Layla', now: NOW })).toEqual([]);
+  });
+
+  it('drops only the ended appointment when the patient has another arrivable one', async () => {
+    addPatient('pat-8', 'Rami Odeh', 'رامي عودة');
+    addAppt({ id: 'gone8', patientId: 'pat-8', startsAt: new Date('2026-06-10T05:00:00Z') });
+    addAppt({ id: 'next8', patientId: 'pat-8', startsAt: new Date('2026-06-10T12:00:00Z') });
+    const res = await searchTodaysPatients({ query: 'Rami', now: NOW });
+    expect(res).toHaveLength(1);
+    expect(res[0]!.appointments.map((a) => a.id)).toEqual(['next8']);
   });
 });
 

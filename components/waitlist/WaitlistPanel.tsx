@@ -20,6 +20,7 @@ import {
 import { Link, useRouter } from '@/i18n/navigation';
 import { formatTime } from '@/lib/format/date';
 import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
+import { parseClinicDateTimeLocal } from '@/lib/time/clinic';
 import type { WaitlistRow } from '@/lib/waitlist/queries';
 import { addWaitlistEntryAction, removeWaitlistEntryAction } from '@/lib/waitlist/actions';
 import type { WaitlistStatusFilter } from '@/lib/waitlist/schemas';
@@ -259,8 +260,10 @@ function AddWaitlistDialog({
 
   function submit() {
     startTransition(async () => {
-      const windowStart = new Date(`${date}T${fromTime}`);
-      const windowEnd = new Date(`${date}T${toTime}`);
+      // The picked date + times are CLINIC wall-clock (Prompt 31) — parse in
+      // the clinic zone, not whatever the machine happens to be set to.
+      const windowStart = parseClinicDateTimeLocal(`${date}T${fromTime}`) ?? new Date(NaN);
+      const windowEnd = parseClinicDateTimeLocal(`${date}T${toTime}`) ?? new Date(NaN);
       const r = await addWaitlistEntryAction({
         patientId,
         windowStart: windowStart.toISOString(),
@@ -283,18 +286,18 @@ function AddWaitlistDialog({
     });
   }
 
-  // Default the "to" time one slot-length after "from" when the user leaves it blank.
+  // Default the "to" time one slot-length after "from" when the user leaves it
+  // blank. Pure minutes arithmetic — no Date, no machine timezone.
   const onFromChange = (v: string) => {
     setFromTime(v);
     if (v && !toTime) {
       const [hPart, mPart] = v.split(':');
       const h = parseInt(hPart ?? '0', 10);
       const m = parseInt(mPart ?? '0', 10);
-      const end = new Date();
-      end.setHours(h, m + defaultDurationMinutes, 0, 0);
-      setToTime(
-        `${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`,
-      );
+      const total = h * 60 + m + defaultDurationMinutes;
+      const eh = Math.floor(total / 60) % 24;
+      const em = total % 60;
+      setToTime(`${String(eh).padStart(2, '0')}:${String(em).padStart(2, '0')}`);
     }
   };
 

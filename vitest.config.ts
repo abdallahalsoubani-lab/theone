@@ -7,6 +7,11 @@ export default defineConfig({
   esbuild: { jsx: 'automatic' },
   test: {
     environment: 'node',
+    // Prompt 31: the suite always runs on a UTC clock (prod-VM parity) so any
+    // code that leans on the process timezone fails loudly instead of passing
+    // on an Amman-configured dev machine. The pnpm scripts also set TZ=UTC;
+    // this covers direct `vitest` invocations too.
+    env: { TZ: 'UTC' },
     include: ['lib/**/*.test.ts', 'app/**/*.test.ts', 'components/**/*.test.ts'],
     exclude: ['node_modules', '.next', 'prisma', 'tests/e2e/**'],
   },

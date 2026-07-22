@@ -13,6 +13,8 @@ import {
   cancelAutoCompleteSession,
   enqueueAutoCompleteSession,
 } from '@/lib/queue/jobs/autoCompleteSession';
+import { clinicDateKey, clinicHm } from '@/lib/time/clinic';
+import { getClinicTimeZone } from '@/lib/time/clinic-server';
 import { notifyWaitlistForFreedSlot } from '@/lib/waitlist/services';
 
 import {
@@ -302,8 +304,10 @@ export const createAppointment = withAudit<
       : [null, null];
     if (input.patientId && patient && therapist && patient.whatsappReachable) {
       const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
-      const dateStr = appointment.startsAt.toISOString().slice(0, 10);
-      const timeStr = appointment.startsAt.toISOString().slice(11, 16);
+      // Clinic wall-clock, not UTC — the patient reads this string (Prompt 31).
+      const tz = await getClinicTimeZone();
+      const dateStr = clinicDateKey(appointment.startsAt, tz);
+      const timeStr = clinicHm(appointment.startsAt, tz);
       const patientName = patient.languagePref === 'AR' ? patient.fullNameAr : patient.fullNameEn;
       const therapistName =
         patient.languagePref === 'AR' ? therapist.fullNameAr : therapist.fullNameEn;
@@ -565,7 +569,7 @@ export const changeAppointmentTherapist = withAudit<
     // Notify each added + removed therapist (Prompt 7b §4.6, extended to the
     // set in Prompt 20). Fire-and-forget; the audit row already captured it.
     const { createNotification } = await import('@/lib/notifications/actions');
-    const dateStr = existing.startsAt.toISOString().slice(0, 10);
+    const dateStr = clinicDateKey(existing.startsAt, await getClinicTimeZone());
     const patientName = existing.patient?.fullNameEn ?? '';
     for (const therapistId of removed) {
       void createNotification({
@@ -726,8 +730,9 @@ export const cancelAppointment = withAudit<
     // fan-out: failures log + continue so cancel still succeeds.
     if (input.notifyPatient && existing.patient?.whatsappReachable) {
       const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
-      const dateStr = existing.startsAt.toISOString().slice(0, 10);
-      const timeStr = existing.startsAt.toISOString().slice(11, 16);
+      const tz = await getClinicTimeZone();
+      const dateStr = clinicDateKey(existing.startsAt, tz);
+      const timeStr = clinicHm(existing.startsAt, tz);
       void enqueueWhatsappOutbound({
         kind: 'template',
         templateName: 'appointment_cancelled_v2',
@@ -879,10 +884,11 @@ export const cancelAppointmentSeries = withAudit<
         },
       });
       const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
+      const tz = await getClinicTimeZone();
       for (const row of enriched) {
         if (!row.patient?.whatsappReachable) continue;
-        const dateStr = row.startsAt.toISOString().slice(0, 10);
-        const timeStr = row.startsAt.toISOString().slice(11, 16);
+        const dateStr = clinicDateKey(row.startsAt, tz);
+        const timeStr = clinicHm(row.startsAt, tz);
         void enqueueWhatsappOutbound({
           kind: 'template',
           templateName: 'appointment_cancelled_v2',
@@ -1137,7 +1143,7 @@ export const changeAppointmentTherapistSeries = withAudit<
           select: { patient: { select: { fullNameEn: true } } },
         })
         .then((r) => r?.patient?.fullNameEn ?? '');
-      const firstStart = occurrences[0]!.startsAt.toISOString().slice(0, 10);
+      const firstStart = clinicDateKey(occurrences[0]!.startsAt, await getClinicTimeZone());
       const { createNotification } = await import('@/lib/notifications/actions');
       for (const therapistId of removed) {
         void createNotification({

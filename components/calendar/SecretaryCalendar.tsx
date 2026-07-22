@@ -18,7 +18,7 @@ import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { minutesOverdue } from '@/lib/appointments/session-timing';
-import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
+import { fromClinicWall, toClinicWall } from '@/lib/time/clinic';
 import { cn } from '@/lib/utils';
 
 import { CalendarToolbar } from './CalendarToolbar';
@@ -136,8 +136,14 @@ export function SecretaryCalendar({
 
   // View + date state — declared here (above the events memo) because the
   // fan-out is now view-aware (Option ②).
+  //
+  // TIMEZONE CONTRACT (Prompt 31 / P-8): everything handed to
+  // react-big-calendar — events, `date`, min/max, getNow, slot Dates — lives
+  // in CLINIC-WALL space (`toClinicWall`), so the grid reads in clinic time on
+  // any machine. Everything leaving the component through interaction
+  // callbacks is converted back to real instants with `fromClinicWall`.
   const [view, setView] = useState<View>(Views.DAY);
-  const [date, setDate] = useState<Date>(new Date());
+  const [date, setDate] = useState<Date>(() => toClinicWall(new Date()));
 
   const localizer = useMemo(
     () =>
@@ -168,10 +174,27 @@ export function SecretaryCalendar({
     if (!leaves || leaves.length === 0) return [];
     const onLeaveLabel = tLeave('calendar.onLeave');
     return leaves.map((l) => {
-      const start = new Date(l.startDate);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(l.endDate);
-      end.setHours(23, 59, 59, 999);
+      // Leave bounds are @db.Date columns (UTC-midnight instants encoding a
+      // calendar day). Rebuild them as clinic-wall day spans from the UTC
+      // date parts so the overlay covers the right grid days everywhere.
+      const start = new Date(
+        l.startDate.getUTCFullYear(),
+        l.startDate.getUTCMonth(),
+        l.startDate.getUTCDate(),
+        0,
+        0,
+        0,
+        0,
+      );
+      const end = new Date(
+        l.endDate.getUTCFullYear(),
+        l.endDate.getUTCMonth(),
+        l.endDate.getUTCDate(),
+        23,
+        59,
+        59,
+        999,
+      );
       return {
         id: `leave-${l.id}`,
         title: onLeaveLabel,
@@ -219,7 +242,7 @@ export function SecretaryCalendar({
         date={date}
         onViewChange={setView}
         onNavigate={(target) => setDate(target)}
-        onToday={() => setDate(new Date())}
+        onToday={() => setDate(toClinicWall(new Date()))}
       />
       <div className={cn('h-[calc(100vh-16rem)] min-h-[640px]')}>
         <DnDCalendar
@@ -236,6 +259,9 @@ export function SecretaryCalendar({
           onView={setView}
           date={date}
           onNavigate={setDate}
+          // Clinic "now" (current-time indicator + today highlight) — must
+          // live in the same clinic-wall space as the events.
+          getNow={() => toClinicWall(new Date())}
           views={['day', 'week', 'month', 'agenda']}
           // Lay concurrent events as equal-width, truly side-by-side columns
           // instead of rbc's default 'overlap' (which widens each event 1.7× so
@@ -265,7 +291,9 @@ export function SecretaryCalendar({
                   if (!appt) return;
                   onEventDrop?.({
                     appointmentId: appt.id,
-                    start: start as Date,
+                    // Grid Dates are clinic-wall — back to a real instant
+                    // before the reschedule action / conflict engine sees it.
+                    start: fromClinicWall(start as Date),
                     resourceId: typeof resourceId === 'string' ? resourceId : undefined,
                   });
                 }
@@ -278,16 +306,16 @@ export function SecretaryCalendar({
                   if (!appt) return;
                   onEventResize?.({
                     appointmentId: appt.id,
-                    start: start as Date,
-                    end: end as Date,
+                    start: fromClinicWall(start as Date),
+                    end: fromClinicWall(end as Date),
                   });
                 }
               : undefined
           }
           onSelectSlot={(s) => {
             onSelectSlot?.({
-              start: s.start as Date,
-              end: s.end as Date,
+              start: fromClinicWall(s.start as Date),
+              end: fromClinicWall(s.end as Date),
               resourceId: typeof s.resourceId === 'string' ? s.resourceId : undefined,
             });
           }}
@@ -333,6 +361,8 @@ export function SecretaryCalendar({
             // slotGroupPropGetter would be the conceptually cleaner
             // place for the noon hint, but the library's runtime invokes
             // it with zero args (the slot date isn't available there).
+            // Slot Dates arrive in clinic-wall space (like the events), so
+            // local getters read clinic hours on any machine.
             const h = date.getHours();
             const m = date.getMinutes();
             const classes: string[] = [];
@@ -340,8 +370,8 @@ export function SecretaryCalendar({
             if (h === 12 && m === 0) classes.push('rbc-noon');
             // Grey past slots so they read as unselectable (Fix 6C item 1). The
             // server is the source of truth (APPOINTMENT_IN_PAST); this is the
-            // affordance. Instant-vs-instant comparison — tz-independent.
-            if (date.getTime() < Date.now()) classes.push('rbc-past-slot');
+            // affordance. Wall-vs-wall comparison, same clinic space.
+            if (date.getTime() < toClinicWall(new Date()).getTime()) classes.push('rbc-past-slot');
             return classes.length > 0 ? { className: classes.join(' ') } : {};
           }}
           backgroundEvents={leaveBackgroundEvents as unknown as AppointmentEvent[]}
@@ -387,7 +417,9 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
   // minutesOverdue is the single source for this math.
   const overdueMinutes =
     event.status === 'IN_PROGRESS'
-      ? minutesOverdue(new Date(), event.start, event.appointment.durationMinutes)
+      ? // Instant-vs-instant: event.start is clinic-wall, so use the true
+        // startsAt carried on the appointment.
+        minutesOverdue(new Date(), event.appointment.startsAt, event.appointment.durationMinutes)
       : 0;
   return (
     <div className="flex h-full flex-col gap-0.5 overflow-hidden">
@@ -460,16 +492,11 @@ function TherapistResourceHeader({
 }
 
 /**
- * Zero-padded 24h chip label ("13:05") in CLINIC wall-clock time so the grid
- * chips agree with the side panel (formatTime, also clinic-pinned) instead of
- * following the browser's timezone. Latin digits in both locales, so a fixed
- * en-GB locale keeps the exact historical look.
+ * Zero-padded 24h chip label ("13:05"). Event start/end are already in
+ * clinic-wall space (see eventsForView), so their LOCAL fields read clinic
+ * time on any machine — re-pinning Intl to Asia/Amman here would shift them a
+ * second time on a non-Amman browser. Latin digits in both locales.
  */
-function chipTime(d: Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: CLINIC_TIME_ZONE,
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23',
-  }).format(d);
+function chipTime(wall: Date): string {
+  return `${String(wall.getHours()).padStart(2, '0')}:${String(wall.getMinutes()).padStart(2, '0')}`;
 }

@@ -18,8 +18,7 @@
  * STARTING exactly at close (18:00) is invalid because the clinic is closing.
  */
 
-import { tzOffsetMs } from '@/lib/arrivals/time';
-import { CLINIC_TIME_ZONE } from '@/lib/format/locale';
+import { CLINIC_TIME_ZONE, tzOffsetMs } from '@/lib/time/clinic';
 
 import { DAY_KEYS, type DayKey } from './conflicts-time';
 

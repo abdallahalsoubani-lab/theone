@@ -28,6 +28,7 @@
 import { Worker } from 'bullmq';
 
 import { db } from '@/lib/db';
+import { formatDateTime } from '@/lib/format/date';
 import { queueRedis } from '@/lib/queue/client';
 import type { AppointmentReminderJob } from '@/lib/queue/jobs/appointmentReminder';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
@@ -87,12 +88,14 @@ export function startReminderWorker(): Worker {
       // The template already names a therapist; keep naming the first-assigned
       // one rather than listing all.
       const firstTherapist = appt.therapists[0]?.therapist;
-      const timeLabel = appt.startsAt.toISOString();
 
       for (const recipient of recipients) {
         const lang = recipient.languagePref;
         const therapistName =
           (lang === 'AR' ? firstTherapist?.fullNameAr : firstTherapist?.fullNameEn) ?? '';
+        // Human-readable clinic wall-clock (Prompt 31) — the raw ISO string
+        // this used to send rendered the UTC instant, 3h off for the patient.
+        const timeLabel = formatDateTime(appt.startsAt, lang === 'AR' ? 'ar' : 'en');
         const id = await enqueueWhatsappOutbound({
           kind: 'template',
           templateName: 'appointment_reminder_v2',

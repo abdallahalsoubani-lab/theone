@@ -112,6 +112,16 @@ theone.example.com {
 Copy `.env.production.example` (see repo root) into `/opt/theone/.env`.
 Populate every value; rotate the secrets that ship as placeholders.
 
+### Process timezone (belt-and-suspenders — Prompt 31)
+
+Run the `web` and `workers` processes with `TZ=Asia/Amman` (compose
+`environment:` block, or `env: { TZ: 'Asia/Amman' }` in the pm2 ecosystem
+file on the pm2-based VM). The code is timezone-correct without it — every
+display/validation path resolves clinic wall time from
+`ClinicSettings.timezone` via `lib/time/clinic.ts`, and the test suite runs
+under `TZ=UTC` to enforce that — so this env var is defense in depth, not
+the fix. Never rely on the host OS clock being set to clinic time.
+
 ## Step 4 — Bootstrap the first Admin
 
 After the first `docker compose up -d` and a successful migration:

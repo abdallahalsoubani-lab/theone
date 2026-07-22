@@ -20,6 +20,7 @@ import {
 import { createAppointmentAction, previewConflictsAction } from '@/lib/appointments/actions';
 import { hasHardBlockedConflict, type ConflictResult } from '@/lib/appointments/conflicts';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
+import { formatClinicDateTimeLocal, parseClinicDateTimeLocal } from '@/lib/time/clinic';
 import { addWaitlistEntryAction, fulfillWaitlistEntryAction } from '@/lib/waitlist/actions';
 
 import { CreateSeriesModal } from './CreateSeriesModal';
@@ -174,7 +175,9 @@ export function CreateAppointmentModal({
         // live in the set, so no single patient drives the check.
         patientId: isEvent || isGroup ? null : patientId,
         therapistIds,
-        startsAt: new Date(startsAt).toISOString(),
+        // The picker value is CLINIC wall time — parse it as such, never via
+        // `new Date(string)` (machine-timezone dependent). Prompt 31.
+        startsAt: (parseClinicDateTimeLocal(startsAt) ?? new Date(NaN)).toISOString(),
         durationMinutes: duration,
         appointmentType,
         roomId: roomId || null,
@@ -223,7 +226,7 @@ export function CreateAppointmentModal({
         appointmentType,
         // EVENT: required label. GROUP: optional workshop name.
         title: isEvent ? title.trim() : isGroup && title.trim() ? title.trim() : null,
-        startsAt: new Date(startsAt),
+        startsAt: parseClinicDateTimeLocal(startsAt) ?? new Date(NaN),
         durationMinutes: duration,
         notes: notes || null,
         overrideConflicts: override,
@@ -254,7 +257,7 @@ export function CreateAppointmentModal({
   // chosen therapist. The system suggests on free-up — it never auto-books.
   const addToWaitlist = () =>
     startTransition(async () => {
-      const start = new Date(startsAt);
+      const start = parseClinicDateTimeLocal(startsAt) ?? new Date(NaN);
       const r = await addWaitlistEntryAction({
         patientId,
         windowStart: start.toISOString(),
@@ -566,13 +569,9 @@ export function CreateAppointmentModal({
   );
 }
 
+/** Instant → clinic-wall picker value (was browser-local before Prompt 31). */
 function toLocalInput(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const hr = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  return `${y}-${m}-${day}T${hr}:${min}`;
+  return formatClinicDateTimeLocal(d);
 }
 
 interface Person {

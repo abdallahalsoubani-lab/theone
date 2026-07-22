@@ -28,6 +28,7 @@ import { WEEKDAYS, type Weekday } from '@/lib/appointments/recurrence';
 import type { SeriesResolution } from '@/lib/appointments/schemas';
 import type { SeriesPreviewOccurrence } from '@/lib/appointments/services';
 import { formatDate, formatTime } from '@/lib/format/date';
+import { formatClinicDateTimeLocal, parseClinicDateTimeLocal } from '@/lib/time/clinic';
 
 interface Patient {
   id: string;
@@ -164,7 +165,8 @@ export function CreateSeriesModal({
         patientId,
         therapistIds,
         roomId,
-        startsAt: new Date(startsAt),
+        // Picker value is CLINIC wall time (Prompt 31) — machine-TZ-proof.
+        startsAt: parseClinicDateTimeLocal(startsAt) ?? new Date(NaN),
         durationMinutes: duration,
         rule: {
           frequency: 'WEEKLY',
@@ -270,7 +272,7 @@ export function CreateSeriesModal({
         patientId,
         therapistIds,
         roomId,
-        startsAt: new Date(startsAt),
+        startsAt: parseClinicDateTimeLocal(startsAt) ?? new Date(NaN),
         durationMinutes: duration,
         notes: notes || null,
         rule: {
@@ -610,13 +612,9 @@ function ResolutionButton({
   );
 }
 
+/** Instant → clinic-wall picker value (was browser-local before Prompt 31). */
 function toLocalInput(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  const hr = String(d.getHours()).padStart(2, '0');
-  const min = String(d.getMinutes()).padStart(2, '0');
-  return `${y}-${m}-${day}T${hr}:${min}`;
+  return formatClinicDateTimeLocal(d);
 }
 
 type ConflictType =

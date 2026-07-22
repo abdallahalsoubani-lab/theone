@@ -12,6 +12,8 @@
  * a DST transition, which Asia/Amman no longer has.
  */
 
+import { tzOffsetMs } from '@/lib/time/clinic';
+
 export interface ReminderConfig {
   offsetMinutes: number;
   windowStartMinutes: number;
@@ -25,31 +27,6 @@ const DAY_MS = 86_400_000;
 export function parseHhMm(value: string): number {
   const [h, m] = value.split(':').map((n) => parseInt(n, 10));
   return (h ?? 0) * 60 + (m ?? 0);
-}
-
-/** Zone offset (localWall − UTC) in ms at the given instant. */
-function tzOffsetMs(date: Date, timeZone: string): number {
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hourCycle: 'h23',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-  const parts = dtf.formatToParts(date);
-  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? 0);
-  const asUTC = Date.UTC(
-    get('year'),
-    get('month') - 1,
-    get('day'),
-    get('hour'),
-    get('minute'),
-    get('second'),
-  );
-  return asUTC - date.getTime();
 }
 
 /** Local wall-clock minutes past midnight for an instant. */

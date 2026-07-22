@@ -132,3 +132,36 @@ describe('eventsForView', () => {
     expect(eventsForView([single], 'week', 'en')[0]!.id).toBe('appt-1');
   });
 });
+
+describe('clinic-wall grid mapping (Prompt 31 — P-8)', () => {
+  // Suite runs TZ=UTC (prod/browser-agnostic parity): local getters read UTC,
+  // so the +3h Amman shift is directly observable.
+  it('positions events at clinic wall time, not the machine time', () => {
+    const single: CalendarAppointment = {
+      ...base,
+      // 07:00Z = 10:00 Amman — the P-8 case: booked 10:00, therapist saw 07:00.
+      startsAt: new Date('2026-06-01T07:00:00Z'),
+      therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
+    };
+    const [event] = eventsForView([single], 'day', 'en');
+    expect(event!.start.getHours()).toBe(10);
+    expect(event!.start.getMinutes()).toBe(0);
+    expect(event!.end.getHours()).toBe(10);
+    expect(event!.end.getMinutes()).toBe(30);
+    // The true instant stays untouched on the payload for labels/actions.
+    expect(event!.appointment!.startsAt.toISOString()).toBe('2026-06-01T07:00:00.000Z');
+  });
+
+  it('an evening appointment stays on its clinic calendar day', () => {
+    const single: CalendarAppointment = {
+      ...base,
+      // 21:30Z on the 1st = 00:30 Amman on the 2nd — must land on day 2.
+      startsAt: new Date('2026-06-01T21:30:00Z'),
+      therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
+    };
+    const [event] = eventsForView([single], 'week', 'en');
+    expect(event!.start.getDate()).toBe(2);
+    expect(event!.start.getHours()).toBe(0);
+    expect(event!.start.getMinutes()).toBe(30);
+  });
+});
