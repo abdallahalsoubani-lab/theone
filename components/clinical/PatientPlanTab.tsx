@@ -5,6 +5,7 @@ import { PlanCard } from '@/components/clinical/PlanCard';
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 import type { PatientPlanState } from '@/lib/clinical/plans/queries';
+import { planEditHref, planHref } from '@/lib/clinical/role-links';
 import { formatShortDate } from '@/lib/format/date';
 
 interface Props {
@@ -28,17 +29,15 @@ export async function PatientPlanTab({ state, patientId, viewerRole }: Props) {
   const t = await getTranslations('clinical.plans');
   const locale = await getLocale();
   const localeTag: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
-  const isDoctor = viewerRole === 'DOCTOR' || viewerRole === 'ADMIN';
-  const planBasePath =
-    viewerRole === 'THERAPIST'
-      ? '/therapist/plans'
-      : viewerRole === 'DOCTOR'
-        ? '/doctor/plans'
-        : '/doctor/plans';
+  // Role-aware plan links (Prompt 37 item 3): only doctor + therapist own
+  // plan routes. Admin/secretary used to get hardcoded /doctor/plans/… hrefs
+  // that teleported them into the Doctor shell (the A-19 disease); for them
+  // planHref returns null and titles render as plain text.
+  const canCreatePlan = viewerRole === 'DOCTOR';
 
   return (
     <div className="space-y-4">
-      {state.active ? null : isDoctor ? (
+      {state.active ? null : canCreatePlan ? (
         <div className="flex items-center justify-between rounded-md border border-brand-border bg-brand-bg p-4">
           <p className="text-sm text-brand-textMuted">{t('noActivePlan')}</p>
           <Button asChild size="sm">
@@ -61,13 +60,7 @@ export async function PatientPlanTab({ state, patientId, viewerRole }: Props) {
         <PlanCard
           plan={state.active}
           viewerRole={viewerRole}
-          editHref={
-            isDoctor
-              ? `${planBasePath}/${state.active.id}/edit`
-              : viewerRole === 'THERAPIST'
-                ? `/therapist/plans/${state.active.id}/edit`
-                : undefined
-          }
+          editHref={planEditHref(viewerRole, state.active.id) ?? undefined}
         />
       ) : null}
 
@@ -78,12 +71,18 @@ export async function PatientPlanTab({ state, patientId, viewerRole }: Props) {
             {state.history.map((h) => (
               <li key={h.id} className="px-4 py-3">
                 <div className="flex items-center justify-between gap-2">
-                  <Link
-                    href={`${planBasePath}/${h.id}` as `/${string}`}
-                    className="font-medium text-brand-navy hover:underline"
-                  >
-                    {t('plan')} v{h.version}
-                  </Link>
+                  {planHref(viewerRole, h.id) ? (
+                    <Link
+                      href={planHref(viewerRole, h.id) as `/${string}`}
+                      className="font-medium text-brand-navy hover:underline"
+                    >
+                      {t('plan')} v{h.version}
+                    </Link>
+                  ) : (
+                    <span className="font-medium text-brand-navy">
+                      {t('plan')} v{h.version}
+                    </span>
+                  )}
                   <span className="text-xs text-brand-textMuted">{h.status}</span>
                 </div>
                 <div className="mt-1 text-xs text-brand-textMuted">

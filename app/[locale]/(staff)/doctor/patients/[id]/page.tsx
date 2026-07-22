@@ -61,6 +61,7 @@ export default async function DoctorPatientFilePage({
         to: sp.to ? new Date(sp.to) : undefined,
       },
       { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
+      'DOCTOR',
     ),
     getPatientHomeProgramTabData(id),
     listAssessmentsForPatient(id),

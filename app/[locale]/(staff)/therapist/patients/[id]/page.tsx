@@ -52,6 +52,7 @@ export default async function TherapistPatientFilePage({
           to: sp.to ? new Date(sp.to) : undefined,
         },
         { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
+        'THERAPIST',
       ),
       getPatientHomeProgramTabData(id),
     ]);

@@ -49,6 +49,7 @@ export default async function SecretaryPatientFilePage({
           to: sp.to ? new Date(sp.to) : undefined,
         },
         { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
+        'SECRETARY',
       ),
       getPatientHomeProgramTabData(id),
       listDocuments(id),

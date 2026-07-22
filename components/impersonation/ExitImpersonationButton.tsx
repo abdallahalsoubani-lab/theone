@@ -2,7 +2,6 @@
 
 import { LogOut } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
 
@@ -15,7 +14,6 @@ import { endImpersonationAction } from '@/lib/impersonation/actions';
  * disappears.
  */
 export function ExitImpersonationButton({ label }: { label: string }) {
-  const router = useRouter();
   const locale = useLocale();
   const t = useTranslations('impersonation');
   const [pending, startTransition] = useTransition();
@@ -28,8 +26,11 @@ export function ExitImpersonationButton({ label }: { label: string }) {
         return;
       }
       toast.success(t('ended_toast'));
-      router.replace(`/${locale}${r.data.redirectTo}`);
-      router.refresh();
+      // Same hard-navigation rationale as ActAsButton (Prompt 37 — A-18):
+      // exiting swaps the whole shell back to Admin; a soft replace+refresh
+      // can re-render the impersonated role's page under the restored admin
+      // session mid-flight. One full load from any page = clean exit.
+      window.location.assign(`/${locale}${r.data.redirectTo}`);
     });
   }
 

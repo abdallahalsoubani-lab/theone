@@ -57,6 +57,7 @@ export default async function AdminPatientFilePage({
           to: sp.to ? new Date(sp.to) : undefined,
         },
         { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
+        'ADMIN',
       ),
       getPatientHomeProgramTabData(id),
       listDocuments(id),

@@ -2,7 +2,16 @@ import 'server-only';
 
 import { Prisma } from '@prisma/client';
 
+import type { UserRole } from '@prisma/client';
+
 import { db } from '@/lib/db';
+import {
+  planHref,
+  roleCalendarHref,
+  sessionNoteEditHref,
+  weeklyReviewHref,
+} from '@/lib/clinical/role-links';
+import { patientProfileHref } from '@/lib/patients/links';
 
 import type { TimelineEntry, TimelineFilters, TimelinePage } from './types';
 
@@ -29,6 +38,10 @@ export async function getPatientTimeline(
   patientId: string,
   filters: TimelineFilters = {},
   pagination: { page: number; pageSize: number } = { page: 1, pageSize: 25 },
+  // Prompt 37 item 3: entry links are built for the VIEWER's role — the old
+  // hardcoded /secretary/… (etc.) segments teleported other roles into the
+  // wrong shell. Defaults to the historical secretary shape for safety.
+  viewerRole: UserRole = 'SECRETARY',
 ): Promise<TimelinePage> {
   const wantKinds = filters.kinds && filters.kinds.length > 0 ? new Set(filters.kinds) : null;
   const wants = (k: TimelineEntry['kind']) => !wantKinds || wantKinds.has(k);
@@ -40,19 +53,23 @@ export async function getPatientTimeline(
 
   // Each source is loaded independently. If one fails we log + drop it.
   const sourceLoaders = [
-    wants('INTAKE') ? loadIntakes(patientId, fromClause, toClause, search) : Promise.resolve([]),
-    wants('APPOINTMENT')
-      ? loadAppointments(patientId, fromClause, toClause, search)
+    wants('INTAKE')
+      ? loadIntakes(patientId, fromClause, toClause, search, viewerRole)
       : Promise.resolve([]),
-    wantsPlan(wantKinds) ? loadPlans(patientId, fromClause, toClause, search) : Promise.resolve([]),
+    wants('APPOINTMENT')
+      ? loadAppointments(patientId, fromClause, toClause, search, viewerRole)
+      : Promise.resolve([]),
+    wantsPlan(wantKinds)
+      ? loadPlans(patientId, fromClause, toClause, search, viewerRole)
+      : Promise.resolve([]),
     wants('SESSION_NOTE') || wants('SESSION_NOTE_ADDENDUM')
-      ? loadSessionNotes(patientId, fromClause, toClause, search)
+      ? loadSessionNotes(patientId, fromClause, toClause, search, viewerRole)
       : Promise.resolve([]),
     wants('DAY_REPORT')
-      ? loadDayReports(patientId, fromClause, toClause, search)
+      ? loadDayReports(patientId, fromClause, toClause, search, viewerRole)
       : Promise.resolve([]),
     wants('DOCTOR_REVIEW')
-      ? loadDoctorReviews(patientId, fromClause, toClause, search)
+      ? loadDoctorReviews(patientId, fromClause, toClause, search, viewerRole)
       : Promise.resolve([]),
   ] as const;
 
@@ -102,6 +119,7 @@ async function loadIntakes(
   from: Date,
   to: Date,
   search: string,
+  viewerRole: UserRole,
 ): Promise<TimelineEntry[]> {
   const rows = await db.intakeAssessment.findMany({
     where: { patientId, assessedAt: { gte: from, lte: to } },
@@ -123,7 +141,7 @@ async function loadIntakes(
       title: r.type === 'PEDIATRIC' ? 'Pediatric intake' : 'Adult intake',
       body: `Status: ${r.status}`,
       author: r.assessedBy.fullNameEn,
-      linkPath: `/secretary/patients/${patientId}`,
+      linkPath: patientProfileHref(viewerRole, patientId),
       sourceId: r.id,
     }));
 }
@@ -133,6 +151,7 @@ async function loadAppointments(
   from: Date,
   to: Date,
   search: string,
+  viewerRole: UserRole,
 ): Promise<TimelineEntry[]> {
   const rows = await db.appointment.findMany({
     where: { patientId, startsAt: { gte: from, lte: to } },
@@ -155,7 +174,7 @@ async function loadAppointments(
       title: `Appointment — ${r.status}`,
       body: r.notes ?? undefined,
       author: r.therapists.map((t) => t.therapist.fullNameEn).join(', '),
-      linkPath: '/secretary/calendar',
+      linkPath: roleCalendarHref(viewerRole) ?? undefined,
       sourceId: r.id,
     }));
 }
@@ -177,6 +196,7 @@ async function loadPlans(
   from: Date,
   to: Date,
   search: string,
+  viewerRole: UserRole,
 ): Promise<TimelineEntry[]> {
   let rows: PlanRowFTS[];
   if (search) {
@@ -221,7 +241,7 @@ async function loadPlans(
     // Emit one entry per relevant transition; status alone captures the
     // current row but the timeline narrative wants the historical event.
     const baseTitle = `Plan v${r.version}`;
-    const linkPath = `/doctor/plans/${r.id}` as const;
+    const linkPath = planHref(viewerRole, r.id) ?? undefined;
     if (r.status === 'PROPOSED') {
       out.push({
         id: `plan-prop-${r.id}`,
@@ -288,6 +308,7 @@ async function loadSessionNotes(
   from: Date,
   to: Date,
   search: string,
+  viewerRole: UserRole,
 ): Promise<TimelineEntry[]> {
   let rows: SessionNoteFTS[];
   if (search) {
@@ -345,7 +366,7 @@ async function loadSessionNotes(
       .join(' · ')
       .slice(0, 280),
     author: r.therapistName,
-    linkPath: `/therapist/sessions/notes/${r.id}/edit` as const,
+    linkPath: sessionNoteEditHref(viewerRole, r.id) ?? undefined,
     sourceId: r.id,
   }));
 }
@@ -355,6 +376,7 @@ async function loadDayReports(
   from: Date,
   to: Date,
   search: string,
+  viewerRole: UserRole,
 ): Promise<TimelineEntry[]> {
   const rows = await db.dayReport
     .findMany({
@@ -406,7 +428,7 @@ async function loadDayReports(
         title: 'Day report',
         body: mine?.note ?? r.overallSummary.slice(0, 280),
         author: r.therapist.fullNameEn,
-        linkPath: '/doctor/reports/weekly' as const,
+        linkPath: weeklyReviewHref(viewerRole) ?? undefined,
         sourceId: r.id,
       };
     });
@@ -417,6 +439,7 @@ async function loadDoctorReviews(
   from: Date,
   to: Date,
   search: string,
+  viewerRole: UserRole,
 ): Promise<TimelineEntry[]> {
   const rows = await db.doctorReview.findMany({
     where: { patientId, createdAt: { gte: from, lte: to } },
@@ -438,7 +461,7 @@ async function loadDoctorReviews(
       title: `Doctor review (week of ${r.weekStarting.toISOString().slice(0, 10)})`,
       body: r.comment.slice(0, 280),
       author: r.doctor.fullNameEn,
-      linkPath: '/doctor/reports/weekly' as const,
+      linkPath: weeklyReviewHref(viewerRole) ?? undefined,
       sourceId: r.id,
     }));
 }

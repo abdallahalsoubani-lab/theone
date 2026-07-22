@@ -39,6 +39,10 @@ const DYNAMIC_LINK_ROUTES = [
   // A-19: the calendar side panel's role-aware profile links.
   { example: '/admin/patients/:id', dir: '(admin)/admin/patients/[id]' },
   { example: '/doctor/patients/:id', dir: '(staff)/doctor/patients/[id]' },
+  // Prompt 37 item 3: role-aware timeline/plan link targets.
+  { example: '/admin/calendar', dir: '(admin)/admin/calendar' },
+  { example: '/doctor/plans/:id/edit', dir: '(staff)/doctor/plans/[id]/edit' },
+  { example: '/therapist/plans/:id/edit', dir: '(staff)/therapist/plans/[id]/edit' },
 ];
 
 const APP_DIR = join(process.cwd(), 'app', '[locale]');

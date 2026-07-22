@@ -2,7 +2,6 @@
 
 import { UserCog } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
@@ -26,7 +25,6 @@ interface ActAsButtonProps {
  * header, etc.) doesn't reimplement the confirmation + redirect dance.
  */
 export function ActAsButton({ targetUserId, targetName, variant = 'menuItem' }: ActAsButtonProps) {
-  const router = useRouter();
   const locale = useLocale();
   const t = useTranslations('impersonation');
   const [pending, startTransition] = useTransition();
@@ -45,8 +43,13 @@ export function ActAsButton({ targetUserId, targetName, variant = 'menuItem' }: 
         return;
       }
       toast.success(t('started_toast', { name: targetName }));
-      router.replace(`/${locale}${r.data.redirectTo}`);
-      router.refresh();
+      // HARD navigation, not router.replace + refresh (Prompt 37 — A-18):
+      // the soft-nav pair raced — when the refresh re-rendered the CURRENT
+      // admin page before the replace landed, it re-rendered under the
+      // now-impersonated (non-admin) session and blew up in the page's
+      // permission guard. A full document load makes the middleware route
+      // the fresh cookie deterministically into the target role's shell.
+      window.location.assign(`/${locale}${r.data.redirectTo}`);
     });
   }
 
