@@ -24,9 +24,11 @@ const ICON_SOURCES: Record<LogoTheme, string> = {
 };
 
 export function Logo({ variant = 'icon', theme = 'light', size = 40, className }: LogoProps) {
+  // Production logo (Prompt 39 / NI-11): both slots now hold the 364×122
+  // wordmark (≈3:1) — `size` still means "height in px" for callers.
   if (variant === 'wordmark') {
     const width = Math.max(size * 3, 160);
-    const height = Math.round(width / 4);
+    const height = Math.round(width / 2.98);
     return (
       <Image
         src="/logo-wordmark.svg"
@@ -43,7 +45,7 @@ export function Logo({ variant = 'icon', theme = 'light', size = 40, className }
     <Image
       src={ICON_SOURCES[theme]}
       alt="Theone.pt"
-      width={size}
+      width={Math.round(size * 2.98)}
       height={size}
       priority
       className={cn('select-none', className)}

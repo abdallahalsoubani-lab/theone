@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { auth } from '@/auth';
 import { db } from '@/lib/db';
+import { canActAsTarget } from './targets';
 import type { LocalizedError } from '@/lib/db';
 import { type Result, fail, ok } from '@/lib/auth/result';
 
@@ -52,6 +53,11 @@ const IMPERSONATION_ERRORS = {
     message_en: 'Cannot impersonate another administrator.',
     message_ar: 'لا يمكن انتحال هوية مسؤول آخر.',
   },
+  CANNOT_IMPERSONATE_PATIENT: {
+    code: 'CANNOT_IMPERSONATE_PATIENT',
+    message_en: 'Patient accounts cannot be impersonated.',
+    message_ar: 'لا يمكن انتحال هوية حسابات المرضى.',
+  },
   ALREADY_IMPERSONATING: {
     code: 'ALREADY_IMPERSONATING',
     message_en: 'You are already in an impersonation session. Exit it first.',
@@ -95,6 +101,8 @@ export async function startImpersonationAction(
   });
   if (!target) return fail(IMPERSONATION_ERRORS.USER_NOT_FOUND);
   if (target.role === 'ADMIN') return fail(IMPERSONATION_ERRORS.CANNOT_IMPERSONATE_ADMIN);
+  // Prompt 39 addendum (A-20 owner ruling): staff only.
+  if (!canActAsTarget(target.role)) return fail(IMPERSONATION_ERRORS.CANNOT_IMPERSONATE_PATIENT);
 
   await setImpersonationCookie({
     adminId: session.user.id,

@@ -293,9 +293,9 @@ export async function listAppointmentsForPatientFile(
   }));
 }
 
-// ── Doctor-dashboard "my appointments today" (Prompt 33 — NI-1) ─────────────
+// ── Doctor-dashboard "clinic appointments today" (Prompt 33 NI-1 → Prompt 39 owner ruling c) ──
 
-export interface ClinicianTodayAppointment {
+export interface ClinicTodayAppointment {
   id: string;
   startsAt: Date;
   status: AppointmentStatus;
@@ -304,24 +304,22 @@ export interface ClinicianTodayAppointment {
   /** EVENT/GROUP label when there is no scalar patient. */
   title: string | null;
   patient: { fullNameEn: string; fullNameAr: string } | null;
+  therapists: Array<{ fullNameEn: string; fullNameAr: string }>;
 }
 
 /**
- * Appointments the clinician (doctor or therapist) is booked ON for the
- * clinic-local day bounded by [dayStart, dayEnd). "Booked on" means an
- * AppointmentTherapist row — doctors are bookable resource lanes, so the old
- * assumption that only therapists appear in the M2M left the doctor
- * dashboard permanently empty. Cancelled rows are excluded, matching the
- * calendar; no phone in the shape.
+ * ALL clinic appointments for the clinic-local day bounded by
+ * [dayStart, dayEnd) — the doctor-dashboard definition the owner ruled in
+ * Prompt 39 (option c, superseding Prompt 33's own-bookings reading).
+ * Cancelled rows are excluded, matching the calendar; therapist names are
+ * included so the compact list stays readable at ~70 rows; no phone.
  */
-export async function listTodayAppointmentsForClinician(args: {
-  clinicianId: string;
+export async function listTodayAppointmentsForClinic(args: {
   dayStart: Date;
   dayEnd: Date;
-}): Promise<ClinicianTodayAppointment[]> {
-  return db.appointment.findMany({
+}): Promise<ClinicTodayAppointment[]> {
+  const rows = await db.appointment.findMany({
     where: {
-      therapists: { some: { therapistId: args.clinicianId } },
       startsAt: { gte: args.dayStart, lt: args.dayEnd },
       status: { not: AppointmentStatus.CANCELLED },
     },
@@ -334,6 +332,20 @@ export async function listTodayAppointmentsForClinician(args: {
       patientId: true,
       title: true,
       patient: { select: { fullNameEn: true, fullNameAr: true } },
+      therapists: {
+        orderBy: { createdAt: 'asc' },
+        select: { therapist: { select: { fullNameEn: true, fullNameAr: true } } },
+      },
     },
   });
+  return rows.map((r) => ({
+    id: r.id,
+    startsAt: r.startsAt,
+    status: r.status,
+    checkedInAt: r.checkedInAt,
+    patientId: r.patientId,
+    title: r.title,
+    patient: r.patient,
+    therapists: r.therapists.map((t) => t.therapist),
+  }));
 }

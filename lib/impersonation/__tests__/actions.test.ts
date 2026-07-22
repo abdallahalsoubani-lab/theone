@@ -68,22 +68,12 @@ describe('startImpersonationAction — ADMIN happy paths', () => {
     sessionRef.current = { user: { id: 'admin-1', role: 'ADMIN' } };
   });
 
-  it('Admin → PATIENT works (decision: Admin keeps patient Act-As) and audits', async () => {
+  it('Admin → PATIENT is REJECTED (A-20 owner ruling, Prompt 39 — reverses the earlier decision)', async () => {
     const res = await startImpersonationAction({ targetUserId: 'patient-1' });
-    expect(res.ok).toBe(true);
-    if (res.ok) {
-      expect(res.data.targetRole).toBe('PATIENT');
-      expect(res.data.redirectTo).toBe('/patient/dashboard');
-    }
-    expect(setCookieMock).toHaveBeenCalledWith({
-      adminId: 'admin-1',
-      targetUserId: 'patient-1',
-      targetRole: 'PATIENT',
-    });
-    const audit = auditCreate.mock.calls[0]![0] as { data: Record<string, unknown> };
-    expect(audit.data.action).toBe('IMPERSONATION_STARTED');
-    expect(audit.data.actorId).toBe('admin-1');
-    expect(audit.data.impersonatedUserId).toBe('patient-1');
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.error.code).toBe('CANNOT_IMPERSONATE_PATIENT');
+    expect(setCookieMock).not.toHaveBeenCalled();
+    expect(auditCreate).not.toHaveBeenCalled();
   });
 
   it('rejects impersonating another ADMIN', async () => {

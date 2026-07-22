@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 
 import { DataTable } from '@/components/data-table/DataTable';
 import { ActAsButton } from '@/components/impersonation/ActAsButton';
+import { canActAsTarget } from '@/lib/impersonation/targets';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -191,11 +192,11 @@ export function UsersTable({ rows, total, page, pageSize, initialSearch }: Props
             <DropdownMenuItem asChild>
               <Link href={`/admin/users/${user.id}/edit`}>{tCommon('edit')}</Link>
             </DropdownMenuItem>
-            {/* Admin Impersonation entry point. The button itself rejects
-                Admin-on-Admin server-side; here we also hide the menu item
-                so it never appears for fellow admins (a non-Admin user can
-                always be impersonated, archived or not). */}
-            {user.role !== 'ADMIN' ? (
+            {/* Admin Impersonation entry point — STAFF targets only
+                (canActAsTarget: Admin-on-Admin was always rejected; patient
+                accounts excluded per the A-20 owner ruling, Prompt 39). The
+                server action enforces the same predicate. */}
+            {canActAsTarget(user.role) ? (
               <DropdownMenuItem asChild onSelect={(e) => e.preventDefault()}>
                 <ActAsButton
                   targetUserId={user.id}

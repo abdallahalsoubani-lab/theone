@@ -85,3 +85,26 @@ deploy-time actions here.
     Prompt 38. When the owner ships it, follow public/README.md's swap
     procedure (logo.svg + logo-dark.svg) and re-verify header/login/kiosk/
     display/PDF surfaces; nothing was touched meanwhile.
+
+## From Prompt 39 addendum (owner decisions)
+
+11. **MinIO data backup (storage stays on MinIO — owner ruling).** The VM is
+    the SINGLE copy of patient documents; back the object store up alongside
+    the database in every backup routine. Discover the data dir once, then
+    tar it:
+
+    ```bash
+    systemctl cat minio | grep ExecStart     # shows the data directory arg
+    # e.g. if the data dir is /var/lib/minio:
+    sudo tar -czf ~/backup-minio-$(date +%F).tar.gz -C / var/lib/minio
+    ```
+
+    Run it in §4 of Prompt 39 right after `pg_dumpall`, and add both to the
+    weekly runbook backup step (docs/ops/runbook.md).
+
+12. **A-20 (owner ruling): Act-As hidden + server-rejected for PATIENT
+    targets** — code change in the batch (canActAsTarget); nothing to run at
+    deploy time, listed here so QA's re-test sheet expects the new behavior.
+
+13. **Doctor dashboard now shows ALL clinic appointments** (owner ruling c) —
+    behavior change only; tell QA the NI-1 expectation changed.

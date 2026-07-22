@@ -13,7 +13,6 @@ import type { PatientPlanState } from '@/lib/clinical/plans/queries';
 import type { SessionNoteRow } from '@/lib/clinical/session-notes/queries';
 import type { TimelinePage } from '@/lib/clinical/timeline/types';
 import type { IntakeListRow } from '@/lib/intake/queries';
-import { getEffectiveSession } from '@/lib/impersonation/session';
 import type { PatientFileData } from '@/lib/patients/queries';
 import type { PatientActivityRow } from '@/lib/patients/queries-audit';
 
@@ -70,12 +69,11 @@ export async function PatientFilePage({
   viewerRole,
   actorId,
 }: Props) {
-  // Act-As entry point renders ONLY for a real (non-impersonating) Admin —
-  // computed server-side from the effective session so it never appears on
-  // Secretary surfaces or mid-impersonation, and never flashes in after
-  // hydration (Prompt 22 §3.2; SECRETARY is denied server-side too).
-  const effective = await getEffectiveSession();
-  const showActAs = effective?.user.role === 'ADMIN' && !effective.isImpersonating;
+  // A-20 (Prompt 39 addendum — owner ruling): patient accounts are NOT
+  // impersonatable, and this page's subject is always a patient, so the
+  // Act-As entry point is gone for good (the server action rejects patient
+  // targets too — canActAsTarget). Staff impersonation lives in /admin/users.
+  const showActAs = false;
   return (
     <section className="space-y-6 p-6">
       <PatientHeader patient={patient} showActAs={showActAs} />

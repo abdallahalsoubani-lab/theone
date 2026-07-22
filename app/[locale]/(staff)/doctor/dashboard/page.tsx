@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { getComplianceTrendForDoctor } from '@/lib/analytics/queries';
-import { listTodayAppointmentsForClinician } from '@/lib/appointments/queries';
+import { listTodayAppointmentsForClinic } from '@/lib/appointments/queries';
 import { clinicDayRange } from '@/lib/arrivals/time';
 import { listPendingProposalsForDoctor } from '@/lib/clinical/plans/queries';
 import { db } from '@/lib/db';
@@ -35,11 +35,10 @@ export default async function DoctorDashboard({ params }: { params: Promise<{ lo
   const since7d = new Date();
   since7d.setUTCDate(since7d.getUTCDate() - 7);
 
-  // NI-1 (Prompt 33): the doctor's OWN bookings — doctors are bookable
-  // clinicians (calendar resource lanes include DOCTOR), so "the doctor's
-  // appointments" = rows where the doctor is an assigned clinician in the
-  // AppointmentTherapist M2M. Clinic-local "today", same as the therapist
-  // dashboard.
+  // NI-1 → Prompt 39 owner ruling (option c): the dashboard shows ALL clinic
+  // appointments for the clinic-local day, not just the doctor's own
+  // bookings. Kept readable at ~70/day via a compact, internally-scrolling
+  // chronological list with a total count.
   const settings = await db.clinicSettings.findUnique({
     where: { id: 'default' },
     select: { timezone: true },
@@ -58,7 +57,7 @@ export default async function DoctorDashboard({ params }: { params: Promise<{ lo
     recentReports,
     complianceTrend,
   ] = await Promise.all([
-    listTodayAppointmentsForClinician({ clinicianId: doctorId, dayStart: today, dayEnd: tomorrow }),
+    listTodayAppointmentsForClinic({ dayStart: today, dayEnd: tomorrow }),
     db.treatmentPlan.count({
       where: { doctorId, status: 'ACTIVE' },
     }),
@@ -103,37 +102,52 @@ export default async function DoctorDashboard({ params }: { params: Promise<{ lo
         <Stat label={t('unreadNotifs')} value={unread} href="/notifications" />
       </div>
 
-      {/* NI-1 (Prompt 33): the doctor's own booked appointments for the
-          clinic-local day — mirrors the therapist dashboard strip. */}
+      {/* Prompt 39 owner ruling (option c): ALL clinic appointments for the
+          day. Compact chronological rows + internal scroll + a total in the
+          heading — readable even at ~70/day; a richer grouped layout is a
+          flagged follow-up (function first). */}
       <section className="space-y-3">
-        <h2 className="text-sm font-semibold text-brand-navy">{t('todayScheduleHeading')}</h2>
+        <h2 className="text-sm font-semibold text-brand-navy">
+          {t('todayScheduleHeading')}{' '}
+          <span className="font-normal text-brand-textMuted">({todayAppts.length})</span>
+        </h2>
         {todayAppts.length === 0 ? (
           <p className="rounded-md border border-brand-border bg-brand-bg p-4 text-sm text-brand-textMuted">
             {t('noAppointmentsToday')}
           </p>
         ) : (
-          <ul className="flex gap-2 overflow-x-auto pb-2 text-sm">
+          <ul className="max-h-96 divide-y divide-brand-border overflow-y-auto rounded-md border border-brand-border bg-brand-surface text-sm">
             {todayAppts.map((a) => {
               const name =
                 (locale === 'ar' ? a.patient?.fullNameAr : a.patient?.fullNameEn) ||
                 (a.title ?? '');
+              const therapists = a.therapists
+                .map((th) => (locale === 'ar' ? th.fullNameAr : th.fullNameEn))
+                .join(locale === 'ar' ? '، ' : ', ');
               const href = a.patientId
                 ? (`/doctor/patients/${a.patientId}` as const)
                 : ('/doctor/calendar' as const);
               return (
-                <li key={a.id} className="min-w-[10rem]">
+                <li key={a.id}>
                   <Link
                     href={href as `/${string}`}
-                    className="block rounded-md border border-brand-border bg-brand-surface p-3 transition-colors hover:border-brand-cyan hover:bg-brand-bg"
+                    className="flex items-center gap-3 px-3 py-2 transition-colors hover:bg-brand-bg"
                   >
-                    <p className="text-xs text-brand-textMuted">
+                    <span className="w-16 shrink-0 font-mono text-xs tabular-nums text-brand-textMuted">
                       {formatTime(a.startsAt, locale === 'ar' ? 'ar' : 'en')}
-                    </p>
-                    <p className="line-clamp-1 text-sm font-medium text-brand-navy">{name}</p>
+                    </span>
+                    <span className="min-w-0 flex-1 truncate font-medium text-brand-navy">
+                      {name}
+                    </span>
+                    <span className="hidden max-w-[14rem] truncate text-xs text-brand-textMuted sm:block">
+                      {therapists}
+                    </span>
                     {a.checkedInAt ? (
-                      <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-brand-teal/15 px-2 py-0.5 text-xs font-medium text-brand-teal">
-                        ● {t('arrived')}
-                      </span>
+                      <span
+                        aria-hidden
+                        title={t('arrived')}
+                        className="h-2 w-2 shrink-0 rounded-full bg-brand-teal"
+                      />
                     ) : null}
                   </Link>
                 </li>
