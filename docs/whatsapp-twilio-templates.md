@@ -3,8 +3,11 @@
 **For:** Twilio Console → **Messaging → Content Template Builder → Create new**
 **WABA:** `1645151657192049` (fresh — no templates exist yet) · Sender: `+962780150215`
 
-Submit all **14 entries** (7 templates × ar/en). Each entry below gives you the
-exact values for the builder form. Content type is **Text** for every template.
+**Submitted 2026-07-23: the 10 UTILITY entries (sections 1–5 × ar/en).**
+Sections 6 (`otp_login`) and 7 (`patient_account_credentials`) are DEFERRED by
+owner decision — their template rows stay `active=false` in the app, so the
+health check does NOT count them (they can be submitted + activated any time
+later). Each entry below gives you the exact values for the builder form. Content type is **Text** for every template.
 After Meta approval, each template gets a **Content SID (HX…)** — paste those
 into the app per `docs/whatsapp-twilio.md` §3.
 

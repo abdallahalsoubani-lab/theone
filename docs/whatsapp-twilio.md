@@ -47,13 +47,15 @@ It verifies `X-Twilio-Signature` and answers 403 to anything unsigned, and
 
 ## 3. Content SIDs — after template approval
 
-Templates were submitted from `docs/whatsapp-twilio-templates.md` (14 entries).
-When each is **Approved**, open it in Content Template Builder and copy its
-**Content SID (`HX…`)**.
+Templates were submitted from `docs/whatsapp-twilio-templates.md` — **10
+entries** (owner decision 2026-07-23: `otp_login` and
+`patient_account_credentials` deferred; their rows are `active=false` so the
+health check ignores them until you activate them). When each is **Approved**,
+open it in Content Template Builder and copy its **Content SID (`HX…`)**.
 
 Paste each SID into the app: **Admin → WhatsApp → Templates** — each row
-(name × language) has a Twilio Content SID field. 14 SIDs total (ar and en are
-separate SIDs of the same logical template).
+(name × language) has a Twilio Content SID field. **10 SIDs** total (ar and en
+are separate SIDs of the same logical template).
 
 The health check refuses to go green while any ACTIVE template row is missing
 its SID, and it names the missing ones in the log — that's your checklist.
