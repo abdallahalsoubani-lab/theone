@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
+import { SearchablePillGroup, SearchableSelect } from '@/components/ui/searchable-select';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -332,42 +333,30 @@ export function CreateSeriesModal({
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="space-y-1">
             <Label htmlFor="series-patient">{tForm('patient')}</Label>
-            <select
+            {/* Prompt 47 — searchable patient picker (both scripts). */}
+            <SearchableSelect
               id="series-patient"
               value={patientId}
-              onChange={(e) => setPatientId(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">—</option>
-              {patients.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {locale === 'ar' ? p.fullNameAr : p.fullNameEn}
-                </option>
-              ))}
-            </select>
+              onChange={setPatientId}
+              options={patients.map((p) => ({
+                id: p.id,
+                label: locale === 'ar' ? p.fullNameAr : p.fullNameEn,
+                sublabel: locale === 'ar' ? p.fullNameEn : p.fullNameAr,
+              }))}
+            />
           </div>
           <div className="space-y-1">
             <Label>{tForm('therapists')}</Label>
-            <div className="flex flex-wrap gap-1.5 rounded-md border border-input bg-background p-2">
-              {clinicians.map((c) => {
-                const selected = therapistIds.includes(c.id);
-                return (
-                  <button
-                    key={c.id}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => toggleTherapist(c.id)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                      selected
-                        ? 'bg-brand-cyan text-white'
-                        : 'bg-brand-bg text-brand-navy hover:bg-brand-cyan/10'
-                    }`}
-                  >
-                    {locale === 'ar' ? c.fullNameAr : c.fullNameEn}
-                  </button>
-                );
-              })}
-            </div>
+            {/* Prompt 47 — filterable clinician wall (P20 semantics kept). */}
+            <SearchablePillGroup
+              options={clinicians.map((c) => ({
+                id: c.id,
+                label: locale === 'ar' ? c.fullNameAr : c.fullNameEn,
+                sublabel: locale === 'ar' ? c.fullNameEn : c.fullNameAr,
+              }))}
+              selectedIds={therapistIds}
+              onToggle={toggleTherapist}
+            />
           </div>
           <div className="space-y-1">
             <Label htmlFor="series-room">

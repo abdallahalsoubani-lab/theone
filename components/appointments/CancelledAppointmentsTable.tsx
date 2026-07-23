@@ -6,6 +6,7 @@ import { useCallback, useTransition } from 'react';
 
 import { DataTable } from '@/components/data-table/DataTable';
 import { Badge } from '@/components/ui/badge';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import { formatDateTime } from '@/lib/format/date';
 import type { CancelledAppointmentRow } from '@/lib/appointments/queries';
 
@@ -82,18 +83,18 @@ export function CancelledAppointmentsTable({
         </label>
         <label className="flex flex-col gap-1 text-xs text-brand-textMuted">
           {t('filterTherapist')}
-          <select
+          {/* Prompt 47 — searchable clinician filter. */}
+          <SearchableSelect
             value={filterTherapistId}
-            onChange={(e) => update({ therapist: e.target.value || undefined })}
-            className={inputCls}
-          >
-            <option value="">{t('allTherapists')}</option>
-            {therapistOptions.map((c) => (
-              <option key={c.id} value={c.id}>
-                {localeTag === 'ar' ? c.fullNameAr : c.fullNameEn}
-              </option>
-            ))}
-          </select>
+            onChange={(id) => update({ therapist: id || undefined })}
+            emptyValueLabel={t('allTherapists')}
+            options={therapistOptions.map((c) => ({
+              id: c.id,
+              label: localeTag === 'ar' ? c.fullNameAr : c.fullNameEn,
+              sublabel: localeTag === 'ar' ? c.fullNameEn : c.fullNameAr,
+            }))}
+            className="min-w-44"
+          />
         </label>
       </div>
 

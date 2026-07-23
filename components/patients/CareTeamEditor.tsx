@@ -3,6 +3,7 @@
 import { X } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import type { ClinicianRef } from '@/lib/patients/assignment';
 
 interface GroupProps {
@@ -97,21 +98,22 @@ function Group({ heading, addLabel, selected, options, onAdd, onRemove, disabled
       ) : (
         <p className="text-sm text-brand-textMuted">{t('none')}</p>
       )}
-      <select
+      {/* Prompt 47 — searchable add-picker. value stays '' (add-only). */}
+      <SearchableSelect
         value=""
         disabled={disabled || available.length === 0}
-        onChange={(e) => {
-          if (e.target.value) onAdd(e.target.value);
+        onChange={(id) => {
+          if (id) onAdd(id);
         }}
-        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:w-72"
-      >
-        <option value="">{addLabel}</option>
-        {available.map((c) => (
-          <option key={c.id} value={c.id}>
-            {name(c)}
-          </option>
-        ))}
-      </select>
+        clearable={false}
+        emptyValueLabel={addLabel}
+        options={available.map((c) => ({
+          id: c.id,
+          label: name(c),
+          sublabel: locale === 'ar' ? c.fullNameEn : c.fullNameAr,
+        }))}
+        className="sm:w-72"
+      />
     </div>
   );
 }

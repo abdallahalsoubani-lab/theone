@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
+import { Search } from 'lucide-react';
+
 import { SeriesScopePicker } from '@/components/appointments/SeriesScopePicker';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { matchesPickerQuery } from '@/lib/pickers/filter';
 import {
   ResponsiveModal,
   ResponsiveModalContent,
@@ -67,6 +70,13 @@ export function ChangeTherapistModal({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [selected, setSelected] = useState<string[]>(currentTherapistIds);
+  // Prompt 47 — type-to-filter over the clinician rows. Selected rows stay
+  // visible regardless of the query (P20 rule).
+  const [query, setQuery] = useState('');
+  const tPickers = useTranslations('pickers');
+  const visibleClinicians = clinicians.filter(
+    (c) => selected.includes(c.id) || matchesPickerQuery(query, c.fullNameEn, c.fullNameAr),
+  );
   const [reason, setReason] = useState('');
   const [rows, setRows] = useState<TherapistAvailabilityRow[]>([]);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
@@ -143,8 +153,21 @@ export function ChangeTherapistModal({
 
         {seriesId ? <SeriesScopePicker value={seriesMode} onChange={setSeriesMode} /> : null}
 
+        <div className="flex items-center gap-2 rounded-md border border-brand-border bg-brand-surface px-2">
+          <Search className="size-3.5 flex-none text-brand-textMuted" aria-hidden />
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={tPickers('searchPlaceholder')}
+            className="h-9 w-full bg-transparent text-sm outline-none placeholder:text-brand-textMuted"
+          />
+        </div>
         <ul className="max-h-72 space-y-1 overflow-y-auto" role="group" aria-label={t('title')}>
-          {clinicians.map((c) => {
+          {visibleClinicians.length === 0 ? (
+            <li className="px-3 py-2 text-sm text-brand-textMuted">{tPickers('noResults')}</li>
+          ) : null}
+          {visibleClinicians.map((c) => {
             const row = byTherapist.get(c.id);
             const available = row?.available ?? false;
             const isSelected = selected.includes(c.id);

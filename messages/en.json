@@ -1767,5 +1767,10 @@
       "multiTherapistNote": "A session shared by multiple clinicians counts once for EACH of them, so column totals may exceed the number of distinct sessions.",
       "empty": "No sessions in the selected range."
     }
+  },
+  "pickers": {
+    "searchPlaceholder": "Search by name…",
+    "noResults": "No results",
+    "clearSearch": "Clear search"
   }
 }

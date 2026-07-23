@@ -9,6 +9,7 @@ import { CreateAppointmentModal } from '@/components/appointments/CreateAppointm
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   ResponsiveModal,
   ResponsiveModalContent,
@@ -316,20 +317,19 @@ function AddWaitlistDialog({
         <div className="space-y-3">
           <div className="space-y-1">
             <Label htmlFor="wl-patient">{t('patient')}</Label>
-            <select
+            {/* Prompt 47 — searchable (phone matches only where visible, P15). */}
+            <SearchableSelect
               id="wl-patient"
               value={patientId}
-              onChange={(e) => setPatientId(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">—</option>
-              {patients.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {locale === 'ar' ? p.fullNameAr : p.fullNameEn}
-                  {p.phone ? ` (${p.phone})` : ''}
-                </option>
-              ))}
-            </select>
+              onChange={setPatientId}
+              options={patients.map((p) => ({
+                id: p.id,
+                label:
+                  (locale === 'ar' ? p.fullNameAr : p.fullNameEn) +
+                  (p.phone ? ` (${p.phone})` : ''),
+                sublabel: locale === 'ar' ? p.fullNameEn : p.fullNameAr,
+              }))}
+            />
           </div>
 
           <div className="space-y-1">
@@ -365,19 +365,17 @@ function AddWaitlistDialog({
 
           <div className="space-y-1">
             <Label htmlFor="wl-therapist">{t('preferredTherapist')}</Label>
-            <select
+            <SearchableSelect
               id="wl-therapist"
               value={therapistId}
-              onChange={(e) => setTherapistId(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">{t('anyTherapist')}</option>
-              {clinicians.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {locale === 'ar' ? c.fullNameAr : c.fullNameEn}
-                </option>
-              ))}
-            </select>
+              onChange={setTherapistId}
+              emptyValueLabel={t('anyTherapist')}
+              options={clinicians.map((c) => ({
+                id: c.id,
+                label: locale === 'ar' ? c.fullNameAr : c.fullNameEn,
+                sublabel: locale === 'ar' ? c.fullNameEn : c.fullNameAr,
+              }))}
+            />
           </div>
 
           <div className="space-y-1">

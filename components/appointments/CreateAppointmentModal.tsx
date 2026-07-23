@@ -25,6 +25,7 @@ import {
 } from '@/lib/appointments/conflicts';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
 import { formatDate, formatTime } from '@/lib/format/date';
+import { SearchablePillGroup, SearchableSelect } from '@/components/ui/searchable-select';
 import { showFirstVisitNotice } from '@/lib/patients/first-visit-policy';
 import { formatClinicDateTimeLocal, parseClinicDateTimeLocal } from '@/lib/time/clinic';
 import { addWaitlistEntryAction, fulfillWaitlistEntryAction } from '@/lib/waitlist/actions';
@@ -354,26 +355,18 @@ export function CreateAppointmentModal({
                   <Label>
                     {t('groupPatients')} <span className="text-destructive">*</span>
                   </Label>
-                  <div className="flex flex-wrap gap-1.5 rounded-md border border-input bg-background p-2">
-                    {patients.map((p) => {
-                      const selected = patientIds.includes(p.id);
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          aria-pressed={selected}
-                          onClick={() => togglePatient(p.id)}
-                          className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                            selected
-                              ? 'bg-brand-teal text-white'
-                              : 'bg-brand-bg text-brand-navy hover:bg-brand-teal/10'
-                          }`}
-                        >
-                          {locale === 'ar' ? p.fullNameAr : p.fullNameEn}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {/* Prompt 47 — filterable member wall (P30). Selections
+                      never disappear while filtering. */}
+                  <SearchablePillGroup
+                    tone="teal"
+                    options={patients.map((p) => ({
+                      id: p.id,
+                      label: locale === 'ar' ? p.fullNameAr : p.fullNameEn,
+                      sublabel: locale === 'ar' ? p.fullNameEn : p.fullNameAr,
+                    }))}
+                    selectedIds={patientIds}
+                    onToggle={togglePatient}
+                  />
                   <p className="text-xs text-brand-textMuted">
                     {patientIds.length > 0
                       ? t('groupPatientsCount', { count: String(patientIds.length) })
@@ -384,20 +377,21 @@ export function CreateAppointmentModal({
             ) : (
               <div className="space-y-1">
                 <Label htmlFor="appt-patient">{t('patient')}</Label>
-                <select
+                {/* Prompt 47 — searchable picker. Both scripts searched via
+                    label+sublabel; phone appears (and thus matches) only when
+                    the viewer may see it (P15: it's null otherwise). */}
+                <SearchableSelect
                   id="appt-patient"
                   value={patientId}
-                  onChange={(e) => setPatientId(e.target.value)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                >
-                  <option value="">—</option>
-                  {patients.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {locale === 'ar' ? p.fullNameAr : p.fullNameEn}
-                      {p.phone ? ` (${p.phone})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setPatientId}
+                  options={patients.map((p) => ({
+                    id: p.id,
+                    label:
+                      (locale === 'ar' ? p.fullNameAr : p.fullNameEn) +
+                      (p.phone ? ` (${p.phone})` : ''),
+                    sublabel: locale === 'ar' ? p.fullNameEn : p.fullNameAr,
+                  }))}
+                />
                 {/* NI-5 SOFT notice (Prompt 41, owner ruling): purely
                     informational — never blocks, no confirmation. */}
                 {showFirstVisitNotice(
@@ -414,26 +408,18 @@ export function CreateAppointmentModal({
             {isStretching ? null : (
               <div className="space-y-1">
                 <Label>{t('therapists')}</Label>
-                <div className="flex flex-wrap gap-1.5 rounded-md border border-input bg-background p-2">
-                  {clinicians.map((c) => {
-                    const selected = therapistIds.includes(c.id);
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        aria-pressed={selected}
-                        onClick={() => toggleTherapist(c.id)}
-                        className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-                          selected
-                            ? 'bg-brand-cyan text-white'
-                            : 'bg-brand-bg text-brand-navy hover:bg-brand-cyan/10'
-                        }`}
-                      >
-                        {locale === 'ar' ? c.fullNameAr : c.fullNameEn}
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* Prompt 47 — filterable clinician wall (P20 multi-select).
+                    The P41 doctor-scoping arrives pre-filtered via the
+                    `clinicians` prop, untouched here. */}
+                <SearchablePillGroup
+                  options={clinicians.map((c) => ({
+                    id: c.id,
+                    label: locale === 'ar' ? c.fullNameAr : c.fullNameEn,
+                    sublabel: locale === 'ar' ? c.fullNameEn : c.fullNameAr,
+                  }))}
+                  selectedIds={therapistIds}
+                  onToggle={toggleTherapist}
+                />
                 {therapistIds.length === 0 ? (
                   <p className="text-xs text-brand-textMuted">{t('therapistsHint')}</p>
                 ) : null}

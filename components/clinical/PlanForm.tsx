@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   createTreatmentPlanAction,
   proposeTreatmentPlanChangeAction,
@@ -269,18 +270,18 @@ export function PlanForm({
         </div>
         <div>
           <Label htmlFor="therapist">{t('assignedTherapist')}</Label>
-          <select
+          {/* Prompt 47 — searchable therapist picker (required, no clear). */}
+          <SearchableSelect
             id="therapist"
             value={assignedTherapistId}
-            onChange={(e) => setAssignedTherapistId(e.target.value)}
-            className="block w-full rounded-md border border-brand-border bg-brand-surface px-2 py-1.5 text-sm"
-          >
-            {therapists.map((tx) => (
-              <option key={tx.id} value={tx.id}>
-                {locale === 'ar' ? tx.fullNameAr : tx.fullNameEn}
-              </option>
-            ))}
-          </select>
+            onChange={setAssignedTherapistId}
+            clearable={false}
+            options={therapists.map((tx) => ({
+              id: tx.id,
+              label: locale === 'ar' ? tx.fullNameAr : tx.fullNameEn,
+              sublabel: locale === 'ar' ? tx.fullNameEn : tx.fullNameAr,
+            }))}
+          />
         </div>
       </section>
 
