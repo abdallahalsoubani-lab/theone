@@ -13,22 +13,22 @@ import { requirePermission } from '@/lib/rbac/guards';
 
 import {
   checkInByName,
+  listTodaysArrivablePatients,
   recordCheckIn,
-  searchTodaysPatients,
   type KioskCheckInResult,
-  type KioskSearchMatch,
+  type KioskPatientCard,
 } from './kiosk';
 import {
   arrivalActionSchema,
   arrivalsSurfaceSchema,
   currentDelaySchema,
   kioskCheckInByNameSchema,
-  kioskSearchSchema,
+  kioskTodaySchema,
   type ArrivalActionInput,
   type ArrivalsSurfaceInput,
   type CurrentDelayInput,
   type KioskCheckInByNameInput,
-  type KioskSearchInput,
+  type KioskTodayInput,
 } from './schemas';
 import { generateAccessToken, validateArrivalsToken } from './tokens';
 
@@ -54,19 +54,19 @@ export type KioskActionResult =
   | { kind: 'INVALID_TOKEN' }
   | { kind: 'RATE_LIMITED' };
 
-export type KioskSearchResult =
-  | { kind: 'MATCHES'; matches: KioskSearchMatch[] }
+export type KioskTodayResult =
+  | { kind: 'PATIENTS'; patients: KioskPatientCard[] }
   | { kind: 'INVALID_TOKEN' }
   | { kind: 'RATE_LIMITED' };
 
 /**
- * Public kiosk NAME SEARCH (July #1). Token-gated + rate-limited per device IP
- * (search-as-you-type gets a more generous bucket than the commit). PRIVACY:
- * `searchTodaysPatients` never returns the full day's list — only matches for a
- * typed query, capped, name-only. Any error → empty matches (reveals nothing).
+ * Public kiosk TODAY'S CARDS (Prompt 46 — replaces the typed name search per
+ * the owner's privacy reversal; see lib/arrivals/kiosk.ts). Token-gated +
+ * rate-limited per device IP (the grid refreshes ~1/min, so 30/min is ample
+ * headroom without inviting scraping bursts). Any error → empty list.
  */
-export async function kioskSearchAction(input: KioskSearchInput): Promise<KioskSearchResult> {
-  const parsed = kioskSearchSchema.safeParse(input);
+export async function kioskTodayAction(input: KioskTodayInput): Promise<KioskTodayResult> {
+  const parsed = kioskTodaySchema.safeParse(input);
   if (!parsed.success) return { kind: 'INVALID_TOKEN' };
 
   if (!(await validateArrivalsToken('kiosk', parsed.data.token))) {
@@ -74,13 +74,13 @@ export async function kioskSearchAction(input: KioskSearchInput): Promise<KioskS
   }
 
   const ip = await clientIp();
-  const rl = await rateLimit(`kiosk-search:${ip}`, 40, 60);
+  const rl = await rateLimit(`kiosk-today:${ip}`, 30, 60);
   if (!rl.allowed) return { kind: 'RATE_LIMITED' };
 
   try {
-    return { kind: 'MATCHES', matches: await searchTodaysPatients({ query: parsed.data.query }) };
+    return { kind: 'PATIENTS', patients: await listTodaysArrivablePatients() };
   } catch {
-    return { kind: 'MATCHES', matches: [] };
+    return { kind: 'PATIENTS', patients: [] };
   }
 }
 

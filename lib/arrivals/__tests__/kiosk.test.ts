@@ -37,42 +37,41 @@ vi.mock('@/lib/db', () => {
           const u = state.users.find((x) => x.id === where.id && !x.deletedAt);
           return u ?? null;
         }),
-        // searchTodaysPatients: name-contains among today's appointment-holders.
+        // listTodaysArrivablePatients (Prompt 46): everyone with a bookable
+        // appointment in today's clinic-day window.
         findMany: vi.fn(
           async ({
             where,
-            take,
           }: {
             where: {
-              OR: Array<{ fullNameEn?: { contains: string }; fullNameAr?: { contains: string } }>;
-              appointmentsAsPatient: { some: { startsAt: { gte: Date; lt: Date } } };
+              appointmentsAsPatient: {
+                some: { startsAt: { gte: Date; lt: Date }; status?: { in: string[] } };
+              };
             };
-            take: number;
           }) => {
-            const win = where.appointmentsAsPatient.some.startsAt;
-            const en = where.OR.find((o) => o.fullNameEn)?.fullNameEn?.contains ?? '';
-            const ar = where.OR.find((o) => o.fullNameAr)?.fullNameAr?.contains ?? '';
-            const matched = state.users.filter((u) => {
-              if (u.deletedAt) return false;
-              const nameHit =
-                (en && u.fullNameEn.toLowerCase().includes(en.toLowerCase())) ||
-                (ar && u.fullNameAr.includes(ar));
-              if (!nameHit) return false;
-              return state.appts.some((a) => a.patientId === u.id && inWindow(a, win));
-            });
-            return matched.slice(0, take).map((u) => ({
-              id: u.id,
-              fullNameEn: u.fullNameEn,
-              fullNameAr: u.fullNameAr,
-              appointmentsAsPatient: state.appts
-                .filter((a) => a.patientId === u.id && inWindow(a, win))
-                .sort((x, y) => x.startsAt.getTime() - y.startsAt.getTime())
-                .map((a) => ({
-                  id: a.id,
-                  startsAt: a.startsAt,
-                  durationMinutes: a.durationMinutes,
-                })),
-            }));
+            const some = where.appointmentsAsPatient.some;
+            const win = some.startsAt;
+            const statuses = some.status?.in;
+            const hit = (a: MockAppt) =>
+              inWindow(a, win) && (!statuses || statuses.includes(a.status));
+            return state.users
+              .filter(
+                (u) => !u.deletedAt && state.appts.some((a) => a.patientId === u.id && hit(a)),
+              )
+              .map((u) => ({
+                id: u.id,
+                fullNameEn: u.fullNameEn,
+                fullNameAr: u.fullNameAr,
+                appointmentsAsPatient: state.appts
+                  .filter((a) => a.patientId === u.id && hit(a))
+                  .sort((x, y) => x.startsAt.getTime() - y.startsAt.getTime())
+                  .map((a) => ({
+                    id: a.id,
+                    startsAt: a.startsAt,
+                    durationMinutes: a.durationMinutes,
+                    checkedInAt: a.checkedInAt,
+                  })),
+              }));
           },
         ),
       },
@@ -125,7 +124,7 @@ import * as dbModule from '@/lib/db';
 
 import { CheckInVia } from '@prisma/client';
 
-import { checkInByName, recordCheckIn, searchTodaysPatients } from '../kiosk';
+import { checkInByName, listTodaysArrivablePatients, recordCheckIn } from '../kiosk';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const state = (dbModule as any).__state as {
@@ -273,7 +272,7 @@ describe('checkInByName — passed appointment (Prompt 31 §4.4, supersedes Prom
   });
 });
 
-describe('searchTodaysPatients (July #1 — privacy)', () => {
+describe('listTodaysArrivablePatients (Prompt 46 — cards grid, owner privacy reversal)', () => {
   beforeEach(() => {
     addPatient('pat-1', 'Abdullah Khalil', 'عبدالله خليل');
     addPatient('pat-2', 'Abeer Nasser', 'عبير ناصر');
@@ -283,51 +282,88 @@ describe('searchTodaysPatients (July #1 — privacy)', () => {
     addAppt({ id: 'a3', patientId: 'pat-3', startsAt: new Date('2026-06-12T11:00:00Z') }); // other day
   });
 
-  it('returns NOTHING for a query shorter than the minimum (no full-list reveal)', async () => {
-    expect(await searchTodaysPatients({ query: 'a', now: NOW })).toEqual([]);
-    expect(await searchTodaysPatients({ query: '', now: NOW })).toEqual([]);
-  });
-
-  it('matches on the English name and returns both scripts + appointment times, no phone', async () => {
-    const res = await searchTodaysPatients({ query: 'Abd', now: NOW });
-    expect(res).toHaveLength(1);
+  it("returns today's full arrivable list sorted by next appointment time, both scripts, no phone", async () => {
+    const res = await listTodaysArrivablePatients({ now: NOW });
+    expect(res.map((r) => r.patientId)).toEqual(['pat-1', 'pat-2']);
     expect(res[0]).toMatchObject({
-      patientId: 'pat-1',
       fullNameEn: 'Abdullah Khalil',
       fullNameAr: 'عبدالله خليل',
+      checkedIn: false,
     });
     expect(res[0]!.appointments[0]).toMatchObject({ id: 'a1', durationMinutes: 30 });
     expect(JSON.stringify(res)).not.toContain('phone');
   });
 
-  it('matches on the Arabic name', async () => {
-    const res = await searchTodaysPatients({ query: 'عبير', now: NOW });
-    expect(res.map((r) => r.patientId)).toEqual(['pat-2']);
+  it('excludes patients whose appointment is on another day', async () => {
+    const res = await listTodaysArrivablePatients({ now: NOW });
+    expect(res.some((r) => r.patientId === 'pat-3')).toBe(false);
   });
 
-  it('excludes patients with no appointment today', async () => {
-    const res = await searchTodaysPatients({ query: 'Omar', now: NOW });
-    expect(res).toEqual([]);
+  it('excludes cancelled / completed appointments (status filter)', async () => {
+    addPatient('pat-7', 'Sami Musa', 'سامي موسى');
+    addAppt({
+      id: 'c7',
+      patientId: 'pat-7',
+      startsAt: new Date('2026-06-10T12:00:00Z'),
+      status: 'CANCELLED',
+    });
+    addAppt({
+      id: 'd7',
+      patientId: 'pat-7',
+      startsAt: new Date('2026-06-10T13:00:00Z'),
+      status: 'COMPLETED',
+    });
+    const res = await listTodaysArrivablePatients({ now: NOW });
+    expect(res.some((r) => r.patientId === 'pat-7')).toBe(false);
   });
 
-  it('an unknown name returns an empty list (generic negative)', async () => {
-    expect(await searchTodaysPatients({ query: 'Zzzz', now: NOW })).toEqual([]);
-  });
-
-  it('a patient whose only appointment already ENDED does not match (Prompt 31 §4.4)', async () => {
+  it('a patient whose only appointment already ENDED has no card (Prompt 31 §4.4)', async () => {
     addPatient('pat-9', 'Layla Hamdan', 'ليلى حمدان');
     // 05:00Z + 30min ends 05:30Z — before NOW (09:00Z), same clinic day.
     addAppt({ id: 'a9', patientId: 'pat-9', startsAt: new Date('2026-06-10T05:00:00Z') });
-    expect(await searchTodaysPatients({ query: 'Layla', now: NOW })).toEqual([]);
+    const res = await listTodaysArrivablePatients({ now: NOW });
+    expect(res.some((r) => r.patientId === 'pat-9')).toBe(false);
   });
 
   it('drops only the ended appointment when the patient has another arrivable one', async () => {
     addPatient('pat-8', 'Rami Odeh', 'رامي عودة');
     addAppt({ id: 'gone8', patientId: 'pat-8', startsAt: new Date('2026-06-10T05:00:00Z') });
     addAppt({ id: 'next8', patientId: 'pat-8', startsAt: new Date('2026-06-10T12:00:00Z') });
-    const res = await searchTodaysPatients({ query: 'Rami', now: NOW });
-    expect(res).toHaveLength(1);
-    expect(res[0]!.appointments.map((a) => a.id)).toEqual(['next8']);
+    const res = await listTodaysArrivablePatients({ now: NOW });
+    const rami = res.find((r) => r.patientId === 'pat-8');
+    expect(rami?.appointments.map((a) => a.id)).toEqual(['next8']);
+    expect(rami?.checkedIn).toBe(false);
+  });
+
+  it('fully-checked-in patients STAY on the grid with checkedIn=true (✓ card state)', async () => {
+    addAppt({
+      id: 'a1b',
+      patientId: 'pat-1',
+      startsAt: new Date('2026-06-10T10:30:00Z'),
+      checkedInAt: NOW,
+    });
+    state.appts.find((a) => a.id === 'a1')!.checkedInAt = NOW;
+    const res = await listTodaysArrivablePatients({ now: NOW });
+    const p1 = res.find((r) => r.patientId === 'pat-1');
+    expect(p1?.checkedIn).toBe(true);
+    // Partially-checked-in stays actionable.
+    expect(res.find((r) => r.patientId === 'pat-2')?.checkedIn).toBe(false);
+  });
+
+  it('handles a busy day: 40 patients all listed, time-sorted (grid-scale fixture)', async () => {
+    state.users = [];
+    state.appts = [];
+    for (let i = 0; i < 40; i++) {
+      addPatient(`bulk-${i}`, `Patient ${String(i).padStart(2, '0')}`, `مريض ${i}`);
+      // Spread 10:00Z..19:45Z in 15-min steps, inserted in reverse order.
+      const start = new Date(Date.UTC(2026, 5, 10, 10, 0));
+      start.setUTCMinutes(start.getUTCMinutes() + (39 - i) * 15);
+      addAppt({ id: `bulk-a-${i}`, patientId: `bulk-${i}`, startsAt: start });
+    }
+    const res = await listTodaysArrivablePatients({ now: NOW });
+    expect(res).toHaveLength(40);
+    const times = res.map((r) => new Date(r.appointments[0]!.startsAtIso).getTime());
+    expect([...times].sort((a, b) => a - b)).toEqual(times);
   });
 });
 

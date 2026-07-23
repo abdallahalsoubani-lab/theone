@@ -6,42 +6,62 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from '@/i18n/navigation';
 import {
   kioskCheckInByNameAction,
-  kioskSearchAction,
+  kioskTodayAction,
   type KioskActionResult,
 } from '@/lib/arrivals/actions';
-import type { KioskSearchMatch } from '@/lib/arrivals/kiosk';
+import type { KioskPatientCard } from '@/lib/arrivals/kiosk';
 import { formatTime } from '@/lib/format/date';
 
 type Screen =
-  | { kind: 'idle' }
-  | { kind: 'search' }
-  | { kind: 'confirm'; match: KioskSearchMatch }
+  | { kind: 'grid' }
+  | { kind: 'confirm'; match: KioskPatientCard }
   | { kind: 'result'; result: KioskActionResult };
 
 const RESET_MS = 8000;
-const SEARCH_DEBOUNCE_MS = 350;
-const MIN_QUERY = 2;
+/** Grid auto-refresh so the day's list stays current untouched (Prompt 46). */
+const REFRESH_MS = 60_000;
 
 /**
- * Public check-in kiosk (Prompt 18 §1; reworked July #1/#3). Check-in is by
- * NAME with a mandatory confirm step: idle → name search → confirm → result,
- * then auto-resets to idle. PRIVACY: the idle screen never shows a patient
- * list; names appear only as filtered matches after the patient types. No
- * staff session; the device token is forwarded to the rate-limited actions.
+ * Public check-in kiosk (Prompt 18 §1; July #1/#3; cards grid in Prompt 46).
+ *
+ * Today's arrivable patients render as large tappable cards — the patient
+ * taps their name instead of typing it (owner ruling; the Prompt 27 §2
+ * privacy stance was explicitly reversed — full names on the entrance
+ * screen). Tap → mandatory confirm ("are you {name}?") → check-in with the
+ * back-to-back grouping untouched → result → auto-reset. Already-checked-in
+ * patients stay on the grid in a ✓ state. No staff session; the device token
+ * is forwarded to the rate-limited actions.
  */
 export function KioskApp({ token, locale }: { token: string; locale: string }) {
-  const t = useTranslations('kiosk');
-  const [screen, setScreen] = useState<Screen>({ kind: 'idle' });
+  const [screen, setScreen] = useState<Screen>({ kind: 'grid' });
+  const [patients, setPatients] = useState<KioskPatientCard[] | null>(null);
   const [pending, setPending] = useState(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const refresh = useCallback(async () => {
+    const res = await kioskTodayAction({ token });
+    // Rate-limit / token hiccups keep the last good list on screen.
+    if (res.kind === 'PATIENTS') setPatients(res.patients);
+  }, [token]);
+
+  // Load on mount + refresh periodically while the grid is showing.
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+  useEffect(() => {
+    if (screen.kind !== 'grid') return;
+    const timer = setInterval(() => void refresh(), REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [screen.kind, refresh]);
 
   const reset = useCallback(() => {
     if (resetTimer.current) clearTimeout(resetTimer.current);
     setPending(false);
-    setScreen({ kind: 'idle' });
-  }, []);
+    setScreen({ kind: 'grid' });
+    void refresh(); // idle reset re-pulls the day's list (Prompt 46)
+  }, [refresh]);
 
-  // Auto-return to idle a few seconds after showing a result.
+  // Auto-return to the grid a few seconds after showing a result.
   useEffect(() => {
     if (screen.kind !== 'result') return;
     resetTimer.current = setTimeout(reset, RESET_MS);
@@ -61,31 +81,13 @@ export function KioskApp({ token, locale }: { token: string; locale: string }) {
     [pending, token],
   );
 
-  if (screen.kind === 'idle') {
+  if (screen.kind === 'grid') {
     return (
       <KioskFrame token={token} locale={locale}>
-        <button
-          type="button"
-          onClick={() => setScreen({ kind: 'search' })}
-          className="flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-6 rounded-3xl text-center"
-        >
-          <span className="text-5xl font-medium text-brand-navy sm:text-6xl">{t('welcome')}</span>
-          <span className="rounded-full bg-brand-cyan px-10 py-5 text-2xl font-medium text-white shadow-lg">
-            {t('tapToStart')}
-          </span>
-        </button>
-      </KioskFrame>
-    );
-  }
-
-  if (screen.kind === 'search') {
-    return (
-      <KioskFrame token={token} locale={locale}>
-        <SearchView
-          token={token}
+        <GridView
+          patients={patients}
           locale={locale}
           onPick={(match) => setScreen({ kind: 'confirm', match })}
-          onCancel={reset}
         />
       </KioskFrame>
     );
@@ -99,7 +101,7 @@ export function KioskApp({ token, locale }: { token: string; locale: string }) {
           locale={locale}
           pending={pending}
           onConfirm={() => confirmCheckIn(screen.match.patientId)}
-          onBack={() => setScreen({ kind: 'search' })}
+          onBack={reset}
         />
       </KioskFrame>
     );
@@ -112,93 +114,77 @@ export function KioskApp({ token, locale }: { token: string; locale: string }) {
   );
 }
 
-function SearchView({
-  token,
+function GridView({
+  patients,
   locale,
   onPick,
-  onCancel,
 }: {
-  token: string;
+  patients: KioskPatientCard[] | null;
   locale: string;
-  onPick: (match: KioskSearchMatch) => void;
-  onCancel: () => void;
+  onPick: (match: KioskPatientCard) => void;
 }) {
   const t = useTranslations('kiosk');
-  const [query, setQuery] = useState('');
-  const [matches, setMatches] = useState<KioskSearchMatch[]>([]);
-  const [searching, setSearching] = useState(false);
-  // Monotonic request id: only the latest search's results are applied, so a
-  // slow earlier response can never overwrite a newer one.
-  const reqId = useRef(0);
+  const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
 
-  useEffect(() => {
-    const q = query.trim();
-    if (q.length < MIN_QUERY) {
-      setMatches([]);
-      setSearching(false);
-      return;
-    }
-    setSearching(true);
-    const id = ++reqId.current;
-    const timer = setTimeout(async () => {
-      const res = await kioskSearchAction({ token, query: q });
-      if (id !== reqId.current) return; // a newer search superseded this one
-      setMatches(res.kind === 'MATCHES' ? res.matches : []);
-      setSearching(false);
-    }, SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [query, token]);
+  if (patients === null) {
+    return <p className="text-2xl text-brand-textMuted">…</p>;
+  }
 
-  const nameFor = (m: KioskSearchMatch) => (locale === 'ar' ? m.fullNameAr : m.fullNameEn);
-  const altName = (m: KioskSearchMatch) => (locale === 'ar' ? m.fullNameEn : m.fullNameAr);
+  if (patients.length === 0) {
+    return (
+      <div className="flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-4 text-center">
+        <p className="text-4xl font-medium text-brand-navy">{t('welcome')}</p>
+        <p className="text-2xl text-brand-textMuted">{t('emptyToday')}</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex w-full max-w-xl flex-1 flex-col items-center gap-6 pt-8">
-      <p className="text-3xl font-medium text-brand-navy">{t('typeName')}</p>
-      <input
-        // Kiosk: focus the field so the on-screen keyboard opens immediately.
-        autoFocus
-        type="text"
-        inputMode="text"
-        autoComplete="off"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder={t('searchPlaceholder')}
-        className="h-16 w-full rounded-2xl border-2 border-brand-border bg-brand-surface px-6 text-3xl text-brand-navy outline-none focus:border-brand-cyan"
-      />
-      <div className="min-h-[3rem] w-full" aria-live="polite">
-        {query.trim().length < MIN_QUERY ? (
-          <p className="text-center text-xl text-brand-textMuted">{t('searchHint')}</p>
-        ) : matches.length === 0 ? (
-          <p className="text-center text-xl text-brand-textMuted">
-            {searching ? '…' : t('noAppointment')}
-          </p>
-        ) : (
-          <ul className="flex w-full flex-col gap-3">
-            {matches.map((m) => (
-              <li key={m.patientId}>
+    <div className="flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-5 pt-2">
+      <p className="text-center text-3xl font-medium text-brand-navy sm:text-4xl">
+        {t('tapYourName')}
+      </p>
+      {/* Scrollable grid — must stay usable at 30–50 patients (Prompt 46 §4). */}
+      <div className="min-h-0 flex-1 overflow-y-auto pb-4">
+        <ul className="grid grid-cols-2 gap-4 md:grid-cols-3">
+          {patients.map((p) => {
+            const primary = locale === 'ar' ? p.fullNameAr : p.fullNameEn;
+            const alt = locale === 'ar' ? p.fullNameEn : p.fullNameAr;
+            const next = p.appointments[0]
+              ? formatTime(new Date(p.appointments[0].startsAtIso), intlLocale)
+              : '';
+            return (
+              <li key={p.patientId}>
                 <button
                   type="button"
-                  onClick={() => onPick(m)}
-                  className="flex w-full flex-col items-start gap-0.5 rounded-2xl border-2 border-brand-border bg-brand-surface px-6 py-4 text-start hover:border-brand-cyan"
+                  onClick={() => onPick(p)}
+                  className={`flex min-h-[7.5rem] w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 px-4 py-5 text-center shadow-sm transition-colors ${
+                    p.checkedIn
+                      ? 'border-brand-teal/60 bg-brand-teal/10'
+                      : 'border-brand-border bg-brand-surface hover:border-brand-cyan active:border-brand-cyan'
+                  }`}
                 >
-                  <span className="text-2xl font-medium text-brand-navy">{nameFor(m)}</span>
-                  <span className="text-lg text-brand-textMuted" dir="auto">
-                    {altName(m)}
+                  <span className="text-2xl font-medium leading-tight text-brand-navy">
+                    {primary}
                   </span>
+                  {alt && alt !== primary ? (
+                    <span className="text-base text-brand-textMuted" dir="auto">
+                      {alt}
+                    </span>
+                  ) : null}
+                  {p.checkedIn ? (
+                    <span className="mt-1 rounded-full bg-brand-teal px-3 py-1 text-sm font-medium text-white">
+                      ✓ {t('cardCheckedIn')}
+                    </span>
+                  ) : (
+                    <span className="mt-1 text-lg tabular-nums text-brand-cyan">{next}</span>
+                  )}
                 </button>
               </li>
-            ))}
-          </ul>
-        )}
+            );
+          })}
+        </ul>
       </div>
-      <button
-        type="button"
-        onClick={onCancel}
-        className="mt-auto pb-4 text-lg text-brand-textMuted underline-offset-4 hover:underline"
-      >
-        {t('cancel')}
-      </button>
     </div>
   );
 }
@@ -210,7 +196,7 @@ function ConfirmView({
   onConfirm,
   onBack,
 }: {
-  match: KioskSearchMatch;
+  match: KioskPatientCard;
   locale: string;
   pending: boolean;
   onConfirm: () => void;
@@ -328,7 +314,7 @@ function KioskFrame({
           {other === 'ar' ? 'العربية' : 'English'}
         </Link>
       </header>
-      <div className="flex flex-1 flex-col items-center justify-center">{children}</div>
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center">{children}</div>
     </div>
   );
 }

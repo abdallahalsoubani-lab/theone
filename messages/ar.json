@@ -1498,7 +1498,6 @@
       "recurringToggle": "متكرر",
       "switchToSingle": "موعد فردي",
       "hardBlockedHint": "يتعارض هذا الموعد مع موعد آخر لنفس المريض أو مع يوم عطلة — يمكن فقط تخطيه أو تغيير وقته.",
-      "weekdayMaxHint": "اختر يومين في الأسبوع كحدٍ أقصى.",
       "closedDay": "يوم عطلة",
       "daysLeCountHint": "عدد الأيام ≤ عدد المواعيد",
       "daysExceedCount": "الأيام المختارة أكثر من المسموح ({max}) — قلّل الأيام أو ارفع عدد المواعيد."
@@ -1637,22 +1636,20 @@
   "kiosk": {
     "clinicName": "المركز الأول للعلاج الطبيعي",
     "welcome": "أهلاً بكم",
-    "tapToStart": "اضغط لتسجيل الوصول",
-    "typeName": "اكتب اسمك",
-    "searchPlaceholder": "اسمك…",
-    "searchHint": "اكتب حرفين على الأقل من اسمك",
     "confirmTitle": "هل أنت {name}؟",
     "confirmAppointments": "موعدك اليوم:",
     "confirmYes": "نعم، هذا أنا",
     "confirmNo": "لا، رجوع",
-    "cancel": "إلغاء",
     "done": "تم",
     "checkedIn": "أهلاً {name}! تم تسجيل وصولك.",
     "turnIn": "دورك بعد حوالي {minutes} دقيقة.",
     "checkedInRun": "تم تسجيل وصولك لمواعيدك الـ{count} المتتالية.",
     "alreadyCheckedIn": "تم تسجيل وصولك مسبقاً يا {name} ✅",
     "noAppointment": "ما في موعد مسجّل اليوم — راجع الاستقبال من فضلك.",
-    "rateLimited": "محاولات كثيرة. انتظر قليلاً أو راجع الاستقبال."
+    "rateLimited": "محاولات كثيرة. انتظر قليلاً أو راجع الاستقبال.",
+    "tapYourName": "اضغط على اسمك لتسجيل الوصول",
+    "emptyToday": "لا توجد مواعيد متبقية لتسجيل الوصول اليوم.",
+    "cardCheckedIn": "تم تسجيل وصولك"
   },
   "display": {
     "title": "الوصول",

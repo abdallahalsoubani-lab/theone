@@ -62,9 +62,6 @@ interface Props {
   canOverride: boolean;
 }
 
-/** A weekly pattern may span at most 2 days (Prompt 22 §4.2 — schema max(2)). */
-const MAX_WEEKDAYS = 2;
-
 /**
  * Recurring series builder — Prompt 7b §4.4.
  *
@@ -148,11 +145,13 @@ export function CreateSeriesModal({
   const therapistKey = therapistIds.join(',');
   const toggleTherapist = (id: string) =>
     setTherapistIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  // R-6 (Prompt 42): selectable weekdays ≤ appointment count, on top of the
-  // 2-days-per-week cap (Prompt 22 §4.2). Lowering the count below the
-  // current selection surfaces a validation state — days are never silently
-  // dropped, and preview/save stay disabled until the user fixes it.
-  const maxSelectableWeekdays = Math.min(MAX_WEEKDAYS, Math.max(1, count || 1));
+  // R-6 (Prompt 42): selectable weekdays ≤ appointment count. The old fixed
+  // 2-days-per-week cap (Prompt 22 §4.2) was removed by owner ruling in
+  // Prompt 46 — the week itself (7) is the only structural bound. Lowering
+  // the count below the current selection surfaces a validation state —
+  // days are never silently dropped, and preview/save stay disabled until
+  // the user fixes it.
+  const maxSelectableWeekdays = Math.min(7, Math.max(1, count || 1));
   const daysExceedCount = byWeekday.length > maxSelectableWeekdays;
   // Room required for recurring create too (QA retest #7/#13).
   const canPreview = Boolean(
@@ -445,7 +444,7 @@ export function CreateSeriesModal({
                 // Non-working days are unselectable (Prompt 22 §4.2); an
                 // already-active day stays clickable so it can be deselected.
                 const closed = (closedDays ?? []).includes(weekdayToDayKey(day));
-                // Cap = min(2-day weekly cap, appointment count) — R-6.
+                // Cap = appointment count (R-6) — no fixed weekly cap (P46).
                 const capReached = !active && byWeekday.length >= maxSelectableWeekdays;
                 const disabled = (closed && !active) || capReached;
                 return (
@@ -471,9 +470,7 @@ export function CreateSeriesModal({
                 );
               })}
             </div>
-            <p className="mt-1 text-xs text-brand-textMuted">
-              {t('weekdayMaxHint')} · {t('daysLeCountHint')}
-            </p>
+            <p className="mt-1 text-xs text-brand-textMuted">{t('daysLeCountHint')}</p>
             {daysExceedCount ? (
               <p className="mt-1 text-xs font-medium text-red-700" role="alert">
                 {t('daysExceedCount', { max: String(maxSelectableWeekdays) })}

@@ -1498,7 +1498,6 @@
       "recurringToggle": "Recurring",
       "switchToSingle": "Single appointment",
       "hardBlockedHint": "This occurrence conflicts with the same patient's existing appointment or a closed day — skip or shift it.",
-      "weekdayMaxHint": "Choose up to 2 days per week.",
       "closedDay": "Non-working day",
       "daysLeCountHint": "Selected days ≤ number of appointments",
       "daysExceedCount": "Too many days selected (max {max}) — remove a day or increase the appointment count."
@@ -1637,22 +1636,20 @@
   "kiosk": {
     "clinicName": "The One for Physiotherapy",
     "welcome": "Welcome",
-    "tapToStart": "Tap to check in",
-    "typeName": "Type your name",
-    "searchPlaceholder": "Your name…",
-    "searchHint": "Type at least 2 letters of your name",
     "confirmTitle": "Are you {name}?",
     "confirmAppointments": "Your appointment today:",
     "confirmYes": "Yes, that's me",
     "confirmNo": "No, go back",
-    "cancel": "Cancel",
     "done": "Done",
     "checkedIn": "Welcome, {name}! You are checked in.",
     "turnIn": "Your turn in about {minutes} minutes.",
     "checkedInRun": "Your {count} back-to-back appointments are checked in.",
     "alreadyCheckedIn": "You are already checked in, {name}. ✅",
     "noAppointment": "No appointment registered today — please see reception.",
-    "rateLimited": "Too many attempts. Please wait a moment or see reception."
+    "rateLimited": "Too many attempts. Please wait a moment or see reception.",
+    "tapYourName": "Tap your name to check in",
+    "emptyToday": "No more appointments to check in today.",
+    "cardCheckedIn": "Checked in"
   },
   "display": {
     "title": "Arrivals",

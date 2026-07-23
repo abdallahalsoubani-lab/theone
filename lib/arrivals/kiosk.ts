@@ -8,18 +8,22 @@ import { notifyArrival } from './notify-arrival';
 import { clinicDayRange } from './time';
 
 /**
- * Kiosk check-in matching (Prompt 18 §1; reworked July change requests #1/#3).
+ * Kiosk check-in matching (Prompt 18 §1; reworked July change requests #1/#3;
+ * cards grid in Prompt 46).
  *
  * Confirmed client decisions baked in here:
- *   - Check-in is by NAME, not phone: the patient searches today's
- *     appointment-holders and picks themselves, then confirms (the confirm
- *     step lives in the kiosk UI — the server commit takes a patientId).
- *   - PRIVACY: `searchTodaysPatients` never returns the full day's list. It
- *     requires a typed query (>= MIN_QUERY chars), returns only matching
- *     today's-appointment-holders, capped at MAX_RESULTS, name-only (no
- *     phone). An unknown/empty query returns nothing.
- *   - The rejection message is GENERIC: unknown name and "no appointment
- *     today" both surface as `NO_APPOINTMENT` (patient-enumeration guard).
+ *   - Check-in is by NAME, not phone: the patient taps their card from
+ *     today's list and confirms (the confirm step lives in the kiosk UI —
+ *     the server commit takes a patientId).
+ *   - PRIVACY REVERSAL (Prompt 46, owner ruling): Prompt 27 §2 deliberately
+ *     hid the day's full patient list behind typed search. The owner has
+ *     explicitly chosen to show every patient with a today's appointment as
+ *     a tappable card — full names, both scripts, no masking — accepting
+ *     the trade-off as the clinic's informed decision.
+ *     `listTodaysArrivablePatients` is that list.
+ *   - The rejection message on the COMMIT path stays GENERIC: an unknown
+ *     patientId and "no appointment today" both surface as `NO_APPOINTMENT`
+ *     (the server guard is intact even though no typing path reaches it).
  *   - GROUPING (#3): a run of exactly-adjacent (zero-gap) appointments is one
  *     arrival — a single check-in marks the whole run; spaced-apart
  *     appointments each need their own check-in. `notifyArrival` fires once
@@ -48,12 +52,16 @@ export type KioskCheckInResult =
   | { kind: 'ALREADY_CHECKED_IN'; firstName: string; delayMinutes: number }
   | { kind: 'NO_APPOINTMENT' };
 
-/** One search match — name in both scripts + today's appointment times. */
-export interface KioskSearchMatch {
+/** One patient card — name in both scripts + today's arrivable appointment
+ *  times + whether their whole day is already checked in. */
+export interface KioskPatientCard {
   patientId: string;
   fullNameEn: string;
   fullNameAr: string;
   appointments: { id: string; startsAtIso: string; durationMinutes: number }[];
+  /** Every arrivable appointment today is already checked in — the card
+   *  renders in its ✓ state instead of dropping off the grid. */
+  checkedIn: boolean;
 }
 
 const BOOKABLE: AppointmentStatus[] = [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED];
@@ -64,11 +72,6 @@ const BOOKABLE: AppointmentStatus[] = [AppointmentStatus.SCHEDULED, AppointmentS
 function endsAfter(appt: { startsAt: Date; durationMinutes: number }, now: Date): boolean {
   return appt.startsAt.getTime() + appt.durationMinutes * 60_000 > now.getTime();
 }
-
-/** Min characters before we return any match (privacy: no full-list reveal). */
-export const MIN_QUERY = 2;
-/** Cap on matches shown, so the screen is never a patient roster. */
-export const MAX_RESULTS = 5;
 
 /** First whitespace-delimited token of a full name — for the greeting. */
 function firstName(full: string): string {
@@ -106,18 +109,16 @@ export async function recordCheckIn(args: {
 }
 
 /**
- * Privacy-safe name search (July #1). Returns today's appointment-holders whose
- * AR or EN name contains the typed query — only after MIN_QUERY chars, capped
- * at MAX_RESULTS, name + appointment-times only (never phone). A short/empty
- * query or no match returns an empty list (reveals nothing).
+ * Today's arrivable patients as tappable cards (Prompt 46 — replaces the
+ * typed-name search; see the privacy-reversal note in the module doc).
+ * Eligibility per appointment is unchanged from the search era: today,
+ * SCHEDULED/CONFIRMED, scheduled end not yet passed (Prompt 31 §4.4).
+ * Already-fully-checked-in patients stay on the grid with `checkedIn: true`.
+ * Sorted by next arrivable appointment time. Name + times only — never phone.
  */
-export async function searchTodaysPatients(input: {
-  query: string;
-  now?: Date;
-}): Promise<KioskSearchMatch[]> {
-  const q = input.query.trim();
-  if (q.length < MIN_QUERY) return []; // never render the full day's list
-
+export async function listTodaysArrivablePatients(
+  input: { now?: Date } = {},
+): Promise<KioskPatientCard[]> {
   const now = input.now ?? new Date();
   const settings = await db.clinicSettings.findUnique({
     where: { id: 'default' },
@@ -132,7 +133,6 @@ export async function searchTodaysPatients(input: {
     where: {
       role: UserRole.PATIENT,
       deletedAt: null,
-      OR: [{ fullNameEn: { contains: q, mode: 'insensitive' } }, { fullNameAr: { contains: q } }],
       // Only patients who actually have a bookable appointment TODAY.
       appointmentsAsPatient: { some: todaysApptFilter },
     },
@@ -143,29 +143,34 @@ export async function searchTodaysPatients(input: {
       appointmentsAsPatient: {
         where: todaysApptFilter,
         orderBy: { startsAt: 'asc' },
-        select: { id: true, startsAt: true, durationMinutes: true },
+        select: { id: true, startsAt: true, durationMinutes: true, checkedInAt: true },
       },
     },
-    orderBy: { fullNameEn: 'asc' },
-    take: MAX_RESULTS,
   });
 
   return patients
-    .map((p) => ({
-      patientId: p.id,
-      fullNameEn: p.fullNameEn,
-      fullNameAr: p.fullNameAr,
+    .map((p) => {
       // Already-ended appointments are not arrivable (§4.4) — a patient whose
-      // only appointment has passed simply doesn't match (generic path).
-      appointments: p.appointmentsAsPatient
-        .filter((a) => endsAfter(a, now))
-        .map((a) => ({
+      // every appointment has passed simply has no card.
+      const arrivable = p.appointmentsAsPatient.filter((a) => endsAfter(a, now));
+      return {
+        patientId: p.id,
+        fullNameEn: p.fullNameEn,
+        fullNameAr: p.fullNameAr,
+        appointments: arrivable.map((a) => ({
           id: a.id,
           startsAtIso: a.startsAt.toISOString(),
           durationMinutes: a.durationMinutes,
         })),
-    }))
-    .filter((p) => p.appointments.length > 0);
+        checkedIn: arrivable.length > 0 && arrivable.every((a) => a.checkedInAt !== null),
+      };
+    })
+    .filter((p) => p.appointments.length > 0)
+    .sort(
+      (a, b) =>
+        new Date(a.appointments[0]!.startsAtIso).getTime() -
+        new Date(b.appointments[0]!.startsAtIso).getTime(),
+    );
 }
 
 /**

@@ -1,11 +1,10 @@
 import { z } from 'zod';
 
-/** Kiosk name search (July #1): the device token + the typed query. */
-export const kioskSearchSchema = z.object({
+/** Kiosk today's-cards list (Prompt 46 — replaced the typed name search). */
+export const kioskTodaySchema = z.object({
   token: z.string().min(16),
-  query: z.string().min(1).max(64),
 });
-export type KioskSearchInput = z.infer<typeof kioskSearchSchema>;
+export type KioskTodayInput = z.infer<typeof kioskTodaySchema>;
 
 /** Kiosk commit (July #1): the device token + the selected patient id. */
 export const kioskCheckInByNameSchema = z.object({

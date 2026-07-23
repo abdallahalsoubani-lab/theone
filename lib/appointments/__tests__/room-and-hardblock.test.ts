@@ -69,21 +69,30 @@ describe('hard-blocked conflict kinds (QA retest #15 + Prompt 22 §4.1/§4.2)', 
   });
 });
 
-describe('recurring day cap (Prompt 22 §4.2)', () => {
-  const series = (byWeekday: string[]) => ({
+describe('recurring day rules (P22 cap removed by Prompt 46; R-6 days ≤ count stays)', () => {
+  const series = (byWeekday: string[], count = 4) => ({
     patientId: 'p1',
     therapistIds: ['t1'],
     startsAt: new Date('2030-01-01T10:00:00Z'),
     durationMinutes: 30,
     roomId: 'r1',
-    rule: { frequency: 'WEEKLY' as const, interval: 1, byWeekday, count: 4 },
+    rule: { frequency: 'WEEKLY' as const, interval: 1, byWeekday, count },
   });
 
-  it('accepts 1 or 2 weekdays and rejects 3+', () => {
+  it('accepts any number of weekdays up to the appointment count (no fixed 2-day cap)', () => {
     expect(seriesPreviewSchema.safeParse(series(['MON'])).success).toBe(true);
     expect(seriesPreviewSchema.safeParse(series(['MON', 'WED'])).success).toBe(true);
-    expect(seriesPreviewSchema.safeParse(series(['MON', 'WED', 'THU'])).success).toBe(false);
+    // 3 and 4 days were rejected under the old P22 cap — now fine when count allows.
+    expect(seriesPreviewSchema.safeParse(series(['MON', 'WED', 'THU'])).success).toBe(true);
+    expect(seriesPreviewSchema.safeParse(series(['SUN', 'MON', 'TUE', 'WED'])).success).toBe(true);
+    expect(
+      seriesPreviewSchema.safeParse(series(['SUN', 'MON', 'TUE', 'WED', 'THU'], 6)).success,
+    ).toBe(true);
     expect(seriesPreviewSchema.safeParse(series([])).success).toBe(false);
+  });
+
+  it('R-6 still binds: 3 selected days with count=2 is rejected', () => {
+    expect(seriesPreviewSchema.safeParse(series(['MON', 'WED', 'THU'], 2)).success).toBe(false);
   });
 
   it('R-6 (Prompt 42): rejects more weekdays than appointments — days ≤ count', () => {

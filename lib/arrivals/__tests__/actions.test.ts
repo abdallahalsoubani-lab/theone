@@ -4,7 +4,7 @@ const {
   rateLimitMock,
   validateTokenMock,
   checkInByNameMock,
-  searchTodaysPatientsMock,
+  listTodaysMock,
   recordCheckInMock,
   requirePermissionMock,
   updateAppt,
@@ -18,8 +18,14 @@ const {
     delayMinutes: 10,
     appointmentCount: 1,
   })),
-  searchTodaysPatientsMock: vi.fn(async () => [
-    { patientId: 'pat-1', fullNameEn: 'Abdullah', fullNameAr: 'عبدالله', appointments: [] },
+  listTodaysMock: vi.fn(async () => [
+    {
+      patientId: 'pat-1',
+      fullNameEn: 'Abdullah',
+      fullNameAr: 'عبدالله',
+      appointments: [],
+      checkedIn: false,
+    },
   ]),
   recordCheckInMock: vi.fn(async () => undefined),
   requirePermissionMock: vi.fn(async () => undefined),
@@ -41,7 +47,7 @@ vi.mock('@/lib/arrivals/tokens', () => ({
 }));
 vi.mock('@/lib/arrivals/kiosk', () => ({
   checkInByName: checkInByNameMock,
-  searchTodaysPatients: searchTodaysPatientsMock,
+  listTodaysArrivablePatients: listTodaysMock,
   recordCheckIn: recordCheckInMock,
 }));
 
@@ -56,7 +62,7 @@ vi.mock('@/lib/db', () => ({
 
 import {
   kioskCheckInByNameAction,
-  kioskSearchAction,
+  kioskTodayAction,
   manualCheckInAction,
   setCurrentDelayAction,
   undoCheckInAction,
@@ -77,25 +83,25 @@ beforeEach(() => {
   requirePermissionMock.mockResolvedValue(undefined);
 });
 
-describe('kioskSearchAction — gating (July #1)', () => {
-  it('denies an invalid token without searching', async () => {
+describe('kioskTodayAction — gating (Prompt 46 cards grid)', () => {
+  it('denies an invalid token without listing', async () => {
     validateTokenMock.mockResolvedValue(false);
-    const res = await kioskSearchAction({ token: TOKEN, query: 'Abd' });
+    const res = await kioskTodayAction({ token: TOKEN });
     expect(res).toEqual({ kind: 'INVALID_TOKEN' });
-    expect(searchTodaysPatientsMock).not.toHaveBeenCalled();
+    expect(listTodaysMock).not.toHaveBeenCalled();
   });
 
-  it('rate-limits before searching', async () => {
+  it('rate-limits before listing', async () => {
     rateLimitMock.mockResolvedValue({ allowed: false, count: 99, remainingTtlSeconds: 50 });
-    const res = await kioskSearchAction({ token: TOKEN, query: 'Abd' });
+    const res = await kioskTodayAction({ token: TOKEN });
     expect(res).toEqual({ kind: 'RATE_LIMITED' });
-    expect(searchTodaysPatientsMock).not.toHaveBeenCalled();
+    expect(listTodaysMock).not.toHaveBeenCalled();
   });
 
-  it('returns matches when token + rate-limit pass', async () => {
-    const res = await kioskSearchAction({ token: TOKEN, query: 'Abd' });
-    expect(res).toMatchObject({ kind: 'MATCHES' });
-    expect(searchTodaysPatientsMock).toHaveBeenCalledWith({ query: 'Abd' });
+  it("returns the day's cards when token + rate-limit pass", async () => {
+    const res = await kioskTodayAction({ token: TOKEN });
+    expect(res).toMatchObject({ kind: 'PATIENTS' });
+    expect(listTodaysMock).toHaveBeenCalled();
   });
 });
 

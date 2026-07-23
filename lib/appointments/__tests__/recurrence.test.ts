@@ -111,3 +111,54 @@ describe('shift helpers', () => {
     expect(out.startsAt.getTime() - SUNDAY_10AM.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
   });
 });
+
+describe('many-day weeks (Prompt 46 — the P22 two-day cap is gone)', () => {
+  it('6 appointments across 5 working days expand correctly (Sun–Thu, then next week)', () => {
+    // Anchor: Sunday 2030-01-06 08:00 UTC (2030-01-06 is a Sunday).
+    const first = new Date('2030-01-06T08:00:00Z');
+    const occ = expandRecurrence(
+      {
+        frequency: 'WEEKLY',
+        interval: 1,
+        byWeekday: ['SUN', 'MON', 'TUE', 'WED', 'THU'],
+        count: 6,
+      },
+      first,
+      45,
+    );
+    expect(occ).toHaveLength(6);
+    // First occurrence is the anchor itself.
+    expect(occ[0]!.startsAt.toISOString()).toBe(first.toISOString());
+    // Sun→Thu of week 1, then Sunday of week 2 — same time-of-day throughout.
+    const isoDays = occ.map((o) => o.startsAt.toISOString());
+    expect(isoDays).toEqual([
+      '2030-01-06T08:00:00.000Z',
+      '2030-01-07T08:00:00.000Z',
+      '2030-01-08T08:00:00.000Z',
+      '2030-01-09T08:00:00.000Z',
+      '2030-01-10T08:00:00.000Z',
+      '2030-01-13T08:00:00.000Z',
+    ]);
+    // Indices dense + ordered; duration carried on every occurrence.
+    expect(occ.map((o) => o.index)).toEqual([0, 1, 2, 3, 4, 5]);
+    expect(occ.every((o) => o.durationMinutes === 45)).toBe(true);
+  });
+
+  it('7-day selection works when count covers it (full week, no cap anywhere)', () => {
+    const occ = expandRecurrence(
+      {
+        frequency: 'WEEKLY',
+        interval: 1,
+        byWeekday: ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'],
+        count: 7,
+      },
+      new Date('2030-01-06T10:00:00Z'),
+      30,
+    );
+    expect(occ).toHaveLength(7);
+    // Seven consecutive days.
+    for (let i = 1; i < occ.length; i++) {
+      expect(occ[i]!.startsAt.getTime() - occ[i - 1]!.startsAt.getTime()).toBe(24 * 60 * 60 * 1000);
+    }
+  });
+});

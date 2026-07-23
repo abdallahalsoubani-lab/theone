@@ -289,3 +289,25 @@
 .rbc-addons-dnd-resizable > .rbc-addons-dnd-resize-ns-anchor:first-child {
   display: none;
 }
+
+/*
+ * Bottom-edge resize grab area (Prompt 46 §3).
+ *
+ * The dnd addon's bottom anchor measures ~3px tall — practically ungrabbable,
+ * so "drag the edge to extend" kept landing on the MOVE surface and shifted
+ * the appointment instead (the clinic's actual complaint; the resize
+ * mechanics themselves were verified intact per the P26 rules). Widen the
+ * HIT AREA only — the event still looks the same — and advertise the
+ * ns-resize cursor so the affordance is discoverable.
+ */
+.rbc-addons-dnd-resizable > .rbc-addons-dnd-resize-ns-anchor:last-child {
+  /* The resizable wrapper sits INSIDE the event's padding, so the addon's
+     own bottom:0 leaves the anchor ~7px shy of the visible edge — exactly
+     where fingers grab (drags became MOVEs). Shift it down to cover through
+     the true bottom edge; !important because the addon rule ties on
+     specificity and load order isn't guaranteed by the bundler. */
+  height: 14px;
+  bottom: -8px !important;
+  cursor: ns-resize;
+  z-index: 5;
+}

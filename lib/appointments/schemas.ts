@@ -193,9 +193,11 @@ export const recurrenceRuleSchema = z
   .object({
     frequency: z.literal('WEEKLY'),
     interval: z.number().int().min(1).max(8),
-    // Max 2 days per week (Prompt 22 §4.2) — the schema is the single source
-    // of truth, so preview + create actions enforce the cap server-side.
-    byWeekday: z.array(weekdayEnum).min(1).max(2),
+    // Prompt 46 (owner ruling): the fixed 2-days-per-week cap from Prompt 22
+    // §4.2 is REMOVED — any subset of the week is selectable. The remaining
+    // limits are the R-6 refine below (days ≤ count) and the closed-day
+    // check in the series service (settings-driven).
+    byWeekday: z.array(weekdayEnum).min(1).max(7),
     count: z.number().int().min(1).max(52),
   })
   // R-6 (Prompt 42): you can't spread the pattern over more weekdays than the
