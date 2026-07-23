@@ -2,6 +2,7 @@ import { env } from '@/lib/env';
 
 import { ConsoleWhatsAppProvider } from './providers/console';
 import { MetaWhatsAppProvider } from './providers/meta';
+import { TwilioWhatsAppProvider } from './providers/twilio';
 import type { WhatsAppProvider } from './provider';
 
 /**
@@ -24,6 +25,8 @@ const globalForWa = globalThis as unknown as { whatsapp?: WhatsAppProvider };
 
 function makeProvider(): WhatsAppProvider {
   switch (env.WHATSAPP_PROVIDER) {
+    case 'twilio':
+      return new TwilioWhatsAppProvider();
     case 'meta':
       return new MetaWhatsAppProvider();
     case 'console':

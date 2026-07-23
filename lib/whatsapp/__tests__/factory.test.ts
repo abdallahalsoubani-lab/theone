@@ -47,6 +47,19 @@ describe('lib/whatsapp factory selection by WHATSAPP_PROVIDER', () => {
     expect(mod.whatsapp.id).toBe('meta');
   });
 
+  it('selects twilio when WHATSAPP_PROVIDER=twilio (Prompt 45 revival)', async () => {
+    vi.doMock('@/lib/env', () => ({
+      env: {
+        WHATSAPP_PROVIDER: 'twilio',
+        TWILIO_ACCOUNT_SID: 'AC_test',
+        TWILIO_AUTH_TOKEN: 'token',
+        TWILIO_WHATSAPP_FROM: '+962780150215',
+      },
+    }));
+    const mod = await import('../index');
+    expect(mod.whatsapp.id).toBe('twilio');
+  });
+
   it('falls back to console for an unrecognized value', async () => {
     vi.doMock('@/lib/env', () => ({ env: { WHATSAPP_PROVIDER: 'unknown' } }));
     const mod = await import('../index');

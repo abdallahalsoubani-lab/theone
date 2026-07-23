@@ -28,7 +28,7 @@
 import { Worker } from 'bullmq';
 
 import { db } from '@/lib/db';
-import { formatDateTime } from '@/lib/format/date';
+import { formatDate, formatTime } from '@/lib/format/date';
 import { queueRedis } from '@/lib/queue/client';
 import type { AppointmentReminderJob } from '@/lib/queue/jobs/appointmentReminder';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
@@ -93,14 +93,18 @@ export function startReminderWorker(): Worker {
         const lang = recipient.languagePref;
         const therapistName =
           (lang === 'AR' ? firstTherapist?.fullNameAr : firstTherapist?.fullNameEn) ?? '';
-        // Human-readable clinic wall-clock (Prompt 31) — the raw ISO string
-        // this used to send rendered the UTC instant, 3h off for the patient.
-        const timeLabel = formatDateTime(appt.startsAt, lang === 'AR' ? 'ar' : 'en');
+        // Human-readable clinic wall-clock (Prompt 31). Prompt 45: the P17
+        // reminder template is 3-variable — {{1}} clinician, {{2}} time,
+        // {{3}} day — matching the wording registered with the provider
+        // (docs/whatsapp-twilio-templates.md #2).
+        const intl = lang === 'AR' ? ('ar' as const) : ('en' as const);
+        const timeStr = formatTime(appt.startsAt, intl);
+        const dayStr = formatDate(appt.startsAt, intl);
         const id = await enqueueWhatsappOutbound({
           kind: 'template',
           templateName: 'appointment_reminder_v2',
           language: lang,
-          parameters: [therapistName, timeLabel],
+          parameters: [therapistName, timeStr, dayStr],
           recipientPhone: recipient.phone,
           recipientUserId: recipient.id,
           appointmentId: appt.id,

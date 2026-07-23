@@ -8,14 +8,16 @@
  *    Network blips and 5xx → retryable. Invalid phone / template not approved
  *    / signature mismatch → terminal.
  *
- * 2. Errors carry the original provider payload (where safe). Meta errors
- *    include an `error.code` + `error.subcode`, which we surface so the Admin
+ * 2. Errors carry the original provider payload (where safe). Twilio errors
+ *    include a numeric `code` (e.g., 21211 = "invalid To phone"); Meta errors
+ *    include an `error.code` + `error.subcode`. We surface both so the Admin
  *    message log can render a meaningful failure reason.
  */
 
 export type WhatsAppErrorCode =
   | 'TEMPLATE_NOT_CONFIGURED'
   | 'TEMPLATE_NOT_APPROVED'
+  | 'TEMPLATE_SID_INVALID'
   | 'INVALID_RECIPIENT'
   | 'RECIPIENT_OPTED_OUT'
   | 'NOT_IN_24H_WINDOW'
@@ -36,7 +38,7 @@ export type WhatsAppErrorCode =
 export class WhatsAppError extends Error {
   readonly code: WhatsAppErrorCode;
   readonly retryable: boolean;
-  readonly provider: 'meta' | 'console' | 'unknown';
+  readonly provider: 'twilio' | 'meta' | 'console' | 'unknown';
   readonly providerCode?: string | number;
   readonly retryAfterMs?: number;
 
@@ -59,9 +61,9 @@ export class WhatsAppError extends Error {
 }
 
 export class TemplateNotConfiguredError extends WhatsAppError {
-  constructor(args: { templateName: string; language: string; provider: 'meta' }) {
+  constructor(args: { templateName: string; language: string; provider: 'twilio' | 'meta' }) {
     super({
-      code: 'TEMPLATE_NOT_APPROVED',
+      code: args.provider === 'meta' ? 'TEMPLATE_NOT_APPROVED' : 'TEMPLATE_NOT_CONFIGURED',
       message:
         `Template "${args.templateName}" (${args.language}) is not configured for ` +
         `provider=${args.provider}. Configure it in /admin/whatsapp/templates.`,
@@ -73,7 +75,7 @@ export class TemplateNotConfiguredError extends WhatsAppError {
 }
 
 export class InvalidWebhookSignatureError extends WhatsAppError {
-  constructor(provider: 'meta') {
+  constructor(provider: 'twilio' | 'meta') {
     super({
       code: 'INVALID_SIGNATURE',
       message: `Webhook signature verification failed for provider=${provider}.`,
@@ -130,6 +132,7 @@ export function parseFailureReasonCode(
   const all: ReadonlyArray<WhatsAppErrorCode> = [
     'TEMPLATE_NOT_CONFIGURED',
     'TEMPLATE_NOT_APPROVED',
+    'TEMPLATE_SID_INVALID',
     'INVALID_RECIPIENT',
     'RECIPIENT_OPTED_OUT',
     'NOT_IN_24H_WINDOW',

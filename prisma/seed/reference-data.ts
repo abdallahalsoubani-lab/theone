@@ -99,11 +99,11 @@ const WHATSAPP_TEMPLATES: ReadonlyArray<SeedTemplate> = (
     [
       'appointment_reminder_v2',
       WaTemplateCategory.APPOINTMENT,
-      // Prompt 17: 24h reminder — wording no longer claims "30 minutes". Same
-      // variable structure ({{1}} therapist, {{2}} time). The Meta-hosted
-      // template text must be edited to match (see PR note).
-      'Reminder: you have an appointment with {{1}} at {{2}}. Please arrive on time.',
-      'تذكير: لديك موعد مع {{1}} الساعة {{2}}. نرجو الحضور في الوقت المحدد.',
+      // Prompt 17 wording, aligned in Prompt 45 to the 3-variable structure
+      // registered with the provider: {{1}} therapist, {{2}} time, {{3}} day.
+      // The reminder worker sends exactly this parameter order.
+      'Reminder: you have an appointment on {{3}} at {{2}} with {{1}}. Please arrive on time.',
+      'تذكير: لديك موعد يوم {{3}} الساعة {{2}} مع {{1}}. نرجو الحضور في الوقت المحدد.',
       WaTemplateApprovalStatus.PENDING,
       true,
     ],

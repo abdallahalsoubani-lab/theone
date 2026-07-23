@@ -3,8 +3,9 @@ import type { LanguagePref } from '@prisma/client';
 /**
  * WhatsApp provider abstraction — the interface every clinic-side delivery
  * channel implements. This file is the contract; concrete implementations
- * live in `./providers/console.ts` (dev) and `./providers/meta.ts` (Meta
- * Cloud API for production). The factory in `./index.ts` resolves the active
+ * live in `./providers/console.ts` (dev), `./providers/twilio.ts` (Twilio
+ * Content API — the production path since Prompt 45), and `./providers/meta.ts`
+ * (Meta Cloud API, retired direct path). The factory in `./index.ts` resolves the active
  * implementation from `process.env.WHATSAPP_PROVIDER`.
  *
  * If you find yourself branching on `provider.id` at a call site, that logic
@@ -72,7 +73,7 @@ export type WebhookEvent =
   | { kind: 'status'; status: DeliveryStatusEvent };
 
 export interface WhatsAppProvider {
-  readonly id: 'console' | 'meta';
+  readonly id: 'console' | 'meta' | 'twilio';
   sendTemplate(params: SendTemplateParams): Promise<SendResult>;
   sendText(params: SendTextParams): Promise<SendResult>;
 

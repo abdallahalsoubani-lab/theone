@@ -39,11 +39,18 @@ const envSchema = z.object({
   // scheduled exercise time. Patient-facing copy assumes 30 min.
   HOME_REMINDER_OFFSET_MINUTES: z.coerce.number().int().min(1).max(180).default(30),
 
-  // WhatsApp provider (Prompt 8). `console` is the dev default — every send
-  // writes a structured payload to stderr and no network IO is performed.
-  // `meta` activates the real Meta Cloud API provider and requires the
-  // credential block below.
-  WHATSAPP_PROVIDER: z.enum(['console', 'meta']).default('console'),
+  // WhatsApp provider (Prompt 8; Twilio revived in Prompt 45). `console` is
+  // the dev default — every send writes a structured payload to stderr and no
+  // network IO is performed. `meta` activates the Meta Cloud API provider;
+  // `twilio` activates the Twilio Content API provider (the production path
+  // after the Meta business-verification dead end).
+  WHATSAPP_PROVIDER: z.enum(['console', 'meta', 'twilio']).default('console'),
+
+  // Twilio credentials — required when WHATSAPP_PROVIDER=twilio. See
+  // docs/whatsapp-twilio.md for where each value lives in the console.
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_WHATSAPP_FROM: z.string().optional(),
 
   // Meta Cloud API credentials — required when WHATSAPP_PROVIDER=meta. See
   // docs/whatsapp/setup-meta.md for the Business Manager walkthrough.
