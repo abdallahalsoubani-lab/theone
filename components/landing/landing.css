@@ -314,41 +314,11 @@ button {
   gap: 12px;
   margin-inline-end: auto;
 }
-.brand .mark {
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  overflow: hidden;
-  flex: none;
-  animation: float 6s ease-in-out infinite;
-}
-.brand .mark img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.brand .name {
-  font-family: var(--ff-display);
-  font-weight: 800;
-  line-height: 1;
-  letter-spacing: -0.01em;
-}
-.brand .name b {
+/* Production wordmark (Prompt 39 / NI-11) — ~3:1 lockup, height-driven. */
+.brand-logo {
   display: block;
-  font-size: 1.32rem;
-  color: var(--blue);
-}
-.brand .name b span {
-  color: var(--cyan);
-}
-.brand .name small {
-  display: block;
-  font-size: 0.66rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--slate-300);
-  font-weight: 600;
-  margin-top: 3px;
+  height: 54px;
+  width: auto;
 }
 @keyframes float {
   50% {
@@ -1216,20 +1186,12 @@ button {
   grid-template-columns: 1.4fr 1fr 1.2fr 1.3fr;
   gap: 40px;
 }
-.foot-brand .mark {
-  width: 54px;
-  height: 54px;
-  border-radius: 14px;
-  background: #fff;
-  display: grid;
-  place-items: center;
-  overflow: hidden;
+/* Dark-theme wordmark on the navy footer (Prompt 39 / NI-11). */
+.foot-logo {
+  display: block;
+  height: 46px;
+  width: auto;
   margin-bottom: 16px;
-}
-.foot-brand .mark img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
 }
 .foot-brand p {
   max-width: 30ch;
@@ -1378,7 +1340,6 @@ button {
     transform: none;
     transition: none;
   }
-  .brand .mark,
   .hero-card,
   .spine i,
   .fab,
@@ -1447,6 +1408,9 @@ button {
   }
 }
 @media (max-width: 480px) {
+  .brand-logo {
+    height: 44px;
+  }
   .foot-grid {
     grid-template-columns: 1fr;
   }

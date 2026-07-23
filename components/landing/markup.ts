@@ -33,11 +33,9 @@ export function landingMarkup(t: Tr, hrefs: Hrefs): string {
 <header class="nav" id="nav">
   <div class="wrap nav-inner">
     <a class="brand" href="#top" aria-label="The One Physical Therapy Center">
-      <span class="mark"><img src="/landing/logo.jpg" alt="The One logo"></span>
-      <span class="name">
-        <b>THE <span>ONE</span></b>
-        <small>${t('Physical Therapy Center', 'مركز العلاج الطبيعي')}</small>
-      </span>
+      <!-- Production wordmark (Prompt 39 / NI-11) — same asset as the app
+           shell; replaces the old landing-only logo.jpg + hand-built text. -->
+      <img class="brand-logo" src="/logo.svg" alt="${t('The One — Physical Therapy Center', 'ذا ون — مركز العلاج الطبيعي')}">
     </a>
     <nav class="nav-links">
       <a href="#top" class="active">${t('Home', 'الرئيسية')}</a>
@@ -341,8 +339,7 @@ export function landingMarkup(t: Tr, hrefs: Hrefs): string {
   <div class="wrap">
     <div class="foot-grid">
       <div class="foot-brand">
-        <span class="mark"><img src="/landing/logo.jpg" alt="The One logo"></span>
-        <div style="font-family:var(--ff-display);font-weight:800;color:#fff;font-size:1.2rem;margin-bottom:10px">THE ONE</div>
+        <img class="foot-logo" src="/logo-dark.svg" alt="${t('The One — Physical Therapy Center', 'ذا ون — مركز العلاج الطبيعي')}">
         <p>${t('Your health. Your recovery. Our mission. Care in every step.', 'صحتك. تعافيك. مهمتنا. رعاية في كل خطوة.')}</p>
         <div class="socials">
           <a href="https://www.facebook.com/theone.PTclinic" target="_blank" rel="noopener" aria-label="Facebook"><svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M14 9h3V6h-3c-2.2 0-4 1.8-4 4v2H7v3h3v6h3v-6h2.5l.5-3H13v-2c0-.6.4-1 1-1z"/></svg></a>
