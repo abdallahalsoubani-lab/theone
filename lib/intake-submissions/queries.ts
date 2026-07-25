@@ -76,7 +76,7 @@ export interface PhoneMatch {
   id: string;
   fullNameEn: string;
   fullNameAr: string;
-  phone: string;
+  phone: string | null;
 }
 
 /**

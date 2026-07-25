@@ -71,6 +71,14 @@ export function startHomeReminderWorker(): Worker {
         return;
       }
 
+      // P50: patients may have no phone (real-clinic import) — skip cleanly,
+      // never enqueue a job to nowhere.
+      if (!item.patient.phone) {
+        console.warn(
+          `[home-reminder] patient=${item.patient.id} has no phone — skipping item=${itemId}`,
+        );
+        return;
+      }
       const language = item.patient.languagePref;
       const exerciseName = language === 'AR' ? item.exercise.nameAr : item.exercise.nameEn;
       // Meta rejects an empty body parameter with #131008 "Required parameter

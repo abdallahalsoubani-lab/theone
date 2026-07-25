@@ -29,7 +29,7 @@ export interface ReminderConfirmationRow {
   patientFullNameAr: string;
   /** Secretary/Admin surface — phones visible (P15 applies only if DOCTOR
    *  is ever granted this page; it is not in 48b). */
-  patientPhone: string;
+  patientPhone: string | null;
   startsAt: Date;
   durationMinutes: number;
   seriesId: string | null;

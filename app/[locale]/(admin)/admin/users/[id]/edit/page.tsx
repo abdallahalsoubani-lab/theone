@@ -40,7 +40,7 @@ export default async function EditUserPage({
           fullNameEn: user.fullNameEn,
           fullNameAr: user.fullNameAr,
           email: user.email ?? '',
-          phone: user.phone,
+          phone: user.phone ?? '',
           role: user.role,
           languagePref: user.languagePref,
           specialtyIds: user.specialties.map((s) => s.specialtyId),

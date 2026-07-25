@@ -8,6 +8,7 @@ import { createNotification } from '@/lib/notifications/actions';
 import { WAITLIST_ERRORS, WaitlistError } from './errors';
 import { matchWaitlistEntries, type FreedSlot } from './matching';
 import type { WaitlistAddParsed } from './schemas';
+import { patientDisplayName } from '@/lib/format/patientName';
 
 export function waitlistToLocalized(err: unknown): LocalizedError {
   if (err instanceof WaitlistError) return err.error;
@@ -208,7 +209,11 @@ export async function notifyWaitlistForFreedSlot(
     });
 
     for (const r of recipients) {
-      const patientName = r.languagePref === 'AR' ? top.patient.fullNameAr : top.patient.fullNameEn;
+      const patientName = patientDisplayName(
+        top.patient.fullNameEn,
+        top.patient.fullNameAr,
+        r.languagePref === 'AR' ? 'ar' : 'en',
+      );
       void createNotification({
         recipientId: r.id,
         type: 'BOOKING_WAITLIST_SLOT_FREED',

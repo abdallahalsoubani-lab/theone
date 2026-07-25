@@ -115,7 +115,7 @@ async function main() {
       templateName: 'appointment_confirmation_v2',
       language: patient.languagePref,
       parameters: [patientName, therapistName, dateStr, timeStr],
-      recipientPhone: patient.phone,
+      recipientPhone: patient.phone ?? '',
       recipientUserId: patient.id,
       appointmentId: appointment.id,
       source: 'queue',

@@ -37,6 +37,7 @@ import { queueRedis } from '@/lib/queue/client';
 import type { AppointmentReminderJob } from '@/lib/queue/jobs/appointmentReminder';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 import { REMINDER_QUEUE } from '@/lib/queue/queues';
+import { patientDisplayName } from '@/lib/format/patientName';
 
 export function startReminderWorker(): Worker {
   const worker = new Worker<AppointmentReminderJob>(
@@ -94,6 +95,14 @@ export function startReminderWorker(): Worker {
       const firstTherapist = appt.therapists[0]?.therapist;
 
       for (const recipient of recipients) {
+        // P50: phone is optional now — skip cleanly and log (the pattern
+        // mirrors the P29 patient-less EVENT skip above).
+        if (!recipient.phone) {
+          console.warn(
+            `[reminder] patient=${recipient.id} has no phone — skipping reminder for appointment=${appt.id}`,
+          );
+          continue;
+        }
         const lang = recipient.languagePref;
         const therapistName =
           (lang === 'AR' ? firstTherapist?.fullNameAr : firstTherapist?.fullNameEn) ?? '';
@@ -108,7 +117,11 @@ export function startReminderWorker(): Worker {
         }
         const ctx = await appointmentVarContext({
           startsAt: appt.startsAt,
-          patientName: lang === 'AR' ? recipient.fullNameAr : recipient.fullNameEn,
+          patientName: patientDisplayName(
+            recipient.fullNameEn,
+            recipient.fullNameAr,
+            lang === 'AR' ? 'ar' : 'en',
+          ),
           therapistName,
           language: lang,
         });

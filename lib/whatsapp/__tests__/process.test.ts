@@ -67,10 +67,14 @@ vi.mock('@/lib/db', () => {
           async ({ where }: { where: { phone: string } }) =>
             state.users.find((u) => u.phone === where.phone && u.deletedAt === null) ?? null,
         ),
-        // 48b decline: notify all SECRETARY+ADMIN.
-        findMany: vi.fn(async () =>
-          state.users.filter((u) => u.role === 'SECRETARY' || u.role === 'ADMIN'),
-        ),
+        // Two shapes: the P50 multi-patient phone resolver (where.phone) and
+        // the 48b decline staff notification (role in SECRETARY/ADMIN).
+        findMany: vi.fn(async ({ where }: { where?: Record<string, unknown> } = {}) => {
+          if (where && 'phone' in where) {
+            return state.users.filter((u) => u.phone === where.phone && u.deletedAt === null);
+          }
+          return state.users.filter((u) => u.role === 'SECRETARY' || u.role === 'ADMIN');
+        }),
         update: vi.fn(
           async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
             state.userUpdates.push({ id: where.id, data });
@@ -138,10 +142,12 @@ vi.mock('@/lib/db', () => {
           if (idIn) return state.appointments.filter((a) => idIn.includes(a.id)).map(withDur);
           const statuses = (where.status as { in?: string[] } | undefined)?.in;
           const gte = (where.startsAt as { gte?: Date } | undefined)?.gte;
+          // P50: the resolver scopes by patientId IN [family ids].
+          const patientIn = (where.patientId as { in?: string[] } | undefined)?.in;
           return state.appointments
             .filter(
               (a) =>
-                a.patientId === where.patientId &&
+                (patientIn ? patientIn.includes(a.patientId) : a.patientId === where.patientId) &&
                 (!statuses || statuses.includes(a.status)) &&
                 (!gte || a.startsAt.getTime() >= gte.getTime()),
             )
@@ -818,6 +824,85 @@ describe('48b — a confirm can never resurrect a terminal booking', () => {
 });
 
 // ─── Prompt 49 additions ────────────────────────────────────────────────────
+
+describe('P50 — shared family number resolves across ALL patients on it', () => {
+  const FAMILY_PHONE = '+962790000000';
+
+  beforeEach(() => {
+    reset();
+    // Two siblings share the parent's phone.
+    state.users.push(
+      { id: 'child-a', phone: FAMILY_PHONE, deletedAt: null, languagePref: 'AR' },
+      { id: 'child-b', phone: FAMILY_PHONE, deletedAt: null, languagePref: 'AR' },
+    );
+    const base = Date.now();
+    state.appointments.push(
+      // child-a: appointment further out, NOT reminded.
+      {
+        id: 'appt-a',
+        patientId: 'child-a',
+        status: AppointmentStatus.SCHEDULED,
+        startsAt: new Date(base + 4 * 60 * 60 * 1000),
+      },
+      // child-b: nearer appointment that HAD a reminder sent.
+      {
+        id: 'appt-b',
+        patientId: 'child-b',
+        status: AppointmentStatus.SCHEDULED,
+        startsAt: new Date(base + 2 * 60 * 60 * 1000),
+      },
+    );
+    state.outboundMessages.push({
+      id: 'out-rem-b',
+      direction: 'OUTBOUND',
+      recipientPhone: FAMILY_PHONE,
+      appointmentId: 'appt-b',
+      sentAt: new Date(base - 60 * 60 * 1000),
+      status: 'SENT',
+      providerMessageId: 'rem-b',
+      recipientId: 'child-b',
+      failureReason: null,
+      deliveredAt: null,
+      readAt: null,
+    });
+  });
+
+  it('"نعم" confirms the REMINDED child\'s appointment and leaves the sibling untouched', async () => {
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'p50-fam-1',
+        fromPhone: FAMILY_PHONE,
+        body: 'نعم',
+        receivedAt: new Date(),
+      },
+    });
+    const byId = new Map(state.appointments.map((a) => [a.id, a.status]));
+    expect(byId.get('appt-b')).toBe(AppointmentStatus.CONFIRMED);
+    expect(byId.get('appt-a')).toBe(AppointmentStatus.SCHEDULED);
+    // Audit attributes the confirm to the appointment's OWNER (child-b).
+    expect(state.auditLogs[0]).toMatchObject({ actorId: 'child-b', entityId: 'appt-b' });
+  });
+
+  it('sibling adjacent bookings are NOT swept into the run (same-patient semantics)', async () => {
+    // Make the two siblings back-to-back: a run only within one patient.
+    state.appointments[0]!.startsAt = new Date(
+      state.appointments[1]!.startsAt.getTime() + 30 * 60 * 1000,
+    );
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'p50-fam-2',
+        fromPhone: FAMILY_PHONE,
+        body: 'نعم',
+        receivedAt: new Date(),
+      },
+    });
+    const byId = new Map(state.appointments.map((a) => [a.id, a.status]));
+    expect(byId.get('appt-b')).toBe(AppointmentStatus.CONFIRMED);
+    expect(byId.get('appt-a')).toBe(AppointmentStatus.SCHEDULED);
+  });
+});
 
 describe('P49 — conversation bookkeeping on inbound', () => {
   beforeEach(() => {

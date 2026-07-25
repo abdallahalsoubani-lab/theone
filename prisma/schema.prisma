@@ -315,10 +315,14 @@ enum HomeProgramStatus {
 // ═════════════════════════════════════════════════════════════════════════════
 
 model User {
-  id           String       @id @default(cuid())
-  email        String?
-  phone        String
-  role         UserRole
+  id    String  @id @default(cuid())
+  email String?
+  // Optional since Prompt 50: imported real-clinic patients may have no
+  // (working) phone. Uniqueness is a partial index scoped to NON-patient
+  // roles (see migration 20260726*) — parents legitimately share one number
+  // across children. Staff/admin keep app-level required + unique.
+  phone String?
+  role  UserRole
   fullNameEn   String
   fullNameAr   String
   languagePref LanguagePref @default(EN)

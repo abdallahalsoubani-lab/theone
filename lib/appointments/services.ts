@@ -49,6 +49,7 @@ import type {
 } from './schemas';
 import { selectSeriesOccurrences, type SeriesOccurrenceRow } from './series';
 import { canTransition, permissionForTransition, STATUS_ERRORS } from './status';
+import { patientDisplayName } from '@/lib/format/patientName';
 
 export class AppointmentError extends Error {
   constructor(public readonly error: LocalizedError) {
@@ -321,13 +322,17 @@ export const createAppointment = withAudit<
             : null,
         ])
       : [null, null];
-    if (input.patientId && patient && therapist && patient.whatsappReachable) {
+    if (input.patientId && patient && therapist && patient.whatsappReachable && patient.phone) {
       const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
       // Clinic wall-clock, not UTC — the patient reads this string (Prompt 31).
       const tz = await getClinicTimeZone();
       const dateStr = clinicDateKey(appointment.startsAt, tz);
       const timeStr = clinicHm(appointment.startsAt, tz);
-      const patientName = patient.languagePref === 'AR' ? patient.fullNameAr : patient.fullNameEn;
+      const patientName = patientDisplayName(
+        patient.fullNameEn,
+        patient.fullNameAr,
+        patient.languagePref === 'AR' ? 'ar' : 'en',
+      );
       const therapistName =
         patient.languagePref === 'AR' ? therapist.fullNameAr : therapist.fullNameEn;
       void enqueueWhatsappOutbound({
@@ -783,7 +788,7 @@ export const cancelAppointment = withAudit<
     // template's three placeholders are date, time, and reason — we
     // pass the localized category label as the reason. Best-effort
     // fan-out: failures log + continue so cancel still succeeds.
-    if (input.notifyPatient && existing.patient?.whatsappReachable) {
+    if (input.notifyPatient && existing.patient?.whatsappReachable && existing.patient.phone) {
       const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
       const tz = await getClinicTimeZone();
       const dateStr = clinicDateKey(existing.startsAt, tz);
@@ -941,7 +946,7 @@ export const cancelAppointmentSeries = withAudit<
       const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
       const tz = await getClinicTimeZone();
       for (const row of enriched) {
-        if (!row.patient?.whatsappReachable) continue;
+        if (!row.patient?.whatsappReachable || !row.patient.phone) continue;
         const dateStr = clinicDateKey(row.startsAt, tz);
         const timeStr = clinicHm(row.startsAt, tz);
         void enqueueWhatsappOutbound({

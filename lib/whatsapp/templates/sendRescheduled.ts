@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 
 import { appointmentVarContext, buildParamsFromShape, resolveTemplateShape } from './variables';
+import { patientDisplayName } from '@/lib/format/patientName';
 
 const TEMPLATE_NAME = 'appointment_rescheduled';
 
@@ -74,7 +75,7 @@ export async function sendAppointmentRescheduled(args: { appointmentId: string }
   for (const p of recipients) {
     if (!p.whatsappReachable || !p.phone) continue;
     const isAr = p.languagePref === 'AR';
-    const patientName = isAr ? p.fullNameAr : p.fullNameEn;
+    const patientName = patientDisplayName(p.fullNameEn, p.fullNameAr, isAr ? 'ar' : 'en');
     const clinician = firstTherapist
       ? isAr
         ? firstTherapist.fullNameAr

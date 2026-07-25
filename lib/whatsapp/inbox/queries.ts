@@ -114,6 +114,12 @@ export interface ThreadMessage {
   sentByName: string | null;
 }
 
+export interface ThreadPatient {
+  id: string;
+  fullNameEn: string;
+  fullNameAr: string;
+}
+
 export interface ThreadView {
   conversation: {
     id: string;
@@ -125,6 +131,9 @@ export interface ThreadView {
     /** Free-text send allowed until this instant (null = never opened). */
     windowClosesAt: Date | null;
   };
+  /** P50: a shared family number maps to SEVERAL patients — the header
+   *  shows every registered patient on this phone as a chip/link. */
+  patients: ThreadPatient[];
   messages: ThreadMessage[];
   /** Context strip: the patient's next upcoming appointment (cheap query). */
   nextAppointment: { startsAt: Date; therapistNameEn: string; therapistNameAr: string } | null;
@@ -145,6 +154,12 @@ export async function getThread(conversationId: string): Promise<ThreadView | nu
     include: { patient: { select: { fullNameEn: true, fullNameAr: true } } },
   });
   if (!c) return null;
+
+  const patients = await db.user.findMany({
+    where: { phone: c.phone, role: 'PATIENT', deletedAt: null },
+    select: { id: true, fullNameEn: true, fullNameAr: true },
+    orderBy: { createdAt: 'asc' },
+  });
 
   const rows = await db.whatsAppMessage.findMany({
     where: { recipientPhone: c.phone },
@@ -202,6 +217,7 @@ export async function getThread(conversationId: string): Promise<ThreadView | nu
       lastInboundAt: c.lastInboundAt,
       windowClosesAt: windowClosesAt(c.lastInboundAt),
     },
+    patients,
     messages: rows.map((m) => ({
       id: m.id,
       direction: m.direction,

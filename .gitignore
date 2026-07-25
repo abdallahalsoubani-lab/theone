@@ -54,3 +54,6 @@ next-env.d.ts
 postgres_data/
 redis_data/
 minio_data/
+
+import-data/
+staff-credentials-*.txt

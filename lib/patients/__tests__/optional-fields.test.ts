@@ -41,10 +41,29 @@ describe('patientCreateSchema — optional Arabic name + address', () => {
     }
   });
 
-  it('still REQUIRES the English name', () => {
-    expect(patientCreateSchema.safeParse({ ...base, fullNameEn: '' }).success).toBe(false);
-    expect(patientCreateSchema.safeParse({ ...base, fullNameEn: 'ab' }).success).toBe(false);
+  // P50 reversal: EN alone, AR alone — either is enough; neither is not.
+  it('accepts an ARABIC-ONLY patient (the real clinic records)', () => {
+    const { fullNameEn: _omit, ...noEn } = base;
+    const r = patientCreateSchema.safeParse({ ...noEn, fullNameAr: 'سارة خليل' });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.fullNameEn).toBe('');
+  });
+
+  it('rejects a patient with NEITHER name', () => {
     const { fullNameEn: _omit, ...noEn } = base;
     expect(patientCreateSchema.safeParse(noEn).success).toBe(false);
+    expect(patientCreateSchema.safeParse({ ...noEn, fullNameAr: '  ' }).success).toBe(false);
+  });
+
+  it('phone is optional and empty-string normalizes to null (P50)', () => {
+    const { phone: _p, ...noPhone } = base;
+    const r1 = patientCreateSchema.safeParse(noPhone);
+    expect(r1.success).toBe(true);
+    if (r1.success) expect(r1.data.phone).toBeNull();
+    const r2 = patientCreateSchema.safeParse({ ...base, phone: '' });
+    expect(r2.success).toBe(true);
+    if (r2.success) expect(r2.data.phone).toBeNull();
+    // A malformed phone is still rejected when provided.
+    expect(patientCreateSchema.safeParse({ ...base, phone: '0791234' }).success).toBe(false);
   });
 });

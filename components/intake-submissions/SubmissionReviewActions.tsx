@@ -17,7 +17,7 @@ import {
 interface Duplicate {
   patientId: string;
   name: string;
-  phone: string;
+  phone: string | null;
 }
 
 interface Props {

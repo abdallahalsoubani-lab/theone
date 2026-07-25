@@ -1,17 +1,18 @@
 /**
- * Patient display name with an Arabic→English fallback (July change request
- * #10). The Arabic name is optional: when it is empty and the UI is in Arabic,
- * fall back to the English name so a patient never renders as a blank label on
- * the calendar, arrivals board, lobby display, lists, or detail views.
- *
- * English is always required, so it is a safe fallback. In the English UI we
- * always show the English name.
+ * Patient display name with a BIDIRECTIONAL fallback (Prompt 50 — replaces
+ * the P25 "English required" rule): a patient carries at least ONE of the
+ * two names, either alone is valid. The Arabic UI prefers the Arabic name
+ * and falls back to English; the English UI prefers English and falls back
+ * to Arabic — a patient never renders as a blank label on the calendar,
+ * arrivals board, lobby display, lists, PDFs, or WhatsApp variables.
  */
 export function patientDisplayName(
-  nameEn: string,
+  nameEn: string | null | undefined,
   nameAr: string | null | undefined,
   locale: string,
 ): string {
-  if (locale === 'ar') return nameAr?.trim() || nameEn;
-  return nameEn;
+  const en = nameEn?.trim() ?? '';
+  const ar = nameAr?.trim() ?? '';
+  if (locale === 'ar') return ar || en;
+  return en || ar;
 }

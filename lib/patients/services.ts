@@ -16,12 +16,6 @@ export class PatientAdminError extends Error {
   }
 }
 
-const duplicatePhone: LocalizedError = {
-  code: 'PATIENT_DUPLICATE_PHONE',
-  message_en: 'A patient with this phone number already exists.',
-  message_ar: 'يوجد مراجع بنفس رقم الهاتف.',
-};
-
 const duplicateEmail: LocalizedError = {
   code: 'PATIENT_DUPLICATE_EMAIL',
   message_en: 'A patient with this email already exists.',
@@ -57,19 +51,15 @@ export const createPatient = withAudit<[PatientCreateInput, string], CreatePatie
     input: PatientCreateInput,
     actorId: string,
   ): Promise<CreatePatientResult> {
-    // Pre-check identifier uniqueness scoped to non-deleted rows for friendly errors.
-    const conflicts = await db.user.findMany({
-      where: {
-        deletedAt: null,
-        OR: [{ phone: input.phone }, ...(input.email ? [{ email: input.email }] : [])],
-      },
-      select: { phone: true, email: true },
-    });
-    for (const c of conflicts) {
-      if (c.phone === input.phone) throw new PatientAdminError(duplicatePhone);
-      if (input.email && c.email === input.email) {
-        throw new PatientAdminError(duplicateEmail);
-      }
+    // P50: phone uniqueness for patients is REMOVED (parents share one
+    // number across children) and phone itself is optional. Only email
+    // stays unique among non-deleted users.
+    if (input.email) {
+      const conflict = await db.user.findFirst({
+        where: { deletedAt: null, email: input.email },
+        select: { id: true },
+      });
+      if (conflict) throw new PatientAdminError(duplicateEmail);
     }
 
     const tempPassword = generateTempPassword();
@@ -79,7 +69,7 @@ export const createPatient = withAudit<[PatientCreateInput, string], CreatePatie
       const user = await tx.user.create({
         data: {
           email: input.email,
-          phone: input.phone,
+          phone: input.phone || null,
           role: UserRole.PATIENT,
           fullNameEn: input.fullNameEn,
           fullNameAr: input.fullNameAr,
@@ -121,9 +111,12 @@ export const createPatient = withAudit<[PatientCreateInput, string], CreatePatie
     // and surfaces eventual failures via the Secretary inbox + patient
     // profile reachability badge. SENT here means "we handed it off
     // cleanly to the outbound queue", not "the patient received it".
+    // P50: no phone → no WhatsApp credentials AND no portal login (the
+    // username is the phone). Skip cleanly; the clinic fills phones later.
     let whatsappStatus: 'SENT' | 'FAILED' = 'SENT';
     let whatsappError: string | undefined;
     try {
+      if (!patient.phone) throw new Error('PATIENT_HAS_NO_PHONE');
       await sendPatientCredentials({
         recipientUserId: patient.id,
         recipientPhone: patient.phone,
@@ -163,22 +156,14 @@ export const updatePatient = withAudit<[PatientUpdateInput], { patientId: string
     });
     if (!target) throw new PatientAdminError(notFound);
 
-    // Re-validate uniqueness on phone/email if either changed.
-    if (target.phone !== input.phone || target.email !== input.email) {
+    // P50: only email uniqueness is re-validated — patient phones may be
+    // shared (family number) or absent.
+    if (input.email && target.email !== input.email) {
       const conflict = await db.user.findFirst({
-        where: {
-          id: { not: input.id },
-          deletedAt: null,
-          OR: [{ phone: input.phone }, ...(input.email ? [{ email: input.email }] : [])],
-        },
-        select: { phone: true, email: true },
+        where: { id: { not: input.id }, deletedAt: null, email: input.email },
+        select: { id: true },
       });
-      if (conflict) {
-        if (conflict.phone === input.phone) throw new PatientAdminError(duplicatePhone);
-        if (input.email && conflict.email === input.email) {
-          throw new PatientAdminError(duplicateEmail);
-        }
-      }
+      if (conflict) throw new PatientAdminError(duplicateEmail);
     }
 
     // Care-team membership is managed separately via the live care-team card
@@ -190,7 +175,7 @@ export const updatePatient = withAudit<[PatientUpdateInput], { patientId: string
           fullNameEn: input.fullNameEn,
           fullNameAr: input.fullNameAr,
           email: input.email,
-          phone: input.phone,
+          phone: input.phone || null,
           languagePref: input.languagePref,
         },
       });
@@ -288,6 +273,7 @@ export const resetPatientPassword = withAudit<[string], ResetPasswordResult>(
 
     let whatsappStatus: 'SENT' | 'FAILED' = 'SENT';
     try {
+      if (!patient.phone) throw new Error('PATIENT_HAS_NO_PHONE');
       await sendPatientCredentials({
         recipientUserId: patient.id,
         recipientPhone: patient.phone,

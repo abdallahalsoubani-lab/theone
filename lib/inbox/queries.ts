@@ -19,7 +19,7 @@ export interface InboxListRow {
   note: string | null;
   appointmentId: string | null;
   messageId: string | null;
-  patient: { id: string; fullNameEn: string; fullNameAr: string; phone: string } | null;
+  patient: { id: string; fullNameEn: string; fullNameAr: string; phone: string | null } | null;
   appointment: { id: string; startsAt: Date; status: string } | null;
   message: { id: string; body: string; direction: string; sentAt: Date } | null;
 }

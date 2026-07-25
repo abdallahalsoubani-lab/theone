@@ -16,7 +16,16 @@ export const userCreateSchema = z.object({
   fullNameEn: z.string().min(2).max(120),
   fullNameAr: z.string().min(2).max(120),
   email: z.string().email().max(255),
-  phone: z.string().regex(/^\+9627\d{8}$/, 'phoneJordan'),
+  // P50: staff phone is OPTIONAL (the real-clinic employee records carry
+  // none — the admin fills them later). When present it stays unique among
+  // staff via the partial index User_phone_unique_active_staff.
+  phone: z
+    .string()
+    .regex(/^\+9627\d{8}$/, 'phoneJordan')
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => v || null)
+    .nullable(),
   role: z.enum(STAFF_ROLES),
   languagePref: z.nativeEnum(LanguagePref).default(LanguagePref.AR),
   specialtyIds: z.array(z.string().min(1)).default([]),

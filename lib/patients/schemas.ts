@@ -9,14 +9,39 @@ import { z } from 'zod';
  * enforced by the partial unique index from Prompt 2 plus an explicit
  * pre-check in `services.ts` for friendlier error messages.
  */
-export const patientCreateSchema = z.object({
-  fullNameEn: z.string().min(3).max(120),
-  // Arabic name is optional (July change request #10). Stored as '' when
-  // omitted; the UI falls back to the English name via patientDisplayName().
-  // Kept as a plain string (not nullable) so the shared User.fullNameAr column
-  // stays NOT NULL and staff/patient name reads don't become `string | null`.
-  fullNameAr: z.string().max(120).optional().default(''),
-  phone: z.string().regex(/^\+9627\d{8}$/, 'phoneJordan'),
+/** Cross-field P50 name rule, applied to both create and update below. */
+const atLeastOneName = {
+  check: (v: { fullNameEn: string; fullNameAr: string }) =>
+    v.fullNameEn.length > 0 || v.fullNameAr.length > 0,
+  params: { message: 'nameRequired', path: ['fullNameAr'] as (string | number)[] },
+};
+
+const patientBaseSchema = z.object({
+  // P50 name rule: at least ONE of the two names is required — either alone
+  // is valid (the real clinic's records are Arabic-only). Both stored as ''
+  // when omitted so the NOT NULL columns and non-nullable reads stay intact.
+  // The cross-field check is the .refine() on the exported schemas.
+  fullNameEn: z
+    .string()
+    .max(120)
+    .optional()
+    .default('')
+    .transform((v) => v.trim()),
+  fullNameAr: z
+    .string()
+    .max(120)
+    .optional()
+    .default('')
+    .transform((v) => v.trim()),
+  // P50: phone optional (imported records with broken numbers have none) and
+  // NOT unique for patients (families share one number). '' → null.
+  phone: z
+    .string()
+    .regex(/^\+9627\d{8}$/, 'phoneJordan')
+    .optional()
+    .or(z.literal(''))
+    .transform((v) => v || null)
+    .nullable(),
   email: z
     .string()
     .email()
@@ -57,9 +82,16 @@ export const patientCreateSchema = z.object({
   doctorIds: z.array(z.string()).optional(),
 });
 
-export const patientUpdateSchema = patientCreateSchema.extend({
-  id: z.string().min(1),
-});
+export const patientCreateSchema = patientBaseSchema.refine(
+  atLeastOneName.check,
+  atLeastOneName.params,
+);
+
+export const patientUpdateSchema = patientBaseSchema
+  .extend({
+    id: z.string().min(1),
+  })
+  .refine(atLeastOneName.check, atLeastOneName.params);
 
 /**
  * Patient self-edit (Prompt 6 §4.7). Narrow subset — name, DOB, gender,

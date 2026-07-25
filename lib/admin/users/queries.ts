@@ -9,7 +9,7 @@ export interface UserListRow {
   fullNameEn: string;
   fullNameAr: string;
   email: string | null;
-  phone: string;
+  phone: string | null;
   role: UserRole;
   archived: boolean;
   specialties: { id: string; nameEn: string; nameAr: string }[];

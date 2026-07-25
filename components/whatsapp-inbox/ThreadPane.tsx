@@ -83,9 +83,8 @@ export function ThreadPane({
 
   const windowOpen = c.windowClosesAt !== null && c.windowClosesAt.getTime() > Date.now();
 
-  const headerName = c.patientId
-    ? patientDisplayName(c.patientFullNameEn ?? '', c.patientFullNameAr, locale)
-    : t('unknownNumber');
+  // P50: shared family numbers — every registered patient on this phone.
+  const knownPatients = thread.patients;
 
   const buttonTapLabel = (m: ThreadMessage): string | null => {
     if (m.direction !== 'INBOUND' || !m.buttonPayload) return null;
@@ -138,15 +137,23 @@ export function ThreadPane({
     <>
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-border px-4 py-2.5">
         <div className="min-w-0">
-          {c.patientId ? (
-            <Link
-              href={`/${locale}${patientProfileHref(viewerRole, c.patientId)}`}
-              className="truncate text-sm font-semibold text-brand-navy hover:text-brand-cyan"
-            >
-              {headerName}
-            </Link>
+          {knownPatients.length > 0 ? (
+            <span className="flex flex-wrap items-center gap-1.5">
+              {knownPatients.length > 1 ? (
+                <span className="text-xs text-brand-textMuted">{t('patientsOnNumber')}:</span>
+              ) : null}
+              {knownPatients.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/${locale}${patientProfileHref(viewerRole, p.id)}`}
+                  className="rounded-full bg-brand-cyan/10 px-2 py-0.5 text-sm font-semibold text-brand-navy hover:bg-brand-cyan/20 hover:text-brand-cyan"
+                >
+                  {patientDisplayName(p.fullNameEn, p.fullNameAr, locale)}
+                </Link>
+              ))}
+            </span>
           ) : (
-            <span className="text-sm font-semibold text-brand-navy">{headerName}</span>
+            <span className="text-sm font-semibold text-brand-navy">{t('unknownNumber')}</span>
           )}
           <p className="font-mono text-xs text-brand-textMuted" dir="ltr">
             &lrm;{formatPhone(c.phone)}
@@ -162,7 +169,7 @@ export function ThreadPane({
               {t('windowClosed')}
             </Badge>
           )}
-          {!c.patientId ? (
+          {knownPatients.length === 0 ? (
             <Button type="button" size="sm" variant="outline" onClick={() => setLinkOpen(true)}>
               <Link2 className="me-1 size-3.5" aria-hidden />
               {t('linkToPatient')}

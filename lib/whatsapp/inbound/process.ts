@@ -13,6 +13,7 @@ import { getClinicTimeZone } from '@/lib/time/clinic-server';
 
 import { parseIntentWithButtons } from './parser';
 import type { WebhookEvent } from '../provider';
+import { patientDisplayName } from '@/lib/format/patientName';
 
 /**
  * Shared inbound webhook event processor. Wired from both
@@ -75,30 +76,35 @@ interface ReplyTargets {
  *   4. expand to the back-to-back run (zero-gap) containing the target.
  */
 async function resolveReplyTargets(args: { fromPhone: string }): Promise<ReplyTargets> {
-  const user = await db.user.findFirst({
+  // P50: a phone may belong to SEVERAL patients (a parent's number shared
+  // across children), so the reply resolves across ALL of them — the target
+  // is the nearest upcoming appointment that actually had a reminder sent,
+  // searched over every patient on the number.
+  const users = await db.user.findMany({
     where: { phone: args.fromPhone, deletedAt: null },
     select: { id: true, languagePref: true, fullNameEn: true, fullNameAr: true },
   });
+  const first = users[0];
   const base: ReplyTargets = {
-    recipientId: user?.id ?? null,
-    language: user?.languagePref === 'AR' ? 'AR' : 'EN',
-    patientNameEn: user?.fullNameEn ?? '',
-    patientNameAr: user?.fullNameAr ?? '',
+    recipientId: users.length === 1 ? first!.id : null,
+    language: first?.languagePref === 'AR' ? 'AR' : 'EN',
+    patientNameEn: first?.fullNameEn ?? '',
+    patientNameAr: first?.fullNameAr ?? '',
     appointmentId: null,
     runAppointmentIds: [],
   };
-  if (!user) return base;
+  if (users.length === 0) return base;
 
   const now = new Date();
   const upcoming = await db.appointment.findMany({
     where: {
-      patientId: user.id,
+      patientId: { in: users.map((u) => u.id) },
       status: { in: [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED] },
       startsAt: { gte: new Date(now.getTime() - 12 * 60 * 60 * 1000) },
     },
     orderBy: { startsAt: 'asc' },
-    select: { id: true, startsAt: true, durationMinutes: true },
-    take: 20,
+    select: { id: true, startsAt: true, durationMinutes: true, patientId: true },
+    take: 40,
   });
   const actionable = upcoming.filter(
     (a) => a.startsAt.getTime() + a.durationMinutes * 60_000 > now.getTime(),
@@ -119,7 +125,9 @@ async function resolveReplyTargets(args: { fromPhone: string }): Promise<ReplyTa
     return { ...base, appointmentId: recentOutbound?.appointmentId ?? null };
   }
 
-  // Prefer the nearest appointment that had a reminder actually sent.
+  // Prefer the nearest appointment that had a reminder actually sent —
+  // across the whole family; the 48b reminder→appointmentId linkage is what
+  // disambiguates WHICH child the reply concerns.
   const reminded = await db.whatsAppMessage.findMany({
     where: {
       direction: 'OUTBOUND',
@@ -130,13 +138,20 @@ async function resolveReplyTargets(args: { fromPhone: string }): Promise<ReplyTa
   });
   const remindedIds = new Set(reminded.map((m) => m.appointmentId));
   const target = actionable.find((a) => remindedIds.has(a.id)) ?? actionable[0]!;
+  const owner = users.find((u) => u.id === target.patientId) ?? first!;
 
-  // The reply covers the whole zero-gap run around the target (P27 mirror).
-  const runs = groupAdjacentAppointments(actionable);
+  // The reply covers the whole zero-gap run around the target (P27 mirror)
+  // — scoped to the SAME patient: a sibling's adjacent booking is a separate
+  // confirmation, never swept up by this one (48b same-patient semantics).
+  const ownAppointments = actionable.filter((a) => a.patientId === target.patientId);
+  const runs = groupAdjacentAppointments(ownAppointments);
   const run = runs.find((r) => r.some((a) => a.id === target.id)) ?? [target];
 
   return {
-    ...base,
+    recipientId: owner.id,
+    language: owner.languagePref === 'AR' ? 'AR' : 'EN',
+    patientNameEn: owner.fullNameEn,
+    patientNameAr: owner.fullNameAr,
     appointmentId: target.id,
     runAppointmentIds: run.map((a) => a.id),
   };
@@ -346,7 +361,7 @@ async function handleConfirm(args: {
   // when a human replied within the last hour (the human owns the thread).
   if (args.ackSuppressed) return;
   const isAr = targets.language === 'AR';
-  const name = isAr ? targets.patientNameAr : targets.patientNameEn;
+  const name = patientDisplayName(targets.patientNameEn, targets.patientNameAr, isAr ? 'ar' : 'en');
   await enqueueWhatsappOutbound({
     kind: 'text',
     body: isAr

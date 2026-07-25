@@ -121,7 +121,8 @@
     "unique": "This value is already in use.",
     "atLeastOne": "At least one item is required.",
     "openBeforeClose": "Open time must be before close time.",
-    "atLeastTwoOptions": "Add at least two options."
+    "atLeastTwoOptions": "Add at least two options.",
+    "nameRequired": "At least one name (Arabic or English) is required."
   },
   "admin": {
     "navTitle": "Admin",
@@ -1829,6 +1830,7 @@
     "linkConfirmText": "This will set {name}’s phone number to {phone} and attach this conversation to their file.",
     "linkConfirm": "Link and update phone",
     "linkDone": "Conversation linked to the patient.",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "patientsOnNumber": "Patients on this number"
   }
 }

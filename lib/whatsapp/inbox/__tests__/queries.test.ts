@@ -6,10 +6,17 @@ vi.mock('@/lib/db', () => {
     conversations: [] as Array<Record<string, unknown>>,
     messages: [] as Array<Record<string, unknown>>,
     appointments: [] as Array<Record<string, unknown>>,
+    users: [] as Array<Record<string, unknown>>,
   };
   return {
     __state: state,
     db: {
+      user: {
+        // P50 — getThread's "all patients on this phone" lookup.
+        findMany: vi.fn(async ({ where }: { where: { phone: string } }) =>
+          state.users.filter((u) => u.phone === where.phone && u.role === 'PATIENT'),
+        ),
+      },
       whatsAppConversation: {
         findMany: vi.fn(async ({ where }: { where?: Record<string, unknown> } = {}) => {
           let rows = [...state.conversations];
@@ -63,6 +70,7 @@ type State = {
   conversations: Array<Record<string, unknown>>;
   messages: Array<Record<string, unknown>>;
   appointments: Array<Record<string, unknown>>;
+  users: Array<Record<string, unknown>>;
 };
 const state = (dbModule as unknown as { __state: State }).__state;
 
@@ -70,6 +78,7 @@ function reset(): void {
   state.conversations.length = 0;
   state.messages.length = 0;
   state.appointments.length = 0;
+  state.users.length = 0;
 }
 
 function conv(over: Record<string, unknown> = {}): Record<string, unknown> {
@@ -280,6 +289,18 @@ describe('getThread — derivation from WhatsAppMessage by phone', () => {
   it('unknown conversation id → null', async () => {
     reset();
     expect(await getThread('nope')).toBeNull();
+  });
+
+  it('P50: a shared family number lists EVERY patient on it in the thread header', async () => {
+    reset();
+    state.conversations.push(conv());
+    state.users.push(
+      { id: 'p1', phone: '+962790000001', role: 'PATIENT', fullNameEn: '', fullNameAr: 'ليان' },
+      { id: 'p2', phone: '+962790000001', role: 'PATIENT', fullNameEn: '', fullNameAr: 'قيس' },
+      { id: 'other', phone: '+962790000009', role: 'PATIENT', fullNameEn: 'X', fullNameAr: '' },
+    );
+    const thread = await getThread('c1');
+    expect(thread!.patients.map((p) => p.id)).toEqual(['p1', 'p2']);
   });
 });
 

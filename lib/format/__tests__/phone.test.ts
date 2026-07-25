@@ -31,9 +31,11 @@ describe('formatPhone', () => {
     expect(formatPhone('+1 555 555 5555')).toBe(`${LRM}+1 555 555 5555${LRM}`);
   });
 
-  it('wraps even an empty / whitespace-only string without crashing', () => {
-    expect(formatPhone('')).toBe(`${LRM}${LRM}`);
-    expect(formatPhone('   ')).toBe(`${LRM}${LRM}`);
+  it('renders the em-dash placeholder for missing phones (P50 — phone is optional)', () => {
+    expect(formatPhone('')).toBe('—');
+    expect(formatPhone('   ')).toBe('—');
+    expect(formatPhone(null)).toBe('—');
+    expect(formatPhone(undefined)).toBe('—');
   });
 });
 

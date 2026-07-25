@@ -12,7 +12,13 @@ export default defineConfig({
     // on an Amman-configured dev machine. The pnpm scripts also set TZ=UTC;
     // this covers direct `vitest` invocations too.
     env: { TZ: 'UTC' },
-    include: ['lib/**/*.test.ts', 'app/**/*.test.ts', 'components/**/*.test.ts'],
+    include: [
+      'lib/**/*.test.ts',
+      'app/**/*.test.ts',
+      'components/**/*.test.ts',
+      'workers/**/*.test.ts',
+      'scripts/**/*.test.ts',
+    ],
     exclude: ['node_modules', '.next', 'prisma', 'tests/e2e/**'],
   },
   resolve: {

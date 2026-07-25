@@ -58,7 +58,9 @@ export const createUser = withAudit<[UserCreateInput], CreateUserResult>(
     const conflict = await db.user.findFirst({
       where: {
         deletedAt: null,
-        OR: [{ email }, { phone: input.phone }],
+        // P50: phone may be null — a null clause would match every
+        // phone-less row, so it only participates when present.
+        OR: [{ email }, ...(input.phone ? [{ phone: input.phone }] : [])],
       },
       select: { id: true },
     });
@@ -126,7 +128,7 @@ export const updateUser = withAudit<[UserUpdateInput], { userId: string }>(
       where: {
         id: { not: input.id },
         deletedAt: null,
-        OR: [{ email }, { phone: input.phone }],
+        OR: [{ email }, ...(input.phone ? [{ phone: input.phone }] : [])],
       },
       select: { id: true },
     });

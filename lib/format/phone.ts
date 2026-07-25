@@ -47,7 +47,10 @@ export function normalizeJordanPhone(input: string): string | null {
   return `+962${national}`;
 }
 
-export function formatPhone(input: string): string {
+export function formatPhone(input: string | null | undefined): string {
+  // P50: patient phone is optional — every display surface renders the
+  // shared em-dash placeholder rather than crashing or showing blank.
+  if (!input || !input.trim()) return '—';
   const digits = input.replace(/\D+/g, '');
 
   // Normalise to a country-code-led 12-digit Jordanian mobile string.
