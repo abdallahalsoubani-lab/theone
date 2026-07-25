@@ -1,15 +1,30 @@
-import { useTranslations } from 'next-intl';
+'use client';
 
+import { CalendarClock } from 'lucide-react';
+import { useTranslations } from 'next-intl';
+import { useState } from 'react';
+
+import {
+  RescheduleAppointmentModal,
+  type RescheduleTarget,
+} from '@/components/appointments/RescheduleAppointmentModal';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import type { PatientFileAppointment } from '@/lib/appointments/queries';
 import { formatDate, formatTime } from '@/lib/format/date';
 
 /**
- * Patient-file "Appointments" tab (Prompt 33 — NI-2). The tab trigger has
- * existed since Prompt 6 but its content was a never-replaced placeholder, so
- * every role saw an empty pane. Upcoming first (soonest first), then past
- * (newest first). Pure display: no phone, no links out of the viewer's
- * interface — safe for every role that can open the file.
+ * Patient-file "Appointments" tab (Prompt 33 — NI-2; reschedule action in
+ * Prompt 48). Upcoming first (soonest first), then past (newest first). No
+ * phone, no links out of the viewer's interface — safe for every role that
+ * can open the file.
+ *
+ * Reschedule control (Prompt 48): rows in the UPCOMING section that are
+ * still SCHEDULED/CONFIRMED get a "تعديل الموعد" action when the page passes
+ * `canReschedule` (secretary/admin/doctor — the P15 scheduling-parity roles;
+ * therapist pages don't pass it and stay read-only). Past rows are excluded
+ * by the time partition; cancelled/completed rows inside "upcoming" are
+ * excluded by status. One shared modal — identical funnel to the calendar.
  */
 
 const STATUS_KEY: Record<PatientFileAppointment['status'], string> = {
@@ -31,16 +46,27 @@ const TYPE_KEY: Record<string, string> = {
 export function PatientAppointmentsTab({
   appointments,
   locale,
+  patientId = null,
+  canReschedule = false,
   now = new Date(),
 }: {
   appointments: PatientFileAppointment[];
   locale: 'en' | 'ar';
+  /** The file's subject — feeds the reschedule modal's conflict preview. */
+  patientId?: string | null;
+  /** Secretary/Admin/Doctor pages pass true; therapist stays read-only. */
+  canReschedule?: boolean;
   /** Injected in tests; defaults to the render instant. */
   now?: Date;
 }) {
   const t = useTranslations('patients.appointmentsTab');
   const tStatus = useTranslations('appointments.status');
   const tForm = useTranslations('appointments.form');
+  const tActions = useTranslations('appointments.reschedule');
+  const [target, setTarget] = useState<RescheduleTarget | null>(null);
+
+  const reschedulable = (a: PatientFileAppointment) =>
+    canReschedule && (a.status === 'SCHEDULED' || a.status === 'CONFIRMED');
 
   const upcoming = appointments
     .filter((a) => a.startsAt.getTime() + a.durationMinutes * 60_000 >= now.getTime())
@@ -57,7 +83,7 @@ export function PatientAppointmentsTab({
     );
   }
 
-  const section = (heading: string, rows: PatientFileAppointment[]) =>
+  const section = (heading: string, rows: PatientFileAppointment[], withActions = false) =>
     rows.length === 0 ? null : (
       <section className="space-y-2">
         <h3 className="text-sm font-semibold text-brand-navy">{heading}</h3>
@@ -70,6 +96,7 @@ export function PatientAppointmentsTab({
                 <th className="p-2 text-start font-medium">{t('colTherapists')}</th>
                 <th className="p-2 text-start font-medium">{t('colRoom')}</th>
                 <th className="p-2 text-start font-medium">{t('colStatus')}</th>
+                {withActions && canReschedule ? <th className="p-2" /> : null}
               </tr>
             </thead>
             <tbody>
@@ -91,6 +118,30 @@ export function PatientAppointmentsTab({
                   <td className="p-2">
                     <Badge variant="outline">{tStatus(STATUS_KEY[a.status])}</Badge>
                   </td>
+                  {withActions && canReschedule ? (
+                    <td className="p-2 text-end">
+                      {reschedulable(a) ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setTarget({
+                              id: a.id,
+                              startsAt: a.startsAt,
+                              durationMinutes: a.durationMinutes,
+                              seriesId: a.seriesId,
+                              patientId,
+                              therapistIds: a.therapists.map((th) => th.id),
+                            })
+                          }
+                        >
+                          <CalendarClock className="me-1.5 size-3.5" />
+                          {tActions('action')}
+                        </Button>
+                      ) : null}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -101,8 +152,13 @@ export function PatientAppointmentsTab({
 
   return (
     <div className="space-y-6">
-      {section(t('upcomingHeading'), upcoming)}
+      {section(t('upcomingHeading'), upcoming, true)}
       {section(t('pastHeading'), past)}
+      <RescheduleAppointmentModal
+        open={target !== null}
+        target={target}
+        onClose={() => setTarget(null)}
+      />
     </div>
   );
 }

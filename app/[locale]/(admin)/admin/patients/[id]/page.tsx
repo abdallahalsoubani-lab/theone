@@ -78,6 +78,8 @@ export default async function AdminPatientFilePage({
         <PatientAppointmentsTab
           appointments={fileAppointments}
           locale={locale === 'ar' ? 'ar' : 'en'}
+          patientId={patient.id}
+          canReschedule
         />
       }
       activity={activity}

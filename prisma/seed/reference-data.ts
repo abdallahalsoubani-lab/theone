@@ -110,8 +110,11 @@ const WHATSAPP_TEMPLATES: ReadonlyArray<SeedTemplate> = (
     [
       'appointment_rescheduled',
       WaTemplateCategory.APPOINTMENT,
-      'Hi {{1}}, your appointment has been rescheduled to {{2}} at {{3}}. See you then.',
-      'مرحباً {{1}}، تم تعديل موعدك إلى تاريخ {{2}} الساعة {{3}}. بانتظارك.',
+      // Prompt 48: synced to the 4-variable body APPROVED on the Twilio WABA
+      // (P45 cutover finding — {{4}} = clinician was added at submission and
+      // adopted as canonical). sendRescheduled passes exactly this order.
+      'Hi {{1}}, your appointment has been rescheduled to {{2}} at {{3}} with {{4}}. See you soon.',
+      'مرحباً {{1}}، تم تغيير موعدك إلى {{2}} الساعة {{3}} مع {{4}}. نراك قريباً.',
       WaTemplateApprovalStatus.PENDING,
       true,
     ],

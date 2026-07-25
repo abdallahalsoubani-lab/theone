@@ -477,7 +477,17 @@
       "noShow": "Mark no-show",
       "changeTherapist": "Manage therapists",
       "edit": "Edit",
+      "reschedule": "Reschedule",
       "openInCalendar": "Open in calendar"
+    },
+    "reschedule": {
+      "title": "Reschedule appointment",
+      "subtitle": "Pick the new date and time — conflicts are checked exactly like a new booking.",
+      "newStart": "New date & time",
+      "duration": "Duration (minutes)",
+      "save": "Save new time",
+      "savedToast": "Appointment rescheduled.",
+      "action": "Reschedule"
     },
     "conflicts": {
       "title": "Conflicts detected",

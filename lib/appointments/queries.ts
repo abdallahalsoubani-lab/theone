@@ -257,6 +257,8 @@ export interface PatientFileAppointment {
   title: string | null;
   therapists: PersonRef[];
   roomName: string | null;
+  /** Prompt 48 — the file-row reschedule action needs the series scope. */
+  seriesId: string | null;
 }
 
 /**
@@ -282,6 +284,7 @@ export async function listAppointmentsForPatientFile(
       status: true,
       appointmentType: true,
       title: true,
+      seriesId: true,
       room: { select: { name: true } },
       therapists: {
         orderBy: { createdAt: 'asc' },
@@ -298,6 +301,7 @@ export async function listAppointmentsForPatientFile(
     title: r.title,
     therapists: r.therapists.map((t) => t.therapist),
     roomName: r.room?.name ?? null,
+    seriesId: r.seriesId,
   }));
 }
 

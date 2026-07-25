@@ -388,6 +388,10 @@ export const rescheduleAppointment = withAudit<
         status: true,
         appointmentType: true,
         roomId: true,
+        // Prompt 48: the reschedule message fires only on an ACTUAL start
+        // change — compare against the stored start (owner ruling: resizes
+        // and same-slot saves stay silent).
+        startsAt: true,
         // GROUP members — dragging a group re-checks every member's schedule
         // at the new time (R-22, Prompt 42).
         groupPatients: { select: { patientId: true } },
@@ -490,6 +494,20 @@ export const rescheduleAppointment = withAudit<
         appointmentId: input.id,
         startsAt: input.startsAt,
         durationMinutes,
+      });
+    }
+
+    // Prompt 48 — the reschedule message. Fires ONLY when the start actually
+    // moved (owner ruling: duration-only resizes and same-slot saves are
+    // silent). One shared funnel; identical from drag, calendar modal, and
+    // patient-file modal. Best-effort — a WhatsApp outage never breaks the
+    // reschedule.
+    const startChanged = !input.resize && existing.startsAt.getTime() !== input.startsAt.getTime();
+    if (startChanged) {
+      const { sendAppointmentRescheduled } =
+        await import('@/lib/whatsapp/templates/sendRescheduled');
+      void sendAppointmentRescheduled({ appointmentId: input.id }).catch((err: unknown) => {
+        console.error('[appointments.reschedule] notify failed', err);
       });
     }
 
@@ -1082,6 +1100,20 @@ export const rescheduleAppointmentSeries = withAudit<
         }),
       ),
     );
+
+    // Prompt 48 — reschedule message for the bulk path: ONE message about the
+    // explicitly-targeted occurrence, not one per moved occurrence (a
+    // FOLLOWING shift of a long series must not spam the patient with N
+    // near-identical messages — documented volume decision). Only when its
+    // start actually moved.
+    const movedTarget = planned.find((p) => p.occ.id === target.id);
+    if (movedTarget && movedTarget.newStartsAt.getTime() !== target.startsAt.getTime()) {
+      const { sendAppointmentRescheduled } =
+        await import('@/lib/whatsapp/templates/sendRescheduled');
+      void sendAppointmentRescheduled({ appointmentId: target.id }).catch((err: unknown) => {
+        console.error('[appointments.rescheduleSeries] notify failed', err);
+      });
+    }
 
     return { appointmentIds: ids, conflictsOverridden: false };
   },

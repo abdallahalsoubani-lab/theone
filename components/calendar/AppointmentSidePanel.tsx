@@ -258,16 +258,19 @@ export function AppointmentSidePanel({
               {tActions('changeTherapist')}
             </Button>
           ) : null}
-          {onEdit ? (
+          {/* Prompt 48 — precision reschedule (same states as the other
+              mutating actions; drag stays available alongside). */}
+          {onEdit &&
+          (status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED) ? (
             <Button
               type="button"
               className="w-full justify-start"
-              variant="ghost"
+              variant="outline"
               disabled={pending}
               onClick={onEdit}
             >
               <Pencil className="me-2 size-4" />
-              {tActions('edit')}
+              {tActions('reschedule')}
             </Button>
           ) : null}
         </div>

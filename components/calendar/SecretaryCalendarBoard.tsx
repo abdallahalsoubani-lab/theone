@@ -13,6 +13,7 @@ import {
 import { SecretaryCalendar } from '@/components/calendar/SecretaryCalendar';
 import { ChangeTherapistModal } from '@/components/appointments/ChangeTherapistModal';
 import { CreateAppointmentModal } from '@/components/appointments/CreateAppointmentModal';
+import { RescheduleAppointmentModal } from '@/components/appointments/RescheduleAppointmentModal';
 import { SeriesScopeConfirmDialog } from '@/components/appointments/SeriesScopeConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { rescheduleAppointmentAction } from '@/lib/appointments/actions';
@@ -99,6 +100,8 @@ export function SecretaryCalendarBoard({
 
   // Change-therapist modal (Prompt 7b §4.6).
   const [changeTherapistOpen, setChangeTherapistOpen] = useState(false);
+  // Prompt 48 — precision reschedule from the side panel (drag stays as-is).
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
 
   // Pending drag-reschedule needing series-scope confirmation
   // (Prompt 7b §4.7). When the dragged appointment is part of a series
@@ -287,6 +290,25 @@ export function SecretaryCalendarBoard({
         viewerRole={viewerRole}
         onClose={() => setPanelOpen(false)}
         onChangeTherapist={panelAppt ? () => setChangeTherapistOpen(true) : undefined}
+        onEdit={panelAppt ? () => setRescheduleOpen(true) : undefined}
+      />
+
+      <RescheduleAppointmentModal
+        open={rescheduleOpen}
+        onClose={() => setRescheduleOpen(false)}
+        canOverride={canOverride}
+        target={
+          panelAppt
+            ? {
+                id: panelAppt.id,
+                startsAt: panelAppt.startsAt,
+                durationMinutes: panelAppt.durationMinutes,
+                seriesId: panelAppt.seriesId,
+                patientId: panelAppt.patientId,
+                therapistIds: panelAppt.therapists.map((th) => th.id),
+              }
+            : null
+        }
       />
 
       <SeriesScopeConfirmDialog

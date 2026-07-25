@@ -28,6 +28,10 @@ vi.mock('@/lib/queue/jobs/autoCompleteSession', () => ({
   cancelAutoCompleteSession: vi.fn(),
 }));
 vi.mock('@/lib/patients/assignment', () => ({ addCareTeamMemberTx: vi.fn() }));
+// Prompt 48 — the reschedule message: assert fire/silence per path.
+vi.mock('@/lib/whatsapp/templates/sendRescheduled', () => ({
+  sendAppointmentRescheduled: vi.fn(async () => undefined),
+}));
 vi.mock('@/lib/waitlist/services', () => ({ notifyWaitlistForFreedSlot: vi.fn() }));
 vi.mock('@/lib/time/clinic-server', () => ({ getClinicTimeZone: vi.fn(async () => 'Asia/Amman') }));
 vi.mock('../conflicts', () => ({
@@ -62,6 +66,8 @@ vi.mock('@/lib/db', () => {
           appointmentType: 'SESSION',
           roomId: 'room-1',
           groupPatients: [],
+          // Prompt 48: the reschedule-message guard compares old vs new start.
+          startsAt: new Date('2030-01-07T08:00:00Z'),
         })),
       },
       appointmentTherapist: {
@@ -195,5 +201,45 @@ describe('dragReassignTherapistIds (cross-column rule — Prompt 20 #2 / Prompt 
     const { dragReassignTherapistIds } = await import('../drag');
     expect(dragReassignTherapistIds(['t1', 't2'], 't3')).toBeUndefined();
     expect(dragReassignTherapistIds(['t1', 't2'], 't1')).toBeUndefined();
+  });
+});
+
+describe('reschedule message firing (Prompt 48 — owner ruling)', () => {
+  it('fires ONCE when the start actually moves', async () => {
+    const { sendAppointmentRescheduled } = await import('@/lib/whatsapp/templates/sendRescheduled');
+    vi.mocked(sendAppointmentRescheduled).mockClear();
+    await rescheduleAppointment({
+      id: 'a1',
+      startsAt: FUTURE, // differs from the stored 2030-01-07T08:00Z
+      durationMinutes: 30,
+      overrideConflicts: false,
+    } as never);
+    expect(sendAppointmentRescheduled).toHaveBeenCalledTimes(1);
+    expect(sendAppointmentRescheduled).toHaveBeenCalledWith({ appointmentId: 'a1' });
+  });
+
+  it('does NOT fire on a duration-only resize (silent by ruling)', async () => {
+    const { sendAppointmentRescheduled } = await import('@/lib/whatsapp/templates/sendRescheduled');
+    vi.mocked(sendAppointmentRescheduled).mockClear();
+    await rescheduleAppointment({
+      id: 'a1',
+      startsAt: FUTURE,
+      durationMinutes: 60,
+      resize: true,
+      overrideConflicts: false,
+    } as never);
+    expect(sendAppointmentRescheduled).not.toHaveBeenCalled();
+  });
+
+  it('does NOT fire on a same-slot save (start unchanged)', async () => {
+    const { sendAppointmentRescheduled } = await import('@/lib/whatsapp/templates/sendRescheduled');
+    vi.mocked(sendAppointmentRescheduled).mockClear();
+    await rescheduleAppointment({
+      id: 'a1',
+      startsAt: new Date('2030-01-07T08:00:00Z'), // equals the stored start
+      durationMinutes: 45, // duration change without the resize flag
+      overrideConflicts: false,
+    } as never);
+    expect(sendAppointmentRescheduled).not.toHaveBeenCalled();
   });
 });
