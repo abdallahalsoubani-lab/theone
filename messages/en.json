@@ -926,7 +926,8 @@
     "waitlist": "Waitlist",
     "intakeSubmissions": "Intake requests",
     "clinicianSummary": "Clinician summary",
-    "confirmations": "Confirmations"
+    "confirmations": "Confirmations",
+    "waInbox": "WhatsApp"
   },
   "publicIntake": {
     "clinicName": "The One for Physiotherapy",
@@ -1802,5 +1803,32 @@
     "searchPlaceholder": "Search by name…",
     "noResults": "No results",
     "clearSearch": "Clear search"
+  },
+  "waInbox": {
+    "title": "WhatsApp Inbox",
+    "searchPlaceholder": "Search by name or number…",
+    "filter_all": "All",
+    "filter_unread": "Unread",
+    "filter_unknown": "Unknown numbers",
+    "emptyList": "No conversations yet.",
+    "unknownNumber": "Unknown number",
+    "unknownBadge": "Unknown",
+    "pickThread": "Select a conversation to read and reply.",
+    "windowOpenUntil": "Free reply open until {time}",
+    "windowClosed": "Reply window closed",
+    "windowClosedExplain": "The free-reply window has closed — the patient must message us first. It reopens for 24 hours after their next message.",
+    "composerPlaceholder": "Type a reply…",
+    "send": "Send",
+    "templateTag": "Template",
+    "buttonTapConfirm": "Tapped: Confirm attendance",
+    "buttonTapDecline": "Tapped: Can't confirm",
+    "nextAppointment": "Next appointment: {when} — {therapist}",
+    "linkToPatient": "Link to patient",
+    "linkDialogDescription": "Pick the patient this number belongs to. Their phone number on file will be UPDATED to this number (audited).",
+    "linkPickPatient": "Choose a patient…",
+    "linkConfirmText": "This will set {name}’s phone number to {phone} and attach this conversation to their file.",
+    "linkConfirm": "Link and update phone",
+    "linkDone": "Conversation linked to the patient.",
+    "cancel": "Cancel"
   }
 }

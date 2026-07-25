@@ -24,8 +24,15 @@ export interface StaffNavEntry {
     | 'inbox'
     | 'clipboardList'
     | 'clipboardCheck'
-    | 'dumbbell';
-  badge?: 'inbox' | 'waitlist' | 'intakeSubmissions' | 'homeProgramApprovals' | 'unconfirmed';
+    | 'dumbbell'
+    | 'messageCircle';
+  badge?:
+    | 'inbox'
+    | 'waitlist'
+    | 'intakeSubmissions'
+    | 'homeProgramApprovals'
+    | 'unconfirmed'
+    | 'waInbox';
 }
 
 export function staffNavEntries(role: UserRole): StaffNavEntry[] {
@@ -60,6 +67,15 @@ export function staffNavEntries(role: UserRole): StaffNavEntry[] {
         badge: 'intakeSubmissions',
       },
       { labelKey: 'navigation:inbox', href: '/secretary/inbox', icon: 'inbox', badge: 'inbox' },
+      // Prompt 49 — WhatsApp conversations (the clinic number is API-only, so
+      // this page IS the phone). Badge counts unread CONVERSATIONS, shared
+      // across all secretaries/admins.
+      {
+        labelKey: 'navigation:waInbox',
+        href: '/secretary/whatsapp',
+        icon: 'messageCircle',
+        badge: 'waInbox',
+      },
     ];
   }
   if (role === 'DOCTOR') {

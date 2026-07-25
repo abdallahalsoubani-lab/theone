@@ -53,11 +53,13 @@ async function persistAndFinalize(args: {
   result: SendResult;
 }): Promise<void> {
   const { job, template, result } = args;
+  const sentAt = new Date();
   await db.whatsAppMessage.create({
     data: {
       templateId: template?.id ?? null,
       recipientId: job.recipientUserId ?? null,
       recipientPhone: job.recipientPhone,
+      sentById: job.sentById ?? null,
       parameters: (job.parameters
         ? Object.fromEntries(job.parameters.map((v, i) => [String(i + 1), v]))
         : {}) as Prisma.InputJsonValue,
@@ -66,9 +68,22 @@ async function persistAndFinalize(args: {
       providerMessageId: result.providerMessageId,
       body: buildBodyPreview(job),
       appointmentId: job.appointmentId ?? null,
-      sentAt: new Date(),
+      sentAt,
     },
   });
+  // Prompt 49 — keep the conversation's ordering timestamp fresh on every
+  // outbound (create-if-missing so template sends to new numbers thread too).
+  await db.whatsAppConversation
+    .upsert({
+      where: { phone: job.recipientPhone },
+      update: { lastMessageAt: sentAt },
+      create: {
+        phone: job.recipientPhone,
+        patientId: job.recipientUserId ?? null,
+        lastMessageAt: sentAt,
+      },
+    })
+    .catch((err: unknown) => console.error('[whatsapp] conversation bump failed', err));
 
   if (job.recipientUserId && result.status !== 'FAILED') {
     // Successful delivery clears any prior reachability flag.

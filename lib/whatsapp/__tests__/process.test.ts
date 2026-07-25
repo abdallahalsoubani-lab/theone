@@ -47,6 +47,16 @@ vi.mock('@/lib/db', () => {
     inboxItems: [] as Array<Record<string, unknown>>,
     userUpdates: [] as Array<{ id: string; data: Record<string, unknown> }>,
     enqueuedOutbound: [] as Array<Record<string, unknown>>,
+    // Prompt 49 — thin conversation rows keyed by phone.
+    conversations: [] as Array<{
+      id: string;
+      phone: string;
+      patientId: string | null;
+      lastInboundAt: Date | null;
+      lastMessageAt: Date;
+      lastReadAt: Date | null;
+      lastHumanReplyAt: Date | null;
+    }>,
   };
   let inboundCounter = 0;
   return {
@@ -161,6 +171,36 @@ vi.mock('@/lib/db', () => {
           return data;
         }),
       },
+      whatsAppConversation: {
+        upsert: vi.fn(
+          async ({
+            where,
+            update,
+            create,
+          }: {
+            where: { phone: string };
+            update: Record<string, unknown>;
+            create: Record<string, unknown>;
+          }) => {
+            let row = state.conversations.find((c) => c.phone === where.phone);
+            if (row) {
+              Object.assign(row, update);
+            } else {
+              row = {
+                id: `conv-${state.conversations.length + 1}`,
+                phone: where.phone,
+                patientId: (create.patientId as string | null) ?? null,
+                lastInboundAt: (create.lastInboundAt as Date | null) ?? null,
+                lastMessageAt: create.lastMessageAt as Date,
+                lastReadAt: null,
+                lastHumanReplyAt: null,
+              };
+              state.conversations.push(row);
+            }
+            return { id: row.id, lastHumanReplyAt: row.lastHumanReplyAt };
+          },
+        ),
+      },
     },
   };
 });
@@ -231,6 +271,15 @@ type DbState = {
   inboxItems: Array<Record<string, unknown>>;
   userUpdates: Array<{ id: string; data: Record<string, unknown> }>;
   enqueuedOutbound: Array<Record<string, unknown>>;
+  conversations: Array<{
+    id: string;
+    phone: string;
+    patientId: string | null;
+    lastInboundAt: Date | null;
+    lastMessageAt: Date;
+    lastReadAt: Date | null;
+    lastHumanReplyAt: Date | null;
+  }>;
 };
 const state = (dbModule as unknown as { __state: DbState }).__state;
 const resetProcessed = (redisModule as unknown as { __resetProcessed: () => void })
@@ -246,6 +295,7 @@ function reset(): void {
   state.inboxItems.length = 0;
   state.userUpdates.length = 0;
   state.enqueuedOutbound.length = 0;
+  state.conversations.length = 0;
   resetProcessed();
 }
 
@@ -452,11 +502,10 @@ describe('processWebhookEvent — CANCEL_REQUEST', () => {
 describe('processWebhookEvent — UNKNOWN', () => {
   beforeEach(() => {
     reset();
-    // Registered patient — the soft generic goes to known numbers only.
     state.users.push({ id: 'patient-1', phone: '+962790000000', deletedAt: null });
   });
 
-  it('unregistered numbers stay silent (no generic)', async () => {
+  it('unregistered numbers stay silent (no auto-reply)', async () => {
     state.users.length = 0;
     await processWebhookEvent({
       kind: 'inbound',
@@ -470,7 +519,7 @@ describe('processWebhookEvent — UNKNOWN', () => {
     expect(state.enqueuedOutbound).toHaveLength(0);
   });
 
-  it('records the inbound row + inbox item, sends the SOFT GENERIC once, never the word confirmed (48b)', async () => {
+  it('P49: records the inbound row + inbox item with NO auto-reply — the 48b soft generic is removed', async () => {
     await processWebhookEvent({
       kind: 'inbound',
       message: {
@@ -482,13 +531,10 @@ describe('processWebhookEvent — UNKNOWN', () => {
     });
     expect(state.inboxItems[0]).toMatchObject({ type: 'INBOUND_UNKNOWN' });
     expect(state.appointmentUpdates).toHaveLength(0);
-    // Exactly one soft generic — and it must NOT claim confirmation
-    // (the old always-confirm bug regression guard).
-    expect(state.enqueuedOutbound).toHaveLength(1);
-    const body = String((state.enqueuedOutbound[0] as { body?: string }).body ?? '');
-    expect(body).not.toMatch(/confirm|تاكيد|تأكيد/i);
+    // The message lands UNREAD in the WhatsApp Inbox instead of getting a
+    // canned reply — a human answers now.
+    expect(state.enqueuedOutbound).toHaveLength(0);
 
-    // Second unrecognized message inside the 24h window → NO second generic.
     await processWebhookEvent({
       kind: 'inbound',
       message: {
@@ -498,7 +544,7 @@ describe('processWebhookEvent — UNKNOWN', () => {
         receivedAt: new Date(),
       },
     });
-    expect(state.enqueuedOutbound).toHaveLength(1);
+    expect(state.enqueuedOutbound).toHaveLength(0);
   });
 });
 
@@ -765,6 +811,135 @@ describe('48b — a confirm can never resurrect a terminal booking', () => {
     });
     expect(state.appointments[0]!.status).toBe(AppointmentStatus.CANCELLED);
     expect(state.appointmentUpdates).toHaveLength(0);
+    expect(state.enqueuedOutbound).toHaveLength(0);
+  });
+});
+
+// ─── Prompt 49 additions ────────────────────────────────────────────────────
+
+describe('P49 — conversation bookkeeping on inbound', () => {
+  beforeEach(() => {
+    reset();
+    state.users.push({ id: 'patient-1', phone: '+962790000000', deletedAt: null });
+  });
+
+  it('upserts the conversation row: lastInboundAt anchors the 24h window, patient linked by phone', async () => {
+    const receivedAt = new Date();
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'p49-conv-1',
+        fromPhone: '+962790000000',
+        body: 'مرحبا',
+        receivedAt,
+      },
+    });
+    expect(state.conversations).toHaveLength(1);
+    expect(state.conversations[0]).toMatchObject({
+      phone: '+962790000000',
+      patientId: 'patient-1',
+      lastInboundAt: receivedAt,
+      lastMessageAt: receivedAt,
+    });
+  });
+
+  it('unknown number → conversation row with patientId=null (the "Unknown numbers" section)', async () => {
+    state.users.length = 0;
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'p49-conv-2',
+        fromPhone: '+962799999999',
+        body: 'مرحبا',
+        receivedAt: new Date(),
+      },
+    });
+    expect(state.conversations[0]).toMatchObject({
+      phone: '+962799999999',
+      patientId: null,
+    });
+  });
+});
+
+describe('P49 — 1h ack suppression after a manual reply', () => {
+  beforeEach(() => {
+    reset();
+    state.users.push({ id: 'patient-1', phone: '+962790000000', deletedAt: null });
+    state.users.push({ id: 'sec-1', phone: '+962000', deletedAt: null, role: 'SECRETARY' });
+    state.appointments.push({
+      id: 'appt-1',
+      patientId: 'patient-1',
+      status: AppointmentStatus.SCHEDULED,
+      startsAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+  });
+
+  function seedConversation(lastHumanReplyAt: Date | null): void {
+    state.conversations.push({
+      id: 'conv-seed',
+      phone: '+962790000000',
+      patientId: 'patient-1',
+      lastInboundAt: new Date(Date.now() - 10 * 60 * 1000),
+      lastMessageAt: new Date(Date.now() - 10 * 60 * 1000),
+      lastReadAt: null,
+      lastHumanReplyAt,
+    });
+  }
+
+  it('human replied 10min ago → confirm STILL transitions the status (+audit) but the ack is skipped', async () => {
+    seedConversation(new Date(Date.now() - 10 * 60 * 1000));
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'p49-sup-1',
+        fromPhone: '+962790000000',
+        body: 'نعم',
+        receivedAt: new Date(),
+      },
+    });
+    // The status transition is NEVER blocked by suppression (§1.2 hard rule).
+    expect(state.appointments[0]!.status).toBe(AppointmentStatus.CONFIRMED);
+    expect(
+      state.auditLogs.filter(
+        (l) => (l.after as { event?: string })?.event === 'CONFIRMED_VIA_WHATSAPP',
+      ),
+    ).toHaveLength(1);
+    // …but no auto-ack goes out while a human owns the thread.
+    expect(state.enqueuedOutbound).toHaveLength(0);
+  });
+
+  it('human replied 61min ago → suppression expired, the confirm ack fires again', async () => {
+    seedConversation(new Date(Date.now() - 61 * 60 * 1000));
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'p49-sup-2',
+        fromPhone: '+962790000000',
+        body: 'نعم',
+        receivedAt: new Date(),
+      },
+    });
+    expect(state.appointments[0]!.status).toBe(AppointmentStatus.CONFIRMED);
+    expect(state.enqueuedOutbound).toHaveLength(1);
+    expect(state.enqueuedOutbound[0]).toMatchObject({ source: 'inbound_ack' });
+  });
+
+  it('decline under suppression: inbox item + staff notification still fire, only the ack is skipped', async () => {
+    seedConversation(new Date(Date.now() - 10 * 60 * 1000));
+    vi.mocked(createNotification).mockClear();
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'p49-sup-3',
+        fromPhone: '+962790000000',
+        body: 'عدم التأكيد',
+        buttonPayload: 'decline',
+        buttonText: 'عدم التأكيد',
+        receivedAt: new Date(),
+      },
+    });
+    expect(state.inboxItems[0]).toMatchObject({ type: 'INBOUND_CANCEL_REQUEST' });
+    expect(vi.mocked(createNotification)).toHaveBeenCalled();
     expect(state.enqueuedOutbound).toHaveLength(0);
   });
 });

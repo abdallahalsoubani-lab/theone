@@ -6,6 +6,7 @@ import {
   Dumbbell,
   Inbox,
   ListChecks,
+  MessageCircle,
   Users,
   UserCheck,
   UserPlus,
@@ -22,6 +23,7 @@ import { getEffectiveSession } from '@/lib/impersonation/session';
 import { countUnresolvedInbox } from '@/lib/inbox/queries';
 import { countPendingSubmissions } from '@/lib/intake-submissions/queries';
 import { countActiveWaitlist } from '@/lib/waitlist/queries';
+import { countUnreadConversations } from '@/lib/whatsapp/inbox/queries';
 
 /**
  * Staff route group layout.
@@ -44,6 +46,7 @@ const ICONS: Record<StaffNavEntry['icon'], ReactNode> = {
   clipboardList: <ClipboardList className="size-4" />,
   clipboardCheck: <ClipboardCheck className="size-4" />,
   dumbbell: <Dumbbell className="size-4" />,
+  messageCircle: <MessageCircle className="size-4" />,
 };
 
 export default async function StaffLayout({
@@ -67,22 +70,30 @@ export default async function StaffLayout({
   // sidebar shouldn't pay for the secretary's inbox/waitlist counts and
   // vice-versa — NI-7 added the doctor's approvals badge).
   const needed = new Set(entries.map((e) => e.badge).filter(Boolean));
-  const [inboxCount, waitlistCount, intakeSubmissionCount, approvalsCount, unconfirmedCount] =
-    await Promise.all([
-      needed.has('inbox') ? countUnresolvedInbox() : Promise.resolve(0),
-      needed.has('waitlist') ? countActiveWaitlist() : Promise.resolve(0),
-      needed.has('intakeSubmissions') ? countPendingSubmissions() : Promise.resolve(0),
-      needed.has('homeProgramApprovals')
-        ? countPendingApprovals(role === 'ADMIN' ? null : session.user.id)
-        : Promise.resolve(0),
-      needed.has('unconfirmed') ? countUnconfirmedReminders() : Promise.resolve(0),
-    ]);
+  const [
+    inboxCount,
+    waitlistCount,
+    intakeSubmissionCount,
+    approvalsCount,
+    unconfirmedCount,
+    waInboxCount,
+  ] = await Promise.all([
+    needed.has('inbox') ? countUnresolvedInbox() : Promise.resolve(0),
+    needed.has('waitlist') ? countActiveWaitlist() : Promise.resolve(0),
+    needed.has('intakeSubmissions') ? countPendingSubmissions() : Promise.resolve(0),
+    needed.has('homeProgramApprovals')
+      ? countPendingApprovals(role === 'ADMIN' ? null : session.user.id)
+      : Promise.resolve(0),
+    needed.has('unconfirmed') ? countUnconfirmedReminders() : Promise.resolve(0),
+    needed.has('waInbox') ? countUnreadConversations() : Promise.resolve(0),
+  ]);
   const badgeValue = {
     inbox: inboxCount,
     waitlist: waitlistCount,
     intakeSubmissions: intakeSubmissionCount,
     homeProgramApprovals: approvalsCount,
     unconfirmed: unconfirmedCount,
+    waInbox: waInboxCount,
   };
 
   const links: NavLink[] = entries.map((e) => {

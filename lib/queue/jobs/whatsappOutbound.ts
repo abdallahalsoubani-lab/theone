@@ -34,7 +34,9 @@ export interface WhatsappOutboundJob {
   recipientUserId?: string | null;
   appointmentId?: string | null;
   /** Resend / source marker — surfaces in audit + admin UI. Defaults to 'queue'. */
-  source?: 'queue' | 'resend' | 'inbound_ack';
+  source?: 'queue' | 'resend' | 'inbound_ack' | 'inbox';
+  /** Prompt 49 — the staff member manually sending from the Inbox. */
+  sentById?: string | null;
   /** Optional handle so resends from the admin log can link back. */
   originatingMessageId?: string | null;
 }

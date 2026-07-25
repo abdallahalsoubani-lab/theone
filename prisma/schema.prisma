@@ -350,6 +350,8 @@ model User {
   // tables reference User multiple times (e.g. Appointment has patientId, therapistId,
   // createdById) and Prisma needs disambiguation.
   appointmentsAsPatient    Appointment[]          @relation("AppointmentPatient")
+  waConversations          WhatsAppConversation[] @relation("PatientWaConversations")
+  waMessagesSent           WhatsAppMessage[]      @relation("WaMessageSender")
   groupAppointments        AppointmentPatient[]   @relation("AppointmentGroupPatient")
   appointmentTherapists    AppointmentTherapist[] @relation("AppointmentTherapistTherapist")
   appointmentsCreatedBy    Appointment[]          @relation("AppointmentCreatedBy")
@@ -978,9 +980,41 @@ model WhatsAppTemplate {
   @@unique([name, language])
 }
 
+// Prompt 49 — one thin row per phone-number thread. Messages are NOT
+// duplicated here: threads derive from WhatsAppMessage grouped by phone;
+// this table holds only what grouping can't express — the SHARED read
+// state, the unknown-number→patient link, the 24h-window anchor, and the
+// 1h auto-reply suppression stamp.
+model WhatsAppConversation {
+  id        String  @id @default(cuid())
+  /** Normalized phone (+962…) — the thread key. */
+  phone     String  @unique
+  /** Linked patient; null = the "Unknown numbers" section. */
+  patientId String?
+  patient   User?   @relation("PatientWaConversations", fields: [patientId], references: [id], onDelete: SetNull)
+
+  /** SHARED read marker: any secretary/admin opening the thread sets it. */
+  lastReadAt       DateTime?
+  /** Last INBOUND message — the Meta 24h session-window anchor + unread calc. */
+  lastInboundAt    DateTime?
+  /** Last message either direction — list ordering. */
+  lastMessageAt    DateTime
+  /** Last MANUAL (human) outbound — suppresses intent acks for 1h. */
+  lastHumanReplyAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([lastMessageAt(sort: Desc)])
+}
+
 model WhatsAppMessage {
   id                String             @id @default(cuid())
   templateId        String?
+  /** Prompt 49 — the staff member who manually sent this outbound from the
+   *  Inbox (null for system/queue sends). */
+  sentById          String?
+  sentBy            User?              @relation("WaMessageSender", fields: [sentById], references: [id], onDelete: SetNull)
   recipientId       String?
   recipientPhone    String
   parameters        Json               @default("{}")

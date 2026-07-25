@@ -6,6 +6,7 @@ import { queueRedis } from '@/lib/queue/client';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 
 import { groupAdjacentAppointments } from '@/lib/arrivals/grouping';
+import { HUMAN_REPLY_SUPPRESSION_MS } from '@/lib/whatsapp/inbox/queries';
 import { createNotification } from '@/lib/notifications/actions';
 import { clinicHm, clinicWeekdayName } from '@/lib/time/clinic';
 import { getClinicTimeZone } from '@/lib/time/clinic-server';
@@ -196,6 +197,29 @@ async function handleInbound(args: {
   const intent = parseIntentWithButtons(args);
   const link = await resolveReplyTargets({ fromPhone: args.fromPhone });
 
+  // Prompt 49 — thread bookkeeping: one thin conversation row per phone.
+  // lastInboundAt anchors the 24h free-text window + the unread badge.
+  const conversation = await db.whatsAppConversation.upsert({
+    where: { phone: args.fromPhone },
+    update: {
+      lastInboundAt: args.receivedAt,
+      lastMessageAt: args.receivedAt,
+      ...(link.recipientId ? { patientId: link.recipientId } : {}),
+    },
+    create: {
+      phone: args.fromPhone,
+      patientId: link.recipientId,
+      lastInboundAt: args.receivedAt,
+      lastMessageAt: args.receivedAt,
+    },
+    select: { id: true, lastHumanReplyAt: true },
+  });
+  // A human replied in the last hour → suppress AUTO ACK MESSAGES only;
+  // status transitions (confirm) must never be blocked by suppression.
+  const acksSuppressed =
+    conversation.lastHumanReplyAt !== null &&
+    Date.now() - conversation.lastHumanReplyAt.getTime() < HUMAN_REPLY_SUPPRESSION_MS;
+
   const inserted = await db.whatsAppMessage.create({
     data: {
       direction: 'INBOUND',
@@ -220,6 +244,7 @@ async function handleInbound(args: {
         targets: link,
         recipientPhone: args.fromPhone,
         messageId: inserted.id,
+        ackSuppressed: acksSuppressed,
       });
       break;
     case 'RESCHEDULE_REQUEST':
@@ -237,6 +262,7 @@ async function handleInbound(args: {
         recipientPhone: args.fromPhone,
         messageId: inserted.id,
         body: args.body || args.buttonText || '',
+        ackSuppressed: acksSuppressed,
       });
       break;
     case 'UNKNOWN':
@@ -256,6 +282,9 @@ async function handleConfirm(args: {
   targets: ReplyTargets;
   recipientPhone: string;
   messageId: string;
+  /** P49: a human replied <1h ago — skip the ACK message only; the status
+   *  transition above always happens regardless. */
+  ackSuppressed?: boolean;
 }): Promise<void> {
   const { targets } = args;
   if (!targets.appointmentId || !targets.recipientId) {
@@ -314,7 +343,9 @@ async function handleConfirm(args: {
   }
 
   // New ack wording (48b §1.6) in the patient's language — sent for fresh
-  // confirms AND idempotent re-confirms (polite either way).
+  // confirms AND idempotent re-confirms (polite either way). P49: skipped
+  // when a human replied within the last hour (the human owns the thread).
+  if (args.ackSuppressed) return;
   const isAr = targets.language === 'AR';
   const name = isAr ? targets.patientNameAr : targets.patientNameEn;
   await enqueueWhatsappOutbound({
@@ -364,6 +395,7 @@ async function handleCancelRequest(args: {
   recipientPhone: string;
   messageId: string;
   body: string;
+  ackSuppressed?: boolean;
 }): Promise<void> {
   const { targets } = args;
   // 48b DECLINE flow — NO auto-cancellation anywhere. The decline is
@@ -417,7 +449,9 @@ async function handleCancelRequest(args: {
     }
   }
 
-  // Decline ack (48b §3.3) in the patient's language.
+  // Decline ack (48b §3.3) in the patient's language — P49: suppressed for
+  // 1h after a manual reply (the inbox item + notification above still fire).
+  if (args.ackSuppressed) return;
   const isAr = targets.language === 'AR';
   await enqueueWhatsappOutbound({
     kind: 'text',
@@ -431,9 +465,6 @@ async function handleCancelRequest(args: {
     source: 'inbound_ack',
   });
 }
-
-const GENERIC_REPLY_KEY = (phone: string) => `wa:generic-ack:${phone}`;
-const GENERIC_REPLY_TTL_SECONDS = 60 * 60 * 24; // once per 24h window per phone
 
 async function handleUnknown(args: {
   recipientId: string | null;
@@ -452,33 +483,9 @@ async function handleUnknown(args: {
       note: args.body.slice(0, 280),
     },
   });
-  // P49 SEAM: the WhatsApp Inbox will consume these unrecognized messages
-  // as conversation threads; a human/manual outbound path (none exists
-  // yet) should then suppress this generic.
-
-  // 48b §3.4 — soft generic, AT MOST once per 24h per phone, registered
-  // patients only (unknown numbers stay silent), never the word "confirmed".
-  if (!args.recipientId) return;
-  const first = await queueRedis.set(
-    GENERIC_REPLY_KEY(args.recipientPhone),
-    '1',
-    'EX',
-    GENERIC_REPLY_TTL_SECONDS,
-    'NX',
-  );
-  if (first !== 'OK') return; // already acked within the window
-  const isAr = args.language === 'AR';
-  await enqueueWhatsappOutbound({
-    kind: 'text',
-    body: isAr
-      ? 'شكراً لرسالتكم — سيطّلع عليها فريق الاستقبال ويرد عليكم قريباً.'
-      : 'Thank you for your message — our reception team will review it and get back to you shortly.',
-    language: args.language,
-    recipientPhone: args.recipientPhone,
-    recipientUserId: args.recipientId,
-    appointmentId: args.appointmentId ?? undefined,
-    source: 'inbound_ack',
-  });
+  // Prompt 49: the 48b soft generic is REMOVED — unrecognized messages now
+  // land UNREAD in the WhatsApp Inbox where a human reads and answers.
+  // No auto-reply of any kind fires here.
 }
 
 export async function processWebhookEvent(event: WebhookEvent): Promise<void> {

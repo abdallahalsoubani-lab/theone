@@ -502,7 +502,8 @@
     "waitlist": "قائمة الانتظار",
     "intakeSubmissions": "طلبات الاستقبال",
     "clinicianSummary": "ملخص الأخصائيين",
-    "confirmations": "التأكيدات"
+    "confirmations": "التأكيدات",
+    "waInbox": "واتساب"
   },
   "publicIntake": {
     "clinicName": "المركز الأول للعلاج الطبيعي",
@@ -1802,5 +1803,32 @@
     "searchPlaceholder": "ابحث بالاسم…",
     "noResults": "لا نتائج",
     "clearSearch": "مسح البحث"
+  },
+  "waInbox": {
+    "title": "وارد واتساب",
+    "searchPlaceholder": "ابحث بالاسم أو الرقم…",
+    "filter_all": "الكل",
+    "filter_unread": "غير مقروء",
+    "filter_unknown": "أرقام غير معروفة",
+    "emptyList": "لا توجد محادثات بعد.",
+    "unknownNumber": "رقم غير معروف",
+    "unknownBadge": "غير معروف",
+    "pickThread": "اختر محادثة للقراءة والرد.",
+    "windowOpenUntil": "الرد الحر متاح حتى {time}",
+    "windowClosed": "نافذة الرد مغلقة",
+    "windowClosedExplain": "انتهت نافذة الرد الحر — يجب أن يراسلنا المريض أولاً. تُفتح النافذة 24 ساعة بعد رسالته التالية.",
+    "composerPlaceholder": "اكتب ردًا…",
+    "send": "إرسال",
+    "templateTag": "قالب",
+    "buttonTapConfirm": "ضغط: تأكيد الحضور",
+    "buttonTapDecline": "ضغط: عدم التأكيد",
+    "nextAppointment": "الموعد القادم: {when} — {therapist}",
+    "linkToPatient": "ربط بمريض",
+    "linkDialogDescription": "اختر المريض صاحب هذا الرقم. سيتم تحديث رقم هاتفه المسجل إلى هذا الرقم (مع تسجيل في سجل التدقيق).",
+    "linkPickPatient": "اختر مريضًا…",
+    "linkConfirmText": "سيتم تعيين رقم هاتف {name} إلى {phone} وربط هذه المحادثة بملفه.",
+    "linkConfirm": "ربط وتحديث الرقم",
+    "linkDone": "تم ربط المحادثة بالمريض.",
+    "cancel": "إلغاء"
   }
 }
