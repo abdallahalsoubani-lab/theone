@@ -46,5 +46,12 @@ export async function POST(req: Request): Promise<Response> {
 
   const events = whatsapp.parseWebhook(rawBody);
   await processWebhookEvents(events);
-  return new NextResponse('ok', { status: 200 });
+  // Empty TwiML, NEVER a text body: Twilio echoes a text/plain webhook
+  // response back to the patient as a reply message — this exact line once
+  // auto-sent a literal "ok" (live incident, fixed under the owner ruling
+  // that the ONLY auto-replies are the two 48b acks in process.ts).
+  return new NextResponse('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
+    status: 200,
+    headers: { 'content-type': 'text/xml' },
+  });
 }

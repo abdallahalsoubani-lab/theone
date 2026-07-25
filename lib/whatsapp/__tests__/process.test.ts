@@ -435,7 +435,7 @@ describe('processWebhookEvent — RESCHEDULE_REQUEST', () => {
     });
   });
 
-  it('creates an INBOUND_RESCHEDULE_REQUEST inbox item and an ack', async () => {
+  it('creates an INBOUND_RESCHEDULE_REQUEST inbox item with NO ack (owner ruling: only confirm/decline acks exist)', async () => {
     await processWebhookEvent({
       kind: 'inbound',
       message: {
@@ -451,7 +451,9 @@ describe('processWebhookEvent — RESCHEDULE_REQUEST', () => {
       appointmentId: 'appt-1',
     });
     expect(state.appointmentUpdates).toHaveLength(0);
-    expect(state.enqueuedOutbound).toHaveLength(1);
+    // The old bilingual reschedule ack is REMOVED — the request lands unread
+    // in the WhatsApp Inbox and a human answers.
+    expect(state.enqueuedOutbound).toHaveLength(0);
   });
 });
 
@@ -841,6 +843,25 @@ describe('P49 — conversation bookkeeping on inbound', () => {
       lastInboundAt: receivedAt,
       lastMessageAt: receivedAt,
     });
+  });
+
+  it('LIVE REGRESSION: "شكرا" → NO auto-reply of any kind, lands UNREAD in the inbox', async () => {
+    const receivedAt = new Date();
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'p49fix-thanks',
+        fromPhone: '+962790000000',
+        body: 'شكرا',
+        receivedAt,
+      },
+    });
+    // Nothing goes out — not an ack, not a generic, nothing.
+    expect(state.enqueuedOutbound).toHaveLength(0);
+    // The message is recorded and surfaces for a human.
+    expect(state.inboxItems[0]).toMatchObject({ type: 'INBOUND_UNKNOWN' });
+    // Unread: lastInboundAt stamped, lastReadAt untouched.
+    expect(state.conversations[0]).toMatchObject({ lastInboundAt: receivedAt, lastReadAt: null });
   });
 
   it('unknown number → conversation row with patientId=null (the "Unknown numbers" section)', async () => {

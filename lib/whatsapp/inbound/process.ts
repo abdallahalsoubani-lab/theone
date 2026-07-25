@@ -251,7 +251,6 @@ async function handleInbound(args: {
       await handleRescheduleRequest({
         appointmentId: link.appointmentId,
         recipientId: link.recipientId,
-        recipientPhone: args.fromPhone,
         messageId: inserted.id,
         body: args.body,
       });
@@ -364,7 +363,6 @@ async function handleConfirm(args: {
 async function handleRescheduleRequest(args: {
   appointmentId: string | null;
   recipientId: string | null;
-  recipientPhone: string;
   messageId: string;
   body: string;
 }): Promise<void> {
@@ -377,17 +375,9 @@ async function handleRescheduleRequest(args: {
       note: args.body.slice(0, 280),
     },
   });
-  await enqueueWhatsappOutbound({
-    kind: 'text',
-    body:
-      'We received your reschedule request and will contact you to confirm. ' +
-      'تم استلام طلبك لإعادة الجدولة وسنتواصل معك للتأكيد.',
-    language: 'EN',
-    recipientPhone: args.recipientPhone,
-    recipientUserId: args.recipientId,
-    appointmentId: args.appointmentId ?? undefined,
-    source: 'inbound_ack',
-  });
+  // Owner ruling (P49 follow-up): the ONLY auto-replies are the confirm ack
+  // and the decline ack. The old reschedule ack is removed — the request
+  // lands unread in the WhatsApp Inbox and a human answers it.
 }
 
 async function handleCancelRequest(args: {

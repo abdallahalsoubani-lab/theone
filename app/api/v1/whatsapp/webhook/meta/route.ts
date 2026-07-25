@@ -51,5 +51,8 @@ export async function POST(req: Request): Promise<Response> {
   }
   const events = whatsapp.parseWebhook(rawBody);
   await processWebhookEvents(events);
-  return new NextResponse('ok', { status: 200 });
+  // Meta ignores webhook response bodies, but keep it EMPTY anyway so no
+  // provider can ever interpret the acknowledgment as a reply (the Twilio
+  // route's text/plain body did exactly that — live incident).
+  return new NextResponse(null, { status: 200 });
 }
