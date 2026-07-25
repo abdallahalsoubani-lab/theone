@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
-import { clinicDateKey, clinicHm } from '@/lib/time/clinic';
-import { getClinicTimeZone } from '@/lib/time/clinic-server';
+
+import { appointmentVarContext, buildParamsFromShape, resolveTemplateShape } from './variables';
 
 const TEMPLATE_NAME = 'appointment_rescheduled';
 
@@ -69,9 +69,6 @@ export async function sendAppointmentRescheduled(args: { appointmentId: string }
     : (appt.groupPatients ?? []).map((g) => g.patient);
   if (recipients.length === 0) return; // patient-less EVENT
 
-  const tz = await getClinicTimeZone();
-  const dateStr = clinicDateKey(appt.startsAt, tz);
-  const timeStr = clinicHm(appt.startsAt, tz);
   const firstTherapist = appt.therapists?.[0]?.therapist ?? null;
 
   for (const p of recipients) {
@@ -89,11 +86,24 @@ export async function sendAppointmentRescheduled(args: { appointmentId: string }
         : isAr
           ? 'فريق العيادة'
           : 'the clinic team';
+    // Prompt 48b: parameters come from the registry shape (legacy P48
+    // 4-var today; the v2 [patient, dayName, date, time] after the switch).
+    const shape = await resolveTemplateShape(TEMPLATE_NAME, p.languagePref);
+    if (!shape) {
+      console.error('[appointments.reschedule] no variable shape for template — skipping');
+      continue;
+    }
+    const ctx = await appointmentVarContext({
+      startsAt: appt.startsAt,
+      patientName,
+      therapistName: clinician,
+      language: p.languagePref,
+    });
     void enqueueWhatsappOutbound({
       kind: 'template',
       templateName: TEMPLATE_NAME,
       language: p.languagePref,
-      parameters: [patientName, dateStr, timeStr, clinician],
+      parameters: buildParamsFromShape(shape, ctx),
       recipientPhone: p.phone,
       recipientUserId: p.id,
       appointmentId: appt.id,

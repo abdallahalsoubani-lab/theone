@@ -12,6 +12,9 @@ export interface TemplateListRow {
   metaTemplateName: string | null;
   metaApprovalStatus: string;
   metaApprovedAt: Date | null;
+  /** Prompt 48b — Twilio Content SID + registry variable shape (editable). */
+  twilioContentSid: string | null;
+  variablesShape: string[] | null;
   updatedAt: Date;
 }
 
@@ -29,6 +32,8 @@ export async function listTemplates(): Promise<TemplateListRow[]> {
     metaTemplateName: r.metaTemplateName,
     metaApprovalStatus: r.metaApprovalStatus,
     metaApprovedAt: r.metaApprovedAt,
+    twilioContentSid: r.twilioContentSid,
+    variablesShape: Array.isArray(r.variablesShape) ? (r.variablesShape as string[]) : null,
     updatedAt: r.updatedAt,
   }));
 }

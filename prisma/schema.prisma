@@ -119,6 +119,9 @@ enum NotificationType {
   // Prompt 43 (NI-6) — a doctor edited the program: tells the authoring
   // therapist their program changed (doctor edits auto-approve, P16).
   HOME_PROGRAM_DOCTOR_EDITED
+  // Prompt 48b — a patient tapped "can't confirm" / replied decline to the
+  // reminder: tells SECRETARY+ADMIN to follow up (NO auto-cancellation).
+  PATIENT_DECLINED_APPOINTMENT
   // Prompt 19 — a slot a waitlisted patient was waiting for just freed up
   // (cancellation / no-show). Targets SECRETARY + ADMIN; links to the
   // waitlist page for one-click placement.
@@ -947,6 +950,12 @@ model WhatsAppTemplate {
   category       WaTemplateCategory
   contentPreview String
   active         Boolean            @default(true)
+  // Prompt 48b — ordered variable tokens ({{1}}…{{n}}) for THIS template
+  // body, e.g. ["patientName","dayName","date","time"]. The send paths build
+  // the parameter array from this shape, so switching a row to a newly
+  // approved body (new SID + new shape) needs ZERO deploy. Null = the
+  // legacy hardcoded order for that template (pre-48b behavior).
+  variablesShape Json?
 
   // Meta Cloud API metadata. Template names follow Meta's naming rules
   // (lowercase, underscores, ≤512 chars) and aren't editable after

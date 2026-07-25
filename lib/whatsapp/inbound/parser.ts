@@ -100,6 +100,38 @@ const CANCEL_TOKENS: ReadonlySet<string> = new Set([
   'لا',
 ]);
 
+/** Quick-reply button ids registered on the v2 reminder template (48b §1.1). */
+export const BUTTON_CONFIRM_ID = 'confirm';
+export const BUTTON_DECLINE_ID = 'decline';
+
+/**
+ * Intent with quick-reply awareness (Prompt 48b): a button tap's developer
+ * id is authoritative — no text guessing. Unknown payloads and plain
+ * messages fall through to the conservative text parser (button TEXT is
+ * parsed too so localized labels like "تأكيد الحضور" work even if a
+ * provider drops the payload field).
+ */
+export function parseIntentWithButtons(args: {
+  body: string;
+  buttonPayload?: string;
+  buttonText?: string;
+}): WaInboundIntent {
+  const payload = args.buttonPayload?.trim().toLowerCase();
+  if (payload === BUTTON_CONFIRM_ID) return 'CONFIRM';
+  if (payload === BUTTON_DECLINE_ID) return 'CANCEL_REQUEST';
+  const text = args.body || args.buttonText || '';
+  // The v2 button labels themselves ("تأكيد الحضور" / "عدم التأكيد").
+  const normalized = normalizeInbound(text);
+  if (normalized === 'تاكيد الحضور' || normalized === 'confirm attendance') return 'CONFIRM';
+  if (
+    normalized === 'عدم التاكيد' ||
+    normalized === "can't confirm" ||
+    normalized === 'cant confirm'
+  )
+    return 'CANCEL_REQUEST';
+  return parseIntent(text);
+}
+
 export function parseIntent(body: string): WaInboundIntent {
   const normalized = normalizeInbound(body);
   if (!normalized) return 'UNKNOWN';

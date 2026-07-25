@@ -55,6 +55,11 @@ export interface InboundMessage {
   fromPhone: string;
   body: string;
   receivedAt: Date;
+  /** Quick-reply button tap (Prompt 48b): the button's developer-defined id
+   *  (Twilio `ButtonPayload`) and its display text (`ButtonText`). Absent on
+   *  plain text messages and on providers without button support. */
+  buttonPayload?: string;
+  buttonText?: string;
 }
 
 /**

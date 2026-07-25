@@ -25,7 +25,7 @@ export interface StaffNavEntry {
     | 'clipboardList'
     | 'clipboardCheck'
     | 'dumbbell';
-  badge?: 'inbox' | 'waitlist' | 'intakeSubmissions' | 'homeProgramApprovals';
+  badge?: 'inbox' | 'waitlist' | 'intakeSubmissions' | 'homeProgramApprovals' | 'unconfirmed';
 }
 
 export function staffNavEntries(role: UserRole): StaffNavEntry[] {
@@ -33,6 +33,14 @@ export function staffNavEntries(role: UserRole): StaffNavEntry[] {
     return [
       { labelKey: 'navigation:appointments', href: '/secretary/calendar', icon: 'calendar' },
       { labelKey: 'navigation:arrivals', href: '/secretary/arrivals', icon: 'userCheck' },
+      // Prompt 48b — reminder confirmations queue (no auto-cancel; the
+      // badge counts reminded appointments still awaiting a reply).
+      {
+        labelKey: 'navigation:confirmations',
+        href: '/secretary/confirmations',
+        icon: 'clipboardCheck',
+        badge: 'unconfirmed',
+      },
       {
         labelKey: 'navigation:waitlist',
         href: '/secretary/waitlist',

@@ -55,6 +55,11 @@ export function TemplatesTable({ rows }: Props) {
           | 'REJECTED'
           | 'PAUSED',
         active: draft.active,
+        // Prompt 48b — SID + variable shape are editable so a newly-approved
+        // template body switches over with zero deploy.
+        twilioContentSid: draft.twilioContentSid?.trim() || null,
+        variablesShape:
+          draft.variablesShape && draft.variablesShape.length > 0 ? draft.variablesShape : null,
       });
       if (!r.ok) {
         toast.error(r.error);
@@ -134,6 +139,27 @@ export function TemplatesTable({ rows }: Props) {
                         }
                         className="h-7 text-xs"
                       />
+                      <Input
+                        placeholder="HX… (Twilio Content SID)"
+                        value={current.twilioContentSid ?? ''}
+                        onChange={(e) =>
+                          setDraft({ ...current, twilioContentSid: e.target.value || null })
+                        }
+                        className="h-7 font-mono text-xs"
+                      />
+                      <Input
+                        placeholder="patientName,dayName,date,time"
+                        value={(current.variablesShape ?? []).join(',')}
+                        onChange={(e) =>
+                          setDraft({
+                            ...current,
+                            variablesShape: e.target.value
+                              ? e.target.value.split(',').map((v) => v.trim())
+                              : null,
+                          })
+                        }
+                        className="h-7 font-mono text-xs"
+                      />
                       <select
                         value={current.metaApprovalStatus}
                         onChange={(e) =>
@@ -152,6 +178,11 @@ export function TemplatesTable({ rows }: Props) {
                     <div className="space-y-1">
                       <div className="font-mono text-xs text-brand-textMuted">
                         {row.metaTemplateName ?? '—'}
+                      </div>
+                      <div className="font-mono text-[10px] text-brand-textMuted" dir="ltr">
+                        {row.twilioContentSid ? `${row.twilioContentSid.slice(0, 10)}…` : 'no SID'}
+                        {' · '}
+                        {row.variablesShape ? row.variablesShape.join(',') : 'legacy shape'}
                       </div>
                       <ApprovalBadge status={row.metaApprovalStatus} />
                     </div>

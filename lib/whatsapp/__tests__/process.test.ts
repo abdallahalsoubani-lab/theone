@@ -1,10 +1,26 @@
 import { AppointmentStatus } from '@prisma/client';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+// 48b: notification + clinic-tz mocks (createNotification pulls next-auth).
+vi.mock('@/lib/notifications/actions', () => ({
+  createNotification: vi.fn(async () => ({ id: 'n' })),
+}));
+vi.mock('@/lib/time/clinic-server', () => ({
+  getClinicTimeZone: vi.fn(async () => 'Asia/Amman'),
+}));
+
 // In-memory DB stub. Each test resets via the helpers exported below.
 vi.mock('@/lib/db', () => {
   const state = {
-    users: [] as Array<{ id: string; phone: string; deletedAt: Date | null }>,
+    users: [] as Array<{
+      id: string;
+      phone: string;
+      deletedAt: Date | null;
+      languagePref?: 'AR' | 'EN';
+      fullNameEn?: string;
+      fullNameAr?: string;
+      role?: string;
+    }>,
     outboundMessages: [] as Array<{
       id: string;
       direction: 'OUTBOUND' | 'INBOUND';
@@ -24,6 +40,7 @@ vi.mock('@/lib/db', () => {
       patientId: string;
       status: AppointmentStatus;
       startsAt: Date;
+      durationMinutes?: number;
     }>,
     appointmentUpdates: [] as Array<{ id: string; data: Record<string, unknown> }>,
     auditLogs: [] as Array<Record<string, unknown>>,
@@ -39,6 +56,10 @@ vi.mock('@/lib/db', () => {
         findFirst: vi.fn(
           async ({ where }: { where: { phone: string } }) =>
             state.users.find((u) => u.phone === where.phone && u.deletedAt === null) ?? null,
+        ),
+        // 48b decline: notify all SECRETARY+ADMIN.
+        findMany: vi.fn(async () =>
+          state.users.filter((u) => u.role === 'SECRETARY' || u.role === 'ADMIN'),
         ),
         update: vi.fn(
           async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
@@ -79,12 +100,44 @@ vi.mock('@/lib/db', () => {
           },
         ),
         update: vi.fn(async () => undefined),
+        // 48b: "which of these appointments had a reminder sent" sweep —
+        // any OUTBOUND row with a matching appointmentId counts as reminded
+        // in this harness.
+        findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+          const idIn = (where.appointmentId as { in?: string[] } | undefined)?.in ?? [];
+          return state.outboundMessages
+            .filter(
+              (m) =>
+                m.direction === 'OUTBOUND' && m.appointmentId && idIn.includes(m.appointmentId),
+            )
+            .map((m) => ({ appointmentId: m.appointmentId }));
+        }),
       },
       appointment: {
         findUnique: vi.fn(
           async ({ where }: { where: { id: string } }) =>
             state.appointments.find((a) => a.id === where.id) ?? null,
         ),
+        // 48b resolver: upcoming-by-patient AND run-by-ids shapes.
+        findMany: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {
+          const withDur = (a: (typeof state.appointments)[number]) => ({
+            durationMinutes: 30,
+            ...a,
+          });
+          const idIn = (where.id as { in?: string[] } | undefined)?.in;
+          if (idIn) return state.appointments.filter((a) => idIn.includes(a.id)).map(withDur);
+          const statuses = (where.status as { in?: string[] } | undefined)?.in;
+          const gte = (where.startsAt as { gte?: Date } | undefined)?.gte;
+          return state.appointments
+            .filter(
+              (a) =>
+                a.patientId === where.patientId &&
+                (!statuses || statuses.includes(a.status)) &&
+                (!gte || a.startsAt.getTime() >= gte.getTime()),
+            )
+            .sort((x, y) => x.startsAt.getTime() - y.startsAt.getTime())
+            .map(withDur);
+        }),
         update: vi.fn(
           async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
             state.appointmentUpdates.push({ id: where.id, data });
@@ -143,7 +196,15 @@ import * as dbModule from '@/lib/db';
 import * as redisModule from '@/lib/queue/client';
 
 type DbState = {
-  users: Array<{ id: string; phone: string; deletedAt: Date | null }>;
+  users: Array<{
+    id: string;
+    phone: string;
+    deletedAt: Date | null;
+    languagePref?: 'AR' | 'EN';
+    fullNameEn?: string;
+    fullNameAr?: string;
+    role?: string;
+  }>;
   outboundMessages: Array<{
     id: string;
     direction: 'OUTBOUND' | 'INBOUND';
@@ -158,7 +219,13 @@ type DbState = {
     readAt: Date | null;
   }>;
   inboundMessagesCreated: Array<Record<string, unknown>>;
-  appointments: Array<{ id: string; patientId: string; status: AppointmentStatus; startsAt: Date }>;
+  appointments: Array<{
+    id: string;
+    patientId: string;
+    status: AppointmentStatus;
+    startsAt: Date;
+    durationMinutes?: number;
+  }>;
   appointmentUpdates: Array<{ id: string; data: Record<string, unknown> }>;
   auditLogs: Array<Record<string, unknown>>;
   inboxItems: Array<Record<string, unknown>>;
@@ -261,7 +328,7 @@ describe('processWebhookEvent — CONFIRM intent', () => {
     expect(state.enqueuedOutbound).toHaveLength(1);
   });
 
-  it('does not auto-confirm if there is no recent outbound for that phone', async () => {
+  it('48b resolution: confirms the NEXT UPCOMING appointment even without a recent outbound (reminded-first, upcoming fallback)', async () => {
     state.outboundMessages.length = 0;
     await processWebhookEvent({
       kind: 'inbound',
@@ -272,8 +339,23 @@ describe('processWebhookEvent — CONFIRM intent', () => {
         receivedAt: new Date(),
       },
     });
+    expect(state.appointmentUpdates).toHaveLength(1);
+    expect(state.appointments[0]!.status).toBe(AppointmentStatus.CONFIRMED);
+  });
+
+  it('does not confirm anything when the patient has NO upcoming appointment at all', async () => {
+    state.outboundMessages.length = 0;
+    state.appointments.length = 0;
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'in-prov-4b',
+        fromPhone: '+962790000000',
+        body: 'نعم',
+        receivedAt: new Date(),
+      },
+    });
     expect(state.appointmentUpdates).toHaveLength(0);
-    // No appointment match → INBOUND_UNKNOWN inbox item
     expect(state.inboxItems[0]).toMatchObject({ type: 'INBOUND_UNKNOWN' });
   });
 });
@@ -368,22 +450,55 @@ describe('processWebhookEvent — CANCEL_REQUEST', () => {
 });
 
 describe('processWebhookEvent — UNKNOWN', () => {
-  beforeEach(() => reset());
-
-  it('records the inbound row and an INBOUND_UNKNOWN inbox item with no auto-action', async () => {
+  beforeEach(() => {
+    reset();
+    // Registered patient — the soft generic goes to known numbers only.
     state.users.push({ id: 'patient-1', phone: '+962790000000', deletedAt: null });
+  });
+
+  it('unregistered numbers stay silent (no generic)', async () => {
+    state.users.length = 0;
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'in-prov-9',
+        fromPhone: '+962799999999',
+        body: 'مرحبا',
+        receivedAt: new Date(),
+      },
+    });
+    expect(state.enqueuedOutbound).toHaveLength(0);
+  });
+
+  it('records the inbound row + inbox item, sends the SOFT GENERIC once, never the word confirmed (48b)', async () => {
     await processWebhookEvent({
       kind: 'inbound',
       message: {
         providerMessageId: 'in-prov-7',
         fromPhone: '+962790000000',
-        body: 'كيفك',
+        body: 'مرحبا كيفكم',
         receivedAt: new Date(),
       },
     });
-    expect(state.inboundMessagesCreated[0]).toMatchObject({ intent: 'UNKNOWN' });
     expect(state.inboxItems[0]).toMatchObject({ type: 'INBOUND_UNKNOWN' });
-    expect(state.enqueuedOutbound).toHaveLength(0);
+    expect(state.appointmentUpdates).toHaveLength(0);
+    // Exactly one soft generic — and it must NOT claim confirmation
+    // (the old always-confirm bug regression guard).
+    expect(state.enqueuedOutbound).toHaveLength(1);
+    const body = String((state.enqueuedOutbound[0] as { body?: string }).body ?? '');
+    expect(body).not.toMatch(/confirm|تاكيد|تأكيد/i);
+
+    // Second unrecognized message inside the 24h window → NO second generic.
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'in-prov-8',
+        fromPhone: '+962790000000',
+        body: 'رسالة اخرى',
+        receivedAt: new Date(),
+      },
+    });
+    expect(state.enqueuedOutbound).toHaveLength(1);
   });
 });
 
@@ -490,5 +605,166 @@ describe('processWebhookEvent — status updates', () => {
       },
     });
     expect(state.userUpdates).toHaveLength(0);
+  });
+});
+
+// ─── Prompt 48b additions ───────────────────────────────────────────────────
+
+import { createNotification } from '@/lib/notifications/actions';
+
+describe('48b — quick-reply buttons', () => {
+  beforeEach(() => {
+    reset();
+    state.users.push({
+      id: 'patient-1',
+      phone: '+962790000000',
+      deletedAt: null,
+      languagePref: 'AR',
+      fullNameAr: 'سارة خليل',
+      fullNameEn: 'Sara Khalil',
+    });
+    state.users.push({ id: 'sec-1', phone: '+962000', deletedAt: null, role: 'SECRETARY' });
+    state.appointments.push({
+      id: 'appt-1',
+      patientId: 'patient-1',
+      status: AppointmentStatus.SCHEDULED,
+      startsAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+    vi.mocked(createNotification).mockClear();
+  });
+
+  it('ButtonPayload=confirm → CONFIRMED + the NEW ack wording with the patient name', async () => {
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'btn-1',
+        fromPhone: '+962790000000',
+        body: 'تأكيد الحضور',
+        buttonPayload: 'confirm',
+        buttonText: 'تأكيد الحضور',
+        receivedAt: new Date(),
+      },
+    });
+    expect(state.appointments[0]!.status).toBe(AppointmentStatus.CONFIRMED);
+    const ack = String((state.enqueuedOutbound[0] as { body?: string }).body);
+    expect(ack).toContain('مرحباً سارة خليل، تم التأكيد على موعدكم');
+    expect(ack).toContain('دوام الصحة والعافية');
+  });
+
+  it('ButtonPayload=decline → NO cancellation + secretary notification + decline ack', async () => {
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'btn-2',
+        fromPhone: '+962790000000',
+        body: 'عدم التأكيد',
+        buttonPayload: 'decline',
+        buttonText: 'عدم التأكيد',
+        receivedAt: new Date(),
+      },
+    });
+    // The appointment is untouched — no auto-cancel ANYWHERE (48b core rule).
+    expect(state.appointments[0]!.status).toBe(AppointmentStatus.SCHEDULED);
+    expect(state.appointmentUpdates).toHaveLength(0);
+    // Secretary+admin in-app notification fired.
+    expect(vi.mocked(createNotification)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'PATIENT_DECLINED_APPOINTMENT',
+        recipientId: 'sec-1',
+        linkPath: '/secretary/confirmations',
+      }),
+    );
+    // Decline ack in the patient's language.
+    const ack = String((state.enqueuedOutbound[0] as { body?: string }).body);
+    expect(ack).toContain('شكراً لإبلاغنا');
+  });
+});
+
+describe('48b — back-to-back run confirm (P27 mirror)', () => {
+  beforeEach(() => {
+    reset();
+    state.users.push({ id: 'patient-1', phone: '+962790000000', deletedAt: null });
+    const base = Date.now() + 60 * 60 * 1000;
+    // Two zero-gap appointments (30min each) + one spaced-apart later.
+    state.appointments.push(
+      {
+        id: 'run-a',
+        patientId: 'patient-1',
+        status: AppointmentStatus.SCHEDULED,
+        startsAt: new Date(base),
+      },
+      {
+        id: 'run-b',
+        patientId: 'patient-1',
+        status: AppointmentStatus.SCHEDULED,
+        startsAt: new Date(base + 30 * 60 * 1000),
+      },
+      {
+        id: 'later',
+        patientId: 'patient-1',
+        status: AppointmentStatus.SCHEDULED,
+        startsAt: new Date(base + 5 * 60 * 60 * 1000),
+      },
+    );
+  });
+
+  it('one confirm reply confirms the WHOLE zero-gap run, not the spaced-apart one', async () => {
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'run-1',
+        fromPhone: '+962790000000',
+        body: 'نعم',
+        receivedAt: new Date(),
+      },
+    });
+    const byId = new Map(state.appointments.map((a) => [a.id, a.status]));
+    expect(byId.get('run-a')).toBe(AppointmentStatus.CONFIRMED);
+    expect(byId.get('run-b')).toBe(AppointmentStatus.CONFIRMED);
+    expect(byId.get('later')).toBe(AppointmentStatus.SCHEDULED);
+    // Audited per transition (two rows).
+    expect(
+      state.auditLogs.filter(
+        (l) => (l.after as { event?: string })?.event === 'CONFIRMED_VIA_WHATSAPP',
+      ),
+    ).toHaveLength(2);
+  });
+});
+
+describe('48b — a confirm can never resurrect a terminal booking', () => {
+  it('cancelled appointment: no status change, no misleading ack (documented silence)', async () => {
+    reset();
+    state.users.push({ id: 'patient-1', phone: '+962790000000', deletedAt: null });
+    state.appointments.push({
+      id: 'appt-x',
+      patientId: 'patient-1',
+      status: AppointmentStatus.CANCELLED,
+      startsAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+    state.outboundMessages.push({
+      id: 'out-x',
+      direction: 'OUTBOUND',
+      recipientPhone: '+962790000000',
+      appointmentId: 'appt-x',
+      sentAt: new Date(Date.now() - 5 * 60 * 1000),
+      status: 'SENT',
+      providerMessageId: 'out-prov-x',
+      recipientId: 'patient-1',
+      failureReason: null,
+      deliveredAt: null,
+      readAt: null,
+    });
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'dead-1',
+        fromPhone: '+962790000000',
+        body: 'yes',
+        receivedAt: new Date(),
+      },
+    });
+    expect(state.appointments[0]!.status).toBe(AppointmentStatus.CANCELLED);
+    expect(state.appointmentUpdates).toHaveLength(0);
+    expect(state.enqueuedOutbound).toHaveLength(0);
   });
 });

@@ -19,7 +19,11 @@ vi.mock('@/lib/db', () => {
   const state = { appt: null as Record<string, unknown> | null };
   return {
     __state: state,
-    db: { appointment: { findUnique: vi.fn(async () => state.appt) } },
+    db: {
+      appointment: { findUnique: vi.fn(async () => state.appt) },
+      // 48b: shape resolution — null → legacy P48 order (the pinned contract).
+      whatsAppTemplate: { findUnique: vi.fn(async () => ({ variablesShape: null })) },
+    },
   };
 });
 

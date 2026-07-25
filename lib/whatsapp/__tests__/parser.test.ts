@@ -121,3 +121,29 @@ describe('parseIntent — first-token matching', () => {
     expect(parseIntent('نعم،')).toBe('CONFIRM');
   });
 });
+
+// ─── Prompt 48b — quick-reply button awareness ──────────────────────────────
+
+import { parseIntentWithButtons } from '../inbound/parser';
+
+describe('parseIntentWithButtons (48b)', () => {
+  it('button payload ids are authoritative', () => {
+    expect(parseIntentWithButtons({ body: 'whatever', buttonPayload: 'confirm' })).toBe('CONFIRM');
+    expect(parseIntentWithButtons({ body: '', buttonPayload: 'decline' })).toBe('CANCEL_REQUEST');
+    expect(parseIntentWithButtons({ body: '', buttonPayload: ' CONFIRM ' })).toBe('CONFIRM');
+  });
+
+  it('the v2 button LABELS parse even without a payload', () => {
+    expect(parseIntentWithButtons({ body: 'تأكيد الحضور' })).toBe('CONFIRM');
+    expect(parseIntentWithButtons({ body: '', buttonText: 'تأكيد الحضور' })).toBe('CONFIRM');
+    expect(parseIntentWithButtons({ body: 'عدم التأكيد' })).toBe('CANCEL_REQUEST');
+    expect(parseIntentWithButtons({ body: "Can't confirm" })).toBe('CANCEL_REQUEST');
+  });
+
+  it('unknown payloads fall through to the conservative text parser', () => {
+    expect(parseIntentWithButtons({ body: 'نعم', buttonPayload: 'other_button' })).toBe('CONFIRM');
+    expect(parseIntentWithButtons({ body: 'مرحبا كيف الحال', buttonPayload: 'other' })).toBe(
+      'UNKNOWN',
+    );
+  });
+});

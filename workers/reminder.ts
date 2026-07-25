@@ -28,7 +28,11 @@
 import { Worker } from 'bullmq';
 
 import { db } from '@/lib/db';
-import { formatDate, formatTime } from '@/lib/format/date';
+import {
+  appointmentVarContext,
+  buildParamsFromShape,
+  resolveTemplateShape,
+} from '@/lib/whatsapp/templates/variables';
 import { queueRedis } from '@/lib/queue/client';
 import type { AppointmentReminderJob } from '@/lib/queue/jobs/appointmentReminder';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
@@ -93,18 +97,26 @@ export function startReminderWorker(): Worker {
         const lang = recipient.languagePref;
         const therapistName =
           (lang === 'AR' ? firstTherapist?.fullNameAr : firstTherapist?.fullNameEn) ?? '';
-        // Human-readable clinic wall-clock (Prompt 31). Prompt 45: the P17
-        // reminder template is 3-variable — {{1}} clinician, {{2}} time,
-        // {{3}} day — matching the wording registered with the provider
-        // (docs/whatsapp-twilio-templates.md #2).
-        const intl = lang === 'AR' ? ('ar' as const) : ('en' as const);
-        const timeStr = formatTime(appt.startsAt, intl);
-        const dayStr = formatDate(appt.startsAt, intl);
+        // Prompt 48b: the parameter array is built from the template ROW's
+        // registered shape (legacy P45 3-var today; the v2 4-var
+        // [patient, dayName, date, time] after the Admin flips SID+shape —
+        // zero deploy at switch time).
+        const shape = await resolveTemplateShape('appointment_reminder_v2', lang);
+        if (!shape) {
+          console.error('[reminder] no variable shape for appointment_reminder_v2 — skipping');
+          continue;
+        }
+        const ctx = await appointmentVarContext({
+          startsAt: appt.startsAt,
+          patientName: lang === 'AR' ? recipient.fullNameAr : recipient.fullNameEn,
+          therapistName,
+          language: lang,
+        });
         const id = await enqueueWhatsappOutbound({
           kind: 'template',
           templateName: 'appointment_reminder_v2',
           language: lang,
-          parameters: [therapistName, timeStr, dayStr],
+          parameters: buildParamsFromShape(shape, ctx),
           recipientPhone: recipient.phone,
           recipientUserId: recipient.id,
           appointmentId: appt.id,

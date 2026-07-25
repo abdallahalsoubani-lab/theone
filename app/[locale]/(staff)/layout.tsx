@@ -16,6 +16,7 @@ import type { ReactNode } from 'react';
 
 import { Sidebar, type NavLink } from '@/components/shell/Sidebar';
 import { staffNavEntries, type StaffNavEntry } from '@/components/shell/staff-nav';
+import { countUnconfirmedReminders } from '@/lib/appointments/confirmations';
 import { countPendingApprovals } from '@/lib/clinical/home-program/approval';
 import { getEffectiveSession } from '@/lib/impersonation/session';
 import { countUnresolvedInbox } from '@/lib/inbox/queries';
@@ -66,19 +67,22 @@ export default async function StaffLayout({
   // sidebar shouldn't pay for the secretary's inbox/waitlist counts and
   // vice-versa — NI-7 added the doctor's approvals badge).
   const needed = new Set(entries.map((e) => e.badge).filter(Boolean));
-  const [inboxCount, waitlistCount, intakeSubmissionCount, approvalsCount] = await Promise.all([
-    needed.has('inbox') ? countUnresolvedInbox() : Promise.resolve(0),
-    needed.has('waitlist') ? countActiveWaitlist() : Promise.resolve(0),
-    needed.has('intakeSubmissions') ? countPendingSubmissions() : Promise.resolve(0),
-    needed.has('homeProgramApprovals')
-      ? countPendingApprovals(role === 'ADMIN' ? null : session.user.id)
-      : Promise.resolve(0),
-  ]);
+  const [inboxCount, waitlistCount, intakeSubmissionCount, approvalsCount, unconfirmedCount] =
+    await Promise.all([
+      needed.has('inbox') ? countUnresolvedInbox() : Promise.resolve(0),
+      needed.has('waitlist') ? countActiveWaitlist() : Promise.resolve(0),
+      needed.has('intakeSubmissions') ? countPendingSubmissions() : Promise.resolve(0),
+      needed.has('homeProgramApprovals')
+        ? countPendingApprovals(role === 'ADMIN' ? null : session.user.id)
+        : Promise.resolve(0),
+      needed.has('unconfirmed') ? countUnconfirmedReminders() : Promise.resolve(0),
+    ]);
   const badgeValue = {
     inbox: inboxCount,
     waitlist: waitlistCount,
     intakeSubmissions: intakeSubmissionCount,
     homeProgramApprovals: approvalsCount,
+    unconfirmed: unconfirmedCount,
   };
 
   const links: NavLink[] = entries.map((e) => {

@@ -7,6 +7,7 @@
  */
 
 import {
+  type Prisma,
   type PrismaClient,
   CustomQuestionAppliesTo,
   CustomQuestionType,
@@ -48,6 +49,7 @@ type SeedTemplate = {
   active: boolean;
   twilioContentSid: string | null;
   twilioApproved: boolean;
+  variablesShape: string[] | null;
 };
 
 /**
@@ -85,6 +87,20 @@ type SeedTemplateSource = [
   metaApprovalStatus: WaTemplateApprovalStatus,
   active: boolean,
 ];
+
+// Prompt 48b — explicit legacy variable shapes seeded on create so the
+// registry is self-describing from day one. The v2 switch updates the row's
+// shape (+ SID) from Admin → WhatsApp → Templates with zero deploy:
+// v2 shape for the four appointment templates = ["patientName","dayName","date","time"].
+const SEED_SHAPES: Record<string, string[] | null> = {
+  appointment_confirmation_v2: ['patientName', 'therapistName', 'date', 'time'],
+  appointment_reminder_v2: ['therapistName', 'time', 'date'],
+  appointment_rescheduled: ['patientName', 'date', 'time', 'therapistName'],
+  appointment_cancelled_v2: ['date', 'time', 'reason'],
+  home_exercise_reminder_v2: null,
+  otp_login: null,
+  patient_account_credentials: null,
+};
 
 const WHATSAPP_TEMPLATES: ReadonlyArray<SeedTemplate> = (
   [
@@ -163,6 +179,7 @@ const WHATSAPP_TEMPLATES: ReadonlyArray<SeedTemplate> = (
       active,
       twilioContentSid: null,
       twilioApproved: false,
+      variablesShape: SEED_SHAPES[name] ?? null,
     },
     {
       name,
@@ -174,6 +191,7 @@ const WHATSAPP_TEMPLATES: ReadonlyArray<SeedTemplate> = (
       active,
       twilioContentSid: null,
       twilioApproved: false,
+      variablesShape: SEED_SHAPES[name] ?? null,
     },
   ];
 });
@@ -225,7 +243,15 @@ export async function seedReference(db: PrismaClient): Promise<void> {
           category: t.category,
           metaTemplateName: t.metaTemplateName,
         },
-        create: { ...t },
+        create: {
+          ...t,
+          // Json column: null means "omit" at create (Prisma nullable-Json
+          // rules); arrays pass through as InputJsonValue.
+          variablesShape:
+            t.variablesShape === null
+              ? undefined
+              : (t.variablesShape as unknown as Prisma.InputJsonValue),
+        },
       }),
     ),
   );

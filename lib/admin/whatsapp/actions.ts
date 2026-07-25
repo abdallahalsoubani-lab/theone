@@ -4,7 +4,8 @@ import { revalidatePath } from 'next/cache';
 
 import { db } from '@/lib/db';
 import { AuditAction } from '@prisma/client';
-import type { LanguagePref, Prisma, WaTemplateApprovalStatus } from '@prisma/client';
+import { Prisma } from '@prisma/client';
+import type { LanguagePref, WaTemplateApprovalStatus } from '@prisma/client';
 import { withAudit } from '@/lib/audit/withAudit';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 import { requirePermission } from '@/lib/rbac/guards';
@@ -16,7 +17,20 @@ interface UpdateTemplateInput {
   metaTemplateName: string | null;
   metaApprovalStatus: WaTemplateApprovalStatus;
   active: boolean;
+  /** Prompt 48b — Twilio Content SID (HX…). Null clears it. */
+  twilioContentSid?: string | null;
+  /** Prompt 48b — ordered variable tokens; null = legacy hardcoded order. */
+  variablesShape?: string[] | null;
 }
+
+const VALID_SHAPE_TOKENS = new Set([
+  'patientName',
+  'therapistName',
+  'date',
+  'time',
+  'dayName',
+  'reason',
+]);
 
 /**
  * Update template provider metadata. Read-only fields (name, language,
@@ -41,6 +55,20 @@ const updateTemplateInner = withAudit<[UpdateTemplateInput], { id: string }>(
         metaApprovalStatus: input.metaApprovalStatus,
         metaApprovedAt: input.metaApprovalStatus === 'APPROVED' ? new Date() : null,
         active: input.active,
+        ...(input.twilioContentSid !== undefined
+          ? {
+              twilioContentSid: input.twilioContentSid,
+              twilioApproved: input.twilioContentSid !== null,
+            }
+          : {}),
+        ...(input.variablesShape !== undefined
+          ? {
+              variablesShape:
+                input.variablesShape === null
+                  ? Prisma.JsonNull
+                  : (input.variablesShape as unknown as Prisma.InputJsonValue),
+            }
+          : {}),
       },
     });
     return { id: input.id };
@@ -51,6 +79,17 @@ export async function updateTemplateAction(
   input: UpdateTemplateInput,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await requirePermission('whatsapp_templates.update');
+  // Loud validation: a bad token in the shape must fail HERE, not as a
+  // silent wrong-variable send at reminder time (48b).
+  if (input.variablesShape) {
+    const bad = input.variablesShape.filter((t) => !VALID_SHAPE_TOKENS.has(t));
+    if (bad.length > 0) {
+      return { ok: false, error: `Invalid variable token(s): ${bad.join(', ')}` };
+    }
+  }
+  if (input.twilioContentSid && !/^HX[0-9a-f]{32}$/i.test(input.twilioContentSid)) {
+    return { ok: false, error: 'Content SID must look like HX… (34 chars).' };
+  }
   try {
     await updateTemplateInner(input);
     revalidatePath('/admin/whatsapp/templates');

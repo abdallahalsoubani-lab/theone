@@ -103,6 +103,24 @@ export function clinicDateKey(instant: Date, timeZone: string = CLINIC_TIME_ZONE
 }
 
 /** Clinic-local 24h clock reading of an instant — "HH:MM". */
+/**
+ * Localized weekday name of an instant in CLINIC wall time (Prompt 48b —
+ * the {{dayName}} template variable). Computed with the clinic timeZone
+ * pinned INSIDE Intl (institutional rule #1: never feed a wall-clock Date
+ * into a pinned formatter) so an Amman-evening appointment renders the
+ * correct day even when the process runs under TZ=UTC.
+ */
+export function clinicWeekdayName(
+  instant: Date,
+  locale: 'ar' | 'en',
+  timeZone: string = CLINIC_TIME_ZONE,
+): string {
+  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar' : 'en-GB', {
+    weekday: 'long',
+    timeZone,
+  }).format(instant);
+}
+
 export function clinicHm(instant: Date, timeZone: string = CLINIC_TIME_ZONE): string {
   const p = clinicWallParts(instant, timeZone);
   return `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`;

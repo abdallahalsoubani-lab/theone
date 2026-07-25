@@ -390,6 +390,11 @@ export class TwilioWhatsAppProvider implements WhatsAppProvider {
       fromPhone: fromWhatsAppAddress(from),
       body,
       receivedAt: new Date(),
+      // Quick-reply taps (Prompt 48b): Twilio posts the button's id in
+      // `ButtonPayload` and its label in `ButtonText` (Body carries the
+      // label too). Both normalized so the intent layer can trust the id.
+      ...(params['ButtonPayload'] ? { buttonPayload: params['ButtonPayload'] } : {}),
+      ...(params['ButtonText'] ? { buttonText: params['ButtonText'] } : {}),
     };
     return [{ kind: 'inbound', message: inbound }];
   }

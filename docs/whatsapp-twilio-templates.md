@@ -221,3 +221,73 @@ Welcome to Theone.pt. Your username is {{1}} and temporary password is {{2}}. Pl
    fixed OTP format (see 6 note).
 4. Tomorrow: copy each approved template's **Content SID (HX…)** into the app
    per `docs/whatsapp-twilio.md` §3 (14 SIDs total — ar+en are separate SIDs).
+
+---
+
+# v2 package (Prompt 48b) — PENDING APPROVAL — switch SIDs only AFTER 48b is deployed
+
+New unified variable shape for all four appointment templates:
+**{{1}} patient name · {{2}} day name (localized weekday) · {{3}} date · {{4}} time**
+
+Submit as NEW content (names below). After approval: in **Admin → WhatsApp →
+Templates**, for each row paste the new **SID** AND set **Variables shape** to
+`["patientName","dayName","date","time"]` — the send paths read the shape from
+the row, so the switch needs **zero deploy**. The reminder v2 is
+**quick-reply** content (two buttons); the rest stay Text.
+
+## R1 · appointment_reminder_ar_v2 — UTILITY — ar — **Quick reply**
+
+```
+مرحباً {{1}}، نذكّركم بموعدكم يوم {{2}} الموافق {{3}} الساعة {{4}}.
+يرجى تأكيد الحضور بالضغط على أحد الخيارين أدناه، وفي حال الرغبة بتعديل أو إلغاء الموعد نرجو إبلاغنا قبل 24 ساعة.
+في حال عدم الرد سيتم إلغاء الموعد.
+```
+
+Buttons (quick reply): `تأكيد الحضور` (id: `confirm`) · `عدم التأكيد` (id: `decline`)
+
+## R2 · appointment_reminder_en_v2 — UTILITY — en — **Quick reply**
+
+```
+Hello {{1}}, this is a reminder of your appointment on {{2}}, {{3}} at {{4}}.
+Please confirm by tapping an option below. To change or cancel, let us know at least 24 hours in advance.
+If we receive no reply, the appointment will be cancelled.
+```
+
+Buttons: `Confirm attendance` (id: `confirm`) · `Can't confirm` (id: `decline`)
+
+## R3/R4 · appointment*confirmation*{ar,en}\_v2 — UTILITY — Text
+
+```
+مرحباً {{1}}، تم تأكيد موعدكم يوم {{2}} الموافق {{3}} الساعة {{4}}. نراكم قريباً.
+```
+
+```
+Hi {{1}}, your appointment is confirmed for {{2}}, {{3}} at {{4}}. See you soon.
+```
+
+## R5/R6 · appointment*rescheduled*{ar,en}\_v2 — UTILITY — Text
+
+```
+مرحباً {{1}}، تم تغيير موعدكم إلى يوم {{2}} الموافق {{3}} الساعة {{4}}. نراكم قريباً.
+```
+
+```
+Hi {{1}}, your appointment has been moved to {{2}}, {{3}} at {{4}}. See you then.
+```
+
+## R7/R8 · appointment*cancelled*{ar,en}\_v2 — UTILITY — Text
+
+```
+مرحباً {{1}}، نأسف لإبلاغكم بإلغاء موعد يوم {{2}} الموافق {{3}} الساعة {{4}}. يمكنكم حجز موعد جديد في أي وقت.
+```
+
+```
+Hi {{1}}, we're sorry — your appointment on {{2}}, {{3}} at {{4}} was cancelled. You can rebook anytime.
+```
+
+Sample values for every entry: {{1}} سارة خليل / Sara Khalil · {{2}} السبت / Saturday · {{3}} 2026-08-01 · {{4}} 16:30
+
+> NOTE (48b scope): the reminder + rescheduled send paths are registry-driven
+> today; confirmation + cancelled still build their legacy arrays in code —
+> switch ONLY the reminder + rescheduled rows for now. Flipping the other two
+> needs the small follow-up noted in the 48b report.

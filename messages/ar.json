@@ -159,6 +159,21 @@
       "columnReason": "السبب",
       "columnCancelledBy": "ألغاها",
       "empty": "لا مواعيد ملغية في هذا النطاق."
+    },
+    "confirmations": {
+      "title": "تأكيدات التذكير",
+      "subtitle": "المواعيد المُذكَّر بها خلال {hours} ساعة القادمة، مجمّعة حسب رد المريض. لا يُلغى أي موعد تلقائياً — الإلغاء من هنا يمر بمسار الإلغاء المعتاد.",
+      "groupNoReply": "بلا رد",
+      "groupDeclined": "اعتذر",
+      "groupConfirmed": "مؤكَّد",
+      "empty": "لا مواعيد مُذكَّر بها ضمن الأفق بعد.",
+      "colPatient": "المريض",
+      "colWhen": "الموعد",
+      "colTherapist": "المعالج",
+      "colReminderSent": "أُرسل التذكير",
+      "colReply": "الرد",
+      "openFile": "فتح الملف",
+      "cancelAction": "إلغاء الموعد"
     }
   },
   "patients": {
@@ -486,7 +501,8 @@
     "arrivals": "قائمة الوصول",
     "waitlist": "قائمة الانتظار",
     "intakeSubmissions": "طلبات الاستقبال",
-    "clinicianSummary": "ملخص الأخصائيين"
+    "clinicianSummary": "ملخص الأخصائيين",
+    "confirmations": "التأكيدات"
   },
   "publicIntake": {
     "clinicName": "المركز الأول للعلاج الطبيعي",
@@ -1108,6 +1124,10 @@
       "HOME_PROGRAM_DOCTOR_EDITED": {
         "title": "تعديل البرنامج المنزلي من الدكتورة",
         "body": "قامت د. {doctorName} بتعديل البرنامج المنزلي لـ{patientName}."
+      },
+      "PATIENT_DECLINED_APPOINTMENT": {
+        "title": "مريض لن يحضر",
+        "body": "{patientName} أشار أنه لن يحضر موعد {day} الساعة {time}."
       }
     }
   },

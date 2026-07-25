@@ -583,6 +583,21 @@
       "columnReason": "Reason",
       "columnCancelledBy": "Cancelled by",
       "empty": "No cancelled appointments in this range."
+    },
+    "confirmations": {
+      "title": "Reminder confirmations",
+      "subtitle": "Reminded appointments in the next {hours} hours, grouped by the patient’s reply. No appointment is ever cancelled automatically — cancelling from here runs the normal cancellation flow.",
+      "groupNoReply": "No reply",
+      "groupDeclined": "Declined",
+      "groupConfirmed": "Confirmed",
+      "empty": "No reminded appointments in the horizon yet.",
+      "colPatient": "Patient",
+      "colWhen": "When",
+      "colTherapist": "Clinician",
+      "colReminderSent": "Reminder sent",
+      "colReply": "Replied",
+      "openFile": "Open file",
+      "cancelAction": "Cancel appointment"
     }
   },
   "patients": {
@@ -910,7 +925,8 @@
     "arrivals": "Arrivals",
     "waitlist": "Waitlist",
     "intakeSubmissions": "Intake requests",
-    "clinicianSummary": "Clinician summary"
+    "clinicianSummary": "Clinician summary",
+    "confirmations": "Confirmations"
   },
   "publicIntake": {
     "clinicName": "The One for Physiotherapy",
@@ -1108,6 +1124,10 @@
       "HOME_PROGRAM_DOCTOR_EDITED": {
         "title": "Home program edited by the doctor",
         "body": "Dr. {doctorName} edited the home program for {patientName}."
+      },
+      "PATIENT_DECLINED_APPOINTMENT": {
+        "title": "Patient can’t attend",
+        "body": "{patientName} indicated they will not attend their appointment on {day} at {time}."
       }
     }
   },
