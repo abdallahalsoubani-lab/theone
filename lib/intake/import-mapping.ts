@@ -5,8 +5,8 @@ import type { CustomQuestionAppliesTo, CustomQuestionType } from '@prisma/client
  * sheets (the cleaned Google-Forms exports in ~/import-data) onto system
  * storage. Owner-signed direction: the sheets win; adult columns map 1:1
  * onto the fixed AdultIntakeData fields (the system was built from the same
- * form), children get 19 new active custom questions + 1 shared archive
- * question.
+ * form), children get 23 new active custom questions + 1 shared archive
+ * question (24 total — one question per mapped sheet column).
  *
  * Consumed by:
  *   - scripts/seed-intake-questions.ts  (creates the custom questions)
@@ -18,7 +18,7 @@ import type { CustomQuestionAppliesTo, CustomQuestionType } from '@prisma/client
  * are VERBATIM sheet headers (owner ruling), lightly trimmed only.
  */
 
-// ─── The new custom questions (19 active PEDIATRIC + 1 archive BOTH) ───────
+// ─── The new custom questions (23 active PEDIATRIC + 1 archive BOTH) ───────
 
 export interface ImportQuestionDef {
   key: string;
