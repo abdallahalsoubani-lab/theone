@@ -27,11 +27,19 @@ import { whatsapp } from '@/lib/whatsapp';
 import { WhatsAppError, describeWhatsAppError } from '@/lib/whatsapp/errors';
 import { makeOutboundRateLimiter } from '@/lib/whatsapp/rateLimit';
 import type { SendResult } from '@/lib/whatsapp/provider';
+import { substituteTemplateBody } from '@/lib/whatsapp/templates/render';
 
 const rateLimiter = makeOutboundRateLimiter({ redis: queueRedis });
 
-function buildBodyPreview(job: WhatsappOutboundJob): string {
+function buildBodyPreview(job: WhatsappOutboundJob, template: WhatsAppTemplate | null): string {
   if (job.kind === 'text') return job.body ?? '';
+  // P52 follow-up: store the COMPOSED text (registry body + params) so the
+  // Inbox/Admin show exactly what the patient received. The technical
+  // `template:name(…)` form remains only when no registry row exists —
+  // the display renderer (lib/whatsapp/templates/render.ts) labels it.
+  if (template?.contentPreview) {
+    return substituteTemplateBody(template.contentPreview, job.parameters ?? []);
+  }
   if (!job.parameters || job.parameters.length === 0) {
     return `template:${job.templateName ?? '?'}`;
   }
@@ -66,7 +74,7 @@ async function persistAndFinalize(args: {
       direction: 'OUTBOUND',
       status: result.status === 'FAILED' ? 'FAILED' : 'SENT',
       providerMessageId: result.providerMessageId,
-      body: buildBodyPreview(job),
+      body: buildBodyPreview(job, template),
       appointmentId: job.appointmentId ?? null,
       sentAt,
     },
@@ -112,7 +120,7 @@ async function recordTerminalFailure(args: {
       status: 'FAILED',
       providerMessageId: null,
       failureReason: reason,
-      body: buildBodyPreview(job),
+      body: buildBodyPreview(job, template),
       appointmentId: job.appointmentId ?? null,
     },
   });

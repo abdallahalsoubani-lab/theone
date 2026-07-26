@@ -1,6 +1,7 @@
 import type { UserRole, WaInboundIntent, WaMessageStatus } from '@prisma/client';
 
 import { db } from '@/lib/db';
+import { renderWaBody } from '@/lib/whatsapp/templates/render';
 
 /**
  * WhatsApp Inbox reads (Prompt 49). Threads DERIVE from WhatsAppMessage
@@ -31,6 +32,9 @@ export interface ConversationListRow {
   lastInboundAt: Date | null;
   unread: boolean;
   lastSnippet: string;
+  /** Set when the last message is a template that can no longer be
+   *  recomposed (registry row gone) — the client shows a friendly label. */
+  lastSnippetFallbackTemplate: string | null;
   lastDirection: 'INBOUND' | 'OUTBOUND' | null;
   /** Delivery state of OUR last outbound (real stored status — never faked). */
   lastOutboundStatus: WaMessageStatus | null;
@@ -58,13 +62,38 @@ export async function listConversations(
   const lastMessages = await db.whatsAppMessage.findMany({
     where: { recipientPhone: { in: phones } },
     orderBy: { sentAt: 'desc' },
-    select: { recipientPhone: true, body: true, direction: true, status: true, sentAt: true },
+    select: {
+      recipientPhone: true,
+      body: true,
+      direction: true,
+      status: true,
+      sentAt: true,
+      parameters: true,
+      template: { select: { name: true, contentPreview: true } },
+    },
   });
-  const snippetByPhone = new Map<string, { body: string; direction: 'INBOUND' | 'OUTBOUND' }>();
+  const snippetByPhone = new Map<
+    string,
+    { body: string; fallbackTemplate: string | null; direction: 'INBOUND' | 'OUTBOUND' }
+  >();
   const outboundStatusByPhone = new Map<string, WaMessageStatus>();
   for (const m of lastMessages) {
     if (!snippetByPhone.has(m.recipientPhone)) {
-      snippetByPhone.set(m.recipientPhone, { body: m.body, direction: m.direction });
+      // P52 follow-up: historical template rows stored the technical
+      // preview — recompose the real text for the list snippet.
+      const rendered = renderWaBody({
+        body: m.body,
+        parameters: m.parameters,
+        templateContentPreview: m.template?.contentPreview ?? null,
+      });
+      snippetByPhone.set(m.recipientPhone, {
+        body: rendered.kind === 'templateFallback' ? '' : rendered.text,
+        fallbackTemplate:
+          rendered.kind === 'templateFallback'
+            ? rendered.templateName || (m.template?.name ?? '')
+            : null,
+        direction: m.direction,
+      });
     }
     if (m.direction === 'OUTBOUND' && !outboundStatusByPhone.has(m.recipientPhone)) {
       outboundStatusByPhone.set(m.recipientPhone, m.status);
@@ -83,6 +112,7 @@ export async function listConversations(
       lastInboundAt: c.lastInboundAt,
       unread: isUnread(c),
       lastSnippet: snippetByPhone.get(c.phone)?.body.slice(0, 80) ?? '',
+      lastSnippetFallbackTemplate: snippetByPhone.get(c.phone)?.fallbackTemplate ?? null,
       lastDirection: snippetByPhone.get(c.phone)?.direction ?? null,
       lastOutboundStatus: outboundStatusByPhone.get(c.phone) ?? null,
     }))
@@ -108,6 +138,10 @@ export interface ThreadMessage {
   readAt: Date | null;
   /** Templated send vs free-text session message (subtle "قالب" tag). */
   isTemplate: boolean;
+  /** Render inputs for historical technical-preview rows (P52 follow-up). */
+  templateName: string | null;
+  templateContentPreview: string | null;
+  parameters: unknown;
   /** 48b button tap — render as "ضغط: {label}" not bare text. */
   buttonPayload: string | null;
   intent: WaInboundIntent | null;
@@ -176,6 +210,7 @@ export async function getThread(conversationId: string): Promise<ThreadView | nu
       templateId: true,
       parameters: true,
       intent: true,
+      template: { select: { name: true, contentPreview: true } },
       sentBy: { select: { fullNameEn: true } },
     },
   });
@@ -227,6 +262,9 @@ export async function getThread(conversationId: string): Promise<ThreadView | nu
       deliveredAt: m.deliveredAt,
       readAt: m.readAt,
       isTemplate: m.templateId !== null,
+      templateName: m.template?.name ?? null,
+      templateContentPreview: m.template?.contentPreview ?? null,
+      parameters: m.parameters,
       buttonPayload:
         typeof (m.parameters as Record<string, unknown>)?.buttonPayload === 'string'
           ? ((m.parameters as Record<string, string>).buttonPayload ?? null)

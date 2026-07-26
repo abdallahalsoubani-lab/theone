@@ -129,7 +129,9 @@ export function InboxShell({
                       </Badge>
                     ) : null}
                     <span className="truncate text-xs text-brand-textMuted" dir="auto">
-                      {c.lastSnippet || '—'}
+                      {c.lastSnippetFallbackTemplate !== null
+                        ? `${t('templateGeneric')}: ${c.lastSnippetFallbackTemplate}`
+                        : c.lastSnippet || '—'}
                     </span>
                   </span>
                   <span className="font-mono text-[10px] text-brand-textMuted" dir="ltr">

@@ -1832,6 +1832,14 @@
     "linkConfirm": "Link and update phone",
     "linkDone": "Conversation linked to the patient.",
     "cancel": "Cancel",
-    "patientsOnNumber": "Patients on this number"
+    "patientsOnNumber": "Patients on this number",
+    "tpl_appointment_confirmation_v2": "Appointment confirmation",
+    "tpl_appointment_reminder_v2": "Appointment reminder",
+    "tpl_appointment_cancelled_v2": "Appointment cancellation",
+    "tpl_appointment_rescheduled": "Appointment rescheduled",
+    "tpl_home_exercise_reminder_v2": "Home exercise reminder",
+    "tpl_patient_account_credentials": "Account credentials",
+    "templateFallbackBody": "Template: {name} — {params}",
+    "templateGeneric": "Template"
   }
 }

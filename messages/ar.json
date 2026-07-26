@@ -1832,6 +1832,14 @@
     "linkConfirm": "ربط وتحديث الرقم",
     "linkDone": "تم ربط المحادثة بالمريض.",
     "cancel": "إلغاء",
-    "patientsOnNumber": "مرضى على هذا الرقم"
+    "patientsOnNumber": "مرضى على هذا الرقم",
+    "tpl_appointment_confirmation_v2": "تأكيد موعد",
+    "tpl_appointment_reminder_v2": "تذكير موعد",
+    "tpl_appointment_cancelled_v2": "إلغاء موعد",
+    "tpl_appointment_rescheduled": "إعادة جدولة موعد",
+    "tpl_home_exercise_reminder_v2": "تذكير تمارين منزلية",
+    "tpl_patient_account_credentials": "بيانات الدخول",
+    "templateFallbackBody": "قالب: {name} — {params}",
+    "templateGeneric": "قالب"
   }
 }

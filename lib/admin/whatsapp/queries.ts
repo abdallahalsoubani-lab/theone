@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { db } from '@/lib/db';
+import { renderWaBody } from '@/lib/whatsapp/templates/render';
 
 export interface TemplateListRow {
   id: string;
@@ -82,7 +83,7 @@ export async function listMessages(filters: MessageListFilters = {}): Promise<Me
     orderBy: { sentAt: 'desc' },
     take: filters.take ?? 50,
     include: {
-      template: { select: { name: true, language: true } },
+      template: { select: { name: true, language: true, contentPreview: true } },
       recipient: { select: { fullNameEn: true, fullNameAr: true } },
     },
   });
@@ -96,7 +97,19 @@ export async function listMessages(filters: MessageListFilters = {}): Promise<Me
     recipientPhone: r.recipientPhone,
     recipientId: r.recipientId,
     recipientName: r.recipient ? `${r.recipient.fullNameEn} / ${r.recipient.fullNameAr}` : null,
-    body: r.body,
+    // P52 follow-up: historical template rows stored the technical
+    // preview — show the composed text; the fallback keeps the template
+    // name visible (the UI already shows templateName in its own column).
+    body: (() => {
+      const rendered = renderWaBody({
+        body: r.body,
+        parameters: r.parameters,
+        templateContentPreview: r.template?.contentPreview ?? null,
+      });
+      return rendered.kind === 'templateFallback'
+        ? `⧉ ${rendered.templateName} — ${rendered.params.join(', ')}`
+        : rendered.text;
+    })(),
     failureReason: r.failureReason,
     providerMessageId: r.providerMessageId,
     templateName: r.template?.name ?? null,

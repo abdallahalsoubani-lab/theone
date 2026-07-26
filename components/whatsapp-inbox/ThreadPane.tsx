@@ -29,6 +29,7 @@ import {
   sendInboxReplyAction,
 } from '@/lib/whatsapp/inbox/actions';
 import type { ThreadMessage, ThreadView } from '@/lib/whatsapp/inbox/queries';
+import { renderWaBody } from '@/lib/whatsapp/templates/render';
 import { patientPickerOption } from '@/lib/patients/picker';
 
 export interface LinkablePatient {
@@ -86,6 +87,38 @@ export function ThreadPane({
 
   // P50: shared family numbers — every registered patient on this phone.
   const knownPatients = thread.patients;
+
+  // P52 follow-up: historical template rows stored `template:name(…)` —
+  // recompose the real text (registry body + stored params); a friendly
+  // label when the registry row is gone.
+  const displayBody = (m: ThreadMessage): string => {
+    if (!m.isTemplate) return m.body;
+    const rendered = renderWaBody({
+      body: m.body,
+      parameters: m.parameters,
+      templateContentPreview: m.templateContentPreview,
+    });
+    if (rendered.kind === 'templateFallback') {
+      return t('templateFallbackBody', {
+        name: templateLabel(rendered.templateName || m.templateName || ''),
+        params: rendered.params.join('، '),
+      });
+    }
+    return rendered.text;
+  };
+
+  const templateLabel = (name: string): string => {
+    const known = [
+      'appointment_confirmation_v2',
+      'appointment_reminder_v2',
+      'appointment_cancelled_v2',
+      'appointment_rescheduled',
+      'home_exercise_reminder_v2',
+      'patient_account_credentials',
+    ];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return known.includes(name) ? t(`tpl_${name}` as any) : name || t('templateGeneric');
+  };
 
   const buttonTapLabel = (m: ThreadMessage): string | null => {
     if (m.direction !== 'INBOUND' || !m.buttonPayload) return null;
@@ -204,7 +237,7 @@ export function ThreadPane({
                   <p className="text-sm font-medium text-brand-navy">{tap}</p>
                 ) : (
                   <p className="whitespace-pre-wrap break-words text-sm text-brand-text" dir="auto">
-                    {m.body}
+                    {displayBody(m)}
                   </p>
                 )}
                 <span className="mt-1 flex items-center justify-end gap-1.5 text-[10px] text-brand-textMuted">
