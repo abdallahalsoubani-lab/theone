@@ -56,10 +56,11 @@ export async function Header() {
         className="group flex items-center gap-3 rounded-md transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         aria-label={t('common.appName')}
       >
-        <Logo size={36} />
-        <span className="hidden text-base font-semibold tracking-tight text-brand-navy transition-colors group-hover:text-brand-blue sm:inline">
-          {t('common.appName')}
-        </span>
+        {/* Owner request (26/07): the wordmark logo alone — no app-name text
+            beside it (the name lives inside the logo already). Slightly
+            larger to fill the freed space; aria-label keeps the name for
+            screen readers. */}
+        <Logo size={44} />
       </Link>
 
       <nav aria-label={t('navigation.primary')} className="hidden flex-1 items-center md:flex">
