@@ -219,6 +219,25 @@ describe('runImport (synthetic fixtures)', () => {
     expect(c.referralKeyword).toBeGreaterThanOrEqual(1);
   });
 
+  it('a BROKEN (non-Jordanian) phone imports as null with the raw archived — never a refusal (§1.1)', async () => {
+    const dir = makeDataDir(
+      [adultRow({ 1: 'رقم يمني', 5: '+967736244431' })],
+      [childRow({ 1: 'رقم ألماني', 4: '+4915730863990' })],
+    );
+    const { client, writes } = fakeDb();
+    const c = await runImport({ apply: true, dataDir: dir, backupPath: backup() }, client);
+    expect(c.failures).toHaveLength(0);
+    expect(c.phoneInvalid).toBe(2);
+    expect(c.phoneNull).toBe(2);
+    expect(writes.users.every((u) => u.phone === null)).toBe(true);
+    const joined = writes.answers
+      .filter((a) => a.questionId === 'q-importArchiveNote')
+      .map((a) => String(a.value))
+      .join('\n');
+    expect(joined).toContain('+967736244431');
+    expect(joined).toContain('+4915730863990');
+  });
+
   it('apply creates everything with the signed mechanics', async () => {
     const dir = makeDataDir(FIXTURE_ADULTS, FIXTURE_CHILDREN);
     const { client, writes } = fakeDb();

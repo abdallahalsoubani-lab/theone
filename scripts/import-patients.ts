@@ -144,6 +144,8 @@ interface Counters {
   createdPatients: number;
   skippedExisting: number;
   phoneNull: number;
+  /** Non-Jordanian/mistyped historical numbers → phone=null, raw archived. */
+  phoneInvalid: number;
   dobSentinel: number;
   fixedFieldAnswers: number;
   customAnswers: Record<string, number>;
@@ -160,6 +162,7 @@ function newCounters(): Counters {
     createdPatients: 0,
     skippedExisting: 0,
     phoneNull: 0,
+    phoneInvalid: 0,
     dobSentinel: 0,
     fixedFieldAnswers: 0,
     customAnswers: {},
@@ -221,9 +224,13 @@ export function prepareAdultRow(
   counters: Counters,
 ): PreparedRow {
   const archive: string[] = [];
-  const phone = row.phone_e164?.trim() || null;
+  let phone = row.phone_e164?.trim() || null;
   if (phone && !/^\+9627\d{8}$/.test(phone)) {
-    throw new Error(`row ${index + 2}: malformed phone "${phone}" (planner files are normalized)`);
+    // Owner-signed §1.1: broken numbers import as NULL — the raw is
+    // preserved for the paper-file follow-up, never silently dropped.
+    archive.push(`رقم هاتف غير صالح (استيراد): ${phone}`);
+    counters.phoneInvalid += 1;
+    phone = null;
   }
   if (!phone) counters.phoneNull += 1;
   const dobRaw = row.dob_approx?.trim();
@@ -346,9 +353,11 @@ export function prepareChildRow(
   counters: Counters,
 ): PreparedRow {
   const archive: string[] = [];
-  const phone = row.phone_e164?.trim() || null;
+  let phone = row.phone_e164?.trim() || null;
   if (phone && !/^\+9627\d{8}$/.test(phone)) {
-    throw new Error(`row ${index + 2}: malformed phone "${phone}"`);
+    archive.push(`رقم هاتف غير صالح (استيراد): ${phone}`);
+    counters.phoneInvalid += 1;
+    phone = null;
   }
   if (!phone) counters.phoneNull += 1;
   const note = row['ملاحظة للمراجعة']?.trim();
@@ -574,7 +583,9 @@ export async function runImport(args: CliArgs, prisma: typeof db = db): Promise<
     `patients to create:   ${toCreate.length} (adults=${adultsToCreate} children=${childrenToCreate})`,
   );
   console.log(`already imported:     ${counters.skippedExisting} (idempotent skip)`);
-  console.log(`phone null:           ${counters.phoneNull}`);
+  console.log(
+    `phone null:           ${counters.phoneNull} (empty=${counters.phoneNull - counters.phoneInvalid} + broken-archived=${counters.phoneInvalid})`,
+  );
   console.log(`dob sentinel (1900):  ${counters.dobSentinel}`);
   console.log(`adult fixed-field answers: ${counters.fixedFieldAnswers}`);
   console.log(
@@ -624,7 +635,7 @@ export async function runImport(args: CliArgs, prisma: typeof db = db): Promise<
   console.log(`total patients:       ${totalPatients}`);
   console.log(`imported adults:      ${importedAdults} (expect 110)`);
   console.log(`imported children:    ${importedChildren} (expect 147)`);
-  console.log(`phone-null patients:  ${phoneNullDb} (expect 15)`);
+  console.log(`phone-null patients:  ${phoneNullDb} (expect 28 = 15 empty + 13 broken)`);
   console.log(`archive answers:      ${archiveCount} (> 0 expected)`);
   if (counters.failures.length > 0) {
     console.error(`\nFAILED ROWS (${counters.failures.length}) — re-run to complete:`);
