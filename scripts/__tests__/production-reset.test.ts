@@ -20,10 +20,16 @@ function fakeDb(opts?: { adminRole?: string; adminFound?: boolean }) {
     opts?.adminFound === false
       ? null
       : { id: 'admin-1', email: 'owner@theone.pt', role: opts?.adminRole ?? 'ADMIN' };
+  const updates: Call[] = [];
   const model = (table: string) => ({
     count: async () => 7,
     deleteMany: async (args?: { where?: unknown }) => {
       deletes.push({ table, where: args?.where });
+      return { count: 7 };
+    },
+    // The creator re-point step (kept content → system actor).
+    updateMany: async (args?: { where?: unknown }) => {
+      updates.push({ table, where: args?.where });
       return { count: 7 };
     },
   });
@@ -78,7 +84,7 @@ function fakeDb(opts?: { adminRole?: string; adminFound?: boolean }) {
   ]) {
     client[m] = client[m] ?? model(m);
   }
-  return { client: client as never, deletes };
+  return { client: client as never, deletes, updates };
 }
 
 function backupFile(): string {
@@ -125,7 +131,7 @@ describe('production-reset', () => {
   });
 
   it('apply wipes the wipe-list and the User delete EXCLUDES keep-admins + the system actor', async () => {
-    const { client, deletes } = fakeDb();
+    const { client, deletes, updates } = fakeDb();
     const result = await runProductionReset(
       { apply: true, ...KEEP, backupPath: backupFile() },
       client,
@@ -133,6 +139,16 @@ describe('production-reset', () => {
     const userDelete = deletes.find((d) => d.table === 'user');
     expect(userDelete?.where).toEqual({ id: { notIn: ['admin-1', 'system'] } });
     expect(result.keptUserIds).toEqual(['admin-1', 'system']);
+    // Kept content authored by wiped users is RE-POINTED to system (live
+    // incident: Exercise_createdById_fkey Restrict aborted the first apply).
+    expect(updates.map((u) => u.table).sort()).toEqual([
+      'exercise',
+      'intakeCustomQuestion',
+      'pediatricCustomField',
+    ]);
+    for (const u of updates) {
+      expect(u.where).toEqual({ createdById: { notIn: ['admin-1', 'system'] } });
+    }
     // Owner-signed keep list: none of these tables may EVER be deleted.
     const touched = new Set(deletes.map((d) => d.table));
     for (const survivor of [

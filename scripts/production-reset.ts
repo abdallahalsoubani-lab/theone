@@ -250,6 +250,31 @@ export async function runProductionReset(
           .then((r) => r.count),
     },
     {
+      // Surviving CONTENT (exercise library, custom intake questions,
+      // pediatric custom fields) keeps its rows while its trial-era
+      // creators are wiped — authorship is re-pointed to the `system`
+      // actor first, or the Restrict FKs would abort the whole wipe.
+      table: 'creator re-point → system (kept content)',
+      count: async () => {
+        const w = { where: { createdById: { notIn: keptUserIds } } };
+        return (
+          (await prisma.exercise.count(w)) +
+          (await prisma.intakeCustomQuestion.count(w)) +
+          (await prisma.pediatricCustomField.count(w))
+        );
+      },
+      del: async (c) => {
+        const args = {
+          where: { createdById: { notIn: keptUserIds } },
+          data: { createdById: SYSTEM_USER_ID },
+        };
+        const a = await c.exercise.updateMany(args);
+        const b = await c.intakeCustomQuestion.updateMany(args);
+        const d = await c.pediatricCustomField.updateMany(args);
+        return a.count + b.count + d.count;
+      },
+    },
+    {
       table: 'User (except keep-admins + system)',
       count: () => prisma.user.count({ where: { id: { notIn: keptUserIds } } }),
       del: (c) => c.user.deleteMany({ where: { id: { notIn: keptUserIds } } }).then((r) => r.count),
