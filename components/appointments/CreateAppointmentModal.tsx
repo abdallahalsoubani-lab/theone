@@ -31,6 +31,7 @@ import { formatClinicDateTimeLocal, parseClinicDateTimeLocal } from '@/lib/time/
 import { addWaitlistEntryAction, fulfillWaitlistEntryAction } from '@/lib/waitlist/actions';
 
 import { CreateSeriesModal } from './CreateSeriesModal';
+import { patientPickerOption } from '@/lib/patients/picker';
 
 interface Patient {
   id: string;
@@ -360,9 +361,7 @@ export function CreateAppointmentModal({
                   <SearchablePillGroup
                     tone="teal"
                     options={patients.map((p) => ({
-                      id: p.id,
-                      label: locale === 'ar' ? p.fullNameAr : p.fullNameEn,
-                      sublabel: locale === 'ar' ? p.fullNameEn : p.fullNameAr,
+                      ...patientPickerOption(p, locale),
                     }))}
                     selectedIds={patientIds}
                     onToggle={togglePatient}
@@ -384,13 +383,7 @@ export function CreateAppointmentModal({
                   id="appt-patient"
                   value={patientId}
                   onChange={setPatientId}
-                  options={patients.map((p) => ({
-                    id: p.id,
-                    label:
-                      (locale === 'ar' ? p.fullNameAr : p.fullNameEn) +
-                      (p.phone ? ` (${p.phone})` : ''),
-                    sublabel: locale === 'ar' ? p.fullNameEn : p.fullNameAr,
-                  }))}
+                  options={patients.map((p) => patientPickerOption(p, locale))}
                 />
                 {/* NI-5 SOFT notice (Prompt 41, owner ruling): purely
                     informational — never blocks, no confirmation. */}

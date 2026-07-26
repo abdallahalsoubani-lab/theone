@@ -29,6 +29,7 @@ import {
   sendInboxReplyAction,
 } from '@/lib/whatsapp/inbox/actions';
 import type { ThreadMessage, ThreadView } from '@/lib/whatsapp/inbox/queries';
+import { patientPickerOption } from '@/lib/patients/picker';
 
 export interface LinkablePatient {
   id: string;
@@ -107,13 +108,9 @@ export function ThreadPane({
     });
   };
 
-  const linkOptions: PickerOption[] = patients.map((p) => ({
-    id: p.id,
-    label: patientDisplayName(p.fullNameEn, p.fullNameAr, locale),
-    sublabel: [locale === 'ar' ? p.fullNameEn : (p.fullNameAr ?? ''), p.phone ?? '']
-      .filter(Boolean)
-      .join(' · '),
-  }));
+  const linkOptions: PickerOption[] = patients.map((p) =>
+    patientPickerOption({ ...p, fullNameAr: p.fullNameAr ?? '' }, locale),
+  );
   const linkTarget = patients.find((p) => p.id === linkPatientId) ?? null;
 
   const confirmLink = () => {

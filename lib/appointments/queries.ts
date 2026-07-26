@@ -120,15 +120,20 @@ export async function getAppointmentById(id: string) {
  * nulled out for Doctor viewers (Prompt 15 §1) — the picker shows name only
  * for them; Secretary/Admin keep the phone to disambiguate same-name patients.
  */
-export async function listActivePatientsBrief(limit = 200) {
+export async function listActivePatientsBrief() {
   const { viewerCanSeePatientPhone } = await import('@/lib/patients/access');
   const { pendingFirstVisitIds } = await import('@/lib/patients/first-visit');
   const canSeePhone = await viewerCanSeePatientPhone();
+  // NO cap (P52 incident): a silent take:200 + EN-name ordering hid every
+  // patient past rank 200 from the pickers once the 257 imports (empty
+  // fullNameEn sorts first) landed — the client-side picker can only find
+  // what reaches it. Single-clinic scale ruling (CLAUDE.md: a few hundred
+  // active patients) makes the full roster a few tens of KB. Ordered by
+  // ARABIC name — the clinic's primary script.
   const rows = await db.user.findMany({
     where: { role: 'PATIENT', deletedAt: null },
     select: { id: true, fullNameEn: true, fullNameAr: true, phone: true },
-    orderBy: { fullNameEn: 'asc' },
-    take: limit,
+    orderBy: { fullNameAr: 'asc' },
   });
   // Doctor-first-visit soft flag (Prompt 41 — NI-5): one batch query for the
   // whole list so the booking modal can show its informational notice.

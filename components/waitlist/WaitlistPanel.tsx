@@ -25,6 +25,7 @@ import { parseClinicDateTimeLocal } from '@/lib/time/clinic';
 import type { WaitlistRow } from '@/lib/waitlist/queries';
 import { addWaitlistEntryAction, removeWaitlistEntryAction } from '@/lib/waitlist/actions';
 import type { WaitlistStatusFilter } from '@/lib/waitlist/schemas';
+import { patientPickerOption } from '@/lib/patients/picker';
 
 interface Patient {
   id: string;
@@ -322,13 +323,7 @@ function AddWaitlistDialog({
               id="wl-patient"
               value={patientId}
               onChange={setPatientId}
-              options={patients.map((p) => ({
-                id: p.id,
-                label:
-                  (locale === 'ar' ? p.fullNameAr : p.fullNameEn) +
-                  (p.phone ? ` (${p.phone})` : ''),
-                sublabel: locale === 'ar' ? p.fullNameEn : p.fullNameAr,
-              }))}
+              options={patients.map((p) => patientPickerOption(p, locale))}
             />
           </div>
 
