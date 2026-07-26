@@ -12,6 +12,7 @@ import { Link } from '@/i18n/navigation';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { formatPhone } from '@/lib/format/phone';
 import type { PatientFileData } from '@/lib/patients/queries';
+import { displayAgeYears } from '@/lib/patients/schemas';
 
 /**
  * Patient header card — sits above the file tabs. Shows the avatar, both
@@ -51,8 +52,8 @@ export function PatientHeader({
     .slice(0, 2)
     .join('')
     .toUpperCase();
-  const ageMs = Date.now() - patient.dateOfBirth.getTime();
-  const ageYears = Math.floor(ageMs / (365.25 * 24 * 60 * 60 * 1000));
+  // P52: sentinel DOB (unknown, year <= 1900) renders as an em-dash.
+  const ageYears = displayAgeYears(patient.dateOfBirth);
 
   return (
     <div className="flex flex-wrap items-center gap-4 rounded-md border border-brand-border bg-brand-surface p-4">
@@ -67,7 +68,7 @@ export function PatientHeader({
           <p className="text-sm text-brand-textMuted">{alt}</p>
         ) : null}
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <Badge variant="muted">{ageYears}y</Badge>
+          <Badge variant="muted">{ageYears === null ? '\u2014' : `${ageYears}y`}</Badge>
           <Badge variant="muted">
             {patient.gender === 'FEMALE' ? tForm('genderFemale') : tForm('genderMale')}
           </Badge>

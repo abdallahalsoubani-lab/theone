@@ -118,7 +118,7 @@ export function PatientsTable({
           id: 'age',
           accessorKey: 'ageYears',
           header: t('columnAge'),
-          cell: ({ row }) => <span>{row.original.ageYears}</span>,
+          cell: ({ row }) => <span>{row.original.ageYears ?? '\u2014'}</span>,
         },
         {
           id: 'gender',

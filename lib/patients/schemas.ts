@@ -138,9 +138,24 @@ export type PatientListFilters = z.infer<typeof patientListFiltersSchema>;
 
 const PEDIATRIC_AGE_CUTOFF_YEARS = 14;
 
+/**
+ * P52 sentinel (owner-signed): one imported adult has an unknown DOB stored
+ * as 1900-01-01 (the column is NOT NULL; the clinic completes it from the
+ * paper file). Any DOB in year 1900 or earlier means "unknown" — age and
+ * date displays MUST render '—', never "126y".
+ */
+export function isUnknownDob(dateOfBirth: Date): boolean {
+  return dateOfBirth.getUTCFullYear() <= 1900;
+}
+
 export function computeAgeYears(dateOfBirth: Date, now: Date = new Date()): number {
   const ms = now.getTime() - dateOfBirth.getTime();
   return Math.floor(ms / (365.25 * 24 * 60 * 60 * 1000));
+}
+
+/** Display-safe age: null for the unknown-DOB sentinel (render '—'). */
+export function displayAgeYears(dateOfBirth: Date, now: Date = new Date()): number | null {
+  return isUnknownDob(dateOfBirth) ? null : computeAgeYears(dateOfBirth, now);
 }
 
 export function isPediatric(dateOfBirth: Date): boolean {

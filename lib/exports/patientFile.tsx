@@ -10,6 +10,7 @@ import { type PermissionUser } from '@/lib/rbac/can';
 import { PDF_FONT_FAMILY, pdfDir } from './fonts';
 import { resolveRedaction, type ExportRedaction } from './redaction';
 import { PdfText, renderPdfToBuffer } from './render';
+import { isUnknownDob } from '@/lib/patients/schemas';
 
 export { resolveRedaction, type ExportRedaction };
 
@@ -263,7 +264,11 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
           <Row
             d={d}
             label={ar ? 'تاريخ الميلاد' : 'Date of birth'}
-            value={formatShortDate(patient.dateOfBirth, locale, { timeZone: 'UTC' })}
+            value={
+              isUnknownDob(patient.dateOfBirth)
+                ? '\u2014'
+                : formatShortDate(patient.dateOfBirth, locale, { timeZone: 'UTC' })
+            }
           />
           <Row d={d} label={ar ? 'الجنس' : 'Gender'} value={patient.gender} />
           <Row d={d} label={ar ? 'العنوان' : 'Address'} value={patient.address ?? '—'} />

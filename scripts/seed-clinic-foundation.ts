@@ -33,25 +33,11 @@ import { UserRole } from '@prisma/client';
 import { createUser, forceResetPassword, updateUser } from '@/lib/admin/users/services';
 import { db } from '@/lib/db';
 
-// ─── CSV (BOM + CRLF tolerant; the planner-cleaned files carry no quoted
-// commas, so a plain split is correct — asserted below) ────────────────────
+// CSV parsing lives in the dependency-free shared module (P52 needs it
+// without this file's server-only import chain).
+import { parseCsv } from '@/lib/format/csv';
 
-export function parseCsv(raw: string): Array<Record<string, string>> {
-  const text = raw.replace(/^﻿/, '');
-  const lines = text
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
-  if (lines.length < 2) return [];
-  const headers = lines[0]!.split(',').map((h) => h.trim());
-  return lines.slice(1).map((line, i) => {
-    const cells = line.split(',');
-    if (cells.length !== headers.length) {
-      throw new Error(`CSV row ${i + 2} has ${cells.length} cells, expected ${headers.length}`);
-    }
-    return Object.fromEntries(headers.map((h, j) => [h, cells[j]!.trim()]));
-  });
-}
+export { parseCsv };
 
 // ─── The three real disciplines ────────────────────────────────────────────
 

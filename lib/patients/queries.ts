@@ -10,7 +10,7 @@ import { db } from '@/lib/db';
 
 import { type CareTeam, type ClinicianRef } from './assignment';
 import { pendingFirstVisitIds } from './first-visit';
-import { computeAgeYears, isPediatric, type PatientListFilters } from './schemas';
+import { displayAgeYears, isPediatric, type PatientListFilters } from './schemas';
 
 // Re-export so the patient-file gate and can() resource check keep importing
 // the assignment check from one place (`@/lib/patients/queries`) even though
@@ -25,7 +25,7 @@ export interface PatientListRow {
   phone: string | null;
   email: string | null;
   dateOfBirth: Date;
-  ageYears: number;
+  ageYears: number | null;
   gender: Gender;
   languagePref: LanguagePref;
   archived: boolean;
@@ -124,7 +124,7 @@ export async function listPatients({
     .filter((u) => u.patientProfile !== null)
     .map((u): PatientListRow => {
       const profile = u.patientProfile!;
-      const ageYears = computeAgeYears(profile.dateOfBirth);
+      const ageYears = displayAgeYears(profile.dateOfBirth);
       const hasCompleted = u.intakesAsPatient.some((i) => i.status !== 'IN_PROGRESS');
       const careTeam = splitCareTeam(profile.careTeam);
       return {
