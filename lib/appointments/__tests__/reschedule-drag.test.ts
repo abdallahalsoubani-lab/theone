@@ -22,6 +22,8 @@ vi.mock('@/lib/audit/withAudit', () => ({
 vi.mock('@/lib/queue/jobs/appointmentReminder', () => ({
   enqueueAppointmentReminder: vi.fn(),
   cancelAppointmentReminder: vi.fn(),
+  scheduleLifecycleMessage: vi.fn(async () => null),
+  cancelLifecycleMessages: vi.fn(async () => ({ confirmWasPending: false })),
 }));
 vi.mock('@/lib/queue/jobs/autoCompleteSession', () => ({
   enqueueAutoCompleteSession: vi.fn(),
@@ -29,8 +31,15 @@ vi.mock('@/lib/queue/jobs/autoCompleteSession', () => ({
 }));
 vi.mock('@/lib/patients/assignment', () => ({ addCareTeamMemberTx: vi.fn() }));
 // Prompt 48 — the reschedule message: assert fire/silence per path.
+// P53: the send is now DEFERRED — the service schedules a lifecycle job
+// instead of calling the sender directly; kind depends on whether the
+// confirmation ever actually went out (mocked "yes" here → 'reschedule').
 vi.mock('@/lib/whatsapp/templates/sendRescheduled', () => ({
   sendAppointmentRescheduled: vi.fn(async () => undefined),
+}));
+vi.mock('@/lib/whatsapp/templates/sendConfirmation', () => ({
+  confirmationAlreadySent: vi.fn(async () => true),
+  sendAppointmentConfirmation: vi.fn(async () => undefined),
 }));
 vi.mock('@/lib/waitlist/services', () => ({ notifyWaitlistForFreedSlot: vi.fn() }));
 vi.mock('@/lib/time/clinic-server', () => ({ getClinicTimeZone: vi.fn(async () => 'Asia/Amman') }));
@@ -205,22 +214,24 @@ describe('dragReassignTherapistIds (cross-column rule — Prompt 20 #2 / Prompt 
 });
 
 describe('reschedule message firing (Prompt 48 — owner ruling)', () => {
-  it('fires ONCE when the start actually moves', async () => {
-    const { sendAppointmentRescheduled } = await import('@/lib/whatsapp/templates/sendRescheduled');
-    vi.mocked(sendAppointmentRescheduled).mockClear();
+  it('schedules ONE deferred reschedule job when the start actually moves (P53)', async () => {
+    const { scheduleLifecycleMessage } = await import('@/lib/queue/jobs/appointmentReminder');
+    vi.mocked(scheduleLifecycleMessage).mockClear();
     await rescheduleAppointment({
       id: 'a1',
       startsAt: FUTURE, // differs from the stored 2030-01-07T08:00Z
       durationMinutes: 30,
       overrideConflicts: false,
     } as never);
-    expect(sendAppointmentRescheduled).toHaveBeenCalledTimes(1);
-    expect(sendAppointmentRescheduled).toHaveBeenCalledWith({ appointmentId: 'a1' });
+    expect(scheduleLifecycleMessage).toHaveBeenCalledTimes(1);
+    expect(scheduleLifecycleMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 'a1', kind: 'reschedule' }),
+    );
   });
 
   it('does NOT fire on a duration-only resize (silent by ruling)', async () => {
-    const { sendAppointmentRescheduled } = await import('@/lib/whatsapp/templates/sendRescheduled');
-    vi.mocked(sendAppointmentRescheduled).mockClear();
+    const { scheduleLifecycleMessage } = await import('@/lib/queue/jobs/appointmentReminder');
+    vi.mocked(scheduleLifecycleMessage).mockClear();
     await rescheduleAppointment({
       id: 'a1',
       startsAt: FUTURE,
@@ -228,18 +239,18 @@ describe('reschedule message firing (Prompt 48 — owner ruling)', () => {
       resize: true,
       overrideConflicts: false,
     } as never);
-    expect(sendAppointmentRescheduled).not.toHaveBeenCalled();
+    expect(scheduleLifecycleMessage).not.toHaveBeenCalled();
   });
 
   it('does NOT fire on a same-slot save (start unchanged)', async () => {
-    const { sendAppointmentRescheduled } = await import('@/lib/whatsapp/templates/sendRescheduled');
-    vi.mocked(sendAppointmentRescheduled).mockClear();
+    const { scheduleLifecycleMessage } = await import('@/lib/queue/jobs/appointmentReminder');
+    vi.mocked(scheduleLifecycleMessage).mockClear();
     await rescheduleAppointment({
       id: 'a1',
       startsAt: new Date('2030-01-07T08:00:00Z'), // equals the stored start
       durationMinutes: 45, // duration change without the resize flag
       overrideConflicts: false,
     } as never);
-    expect(sendAppointmentRescheduled).not.toHaveBeenCalled();
+    expect(scheduleLifecycleMessage).not.toHaveBeenCalled();
   });
 });

@@ -303,7 +303,9 @@
         "reminderWindowEnd": "Reminder window end",
         "currentDelayMinutes": "Current delay (minutes)",
         "sessionStartGraceMinutes": "Start session grace (minutes before)",
-        "sessionAutoCompleteGraceMinutes": "Auto-complete grace (minutes after)"
+        "sessionAutoCompleteGraceMinutes": "Auto-complete grace (minutes after)",
+        "bookingConfirmationDelay": "Booking confirmation delay (minutes, 0 = immediate)",
+        "rescheduleMessageDelay": "Reschedule message delay (minutes, 0 = immediate)"
       },
       "days": {
         "sun": "Sunday",

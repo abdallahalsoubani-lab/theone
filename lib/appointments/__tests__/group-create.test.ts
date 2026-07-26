@@ -21,6 +21,8 @@ vi.mock('../conflicts', async (importOriginal) => {
 vi.mock('@/lib/queue/jobs/appointmentReminder', () => ({
   enqueueAppointmentReminder: vi.fn(async () => {}),
   cancelAppointmentReminder: vi.fn(async () => {}),
+  scheduleLifecycleMessage: vi.fn(async () => null),
+  cancelLifecycleMessages: vi.fn(async () => ({ confirmWasPending: false })),
 }));
 vi.mock('@/lib/queue/jobs/autoCompleteSession', () => ({
   enqueueAutoCompleteSession: vi.fn(async () => {}),

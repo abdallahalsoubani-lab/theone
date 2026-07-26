@@ -837,7 +837,9 @@
         "reminderWindowEnd": "نهاية نافذة التذكير",
         "currentDelayMinutes": "التأخير الحالي (بالدقائق)",
         "sessionStartGraceMinutes": "مهلة بدء الجلسة (دقائق قبل الموعد)",
-        "sessionAutoCompleteGraceMinutes": "مهلة الإنهاء التلقائي (دقائق بعد الموعد)"
+        "sessionAutoCompleteGraceMinutes": "مهلة الإنهاء التلقائي (دقائق بعد الموعد)",
+        "bookingConfirmationDelay": "تأخير رسالة تأكيد الحجز (دقائق، 0 = فوري)",
+        "rescheduleMessageDelay": "تأخير رسالة إعادة الجدولة (دقائق، 0 = فوري)"
       },
       "days": {
         "sun": "الأحد",

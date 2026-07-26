@@ -35,6 +35,8 @@ export default async function ClinicSettingsPage({
           defaultReminderOffsetMinutes: settings.defaultReminderOffsetMinutes,
           reminderWindowStart: settings.reminderWindowStart,
           reminderWindowEnd: settings.reminderWindowEnd,
+          bookingConfirmationDelayMinutes: settings.bookingConfirmationDelayMinutes,
+          rescheduleMessageDelayMinutes: settings.rescheduleMessageDelayMinutes,
           currentDelayMinutes: settings.currentDelayMinutes,
           sessionStartGraceMinutes: settings.sessionStartGraceMinutes,
           sessionAutoCompleteGraceMinutes: settings.sessionAutoCompleteGraceMinutes,

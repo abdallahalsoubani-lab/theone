@@ -1504,6 +1504,15 @@ model ClinicSettings {
   reminderWindowStart          String @default("08:00")
   reminderWindowEnd            String @default("18:00")
 
+  // P53 — deferred, coalescing lifecycle messages ("المريض مرات بحجز وبعد
+  // ساعتين برن بحكي بدي أغير"): the booking-confirmation and reschedule
+  // messages wait X minutes before sending, and an edit/cancel during the
+  // wait replaces/removes the pending message. 0 (the seeded default) =
+  // immediate — today's behavior exactly. CANCELLATION has NO delay by
+  // owner decision — no setting exists for it on purpose.
+  bookingConfirmationDelayMinutes Int @default(0)
+  rescheduleMessageDelayMinutes   Int @default(0)
+
   // Session lifecycle grace windows (Fix Prompt 2). Start Session is gated to
   // `appointment_start − sessionStartGraceMinutes`; an open IN_PROGRESS session
   // is auto-completed by the maintenance worker once

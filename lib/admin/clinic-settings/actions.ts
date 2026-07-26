@@ -40,6 +40,8 @@ const updateInner = withAudit<[ClinicSettingsUpdateParsed], { id: string }>(
         defaultReminderOffsetMinutes: input.defaultReminderOffsetMinutes,
         reminderWindowStart: input.reminderWindowStart,
         reminderWindowEnd: input.reminderWindowEnd,
+        bookingConfirmationDelayMinutes: input.bookingConfirmationDelayMinutes,
+        rescheduleMessageDelayMinutes: input.rescheduleMessageDelayMinutes,
         currentDelayMinutes: input.currentDelayMinutes,
         sessionStartGraceMinutes: input.sessionStartGraceMinutes,
         sessionAutoCompleteGraceMinutes: input.sessionAutoCompleteGraceMinutes,

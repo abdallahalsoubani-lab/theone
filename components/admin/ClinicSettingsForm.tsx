@@ -203,6 +203,30 @@ export function ClinicSettingsForm({ initial }: Props) {
                 onChange={(e) => setField('reminderWindowEnd', e.target.value)}
               />
             </Field>
+            {/* P53 — deferred lifecycle messages (0 = immediate). No delay
+                field exists for cancellations by owner decision. */}
+            <Field label={t('fields.bookingConfirmationDelay')}>
+              <Input
+                type="number"
+                min={0}
+                max={24 * 60}
+                value={state.bookingConfirmationDelayMinutes}
+                onChange={(e) =>
+                  setField('bookingConfirmationDelayMinutes', parseInt(e.target.value || '0', 10))
+                }
+              />
+            </Field>
+            <Field label={t('fields.rescheduleMessageDelay')}>
+              <Input
+                type="number"
+                min={0}
+                max={24 * 60}
+                value={state.rescheduleMessageDelayMinutes}
+                onChange={(e) =>
+                  setField('rescheduleMessageDelayMinutes', parseInt(e.target.value || '0', 10))
+                }
+              />
+            </Field>
             <Field label={t('fields.currentDelayMinutes')}>
               <Input
                 type="number"

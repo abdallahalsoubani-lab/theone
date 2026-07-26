@@ -56,6 +56,18 @@ export const clinicSettingsUpdateSchema = z.object({
     .max(60 * 24),
   reminderWindowStart: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:MM'),
   reminderWindowEnd: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'HH:MM'),
+  // P53 — deferred lifecycle messages (minutes; 0 = immediate, today's
+  // behavior). Cancellation intentionally has NO delay field.
+  bookingConfirmationDelayMinutes: z
+    .number()
+    .int()
+    .min(0)
+    .max(60 * 24),
+  rescheduleMessageDelayMinutes: z
+    .number()
+    .int()
+    .min(0)
+    .max(60 * 24),
   // Arrivals (Prompt 18): manual "your turn in ~X minutes" shown on the kiosk.
   currentDelayMinutes: z.number().int().min(0).max(240),
   // Fix Prompt 2: session lifecycle grace windows (minutes).

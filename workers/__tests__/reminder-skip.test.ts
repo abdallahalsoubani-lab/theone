@@ -49,6 +49,18 @@ vi.mock('@/lib/whatsapp/templates/variables', () => ({
   buildParamsFromShape: vi.fn(() => []),
 }));
 
+const lifecycleCalls = { confirmation: [] as string[], reschedule: [] as string[] };
+vi.mock('@/lib/whatsapp/templates/sendConfirmation', () => ({
+  sendAppointmentConfirmation: vi.fn(async ({ appointmentId }: { appointmentId: string }) => {
+    lifecycleCalls.confirmation.push(appointmentId);
+  }),
+}));
+vi.mock('@/lib/whatsapp/templates/sendRescheduled', () => ({
+  sendAppointmentRescheduled: vi.fn(async ({ appointmentId }: { appointmentId: string }) => {
+    lifecycleCalls.reschedule.push(appointmentId);
+  }),
+}));
+
 import { startReminderWorker } from '../reminder';
 
 function appointment(patient: Record<string, unknown>): Record<string, unknown> {
@@ -80,6 +92,22 @@ describe('reminder worker — phone-less patient (P50)', () => {
     expect(state.enqueued).toHaveLength(0);
     expect(warn.mock.calls.some((c) => String(c[0]).includes('has no phone'))).toBe(true);
     warn.mockRestore();
+  });
+
+  it('P53: kind=confirmation dispatches the confirmation sender, no reminder logic runs', async () => {
+    startReminderWorker();
+    state.enqueued.length = 0;
+    lifecycleCalls.confirmation.length = 0;
+    await processor!({ data: { appointmentId: 'appt-9', kind: 'confirmation' } } as never);
+    expect(lifecycleCalls.confirmation).toEqual(['appt-9']);
+    expect(state.enqueued).toHaveLength(0); // no reminder template enqueued
+  });
+
+  it('P53: kind=reschedule dispatches the reschedule sender', async () => {
+    startReminderWorker();
+    lifecycleCalls.reschedule.length = 0;
+    await processor!({ data: { appointmentId: 'appt-8', kind: 'reschedule' } } as never);
+    expect(lifecycleCalls.reschedule).toEqual(['appt-8']);
   });
 
   it('still sends for a patient WITH a phone (guard is not over-broad)', async () => {

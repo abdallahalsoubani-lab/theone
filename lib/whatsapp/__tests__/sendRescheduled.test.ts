@@ -58,6 +58,9 @@ function baseAppt(over: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     id: 'appt-1',
     startsAt: START,
+    // P53: the deferred sender skips terminal appointments — fixtures are
+    // live bookings.
+    status: 'SCHEDULED',
     appointmentType: 'SESSION',
     patient: AR_PATIENT,
     groupPatients: [],

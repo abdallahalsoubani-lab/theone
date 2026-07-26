@@ -64,6 +64,12 @@ export async function sendAppointmentRescheduled(args: { appointmentId: string }
     },
   });
   if (!appt) return;
+  // P53 belt: the deferred worker may fire after a cancel raced the queue
+  // removal — a terminal appointment never gets a reschedule notice.
+  if (appt.status !== 'SCHEDULED' && appt.status !== 'CONFIRMED') {
+    console.warn(`[lifecycle] appointment ${args.appointmentId} status=${appt.status} — skipped`);
+    return;
+  }
 
   const recipients = appt.patient
     ? [appt.patient]

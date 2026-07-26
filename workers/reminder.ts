@@ -44,6 +44,24 @@ export function startReminderWorker(): Worker {
     REMINDER_QUEUE,
     async (job) => {
       const { appointmentId } = job.data;
+      // P53 — deferred lifecycle messages share this queue (deterministic
+      // ids confirm-{id}/resched-{id}; the schedule/replace/remove logic
+      // lives in lib/queue/jobs/appointmentReminder.ts). The senders
+      // re-read the appointment so the patient always gets CURRENT details.
+      if (job.data.kind === 'confirmation') {
+        const { sendAppointmentConfirmation } =
+          await import('@/lib/whatsapp/templates/sendConfirmation');
+        await sendAppointmentConfirmation({ appointmentId });
+        console.warn(`[lifecycle] appointment=${appointmentId} confirmation dispatched`);
+        return;
+      }
+      if (job.data.kind === 'reschedule') {
+        const { sendAppointmentRescheduled } =
+          await import('@/lib/whatsapp/templates/sendRescheduled');
+        await sendAppointmentRescheduled({ appointmentId });
+        console.warn(`[lifecycle] appointment=${appointmentId} reschedule dispatched`);
+        return;
+      }
       const patientSelect = {
         id: true,
         fullNameEn: true,

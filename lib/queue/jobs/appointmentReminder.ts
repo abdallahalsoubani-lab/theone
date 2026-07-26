@@ -19,6 +19,92 @@ export function reminderJobId(appointmentId: string): string {
 
 export interface AppointmentReminderJob {
   appointmentId: string;
+  /** P53 — deferred lifecycle messages ride the SAME queue + worker as
+   *  reminders (no parallel mechanism). Absent/'reminder' = the P17
+   *  reminder; 'confirmation'/'reschedule' = a deferred lifecycle send. */
+  kind?: 'reminder' | 'confirmation' | 'reschedule';
+}
+
+// ─── P53: deferred, coalescing lifecycle messages ──────────────────────────
+
+export type LifecycleKind = 'confirmation' | 'reschedule';
+
+export function lifecycleJobId(kind: LifecycleKind, appointmentId: string): string {
+  return kind === 'confirmation' ? `confirm-${appointmentId}` : `resched-${appointmentId}`;
+}
+
+/** Send at start−15min at the latest — never after start. */
+const LIFECYCLE_CLAMP_MS = 15 * 60 * 1000;
+
+/**
+ * The near-appointment clamp (§1.4, pure for tests): fire at the EARLIER of
+ * (now + delay) and (startsAt − 15min), floored at "now" (immediate-ish for
+ * near appointments). Null = the appointment already started → skip + log.
+ */
+export function computeLifecycleDelayMs(args: {
+  now: Date;
+  startsAt: Date;
+  delayMinutes: number;
+}): number | null {
+  if (args.startsAt.getTime() <= args.now.getTime()) return null;
+  const byDelay = args.delayMinutes * 60 * 1000;
+  const byClamp = args.startsAt.getTime() - LIFECYCLE_CLAMP_MS - args.now.getTime();
+  return Math.max(0, Math.min(byDelay, byClamp));
+}
+
+/**
+ * Schedule (or REPLACE — the coalescing) the deferred lifecycle message for
+ * an appointment. Removes any pending job of EITHER kind first, so an edit
+ * during the wait swaps the pending message and restarts the timer (§1.3).
+ * Returns the job id, or null when the appointment is past-start (skip+log,
+ * mirroring the P17 late-booking rule).
+ */
+export async function scheduleLifecycleMessage(args: {
+  appointmentId: string;
+  startsAt: Date;
+  kind: LifecycleKind;
+  delayMinutes: number;
+}): Promise<string | null> {
+  await cancelLifecycleMessages(args.appointmentId);
+  const delay = computeLifecycleDelayMs({
+    now: new Date(),
+    startsAt: args.startsAt,
+    delayMinutes: args.delayMinutes,
+  });
+  if (delay === null) {
+    console.warn(
+      `[lifecycle] appointment ${args.appointmentId} already started — ${args.kind} message skipped`,
+    );
+    return null;
+  }
+  const jobId = lifecycleJobId(args.kind, args.appointmentId);
+  const job = await reminderQueue.add(
+    'appointment',
+    { appointmentId: args.appointmentId, kind: args.kind } satisfies AppointmentReminderJob,
+    { delay, jobId },
+  );
+  return job.id ?? null;
+}
+
+/**
+ * Remove any pending deferred confirmation/reschedule for an appointment
+ * (cancel path — sits beside cancelAppointmentReminder, same machinery).
+ * Reports whether a pending CONFIRMATION existed, so the series-cancel path
+ * can retarget the one series confirmation to the next occurrence (§1-2.3).
+ */
+export async function cancelLifecycleMessages(
+  appointmentId: string,
+): Promise<{ confirmWasPending: boolean }> {
+  const confirmId = lifecycleJobId('confirmation', appointmentId);
+  const confirmWasPending = Boolean(
+    await reminderQueue
+      .getJob(confirmId)
+      .then((j) => j && (j.delay ?? 0) >= 0)
+      .catch(() => false),
+  );
+  await reminderQueue.remove(confirmId).catch(() => undefined);
+  await reminderQueue.remove(lifecycleJobId('reschedule', appointmentId)).catch(() => undefined);
+  return { confirmWasPending };
 }
 
 /**

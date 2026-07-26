@@ -7,7 +7,9 @@ import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
 import { addCareTeamMemberTx } from '@/lib/patients/assignment';
 import {
   cancelAppointmentReminder,
+  cancelLifecycleMessages,
   enqueueAppointmentReminder,
+  scheduleLifecycleMessage,
 } from '@/lib/queue/jobs/appointmentReminder';
 import {
   cancelAutoCompleteSession,
@@ -49,7 +51,6 @@ import type {
 } from './schemas';
 import { selectSeriesOccurrences, type SeriesOccurrenceRow } from './series';
 import { canTransition, permissionForTransition, STATUS_ERRORS } from './status';
-import { patientDisplayName } from '@/lib/format/patientName';
 
 export class AppointmentError extends Error {
   constructor(public readonly error: LocalizedError) {
@@ -175,6 +176,18 @@ async function setAppointmentTherapistsTx(
   }
 }
 
+/** P53 — the two admin-configurable lifecycle delays (minutes, default 0). */
+async function getLifecycleDelays(): Promise<{ confirmation: number; reschedule: number }> {
+  const settings = await db.clinicSettings.findUnique({
+    where: { id: 'default' },
+    select: { bookingConfirmationDelayMinutes: true, rescheduleMessageDelayMinutes: true },
+  });
+  return {
+    confirmation: settings?.bookingConfirmationDelayMinutes ?? 0,
+    reschedule: settings?.rescheduleMessageDelayMinutes ?? 0,
+  };
+}
+
 async function getReminderConfig(): Promise<ReminderConfig> {
   const settings = await db.clinicSettings.findUnique({
     where: { id: 'default' },
@@ -294,58 +307,21 @@ export const createAppointment = withAudit<
       durationMinutes: input.durationMinutes,
     });
 
-    // Best-effort confirmation send via the `appointment_confirmation_v2`
-    // template seeded in Prompt 2. Mirrors the cancel-side fan-out in
-    // shape and failure tolerance: enqueue is fire-and-forget so a
-    // WhatsApp outage cannot break the booking flow. The
-    // template takes four placeholders: {patientName, therapistName,
-    // date, time}. Skip when the patient is flagged unreachable —
-    // re-enabled automatically on the next successful delivery
-    // (User.whatsappReachable; see Prompt 8 §4.12).
-    const [patient, therapist] = input.patientId
-      ? await Promise.all([
-          db.user.findUnique({
-            where: { id: input.patientId },
-            select: {
-              phone: true,
-              languagePref: true,
-              whatsappReachable: true,
-              fullNameEn: true,
-              fullNameAr: true,
-            },
-          }),
-          therapistIds[0]
-            ? db.user.findUnique({
-                where: { id: therapistIds[0] },
-                select: { fullNameEn: true, fullNameAr: true },
-              })
-            : null,
-        ])
-      : [null, null];
-    if (input.patientId && patient && therapist && patient.whatsappReachable && patient.phone) {
-      const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
-      // Clinic wall-clock, not UTC — the patient reads this string (Prompt 31).
-      const tz = await getClinicTimeZone();
-      const dateStr = clinicDateKey(appointment.startsAt, tz);
-      const timeStr = clinicHm(appointment.startsAt, tz);
-      const patientName = patientDisplayName(
-        patient.fullNameEn,
-        patient.fullNameAr,
-        patient.languagePref === 'AR' ? 'ar' : 'en',
-      );
-      const therapistName =
-        patient.languagePref === 'AR' ? therapist.fullNameAr : therapist.fullNameEn;
-      void enqueueWhatsappOutbound({
-        kind: 'template',
-        templateName: 'appointment_confirmation_v2',
-        language: patient.languagePref,
-        parameters: [patientName, therapistName, dateStr, timeStr],
-        recipientPhone: patient.phone,
-        recipientUserId: input.patientId,
+    // P53 — the booking confirmation goes through the DEFERRED lifecycle
+    // scheduler (admin-configurable delay, default 0 = an immediate job —
+    // today's behavior exactly). The worker re-reads the appointment at
+    // fire time and the sender uses the registry variable shape (§2.4 fix,
+    // was a hardcoded parameter order). GROUP/EVENT (no patientId) keep
+    // today's behavior: no confirmation.
+    if (input.patientId) {
+      const delays = await getLifecycleDelays();
+      await scheduleLifecycleMessage({
         appointmentId: appointment.id,
-        source: 'queue',
+        startsAt: appointment.startsAt,
+        kind: 'confirmation',
+        delayMinutes: delays.confirmation,
       }).catch((err: unknown) => {
-        console.error('[appointments.create] confirmation enqueue failed', err);
+        console.error('[appointments.create] confirmation schedule failed', err);
       });
     }
 
@@ -509,10 +485,22 @@ export const rescheduleAppointment = withAudit<
     // reschedule.
     const startChanged = !input.resize && existing.startsAt.getTime() !== input.startsAt.getTime();
     if (startChanged) {
-      const { sendAppointmentRescheduled } =
-        await import('@/lib/whatsapp/templates/sendRescheduled');
-      void sendAppointmentRescheduled({ appointmentId: input.id }).catch((err: unknown) => {
-        console.error('[appointments.reschedule] notify failed', err);
+      // P53 §1.3: if the ORIGINAL confirmation never actually went out (edit
+      // during the wait), the pending job is replaced by a fresh CONFIRMATION
+      // with the new details; otherwise a deferred RESCHEDULE message.
+      // Either way the timer restarts from this edit.
+      const { confirmationAlreadySent } = await import('@/lib/whatsapp/templates/sendConfirmation');
+      const [delays, wasSent] = await Promise.all([
+        getLifecycleDelays(),
+        confirmationAlreadySent(input.id),
+      ]);
+      await scheduleLifecycleMessage({
+        appointmentId: input.id,
+        startsAt: input.startsAt,
+        kind: wasSent ? 'reschedule' : 'confirmation',
+        delayMinutes: wasSent ? delays.reschedule : delays.confirmation,
+      }).catch((err: unknown) => {
+        console.error('[appointments.reschedule] lifecycle schedule failed', err);
       });
     }
 
@@ -736,6 +724,7 @@ export const cancelAppointment = withAudit<
         id: true,
         status: true,
         startsAt: true,
+        seriesId: true,
         therapists: { select: { therapistId: true } },
         patientId: true,
         patient: {
@@ -775,6 +764,37 @@ export const cancelAppointment = withAudit<
     });
     await cancelAppointmentReminder(input.id);
     await cancelAutoCompleteSession(input.id);
+    // P53: a cancel during the wait removes the pending confirmation/
+    // reschedule (as if never queued) — same place as the reminder removal.
+    // The cancellation message itself stays IMMEDIATE (owner decision أ —
+    // no delay setting exists for it).
+    const { confirmWasPending } = await cancelLifecycleMessages(input.id);
+    // §1-Item2.3: if the SERIES confirmation was pending on THIS occurrence,
+    // retarget it to the next nearest upcoming occurrence (timer restarts;
+    // removed entirely when none remain).
+    if (confirmWasPending && existing.seriesId) {
+      const next = await db.appointment.findFirst({
+        where: {
+          seriesId: existing.seriesId,
+          id: { not: input.id },
+          status: { in: [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED] },
+          startsAt: { gte: new Date() },
+        },
+        orderBy: { startsAt: 'asc' },
+        select: { id: true, startsAt: true },
+      });
+      if (next) {
+        const delays = await getLifecycleDelays();
+        await scheduleLifecycleMessage({
+          appointmentId: next.id,
+          startsAt: next.startsAt,
+          kind: 'confirmation',
+          delayMinutes: delays.confirmation,
+        }).catch((err: unknown) => {
+          console.error('[appointments.cancel] series confirmation retarget failed', err);
+        });
+      }
+    }
 
     // Prompt 19 — the slot just freed; suggest it to anyone on the booking
     // waitlist whose window covers it. A multi-therapist session frees the slot
@@ -918,6 +938,8 @@ export const cancelAppointmentSeries = withAudit<
     // Side effects after commit.
     await Promise.all(ids.map((id) => cancelAppointmentReminder(id)));
     await Promise.all(ids.map((id) => cancelAutoCompleteSession(id)));
+    // P53: remove every pending deferred confirmation/reschedule too.
+    await Promise.all(ids.map((id) => cancelLifecycleMessages(id)));
 
     // Prompt 19 — every freed occurrence may match a waitlisted patient; a
     // multi-therapist occurrence frees the slot per assigned therapist (P20).
@@ -932,6 +954,11 @@ export const cancelAppointmentSeries = withAudit<
     }
 
     if (input.notifyPatient) {
+      // P53 (owner-signed, conscious change from the old N-messages
+      // behavior): cancelling a whole series sends ONE cancellation —
+      // about the nearest occurrence that was coming up — immediately (no
+      // delay exists for cancellations). Single-occurrence cancels keep
+      // their own normal message.
       const enriched = await db.appointment.findMany({
         where: { id: { in: ids } },
         select: {
@@ -942,25 +969,28 @@ export const cancelAppointmentSeries = withAudit<
             select: { phone: true, languagePref: true, whatsappReachable: true },
           },
         },
+        orderBy: { startsAt: 'asc' },
       });
-      const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
-      const tz = await getClinicTimeZone();
-      for (const row of enriched) {
-        if (!row.patient?.whatsappReachable || !row.patient.phone) continue;
-        const dateStr = clinicDateKey(row.startsAt, tz);
-        const timeStr = clinicHm(row.startsAt, tz);
+      const now = Date.now();
+      const nearest =
+        enriched.find(
+          (r) => r.startsAt.getTime() >= now && r.patient?.whatsappReachable && r.patient.phone,
+        ) ?? enriched.find((r) => r.patient?.whatsappReachable && r.patient.phone);
+      if (nearest?.patient?.phone) {
+        const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
+        const tz = await getClinicTimeZone();
         void enqueueWhatsappOutbound({
           kind: 'template',
           templateName: 'appointment_cancelled_v2',
-          language: row.patient.languagePref,
+          language: nearest.patient.languagePref,
           parameters: [
-            dateStr,
-            timeStr,
-            categoryLabelForLocale(input.cancellationCategory, row.patient.languagePref),
+            clinicDateKey(nearest.startsAt, tz),
+            clinicHm(nearest.startsAt, tz),
+            categoryLabelForLocale(input.cancellationCategory, nearest.patient.languagePref),
           ],
-          recipientPhone: row.patient.phone,
-          recipientUserId: row.patientId ?? undefined,
-          appointmentId: row.id,
+          recipientPhone: nearest.patient.phone,
+          recipientUserId: nearest.patientId ?? undefined,
+          appointmentId: nearest.id,
           source: 'queue',
         }).catch((err: unknown) => {
           console.error('[appointments.cancelSeries] notification enqueue failed', err);
@@ -1113,10 +1143,20 @@ export const rescheduleAppointmentSeries = withAudit<
     // start actually moved.
     const movedTarget = planned.find((p) => p.occ.id === target.id);
     if (movedTarget && movedTarget.newStartsAt.getTime() !== target.startsAt.getTime()) {
-      const { sendAppointmentRescheduled } =
-        await import('@/lib/whatsapp/templates/sendRescheduled');
-      void sendAppointmentRescheduled({ appointmentId: target.id }).catch((err: unknown) => {
-        console.error('[appointments.rescheduleSeries] notify failed', err);
+      // P53: same deferred kind-aware funnel as the single path — still ONE
+      // message about the targeted occurrence (P48 volume decision).
+      const { confirmationAlreadySent } = await import('@/lib/whatsapp/templates/sendConfirmation');
+      const [delays, wasSent] = await Promise.all([
+        getLifecycleDelays(),
+        confirmationAlreadySent(target.id),
+      ]);
+      await scheduleLifecycleMessage({
+        appointmentId: target.id,
+        startsAt: movedTarget.newStartsAt,
+        kind: wasSent ? 'reschedule' : 'confirmation',
+        delayMinutes: wasSent ? delays.reschedule : delays.confirmation,
+      }).catch((err: unknown) => {
+        console.error('[appointments.rescheduleSeries] lifecycle schedule failed', err);
       });
     }
 
@@ -1673,6 +1713,33 @@ export const createSeries = withAudit<
         }),
       ),
     );
+
+    // P53 §1-Item2.1: a recurring series sends ONE booking confirmation —
+    // for the NEAREST upcoming occurrence — through the same deferred
+    // lifecycle scheduler as any confirmation. Reminders above stay
+    // per-occurrence (P17, untouched).
+    const nowMs = Date.now();
+    let nearestIdx = -1;
+    for (let i = 0; i < finalOccurrences.length; i += 1) {
+      const st = finalOccurrences[i]!.startsAt.getTime();
+      if (
+        st > nowMs &&
+        (nearestIdx === -1 || st < finalOccurrences[nearestIdx]!.startsAt.getTime())
+      ) {
+        nearestIdx = i;
+      }
+    }
+    if (nearestIdx >= 0) {
+      const delays = await getLifecycleDelays();
+      await scheduleLifecycleMessage({
+        appointmentId: appointmentIds[nearestIdx]!,
+        startsAt: finalOccurrences[nearestIdx]!.startsAt,
+        kind: 'confirmation',
+        delayMinutes: delays.confirmation,
+      }).catch((err: unknown) => {
+        console.error('[series.create] confirmation schedule failed', err);
+      });
+    }
 
     return { seriesId, appointmentIds, skippedCount, overrideCount };
   },
