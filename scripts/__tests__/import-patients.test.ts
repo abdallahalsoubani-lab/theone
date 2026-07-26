@@ -219,10 +219,23 @@ describe('runImport (synthetic fixtures)', () => {
     expect(c.referralKeyword).toBeGreaterThanOrEqual(1);
   });
 
-  it('a BROKEN (non-Jordanian) phone imports as null with the raw archived — never a refusal (§1.1)', async () => {
+  it('INTERNATIONAL E.164 numbers import AS-IS (owner ruling — WhatsApp sends internationally)', async () => {
     const dir = makeDataDir(
       [adultRow({ 1: 'رقم يمني', 5: '+967736244431' })],
       [childRow({ 1: 'رقم ألماني', 4: '+4915730863990' })],
+    );
+    const { client, writes } = fakeDb();
+    const c = await runImport({ apply: true, dataDir: dir, backupPath: backup() }, client);
+    expect(c.failures).toHaveLength(0);
+    expect(c.phoneInvalid).toBe(0);
+    expect(c.phoneNull).toBe(0);
+    expect(writes.users.map((u) => u.phone)).toEqual(['+967736244431', '+4915730863990']);
+  });
+
+  it('a string that is no phone in ANY country imports as null with the raw archived (§1.1)', async () => {
+    const dir = makeDataDir(
+      [adultRow({ 1: 'رقم مكسور', 5: '+0123' })],
+      [childRow({ 1: 'نص عشوائي', 4: '+abc-not-a-phone'.replace(/[a-z-]/g, '9').slice(0, 3) })],
     );
     const { client, writes } = fakeDb();
     const c = await runImport({ apply: true, dataDir: dir, backupPath: backup() }, client);
@@ -234,8 +247,7 @@ describe('runImport (synthetic fixtures)', () => {
       .filter((a) => a.questionId === 'q-importArchiveNote')
       .map((a) => String(a.value))
       .join('\n');
-    expect(joined).toContain('+967736244431');
-    expect(joined).toContain('+4915730863990');
+    expect(joined).toContain('+0123');
   });
 
   it('apply creates everything with the signed mechanics', async () => {

@@ -225,9 +225,10 @@ export function prepareAdultRow(
 ): PreparedRow {
   const archive: string[] = [];
   let phone = row.phone_e164?.trim() || null;
-  if (phone && !/^\+9627\d{8}$/.test(phone)) {
-    // Owner-signed §1.1: broken numbers import as NULL — the raw is
-    // preserved for the paper-file follow-up, never silently dropped.
+  if (phone && !/^\+[1-9]\d{7,14}$/.test(phone)) {
+    // Owner ruling: general E.164 is VALID (international numbers stay —
+    // WhatsApp sends internationally). Only a string that is no phone in
+    // ANY country nulls out, raw preserved for the paper-file follow-up.
     archive.push(`رقم هاتف غير صالح (استيراد): ${phone}`);
     counters.phoneInvalid += 1;
     phone = null;
@@ -354,7 +355,7 @@ export function prepareChildRow(
 ): PreparedRow {
   const archive: string[] = [];
   let phone = row.phone_e164?.trim() || null;
-  if (phone && !/^\+9627\d{8}$/.test(phone)) {
+  if (phone && !/^\+[1-9]\d{7,14}$/.test(phone)) {
     archive.push(`رقم هاتف غير صالح (استيراد): ${phone}`);
     counters.phoneInvalid += 1;
     phone = null;
@@ -635,7 +636,9 @@ export async function runImport(args: CliArgs, prisma: typeof db = db): Promise<
   console.log(`total patients:       ${totalPatients}`);
   console.log(`imported adults:      ${importedAdults} (expect 110)`);
   console.log(`imported children:    ${importedChildren} (expect 147)`);
-  console.log(`phone-null patients:  ${phoneNullDb} (expect 28 = 15 empty + 13 broken)`);
+  console.log(
+    `phone-null patients:  ${phoneNullDb} (expect 15 — international E.164 numbers import as-is)`,
+  );
   console.log(`archive answers:      ${archiveCount} (> 0 expected)`);
   if (counters.failures.length > 0) {
     console.error(`\nFAILED ROWS (${counters.failures.length}) — re-run to complete:`);
