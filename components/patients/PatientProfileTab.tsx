@@ -9,6 +9,7 @@ import { Link } from '@/i18n/navigation';
 import { formatDate } from '@/lib/format/date';
 import { formatPhone } from '@/lib/format/phone';
 import type { PatientFileData } from '@/lib/patients/queries';
+import { isUnknownDob } from '@/lib/patients/schemas';
 
 interface Props {
   patient: PatientFileData;
@@ -52,7 +53,12 @@ export function PatientProfileTab({
         <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
           <Field label={t('fullNameEn')} value={patient.fullNameEn} />
           <Field label={t('fullNameAr')} value={patient.fullNameAr} />
-          <Field label={t('dateOfBirth')} value={formatDate(patient.dateOfBirth, locale)} />
+          <Field
+            label={t('dateOfBirth')}
+            value={
+              isUnknownDob(patient.dateOfBirth) ? '\u2014' : formatDate(patient.dateOfBirth, locale)
+            }
+          />
           {/* Localized, not the raw enum — «أنثى/ذكر» on /ar (R-33 family). */}
           <Field
             label={t('gender')}

@@ -35,9 +35,12 @@ const patientBaseSchema = z.object({
     .transform((v) => v.trim()),
   // P50: phone optional (imported records with broken numbers have none) and
   // NOT unique for patients (families share one number). '' → null.
+  // P52 follow-up (owner ruling): general E.164, not Jordan-only — 13
+  // imported patients carry valid international numbers and WhatsApp
+  // sends internationally.
   phone: z
     .string()
-    .regex(/^\+9627\d{8}$/, 'phoneJordan')
+    .regex(/^\+[1-9]\d{7,14}$/, 'phoneE164')
     .optional()
     .or(z.literal(''))
     .transform((v) => v || null)

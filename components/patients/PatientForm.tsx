@@ -2,6 +2,8 @@
 
 import { Gender, LanguagePref } from '@prisma/client';
 import { useLocale, useTranslations } from 'next-intl';
+
+import { clinicDateKey } from '@/lib/time/clinic';
 import { useRouter } from 'next/navigation';
 import type { z } from 'zod';
 
@@ -42,14 +44,19 @@ export function PatientForm(props: Props) {
 
   const isEdit = props.mode === 'edit';
   const schema = isEdit ? patientUpdateSchema : patientCreateSchema;
+  // DOB renders as a date-only input (no wall-time strings — rule #1):
+  // the value is a clinic-tz date key; z.coerce.date() re-parses on submit.
+  const toDateInputValue = (d: Date | string): Date =>
+    clinicDateKey(d instanceof Date ? d : new Date(d)) as unknown as Date;
+
   const defaults: PatientCreateInput = isEdit
-    ? props.initial
+    ? { ...props.initial, dateOfBirth: toDateInputValue(props.initial.dateOfBirth) }
     : {
         fullNameEn: '',
         fullNameAr: '',
         phone: '+9627',
         email: null,
-        dateOfBirth: new Date(),
+        dateOfBirth: toDateInputValue(new Date()),
         gender: Gender.MALE,
         nationalId: null,
         address: '',
@@ -119,9 +126,8 @@ export function PatientForm(props: Props) {
                   <TextField
                     form={form}
                     name={'dateOfBirth' as never}
-                    type="text"
+                    type="date"
                     label={t('dateOfBirth')}
-                    placeholder="YYYY-MM-DD"
                   />
                   <SelectField
                     form={form}

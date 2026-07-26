@@ -29,7 +29,7 @@ interface TextFieldProps<T extends FieldValues> {
   label: string;
   description?: string;
   placeholder?: string;
-  type?: 'text' | 'email' | 'tel' | 'number' | 'password' | 'url';
+  type?: 'text' | 'email' | 'tel' | 'number' | 'password' | 'url' | 'date';
   autoComplete?: string;
   inputMode?: 'text' | 'email' | 'tel' | 'numeric' | 'decimal' | 'url';
   disabled?: boolean;

@@ -55,6 +55,26 @@ describe('patientCreateSchema — optional Arabic name + address', () => {
     expect(patientCreateSchema.safeParse({ ...noEn, fullNameAr: '  ' }).success).toBe(false);
   });
 
+  it('phone accepts general E.164 — international numbers are valid (P52 owner ruling)', () => {
+    // A Qatari number (two imported patients share one) passes the EDIT form.
+    const qatar = patientCreateSchema.safeParse({ ...base, phone: '+97433991799' });
+    expect(qatar.success).toBe(true);
+    if (qatar.success) expect(qatar.data.phone).toBe('+97433991799');
+    // Jordanian still passes.
+    expect(patientCreateSchema.safeParse({ ...base, phone: '+962791234567' }).success).toBe(true);
+    // A string that is no phone anywhere still fails.
+    expect(patientCreateSchema.safeParse({ ...base, phone: '+0123' }).success).toBe(false);
+    expect(patientCreateSchema.safeParse({ ...base, phone: '0791234567' }).success).toBe(false);
+  });
+
+  it('dateOfBirth accepts a date-only string and rejects the future (existing rule)', () => {
+    expect(patientCreateSchema.safeParse({ ...base, dateOfBirth: '1984-01-01' }).success).toBe(
+      true,
+    );
+    const future = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    expect(patientCreateSchema.safeParse({ ...base, dateOfBirth: future }).success).toBe(false);
+  });
+
   it('phone is optional and empty-string normalizes to null (P50)', () => {
     const { phone: _p, ...noPhone } = base;
     const r1 = patientCreateSchema.safeParse(noPhone);

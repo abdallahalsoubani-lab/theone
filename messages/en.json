@@ -122,7 +122,8 @@
     "atLeastOne": "At least one item is required.",
     "openBeforeClose": "Open time must be before close time.",
     "atLeastTwoOptions": "Add at least two options.",
-    "nameRequired": "At least one name (Arabic or English) is required."
+    "nameRequired": "At least one name (Arabic or English) is required.",
+    "phoneE164": "Enter a valid phone number in international format (e.g. +9627XXXXXXXX)."
   },
   "admin": {
     "navTitle": "Admin",
