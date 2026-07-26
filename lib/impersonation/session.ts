@@ -70,12 +70,27 @@ export type EffectiveSession =
  */
 export async function getEffectiveSession(): Promise<EffectiveSession> {
   // `auth()` reads cookies and throws outside a request scope. Background
-  // workers and direct service tests invoke audited code with no scope, so
-  // collapse the throw to "no session" rather than crashing the caller.
+  // workers, tsx scripts, and direct service tests invoke audited code with
+  // no scope, so collapse that throw to "no session" rather than crashing
+  // the caller. try/catch (not .catch()) because Next's `headers()` guard
+  // throws SYNCHRONOUSLY in script contexts — a promise .catch never sees
+  // it (live incident: the P50 foundation seed died mid-createUser).
+  //
+  // CRITICAL: during static prerender the same throw is Next's OWN signal
+  // that the page must be dynamic (DynamicServerError, digest
+  // DYNAMIC_SERVER_USAGE) — that one must propagate, or every staff page
+  // fails the build's export phase with ForbiddenError.
+  //
   // The variable is intentionally untyped — Auth.js v5 overloads `auth` as
   // both a session-reader and a middleware wrapper, and a `let` typed via
   // `Awaited<ReturnType<typeof auth>>` picks the wrong overload.
-  const session = await auth().catch(() => null);
+  let session = null;
+  try {
+    session = await auth();
+  } catch (err) {
+    if ((err as { digest?: string })?.digest === 'DYNAMIC_SERVER_USAGE') throw err;
+    session = null;
+  }
   if (!session?.user) return null;
 
   const realUser: EffectiveUser = {
