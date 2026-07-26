@@ -102,6 +102,10 @@ interface CliArgs {
   dataDir: string;
   resetAdminEmail: string | null;
   credentialsPath: string;
+  /** Existing employee emails whose password should be FORCE-ROTATED into
+   *  the credentials file (recovery path: an earlier crashed run created
+   *  the account but its temp password was never written anywhere). */
+  rotateEmails: string[];
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -109,12 +113,17 @@ function parseArgs(argv: string[]): CliArgs {
   const dataDirArg = argv.find((a) => a.startsWith('--data-dir='));
   if (!dataDirArg) throw new Error('--data-dir=<path> is required');
   const resetAdmin = argv.find((a) => a.startsWith('--reset-admin='));
+  const rotate = argv.find((a) => a.startsWith('--rotate='));
   const date = new Date().toISOString().slice(0, 10);
   return {
     apply,
     dataDir: dataDirArg.split('=')[1]!,
     resetAdminEmail: resetAdmin?.split('=')[1]?.toLowerCase() ?? null,
     credentialsPath: join(homedir(), `staff-credentials-${date}.txt`),
+    rotateEmails: (rotate?.split('=')[1] ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
   };
 }
 
@@ -194,7 +203,15 @@ export async function runFoundationSeed(args: CliArgs, prisma: typeof db = db): 
         mustChangePassword: true,
       });
       updated += 1;
-      // Existing employee keeps their password — re-runs never rotate.
+      // Existing employee keeps their password — re-runs never rotate —
+      // UNLESS explicitly listed in --rotate (crashed-run recovery).
+      if (args.rotateEmails.includes(e.email)) {
+        const rotated = await forceResetPassword(existing.id);
+        credentialLines.push(
+          `${e.name_ar || e.name_en}\t${e.email}\t${e.role}${e.specialty ? `/${e.specialty}` : ''}\t${rotated.tempPassword}`,
+        );
+        console.log(`Rotated password for existing account: ${e.email}`);
+      }
     } else {
       const result = await createUser({
         fullNameEn: e.name_en,

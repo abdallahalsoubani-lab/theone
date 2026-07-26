@@ -128,6 +128,7 @@ describe('runFoundationSeed', () => {
     dataDir: dir,
     resetAdminEmail: 'owner@x.com',
     credentialsPath: credPath,
+    rotateEmails: [] as string[],
   });
 
   it('creates fresh staff with role/specialty, resets the admin, writes a 600 credentials file', async () => {
@@ -169,6 +170,18 @@ describe('runFoundationSeed', () => {
     // Updated employees do NOT appear in the credentials file (no rotation).
     const body = (await import('node:fs')).readFileSync(credPath, 'utf8');
     expect(body).not.toContain('heba@x.com');
+  });
+
+  it('--rotate forces a password reset for a listed EXISTING employee into the file (crash recovery)', async () => {
+    reset();
+    const dir = makeDataDir();
+    const credPath = join(dir, 'creds.txt');
+    const { client } = fakeDb(['heba@x.com']);
+    await runFoundationSeed({ ...baseArgs(dir, credPath), rotateEmails: ['heba@x.com'] }, client);
+    // heba exists → updated, not created — but her password IS rotated in.
+    expect(created.map((c) => c.email)).not.toContain('heba@x.com');
+    const body = (await import('node:fs')).readFileSync(credPath, 'utf8');
+    expect(body).toContain('heba@x.com\tTHERAPIST/PT\tAdminPw-1');
   });
 
   it('dry-run writes nothing', async () => {
