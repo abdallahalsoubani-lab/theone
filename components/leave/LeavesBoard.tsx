@@ -6,8 +6,10 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
+import { LeaveAddForm, type LeaveClinicianOption } from '@/components/leave/LeaveAddForm';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
   Dialog,
   DialogContent,
@@ -17,14 +19,25 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { formatDate } from '@/lib/format/date';
-import { approveLeaveAction, rejectLeaveAction } from '@/lib/leave/actions';
+import { approveLeaveAction, deleteLeaveAction, rejectLeaveAction } from '@/lib/leave/actions';
 import type { LeaveRow } from '@/lib/leave/queries';
+import { leaveStatusVariant } from '@/lib/leave/status-variant';
 
 interface Props {
   rows: LeaveRow[];
+  /** Approve / reject pending requests — `leaves.update` (Admin). */
+  canApprove: boolean;
+  /** Direct add + delete — `leaves.create` / `leaves.delete` (Admin + Secretary, Prompt 55 §1). */
+  canManage: boolean;
+  clinicians: LeaveClinicianOption[];
 }
 
-export function AdminLeavesBoard({ rows }: Props) {
+/**
+ * All-staff leaves board, shared by /admin/leaves and /secretary/leaves
+ * (Prompt 55 §1). Pending requests keep the approval workflow; `canManage`
+ * adds the direct add button and per-row delete ("end early").
+ */
+export function LeavesBoard({ rows, canApprove, canManage, clinicians }: Props) {
   const t = useTranslations('leave');
   const tStatus = useTranslations('leave.status');
   const tType = useTranslations('leave.types');
@@ -35,6 +48,7 @@ export function AdminLeavesBoard({ rows }: Props) {
 
   const [rejectTarget, setRejectTarget] = useState<LeaveRow | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
 
   const pendingRows = rows.filter((r) => r.status === LeaveStatus.PENDING);
   const otherRows = rows.filter((r) => r.status !== LeaveStatus.PENDING);
@@ -55,6 +69,18 @@ export function AdminLeavesBoard({ rows }: Props) {
     });
   }
 
+  function remove(row: LeaveRow) {
+    startTransition(async () => {
+      const r = await deleteLeaveAction({ id: row.id });
+      if (!r.ok) {
+        toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
+        return;
+      }
+      toast.success(t('toasts.deleted'));
+      router.refresh();
+    });
+  }
+
   function submitReject() {
     if (!rejectTarget) return;
     startTransition(async () => {
@@ -70,11 +96,33 @@ export function AdminLeavesBoard({ rows }: Props) {
     });
   }
 
+  const deleteAction = (row: LeaveRow) =>
+    canManage ? (
+      <ConfirmDialog
+        title={t('manage.deleteTitle')}
+        description={t('manage.deleteConfirm')}
+        variant="destructive"
+        onConfirm={() => remove(row)}
+        trigger={
+          <Button type="button" size="sm" variant="outline" disabled={pending}>
+            {t('manage.delete')}
+          </Button>
+        }
+      />
+    ) : null;
+
   return (
     <section className="space-y-4 p-6">
-      <header>
-        <h1 className="text-2xl font-medium text-brand-navy">{t('adminTitle')}</h1>
-        <p className="text-sm text-brand-textMuted">{t('adminSubtitle')}</p>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-medium text-brand-navy">{t('adminTitle')}</h1>
+          <p className="text-sm text-brand-textMuted">{t('adminSubtitle')}</p>
+        </div>
+        {canManage ? (
+          <Button type="button" onClick={() => setAddOpen(true)}>
+            {t('manage.addButton')}
+          </Button>
+        ) : null}
       </header>
 
       <div className="space-y-2">
@@ -88,24 +136,31 @@ export function AdminLeavesBoard({ rows }: Props) {
             rows={pendingRows}
             intlLocale={intlLocale}
             locale={locale}
+            tColumns={t}
             tType={tType}
+            tStatus={tStatus}
             renderActions={(row) => (
-              <div className="flex gap-2">
-                <Button type="button" size="sm" disabled={pending} onClick={() => approve(row)}>
-                  {t('actions.approve')}
-                </Button>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() => {
-                    setRejectTarget(row);
-                    setRejectReason('');
-                  }}
-                >
-                  {t('actions.reject')}
-                </Button>
+              <div className="flex flex-wrap gap-2">
+                {canApprove ? (
+                  <>
+                    <Button type="button" size="sm" disabled={pending} onClick={() => approve(row)}>
+                      {t('actions.approve')}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      disabled={pending}
+                      onClick={() => {
+                        setRejectTarget(row);
+                        setRejectReason('');
+                      }}
+                    >
+                      {t('actions.reject')}
+                    </Button>
+                  </>
+                ) : null}
+                {deleteAction(row)}
               </div>
             )}
           />
@@ -119,9 +174,30 @@ export function AdminLeavesBoard({ rows }: Props) {
             {t('empty.all')}
           </p>
         ) : (
-          <LeaveTable rows={otherRows} intlLocale={intlLocale} locale={locale} tType={tType} />
+          <LeaveTable
+            rows={otherRows}
+            intlLocale={intlLocale}
+            locale={locale}
+            tColumns={t}
+            tType={tType}
+            tStatus={tStatus}
+            renderActions={canManage ? (row) => deleteAction(row) : undefined}
+          />
         )}
       </div>
+
+      <Dialog open={addOpen} onOpenChange={(o) => (o ? null : setAddOpen(false))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('manage.addButton')}</DialogTitle>
+          </DialogHeader>
+          <LeaveAddForm
+            clinicians={clinicians}
+            onDone={() => setAddOpen(false)}
+            onCancel={() => setAddOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={rejectTarget !== null} onOpenChange={(o) => (o ? null : setRejectTarget(null))}>
         <DialogContent>
@@ -167,13 +243,17 @@ function LeaveTable({
   rows,
   intlLocale,
   locale,
+  tColumns,
   tType,
+  tStatus,
   renderActions,
 }: {
   rows: LeaveRow[];
   intlLocale: 'en' | 'ar';
   locale: string;
+  tColumns: (k: string) => string;
   tType: (k: string) => string;
+  tStatus: (k: string) => string;
   renderActions?: (row: LeaveRow) => React.ReactNode;
 }) {
   return (
@@ -181,12 +261,14 @@ function LeaveTable({
       <table className="min-w-full divide-y divide-brand-border text-sm">
         <thead className="bg-brand-bg text-xs uppercase tracking-wide text-brand-textMuted">
           <tr>
-            <th className="px-3 py-2 text-start">Staff member</th>
-            <th className="px-3 py-2 text-start">Type</th>
-            <th className="px-3 py-2 text-start">Dates</th>
-            <th className="px-3 py-2 text-start">Reason</th>
-            <th className="px-3 py-2 text-start">Status</th>
-            {renderActions ? <th className="px-3 py-2 text-start">Actions</th> : null}
+            <th className="px-3 py-2 text-start">{tColumns('columns.user')}</th>
+            <th className="px-3 py-2 text-start">{tColumns('columns.type')}</th>
+            <th className="px-3 py-2 text-start">{tColumns('columns.range')}</th>
+            <th className="px-3 py-2 text-start">{tColumns('columns.reason')}</th>
+            <th className="px-3 py-2 text-start">{tColumns('columns.status')}</th>
+            {renderActions ? (
+              <th className="px-3 py-2 text-start">{tColumns('columns.actions')}</th>
+            ) : null}
           </tr>
         </thead>
         <tbody className="divide-y divide-brand-border bg-brand-surface">
@@ -201,7 +283,7 @@ function LeaveTable({
               </td>
               <td className="px-3 py-2 text-brand-textMuted">{r.reason ?? '—'}</td>
               <td className="px-3 py-2">
-                <Badge variant={statusVariant(r.status)}>{r.status}</Badge>
+                <Badge variant={leaveStatusVariant(r.status)}>{tStatus(r.status)}</Badge>
               </td>
               {renderActions ? <td className="px-3 py-2">{renderActions(r)}</td> : null}
             </tr>
@@ -210,15 +292,4 @@ function LeaveTable({
       </table>
     </div>
   );
-}
-
-function statusVariant(s: LeaveStatus): 'cyan' | 'muted' | 'destructive' {
-  switch (s) {
-    case LeaveStatus.APPROVED:
-      return 'cyan';
-    case LeaveStatus.REJECTED:
-      return 'destructive';
-    default:
-      return 'muted';
-  }
 }

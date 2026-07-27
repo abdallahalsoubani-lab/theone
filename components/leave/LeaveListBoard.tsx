@@ -1,6 +1,5 @@
 'use client';
 
-import { LeaveStatus } from '@prisma/client';
 import { useLocale, useTranslations } from 'next-intl';
 import { useState } from 'react';
 
@@ -9,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDate } from '@/lib/format/date';
 import type { LeaveRow } from '@/lib/leave/queries';
+import { leaveStatusVariant } from '@/lib/leave/status-variant';
 
 interface Props {
   rows: LeaveRow[];
@@ -67,7 +67,7 @@ export function LeaveListBoard({ rows, canRequest }: Props) {
                   </td>
                   <td className="px-3 py-2 text-brand-textMuted">{r.reason ?? '—'}</td>
                   <td className="px-3 py-2">
-                    <Badge variant={statusVariant(r.status)}>{tStatus(r.status)}</Badge>
+                    <Badge variant={leaveStatusVariant(r.status)}>{tStatus(r.status)}</Badge>
                   </td>
                   <td className="px-3 py-2 text-brand-textMuted">
                     {locale === 'ar'
@@ -84,15 +84,4 @@ export function LeaveListBoard({ rows, canRequest }: Props) {
       <RequestLeaveDialog open={open} onClose={() => setOpen(false)} />
     </section>
   );
-}
-
-function statusVariant(s: LeaveStatus): 'cyan' | 'muted' | 'destructive' {
-  switch (s) {
-    case LeaveStatus.APPROVED:
-      return 'cyan';
-    case LeaveStatus.REJECTED:
-      return 'destructive';
-    default:
-      return 'muted';
-  }
 }

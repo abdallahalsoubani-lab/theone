@@ -3,7 +3,7 @@ import type { View } from 'react-big-calendar';
 
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { patientDisplayName } from '@/lib/format/patientName';
-import { clinicHm, toClinicWall } from '@/lib/time/clinic';
+import { toClinicWall } from '@/lib/time/clinic';
 
 /**
  * Maps appointments to react-big-calendar events, VIEW-AWARE (Calendar overlap
@@ -49,25 +49,21 @@ export function eventsForView(
   view: View,
   locale: string,
 ): CalendarEvent[] {
-  // Chip label = "{start} {label}" (NI-10, Prompt 38): the clinic reads the
-  // grid by time first, name second. Clinic-TZ wall time (Prompt 31), Latin
-  // digits; the calendar's internal grid is forced LTR even on /ar
-  // (calendar.css), so the time renders unambiguously before the name with no
-  // extra bidi controls. Applied here — every view and every role's calendar
-  // inherits it, including EVENT chips (time + event title) for consistency.
-  const timePrefix = (a: CalendarAppointment) => clinicHm(a.startsAt);
+  // Name-first chips (Prompt 55 §2 — clinic request, reversing the P38 NI-10
+  // time prefix): "ما بدها الساعة تطلع عالحجز — بتقرأها من السطور". The grid
+  // rows carry the hour; the patient name is the headline. EVENT keeps its
+  // label; GROUP keeps label + member count.
   const title = (a: CalendarAppointment) => {
-    if (a.appointmentType === 'EVENT') return `${timePrefix(a)} ${a.title ?? ''}`.trim();
+    if (a.appointmentType === 'EVENT') return (a.title ?? '').trim();
     // GROUP (July #8 part 3): the workshop label when set, else the first
     // member's name; the member count is appended so the chip reads as a group.
     if (a.appointmentType === 'GROUP') {
       const first = a.groupPatients[0];
       const base =
         a.title ?? (first ? patientDisplayName(first.fullNameEn, first.fullNameAr, locale) : '');
-      const label = a.groupPatients.length > 0 ? `${base} (${a.groupPatients.length})` : base;
-      return `${timePrefix(a)} ${label}`;
+      return a.groupPatients.length > 0 ? `${base} (${a.groupPatients.length})` : base;
     }
-    return `${timePrefix(a)} ${patientDisplayName(a.patientFullNameEn, a.patientFullNameAr, locale)}`;
+    return patientDisplayName(a.patientFullNameEn, a.patientFullNameAr, locale);
   };
   const start = (a: CalendarAppointment) => toClinicWall(a.startsAt);
   const end = (a: CalendarAppointment) => addMinutes(start(a), a.durationMinutes);
@@ -111,4 +107,24 @@ export function eventsForView(
     status: a.status,
     appointment: a,
   }));
+}
+
+/**
+ * What the in-grid card shows (Prompt 55 §2): the chip title (patient name /
+ * EVENT label / GROUP label) plus the booking note — nothing else. The time
+ * lives in the grid rows; the therapist is the resource column. Pure so the
+ * card contract unit-tests without React.
+ */
+export interface EventCardContent {
+  primary: string;
+  note: string | null;
+}
+
+export function eventCardContent(event: {
+  title: string;
+  appointment?: CalendarAppointment;
+}): EventCardContent {
+  const raw = event.appointment?.notes ?? null;
+  const trimmed = raw?.trim() ?? '';
+  return { primary: event.title, note: trimmed.length > 0 ? trimmed : null };
 }

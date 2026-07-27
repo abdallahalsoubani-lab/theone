@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 import { listUsers } from '@/lib/admin/users/queries';
 import { userListFiltersSchema } from '@/lib/admin/users/schemas';
+import { listAllLeaves } from '@/lib/leave/queries';
 import { requirePermission } from '@/lib/rbac/guards';
 
 import { UsersTable } from './_components/UsersTable';
@@ -28,7 +29,9 @@ export default async function AdminUsersPage({
     page: sp.page ? Number(sp.page) : 1,
     pageSize: 20,
   });
-  const { rows, total } = await listUsers(filters);
+  // Leaves ride along for the row-menu "Leaves" dialog (Prompt 55 §1) —
+  // one query for the whole staff table; the dialog filters per user.
+  const [{ rows, total }, leaves] = await Promise.all([listUsers(filters), listAllLeaves({})]);
 
   return (
     <section className="space-y-6 p-6">
@@ -48,6 +51,7 @@ export default async function AdminUsersPage({
         page={filters.page}
         pageSize={filters.pageSize}
         initialSearch={filters.search ?? ''}
+        leaves={leaves}
       />
     </section>
   );

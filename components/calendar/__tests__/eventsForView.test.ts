@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 
-import { OTHER_LANE_ID, eventsForView } from '../eventsForView';
+import { OTHER_LANE_ID, eventCardContent, eventsForView } from '../eventsForView';
 
 const base: Omit<CalendarAppointment, 'therapists'> = {
   id: 'appt-1',
@@ -54,8 +54,8 @@ describe('eventsForView', () => {
   it('computes end from duration and titles by locale', () => {
     const [en] = eventsForView([multiTherapist], 'week', 'en');
     const [ar] = eventsForView([multiTherapist], 'week', 'ar');
-    expect(en!.title).toBe('12:00 John Doe');
-    expect(ar!.title).toBe('12:00 جون دو');
+    expect(en!.title).toBe('John Doe');
+    expect(ar!.title).toBe('جون دو');
     expect(en!.end.getTime() - en!.start.getTime()).toBe(30 * 60_000);
   });
 
@@ -99,7 +99,7 @@ describe('eventsForView', () => {
     const day = eventsForView([group], 'day', 'en');
     expect(day).toHaveLength(2);
     expect(day.map((e) => e.id)).toEqual(['grp-1::t1', 'grp-1::t2']);
-    expect(day.every((e) => e.title === '12:00 Back-care workshop (2)')).toBe(true);
+    expect(day.every((e) => e.title === 'Back-care workshop (2)')).toBe(true);
   });
 
   it('GROUP without a label falls back to the first member name + count', () => {
@@ -117,8 +117,8 @@ describe('eventsForView', () => {
       ],
       therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
     };
-    expect(eventsForView([group], 'week', 'en')[0]!.title).toBe('12:00 John (2)');
-    expect(eventsForView([group], 'week', 'ar')[0]!.title).toBe('12:00 جون (2)');
+    expect(eventsForView([group], 'week', 'en')[0]!.title).toBe('John (2)');
+    expect(eventsForView([group], 'week', 'ar')[0]!.title).toBe('جون (2)');
   });
 
   it('single-therapist appointment is one event in every view', () => {
@@ -166,8 +166,8 @@ describe('clinic-wall grid mapping (Prompt 31 — P-8)', () => {
   });
 });
 
-describe('time-first chip label (Prompt 38 — NI-10)', () => {
-  it('prefixes the clinic-TZ start time to session, group, and EVENT titles', () => {
+describe('name-first cards (Prompt 55 §2 — clinic request, reverses P38 NI-10)', () => {
+  it('no view ever prefixes the start time to the chip title — the grid rows carry the hour', () => {
     const event: CalendarAppointment = {
       ...base,
       appointmentType: 'EVENT',
@@ -175,15 +175,48 @@ describe('time-first chip label (Prompt 38 — NI-10)', () => {
       patientFullNameEn: '',
       patientFullNameAr: '',
       title: 'Maintenance',
-      startsAt: new Date('2026-06-01T06:30:00Z'), // 09:30 Amman
+      startsAt: new Date('2026-06-01T06:30:00Z'),
       therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
     };
-    expect(eventsForView([event], 'day', 'en')[0]!.title).toBe('09:30 Maintenance');
+    // EVENT keeps its label as-is (P29 behavior, minus the time).
+    expect(eventsForView([event], 'day', 'en')[0]!.title).toBe('Maintenance');
     const session: CalendarAppointment = {
       ...base,
-      startsAt: new Date('2026-06-01T13:15:00Z'), // 16:15 Amman
+      startsAt: new Date('2026-06-01T13:15:00Z'),
       therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
     };
-    expect(eventsForView([session], 'week', 'ar')[0]!.title).toBe('16:15 جون دو');
+    for (const view of ['day', 'week', 'month', 'agenda'] as const) {
+      for (const locale of ['en', 'ar'] as const) {
+        expect(eventsForView([session], view, locale)[0]!.title).not.toMatch(/\d{2}:\d{2}/);
+      }
+    }
+    expect(eventsForView([session], 'week', 'ar')[0]!.title).toBe('جون دو');
+  });
+
+  it('eventCardContent: patient name + booking note only — no time string, no therapist name', () => {
+    const withNote: CalendarAppointment = {
+      ...base,
+      notes: '  Re-assessment  ',
+      therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
+    };
+    const [chip] = eventsForView([withNote], 'day', 'en');
+    const card = eventCardContent(chip!);
+    expect(card.primary).toBe('John Doe');
+    expect(card.note).toBe('Re-assessment');
+    expect(card.primary).not.toMatch(/\d{2}:\d{2}/);
+    expect(JSON.stringify([card.primary, card.note])).not.toContain('Ahmad');
+  });
+
+  it('eventCardContent: empty / whitespace / absent note → single line (note null)', () => {
+    const noNote: CalendarAppointment = {
+      ...base,
+      notes: null,
+      therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
+    };
+    const blankNote: CalendarAppointment = { ...noNote, notes: '   ' };
+    expect(eventCardContent(eventsForView([noNote], 'day', 'en')[0]!).note).toBeNull();
+    expect(eventCardContent(eventsForView([blankNote], 'day', 'en')[0]!).note).toBeNull();
+    // Leave overlays (no appointment payload) stay title-only.
+    expect(eventCardContent({ title: 'في إجازة' })).toEqual({ primary: 'في إجازة', note: null });
   });
 });

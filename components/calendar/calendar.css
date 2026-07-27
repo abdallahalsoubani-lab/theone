@@ -236,16 +236,41 @@
   color: rgb(153, 27, 27);
 }
 
-/* Leave overlay (Prompt 11 §4.1.5) — muted background on the therapist
- * column for an approved leave window. The conflict engine already
- * blocks new bookings; this just makes the blocked region obvious. */
+/* Leave overlay (Prompt 11 §4.1.5, restyled Prompt 55 §1) — the clinician's
+ * column reads as DISABLED for the leave window: solid gray wash with faint
+ * diagonal stripes, square edges so it fills the lane like a closed band.
+ * The conflict engine still blocks new bookings; historical / overridden
+ * appointments stay visible and clickable on top (pointer-events: none). */
 .rbc-background-event {
-  background-color: rgba(90, 101, 128, 0.2);
-  border: 1px dashed rgba(90, 101, 128, 0.45);
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(90, 101, 128, 0.22),
+    rgba(90, 101, 128, 0.22) 10px,
+    rgba(90, 101, 128, 0.13) 10px,
+    rgba(90, 101, 128, 0.13) 20px
+  );
+  border: none;
+  border-radius: 0;
   color: var(--brand-text-muted);
   font-size: 0.75rem;
   font-weight: 500;
   pointer-events: none;
+  opacity: 1; /* rbc's base .rbc-background-event dims to .75 — keep ours flat */
+}
+
+/* Prompt 55 §2 — the card is name + note only; rbc's built-in time label
+ * above the custom card content would reintroduce the hour the clinic asked
+ * to drop ("بتقرأها من السطور"). The grid rows carry the time. */
+.rbc-day-slot .rbc-event-label {
+  display: none;
+}
+
+/* Short bookings (≤15 min, class added by eventPropGetter): tighter padding
+ * + line-height so the single name line stays visible at slot height
+ * instead of clipping into the event padding. */
+.rbc-event.rbc-event-compact {
+  padding: 0.1rem 0.45rem;
+  line-height: 1.15;
 }
 
 /* ── RTL ──────────────────────────────────────────────────────────── */

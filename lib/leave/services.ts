@@ -6,7 +6,13 @@ import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
 import { createNotification } from '@/lib/notifications/actions';
 
 import { scanLeaveConflicts } from './conflictScan';
-import type { LeaveApproveInput, LeaveRejectInput, LeaveRequestParsed } from './schemas';
+import type {
+  LeaveAddParsed,
+  LeaveApproveInput,
+  LeaveDeleteInput,
+  LeaveRejectInput,
+  LeaveRequestParsed,
+} from './schemas';
 
 export class LeaveError extends Error {
   constructor(public readonly error: LocalizedError) {
@@ -31,6 +37,12 @@ const notPending: LocalizedError = {
   code: 'LEAVE_NOT_PENDING',
   message_en: 'Only pending leaves can be approved or rejected.',
   message_ar: 'يمكن الموافقة أو الرفض فقط للطلبات المعلقة.',
+};
+
+const targetNotStaff: LocalizedError = {
+  code: 'LEAVE_TARGET_INVALID',
+  message_en: 'Leaves can only be added for active staff members.',
+  message_ar: 'يمكن إضافة الإجازات لموظفين نشطين فقط.',
 };
 
 export const requestLeave = withAudit<
@@ -89,6 +101,148 @@ export const requestLeave = withAudit<
     }
 
     return { leaveId: created.id, adminCount: admins.length };
+  },
+);
+
+/**
+ * Direct add by Admin/Secretary (Prompt 55 §1). The leave is created APPROVED
+ * in one step — no request/approval hop — because the caller IS the decision
+ * maker ("الدكتورة مش جاية بكرا"). Same retrospective conflict scan as
+ * approveLeave so already-booked appointments inside the window surface as
+ * Secretary inbox items.
+ */
+export const createLeaveForUser = withAudit<
+  [LeaveAddParsed],
+  { leaveId: string; targetUserId: string; conflictCount: number }
+>(
+  {
+    entityType: 'Leave',
+    action: AuditAction.CREATE,
+    extractEntityId: (_args, result) => result.leaveId,
+    extractAfter: (result) => ({
+      event: 'LEAVE_ADDED_BY_STAFF',
+      leaveId: result.leaveId,
+      targetUserId: result.targetUserId,
+      conflictCount: result.conflictCount,
+    }),
+  },
+  async function createForUserInner(input): Promise<{
+    leaveId: string;
+    targetUserId: string;
+    conflictCount: number;
+  }> {
+    const session = await auth();
+    if (!session?.user?.id) throw new LeaveError(unauthenticated);
+
+    const target = await db.user.findFirst({
+      where: { id: input.userId, deletedAt: null, role: { not: UserRole.PATIENT } },
+      select: { id: true },
+    });
+    if (!target) throw new LeaveError(targetNotStaff);
+
+    const note = input.note?.trim();
+    const created = await db.leave.create({
+      data: {
+        userId: input.userId,
+        leaveType: input.leaveType,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        reason: note ? note : null,
+        status: LeaveStatus.APPROVED,
+        approvedById: session.user.id,
+      },
+      select: { id: true },
+    });
+
+    const conflicts = await scanLeaveConflicts({
+      userId: input.userId,
+      startDate: input.startDate,
+      endDate: input.endDate,
+    });
+    if (conflicts.length > 0) {
+      await db.inboxItem.createMany({
+        data: conflicts.map((c) => ({
+          type: 'LEAVE_CONFLICT' as const,
+          patientId: c.patientId,
+          appointmentId: c.appointmentId,
+          leaveId: created.id,
+          note: `Therapist on leave ${input.startDate
+            .toISOString()
+            .slice(0, 10)} – ${input.endDate.toISOString().slice(0, 10)}`,
+        })),
+      });
+    }
+
+    void createNotification({
+      recipientId: input.userId,
+      type: 'LEAVE_APPROVED',
+      params: {
+        dateRange: `${input.startDate.toISOString().slice(0, 10)} – ${input.endDate
+          .toISOString()
+          .slice(0, 10)}`,
+      },
+      linkPath: '/staff/leave',
+      relatedEntityType: 'Leave',
+      relatedEntityId: created.id,
+    }).catch((err: unknown) => {
+      console.error('[leave.add] recipient notification failed', err);
+    });
+
+    return {
+      leaveId: created.id,
+      targetUserId: input.userId,
+      conflictCount: conflicts.length,
+    };
+  },
+);
+
+/**
+ * Hard delete (Prompt 55 §1 — "delete / end early"). The calendar overlay and
+ * the conflict engine both read live rows, so deleting an in-progress leave
+ * makes the clinician bookable again immediately; the audit row keeps the
+ * removed window. InboxItem.leaveId is ON DELETE SET NULL — no cleanup needed.
+ */
+export const deleteLeave = withAudit<
+  [LeaveDeleteInput],
+  {
+    leaveId: string;
+    targetUserId: string;
+    startDate: string;
+    endDate: string;
+    status: LeaveStatus;
+  }
+>(
+  {
+    entityType: 'Leave',
+    action: AuditAction.DELETE,
+    extractEntityId: (args) => args[0].id,
+    extractAfter: (result) => ({ event: 'LEAVE_DELETED', ...result }),
+  },
+  async function deleteInner(input): Promise<{
+    leaveId: string;
+    targetUserId: string;
+    startDate: string;
+    endDate: string;
+    status: LeaveStatus;
+  }> {
+    const session = await auth();
+    if (!session?.user?.id) throw new LeaveError(unauthenticated);
+
+    const existing = await db.leave.findUnique({
+      where: { id: input.id },
+      select: { id: true, userId: true, status: true, startDate: true, endDate: true },
+    });
+    if (!existing) throw new LeaveError(notFound);
+
+    await db.leave.delete({ where: { id: input.id } });
+
+    return {
+      leaveId: existing.id,
+      targetUserId: existing.userId,
+      startDate: existing.startDate.toISOString().slice(0, 10),
+      endDate: existing.endDate.toISOString().slice(0, 10),
+      status: existing.status,
+    };
   },
 );
 

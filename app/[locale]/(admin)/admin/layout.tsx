@@ -2,6 +2,7 @@ import {
   BarChart3,
   BriefcaseMedical,
   CalendarDays,
+  CalendarOff,
   ClipboardList,
   DoorOpen,
   MessageSquare,
@@ -37,6 +38,9 @@ export default async function AdminLayout({
   const links: NavLink[] = [
     { label: t('calendar'), href: '/admin/calendar', icon: <CalendarDays className="size-4" /> },
     { label: t('users'), href: '/admin/users', icon: <Users className="size-4" /> },
+    // Prompt 55 §1 — the leaves board existed but was reachable only via
+    // notification deep-links; it now has a proper sidebar entry.
+    { label: t('leaves'), href: '/admin/leaves', icon: <CalendarOff className="size-4" /> },
     {
       label: t('specialties'),
       href: '/admin/specialties',

@@ -17,18 +17,22 @@ export function TherapistScheduleBoard({
   minHour,
   maxHour,
   navById,
+  leaves,
 }: {
   appointments: CalendarAppointment[];
   minHour: number;
   maxHour: number;
   /** appointmentId → where its card should navigate. */
   navById: Record<string, { patientId: string; sessionNoteId?: string | null }>;
+  /** The therapist's OWN approved leaves (Prompt 55 §1) — gray day/week blocks. */
+  leaves?: Array<{ id: string; userId: string; startDate: Date; endDate: Date }>;
 }) {
   const router = useRouter();
   return (
     <SecretaryCalendar
       appointments={appointments}
       resources={[]}
+      leaves={leaves}
       minHour={minHour}
       maxHour={maxHour}
       editable={false}

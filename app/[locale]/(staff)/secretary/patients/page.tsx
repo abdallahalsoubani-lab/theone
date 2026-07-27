@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 import { listPatients } from '@/lib/patients/queries';
 import { patientListFiltersSchema } from '@/lib/patients/schemas';
+import { can } from '@/lib/rbac/can';
 import { requirePermission } from '@/lib/rbac/guards';
 
 export default async function SecretaryPatientsPage({
@@ -17,9 +18,13 @@ export default async function SecretaryPatientsPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  await requirePermission('patients.read');
+  const viewer = await requirePermission('patients.read');
   const t = await getTranslations('patients.list');
+  const tExport = await getTranslations('patients.export');
   const sp = await searchParams;
+  // Prompt 55 §4 — the roster export carries contact PII; the endpoint
+  // enforces the same permission, this only decides button visibility.
+  const canExport = can(viewer, 'patients.export');
 
   const filters = patientListFiltersSchema.parse({
     search: sp.q,
@@ -41,9 +46,16 @@ export default async function SecretaryPatientsPage({
           <h1 className="text-2xl font-medium text-brand-navy">{t('title')}</h1>
           <Badge variant="muted">{total}</Badge>
         </div>
-        <Button asChild>
-          <Link href="/secretary/patients/new">{t('newPatient')}</Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {canExport ? (
+            <Button asChild variant="outline">
+              <a href={`/api/v1/exports/patients?locale=${locale}`}>{tExport('button')}</a>
+            </Button>
+          ) : null}
+          <Button asChild>
+            <Link href="/secretary/patients/new">{t('newPatient')}</Link>
+          </Button>
+        </div>
       </header>
       <PatientsTable
         rows={rows}

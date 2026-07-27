@@ -4,6 +4,7 @@ import { deriveDayWindow } from '@/components/calendar/CalendarPageContent';
 import { TherapistScheduleBoard } from '@/components/calendar/TherapistScheduleBoard';
 import { listAppointmentsForCalendar } from '@/lib/appointments/queries';
 import { db } from '@/lib/db';
+import { listApprovedLeavesInRange } from '@/lib/leave/queries';
 import { requirePermission } from '@/lib/rbac/guards';
 
 /**
@@ -36,13 +37,17 @@ export default async function TherapistCalendarPage({
   to.setDate(to.getDate() + 365);
   to.setHours(23, 59, 59, 999);
 
-  const [appointments, settings] = await Promise.all([
+  const [appointments, settings, allLeaves] = await Promise.all([
     listAppointmentsForCalendar({ from, to, therapistIds: [therapistId] }),
     db.clinicSettings.findUnique({
       where: { id: 'default' },
       select: { businessHours: true },
     }),
+    listApprovedLeavesInRange(from, to),
   ]);
+  // Own leaves only (Prompt 55 §1): this is a single-clinician board, so a
+  // colleague's leave must not gray these columns.
+  const leaves = allLeaves.filter((l) => l.userId === therapistId);
 
   // appointmentId → primary session note (for the deep-link destination).
   const notes = await db.sessionNote.findMany({
@@ -67,6 +72,7 @@ export default async function TherapistCalendarPage({
         minHour={minHour}
         maxHour={maxHour}
         navById={navById}
+        leaves={leaves}
       />
     </section>
   );

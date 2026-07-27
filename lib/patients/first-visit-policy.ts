@@ -1,12 +1,13 @@
-import type { AppointmentType, UserRole } from '@prisma/client';
+import type { UserRole } from '@prisma/client';
 
 /**
  * Doctor-first-visit UI policy (Prompt 41 — NI-5, owner ruling: SOFT).
  *
  * Pure, client-safe helpers — the DB derivation lives in
  * `lib/patients/first-visit.ts` (server-only); this module owns who sees the
- * badge / CTA / notice so the rules are testable without rendering. Nothing
- * here ever blocks a booking: the notice is the enforcement ceiling.
+ * badge / CTA so the rules are testable without rendering. Nothing here ever
+ * blocks a booking. (The booking-modal notice was removed by clinic request
+ * in Prompt 55 §3 — the badge + CTA are the remaining surfaces.)
  */
 
 const BADGE_ROLES: readonly UserRole[] = ['SECRETARY', 'ADMIN', 'DOCTOR'];
@@ -35,15 +36,4 @@ export function bookDoctorVisitHref(
   if (!pendingFirstVisit) return null;
   const calendar = CTA_CALENDAR_BY_ROLE[role];
   return calendar ? `${calendar}?bookPatient=${patientId}&doctors=1` : null;
-}
-
-/**
- * Inline informational notice in the booking modal: only when booking a
- * therapy SESSION for a patient who hasn't completed a doctor visit yet.
- */
-export function showFirstVisitNotice(
-  appointmentType: AppointmentType,
-  pendingFirstVisit: boolean | undefined,
-): boolean {
-  return appointmentType === 'SESSION' && pendingFirstVisit === true;
 }

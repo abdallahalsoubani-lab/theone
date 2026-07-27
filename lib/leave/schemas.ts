@@ -33,6 +33,44 @@ export const leaveRequestSchema = z
 export type LeaveRequestInput = z.input<typeof leaveRequestSchema>;
 export type LeaveRequestParsed = z.infer<typeof leaveRequestSchema>;
 
+/**
+ * Direct add by Admin/Secretary (Prompt 55 §1): the leave is a decided fact
+ * ("الدكتورة مش جاية بكرا") — created APPROVED in one step, no
+ * request/approval hop. Unlike the self-request `reason`, the note is
+ * optional.
+ */
+export const leaveAddSchema = z
+  .object({
+    userId: z.string().min(1),
+    leaveType: z.nativeEnum(LeaveType),
+    startDate: z.coerce.date(),
+    endDate: z.coerce.date(),
+    note: z.string().max(1000).optional(),
+  })
+  .refine((d) => d.endDate >= d.startDate, {
+    message: 'endDate must be on or after startDate',
+    path: ['endDate'],
+  })
+  .refine(
+    (d) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return d.startDate >= today;
+    },
+    {
+      message: 'startDate must be today or in the future',
+      path: ['startDate'],
+    },
+  );
+
+export type LeaveAddInput = z.input<typeof leaveAddSchema>;
+export type LeaveAddParsed = z.infer<typeof leaveAddSchema>;
+
+export const leaveDeleteSchema = z.object({
+  id: z.string().min(1),
+});
+export type LeaveDeleteInput = z.infer<typeof leaveDeleteSchema>;
+
 export const leaveApproveSchema = z.object({
   id: z.string().min(1),
 });

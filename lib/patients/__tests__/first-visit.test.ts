@@ -59,11 +59,7 @@ vi.mock('@/lib/db', () => {
 import type { UserRole } from '@prisma/client';
 
 import { hasCompletedDoctorVisit, pendingFirstVisitIds } from '../first-visit';
-import {
-  bookDoctorVisitHref,
-  canSeeFirstVisitBadge,
-  showFirstVisitNotice,
-} from '../first-visit-policy';
+import { bookDoctorVisitHref, canSeeFirstVisitBadge } from '../first-visit-policy';
 
 const { __state, db } = (await import('@/lib/db')) as unknown as {
   __state: {
@@ -164,12 +160,9 @@ describe('first-visit UI policy', () => {
     }
   });
 
-  it('soft notice: SESSION for a pending patient only — informational ceiling', () => {
-    expect(showFirstVisitNotice('SESSION', true)).toBe(true);
-    expect(showFirstVisitNotice('SESSION', false)).toBe(false);
-    expect(showFirstVisitNotice('SESSION', undefined)).toBe(false);
-    expect(showFirstVisitNotice('EVENT', true)).toBe(false);
-    expect(showFirstVisitNotice('STRETCHING', true)).toBe(false);
-    expect(showFirstVisitNotice('GROUP', true)).toBe(false);
+  it('the booking-modal notice is gone (Prompt 55 §3) — the policy module only exposes badge + CTA', async () => {
+    const policy = await import('../first-visit-policy');
+    expect('showFirstVisitNotice' in policy).toBe(false);
+    expect(Object.keys(policy).sort()).toEqual(['bookDoctorVisitHref', 'canSeeFirstVisitBadge']);
   });
 });

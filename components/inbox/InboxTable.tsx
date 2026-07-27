@@ -142,6 +142,10 @@ function TypeBadge({ type }: { type: InboxListRow['type'] }) {
       return <Badge variant="muted">{t('unknown')}</Badge>;
     case 'OUTBOUND_DELIVERY_FAILED':
       return <Badge variant="destructive">{t('deliveryFailed')}</Badge>;
+    case 'LEAVE_CONFLICT':
+      // Prompt 55 §1 — direct-add leaves fan these out; the raw enum used
+      // to leak here untranslated.
+      return <Badge variant="outline">{t('leaveConflict')}</Badge>;
     default:
       return <Badge variant="muted">{type}</Badge>;
   }

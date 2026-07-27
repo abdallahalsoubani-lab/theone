@@ -56,14 +56,17 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.HOME_PROGRAM_READ]: true,
     [PERMISSIONS.EXERCISES_READ]: true,
     [PERMISSIONS.LEAVES_CREATE_OWN]: 'own',
+    [PERMISSIONS.LEAVES_CREATE]: true,
     [PERMISSIONS.LEAVES_READ_OWN]: 'own',
     [PERMISSIONS.LEAVES_READ]: true,
+    [PERMISSIONS.LEAVES_DELETE]: true,
     [PERMISSIONS.REPORTS_READ]: true,
     [PERMISSIONS.ROOMS_READ]: true,
     [PERMISSIONS.PATIENTS_CREATE]: true,
     [PERMISSIONS.PATIENTS_READ]: true,
     [PERMISSIONS.PATIENTS_UPDATE]: true,
     [PERMISSIONS.PATIENTS_RESET_PASSWORD]: true,
+    [PERMISSIONS.PATIENTS_EXPORT]: true,
     [PERMISSIONS.INTAKE_CREATE]: true,
     [PERMISSIONS.INTAKE_READ]: true,
     [PERMISSIONS.INTAKE_UPDATE]: true,
@@ -206,6 +209,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.EXERCISE_MEDIA_UPDATE]: true,
     [PERMISSIONS.EXERCISE_MEDIA_DELETE]: true,
     [PERMISSIONS.LEAVES_CREATE_OWN]: 'own',
+    [PERMISSIONS.LEAVES_CREATE]: true,
     [PERMISSIONS.LEAVES_READ_OWN]: 'own',
     [PERMISSIONS.LEAVES_READ]: true,
     [PERMISSIONS.LEAVES_UPDATE]: true,
@@ -240,6 +244,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.PATIENTS_UPDATE]: true,
     [PERMISSIONS.PATIENTS_ARCHIVE]: true,
     [PERMISSIONS.PATIENTS_RESET_PASSWORD]: true,
+    [PERMISSIONS.PATIENTS_EXPORT]: true,
     [PERMISSIONS.INTAKE_CREATE]: true,
     [PERMISSIONS.INTAKE_READ]: true,
     [PERMISSIONS.INTAKE_UPDATE]: true,
@@ -576,6 +581,35 @@ describe('catalog invariants', () => {
       for (const code of set) {
         expect(ALL_CODES).toContain(code);
       }
+    }
+  });
+});
+
+describe('leave management (Prompt 55 §1 — admin + secretary)', () => {
+  it('grants direct add + delete to ADMIN and SECRETARY', () => {
+    for (const role of ['ADMIN', 'SECRETARY'] as const) {
+      expect(can(u(role), PERMISSIONS.LEAVES_CREATE)).toBe(true);
+      expect(can(u(role), PERMISSIONS.LEAVES_DELETE)).toBe(true);
+    }
+  });
+
+  it('denies DOCTOR / THERAPIST / PATIENT (self-request stays their only path)', () => {
+    for (const role of ['DOCTOR', 'THERAPIST', 'PATIENT'] as const) {
+      expect(can(u(role), PERMISSIONS.LEAVES_CREATE)).toBe(false);
+      expect(can(u(role), PERMISSIONS.LEAVES_DELETE)).toBe(false);
+    }
+  });
+});
+
+describe('patients.export (Prompt 55 §4 — roster carries contact PII)', () => {
+  it('grants SECRETARY and ADMIN', () => {
+    expect(can(u('SECRETARY'), PERMISSIONS.PATIENTS_EXPORT)).toBe(true);
+    expect(can(u('ADMIN'), PERMISSIONS.PATIENTS_EXPORT)).toBe(true);
+  });
+
+  it('denies DOCTOR / THERAPIST / PATIENT (P15 phone boundary — not a .read code, no admin-bypass widening)', () => {
+    for (const role of ['DOCTOR', 'THERAPIST', 'PATIENT'] as const) {
+      expect(can(u(role), PERMISSIONS.PATIENTS_EXPORT)).toBe(false);
     }
   });
 });

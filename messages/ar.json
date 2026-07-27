@@ -329,8 +329,24 @@
     },
     "firstVisit": {
       "awaitingBadge": "بانتظار زيارة الدكتورة",
-      "bookDoctorCta": "حجز موعد مع الدكتورة",
-      "notice": "هذا المريض لم يزر الدكتورة بعد."
+      "bookDoctorCta": "حجز موعد مع الدكتورة"
+    },
+    "export": {
+      "button": "تصدير",
+      "colNameAr": "الاسم (عربي)",
+      "colNameEn": "الاسم (إنجليزي)",
+      "colGender": "الجنس",
+      "colDob": "تاريخ الميلاد",
+      "colAge": "العمر",
+      "colPhone": "الهاتف",
+      "colAddress": "العنوان",
+      "colOccupation": "المهنة",
+      "colCreatedAt": "تاريخ الإضافة",
+      "colFirstVisit": "زيارة الدكتورة",
+      "genderMale": "ذكر",
+      "genderFemale": "أنثى",
+      "firstVisitPending": "بانتظار زيارة الدكتورة",
+      "firstVisitDone": "تمت"
     }
   },
   "intake": {
@@ -491,7 +507,8 @@
       "whatsappTemplates": "قوالب واتساب",
       "whatsappMessages": "رسائل واتساب",
       "calendar": "التقويم",
-      "reports": "التقارير"
+      "reports": "التقارير",
+      "leaves": "الإجازات"
     },
     "inbox": "صندوق الوارد",
     "exerciseLibrary": "مكتبة التمارين",
@@ -503,7 +520,9 @@
     "intakeSubmissions": "طلبات الاستقبال",
     "clinicianSummary": "ملخص الأخصائيين",
     "confirmations": "التأكيدات",
-    "waInbox": "واتساب"
+    "waInbox": "واتساب",
+    "leaves": "الإجازات",
+    "myLeaves": "إجازاتي"
   },
   "publicIntake": {
     "clinicName": "المركز الأول للعلاج الطبيعي",
@@ -1023,7 +1042,8 @@
         "reschedule": "طلب إعادة جدولة",
         "cancel": "طلب إلغاء",
         "unknown": "ردّ (بدون إجراء تلقائي)",
-        "deliveryFailed": "فشل التسليم"
+        "deliveryFailed": "فشل التسليم",
+        "leaveConflict": "تعارض إجازة"
       }
     }
   },
@@ -1552,7 +1572,9 @@
       "reason": "السبب",
       "reasonPlaceholder": "سبب موجز للإجازة.",
       "save": "إرسال الطلب",
-      "saving": "جاري الإرسال…"
+      "saving": "جاري الإرسال…",
+      "clinician": "الموظف",
+      "noteOptional": "ملاحظة (اختياري)"
     },
     "types": {
       "SICK": "مرضية",
@@ -1587,7 +1609,10 @@
       "requested": "تم إرسال طلب الإجازة.",
       "approved": "تمت الموافقة على الإجازة.",
       "approvedWithConflicts": "تمت الموافقة على الإجازة — تم إرسال {count} تعارض إلى صندوق المسؤولة عن الاستقبال.",
-      "rejected": "تم رفض الإجازة."
+      "rejected": "تم رفض الإجازة.",
+      "added": "تمت إضافة الإجازة.",
+      "addedWithConflicts": "تمت إضافة الإجازة — {count} من المواعيد الحالية تتعارض معها؛ راجعي صندوق الوارد.",
+      "deleted": "تم حذف الإجازة."
     },
     "calendar": {
       "onLeave": "في إجازة"
@@ -1595,7 +1620,16 @@
     "empty": {
       "mine": "لا توجد طلبات إجازة بعد.",
       "all": "لا توجد طلبات إجازة في النظام بعد.",
-      "pending": "لا توجد طلبات إجازة معلقة."
+      "pending": "لا توجد طلبات إجازة معلقة.",
+      "user": "لا توجد إجازات لهذا الموظف."
+    },
+    "manage": {
+      "menuItem": "الإجازات",
+      "title": "إجازات {name}",
+      "addButton": "إضافة إجازة",
+      "deleteTitle": "حذف الإجازة",
+      "deleteConfirm": "هل تريدين حذف هذه الإجازة؟ سيعود الحجز متاحاً لهذه الفترة فوراً.",
+      "delete": "حذف"
     }
   },
   "analytics": {

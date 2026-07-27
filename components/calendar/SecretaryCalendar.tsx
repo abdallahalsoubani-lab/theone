@@ -22,7 +22,8 @@ import { fromClinicWall, toClinicWall } from '@/lib/time/clinic';
 import { cn } from '@/lib/utils';
 
 import { CalendarToolbar } from './CalendarToolbar';
-import { OTHER_LANE_ID, eventsForView } from './eventsForView';
+import { OTHER_LANE_ID, eventCardContent, eventsForView } from './eventsForView';
+import { leaveBackgroundEvents } from './leaveEvents';
 import { resourcesForView } from './resourcesForView';
 
 interface CalendarResource {
@@ -168,43 +169,18 @@ export function SecretaryCalendar({
 
   // Leave overlays — rendered via react-big-calendar's `backgroundEvents`
   // prop. The conflict engine already blocks new bookings on these days
-  // (`THERAPIST_ON_LEAVE` kind from Prompt 7); the background block is
-  // the visual layer that makes the blocked region obvious.
-  const leaveBackgroundEvents = useMemo(() => {
-    if (!leaves || leaves.length === 0) return [];
-    const onLeaveLabel = tLeave('calendar.onLeave');
-    return leaves.map((l) => {
-      // Leave bounds are @db.Date columns (UTC-midnight instants encoding a
-      // calendar day). Rebuild them as clinic-wall day spans from the UTC
-      // date parts so the overlay covers the right grid days everywhere.
-      const start = new Date(
-        l.startDate.getUTCFullYear(),
-        l.startDate.getUTCMonth(),
-        l.startDate.getUTCDate(),
-        0,
-        0,
-        0,
-        0,
-      );
-      const end = new Date(
-        l.endDate.getUTCFullYear(),
-        l.endDate.getUTCMonth(),
-        l.endDate.getUTCDate(),
-        23,
-        59,
-        59,
-        999,
-      );
-      return {
-        id: `leave-${l.id}`,
-        title: onLeaveLabel,
-        start,
-        end,
-        resourceId: l.userId,
-        leave: true as const,
-      };
-    });
-  }, [leaves, tLeave]);
+  // (`THERAPIST_ON_LEAVE` kind from Prompt 7); the background block is the
+  // visual layer that makes the blocked region obvious. View-scoped in
+  // Prompt 55 §1 (day lanes always; week only on single-clinician boards) —
+  // see ./leaveEvents for the rules.
+  const leaveBg = useMemo(
+    () =>
+      leaveBackgroundEvents(leaves, view, {
+        onLeaveLabel: tLeave('calendar.onLeave'),
+        hasResourceLanes: resources.length > 0,
+      }),
+    [leaves, view, resources.length, tLeave],
+  );
 
   // A synthetic "Other" lane holds therapist-less appointments (STRETCHING —
   // July #8) in day view, but only when at least one exists so it doesn't
@@ -336,8 +312,14 @@ export function SecretaryCalendar({
             showMore: (count) => t('showMore', { count }),
           }}
           eventPropGetter={(event) => {
+            // rbc-event-compact (Prompt 55 §2): ≤15-minute bookings drop to a
+            // tighter padding so the name line stays legible at slot height.
+            const compact =
+              event.appointment && event.appointment.durationMinutes <= 15
+                ? ' rbc-event-compact'
+                : '';
             const base: { className: string; style?: React.CSSProperties } = {
-              className: `rbc-event-status-${event.status ?? 'leave'}`,
+              className: `rbc-event-status-${event.status ?? 'leave'}${compact}`,
             };
             if (event.status && TINT_STATUSES.has(event.status)) {
               const tint = therapistTint(event.resourceId);
@@ -374,7 +356,7 @@ export function SecretaryCalendar({
             if (date.getTime() < toClinicWall(new Date()).getTime()) classes.push('rbc-past-slot');
             return classes.length > 0 ? { className: classes.join(' ') } : {};
           }}
-          backgroundEvents={leaveBackgroundEvents as unknown as AppointmentEvent[]}
+          backgroundEvents={leaveBg as unknown as AppointmentEvent[]}
           components={{
             event: AppointmentEventCard,
             resourceHeader: TherapistResourceHeader,
@@ -386,7 +368,6 @@ export function SecretaryCalendar({
 }
 
 function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
-  const locale = useLocale();
   const tStatus = useTranslations('appointments.status');
   const tForm = useTranslations('appointments.form');
   // react-big-calendar reuses `components.event` for backgroundEvents too,
@@ -399,18 +380,10 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
       </div>
     );
   }
-  const startLabel = chipTime(event.start);
-  const endLabel = chipTime(event.end);
-  // Show the therapist whose lane this is; a co-therapist count hints that the
-  // same session also appears in another column (Prompt 20).
-  const laneTherapist = event.appointment.therapists.find((th) => th.id === event.resourceId);
-  const coTherapists = event.appointment.therapists.length - 1;
-  const therapistName = laneTherapist
-    ? locale === 'ar'
-      ? laneTherapist.fullNameAr
-      : laneTherapist.fullNameEn
-    : '';
-  const therapist = coTherapists > 0 ? `${therapistName} +${coTherapists}` : therapistName;
+  // Prompt 55 §2 (clinic request): the card is patient name + booking note
+  // ONLY. The grid rows carry the time; the resource column carries the
+  // therapist. Full details stay in the click-open side panel.
+  const { note } = eventCardContent(event);
   const tint = therapistTint(event.resourceId);
   // Overdue while IN_PROGRESS past scheduled end (Prompt 22 §4.4). No
   // auto-transition — computed at render time (fresh on navigation/refresh);
@@ -444,9 +417,9 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
           </span>
         ) : null}
       </div>
-      <div className="ps-3 text-[11px] font-medium tabular-nums leading-tight opacity-80">
-        {startLabel}–{endLabel}
-      </div>
+      {note ? (
+        <div className="truncate ps-3 text-[11px] leading-tight opacity-75">{note}</div>
+      ) : null}
       {overdueMinutes > 0 ? (
         <div className="ps-3">
           <span className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-px text-[10px] font-medium tabular-nums text-amber-700 ring-1 ring-inset ring-amber-500/25">
@@ -454,10 +427,6 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
           </span>
         </div>
       ) : null}
-      {/* Therapist name kept tiny + truncated for non-day views where the
-       * resource column header isn't visible. In day view it's redundant
-       * but harmless because the row is bounded by the card height. */}
-      <div className="truncate ps-3 text-[10px] opacity-70">{therapist}</div>
     </div>
   );
 }
@@ -489,14 +458,4 @@ function TherapistResourceHeader({
       <span>{label}</span>
     </div>
   );
-}
-
-/**
- * Zero-padded 24h chip label ("13:05"). Event start/end are already in
- * clinic-wall space (see eventsForView), so their LOCAL fields read clinic
- * time on any machine — re-pinning Intl to Asia/Amman here would shift them a
- * second time on a non-Amman browser. Latin digits in both locales.
- */
-function chipTime(wall: Date): string {
-  return `${String(wall.getHours()).padStart(2, '0')}:${String(wall.getMinutes()).padStart(2, '0')}`;
 }

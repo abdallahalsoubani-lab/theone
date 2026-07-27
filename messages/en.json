@@ -757,8 +757,24 @@
     },
     "firstVisit": {
       "awaitingBadge": "Awaiting doctor visit",
-      "bookDoctorCta": "Book doctor visit",
-      "notice": "This patient hasn't seen the doctor yet."
+      "bookDoctorCta": "Book doctor visit"
+    },
+    "export": {
+      "button": "Export",
+      "colNameAr": "Name (Arabic)",
+      "colNameEn": "Name (English)",
+      "colGender": "Gender",
+      "colDob": "Date of birth",
+      "colAge": "Age",
+      "colPhone": "Phone",
+      "colAddress": "Address",
+      "colOccupation": "Occupation",
+      "colCreatedAt": "Added on",
+      "colFirstVisit": "Doctor visit",
+      "genderMale": "Male",
+      "genderFemale": "Female",
+      "firstVisitPending": "Awaiting doctor visit",
+      "firstVisitDone": "Completed"
     }
   },
   "intake": {
@@ -919,7 +935,8 @@
       "whatsappTemplates": "WhatsApp templates",
       "whatsappMessages": "WhatsApp messages",
       "calendar": "Calendar",
-      "reports": "Reports"
+      "reports": "Reports",
+      "leaves": "Leaves"
     },
     "inbox": "Inbox",
     "exerciseLibrary": "Exercise library",
@@ -931,7 +948,9 @@
     "intakeSubmissions": "Intake requests",
     "clinicianSummary": "Clinician summary",
     "confirmations": "Confirmations",
-    "waInbox": "WhatsApp"
+    "waInbox": "WhatsApp",
+    "leaves": "Leaves",
+    "myLeaves": "My leave"
   },
   "publicIntake": {
     "clinicName": "The One for Physiotherapy",
@@ -1023,7 +1042,8 @@
         "reschedule": "Reschedule request",
         "cancel": "Cancel request",
         "unknown": "Reply (no auto-action)",
-        "deliveryFailed": "Delivery failed"
+        "deliveryFailed": "Delivery failed",
+        "leaveConflict": "Leave conflict"
       }
     }
   },
@@ -1552,7 +1572,9 @@
       "reason": "Reason",
       "reasonPlaceholder": "A short reason for the leave.",
       "save": "Submit request",
-      "saving": "Submitting…"
+      "saving": "Submitting…",
+      "clinician": "Staff member",
+      "noteOptional": "Note (optional)"
     },
     "types": {
       "SICK": "Sick",
@@ -1587,7 +1609,10 @@
       "requested": "Leave request submitted.",
       "approved": "Leave approved.",
       "approvedWithConflicts": "Leave approved — {count} conflict(s) sent to the Secretary inbox.",
-      "rejected": "Leave rejected."
+      "rejected": "Leave rejected.",
+      "added": "Leave added.",
+      "addedWithConflicts": "Leave added — {count} existing appointment(s) clash; check the inbox.",
+      "deleted": "Leave deleted."
     },
     "calendar": {
       "onLeave": "On leave"
@@ -1595,7 +1620,16 @@
     "empty": {
       "mine": "No leave requests yet.",
       "all": "No leave requests in the system yet.",
-      "pending": "No pending leave requests."
+      "pending": "No pending leave requests.",
+      "user": "No leaves for this staff member."
+    },
+    "manage": {
+      "menuItem": "Leaves",
+      "title": "Leaves — {name}",
+      "addButton": "Add leave",
+      "deleteTitle": "Delete leave",
+      "deleteConfirm": "Delete this leave? Booking becomes available for this period again immediately.",
+      "delete": "Delete"
     }
   },
   "analytics": {

@@ -128,6 +128,9 @@ export const PERMISSIONS = {
 
   // ── Leaves ────────────────────────────────────────────────────────────
   LEAVES_CREATE_OWN: 'leaves.create.own',
+  // Direct add for another staff member (Prompt 55 §1 — Admin + Secretary):
+  // created APPROVED in one step, no request/approval hop.
+  LEAVES_CREATE: 'leaves.create',
   LEAVES_READ_OWN: 'leaves.read.own',
   LEAVES_READ: 'leaves.read',
   LEAVES_UPDATE: 'leaves.update',
@@ -174,6 +177,10 @@ export const PERMISSIONS = {
   PATIENTS_UPDATE_OWN: 'patients.update.own',
   PATIENTS_ARCHIVE: 'patients.archive',
   PATIENTS_RESET_PASSWORD: 'patients.reset_password',
+  // One-click roster export (Prompt 55 §4) — Secretary + Admin only. The
+  // file carries contact PII, so the P15 phone boundary applies unchanged;
+  // deliberately NOT a `.read` code so the Admin read-bypass can't widen it.
+  PATIENTS_EXPORT: 'patients.export',
 
   // ── Intake assessments (Prompt 6) ─────────────────────────────────────
   INTAKE_CREATE: 'intake.create',
@@ -280,14 +287,17 @@ const SECRETARY_PERMS = new Set<PermissionCode>([
   PERMISSIONS.HOME_PROGRAM_READ,
   PERMISSIONS.EXERCISES_READ,
   PERMISSIONS.LEAVES_CREATE_OWN,
+  PERMISSIONS.LEAVES_CREATE,
   PERMISSIONS.LEAVES_READ_OWN,
   PERMISSIONS.LEAVES_READ,
+  PERMISSIONS.LEAVES_DELETE,
   PERMISSIONS.REPORTS_READ,
   PERMISSIONS.ROOMS_READ,
   PERMISSIONS.PATIENTS_CREATE,
   PERMISSIONS.PATIENTS_READ,
   PERMISSIONS.PATIENTS_UPDATE,
   PERMISSIONS.PATIENTS_RESET_PASSWORD,
+  PERMISSIONS.PATIENTS_EXPORT,
   PERMISSIONS.INTAKE_CREATE,
   PERMISSIONS.INTAKE_READ,
   PERMISSIONS.INTAKE_UPDATE,
@@ -442,6 +452,7 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.EXERCISE_MEDIA_UPDATE,
   PERMISSIONS.EXERCISE_MEDIA_DELETE,
   PERMISSIONS.LEAVES_CREATE_OWN,
+  PERMISSIONS.LEAVES_CREATE,
   PERMISSIONS.LEAVES_READ_OWN,
   PERMISSIONS.LEAVES_READ,
   PERMISSIONS.LEAVES_UPDATE,
@@ -495,6 +506,7 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.PATIENTS_UPDATE,
   PERMISSIONS.PATIENTS_ARCHIVE,
   PERMISSIONS.PATIENTS_RESET_PASSWORD,
+  PERMISSIONS.PATIENTS_EXPORT,
   PERMISSIONS.INTAKE_CREATE,
   PERMISSIONS.INTAKE_READ,
   PERMISSIONS.INTAKE_UPDATE,

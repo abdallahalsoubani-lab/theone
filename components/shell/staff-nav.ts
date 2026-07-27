@@ -59,6 +59,9 @@ export function staffNavEntries(role: UserRole): StaffNavEntry[] {
         href: '/secretary/appointments/cancelled',
         icon: 'calendarX',
       },
+      // Prompt 55 §1 — staff-leave management (direct add + delete): the
+      // secretary is who hears "الدكتورة مش جاية بكرا" first.
+      { labelKey: 'navigation:leaves', href: '/secretary/leaves', icon: 'calendarX' },
       { labelKey: 'patients:navTitle', href: '/secretary/patients', icon: 'users' },
       {
         labelKey: 'navigation:intakeSubmissions',
@@ -104,6 +107,9 @@ export function staffNavEntries(role: UserRole): StaffNavEntry[] {
         href: '/doctor/reports/clinicians',
         icon: 'clipboardList',
       },
+      // Prompt 55 §1 — the self-service leave page existed since Prompt 11
+      // but was reachable only via notification deep-links.
+      { labelKey: 'navigation:myLeaves', href: '/staff/leave', icon: 'calendarX' },
       { labelKey: 'navigation:exerciseLibrary', href: '/clinical/exercises', icon: 'dumbbell' },
     ];
   }
@@ -112,6 +118,7 @@ export function staffNavEntries(role: UserRole): StaffNavEntry[] {
       { labelKey: 'navigation:appointments', href: '/therapist/dashboard', icon: 'calendar' },
       { labelKey: 'navigation:calendar', href: '/therapist/calendar', icon: 'calendar' },
       { labelKey: 'patients:navTitle', href: '/therapist/patients', icon: 'users' },
+      { labelKey: 'navigation:myLeaves', href: '/staff/leave', icon: 'calendarX' },
       { labelKey: 'navigation:exerciseLibrary', href: '/clinical/exercises', icon: 'dumbbell' },
     ];
   }

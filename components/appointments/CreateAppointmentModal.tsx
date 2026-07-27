@@ -26,7 +26,6 @@ import {
 import type { DayKey } from '@/lib/appointments/conflicts-time';
 import { formatDate, formatTime } from '@/lib/format/date';
 import { SearchablePillGroup, SearchableSelect } from '@/components/ui/searchable-select';
-import { showFirstVisitNotice } from '@/lib/patients/first-visit-policy';
 import { formatClinicDateTimeLocal, parseClinicDateTimeLocal } from '@/lib/time/clinic';
 import { addWaitlistEntryAction, fulfillWaitlistEntryAction } from '@/lib/waitlist/actions';
 
@@ -105,7 +104,6 @@ export function CreateAppointmentModal({
   const tConflicts = useTranslations('appointments.conflicts');
   const tSeries = useTranslations('calendar.series');
   const tWaitlist = useTranslations('waitlist');
-  const tFirstVisit = useTranslations('patients.firstVisit');
   const router = useRouter();
   const locale = useLocale();
   const [pending, startTransition] = useTransition();
@@ -385,16 +383,9 @@ export function CreateAppointmentModal({
                   onChange={setPatientId}
                   options={patients.map((p) => patientPickerOption(p, locale))}
                 />
-                {/* NI-5 SOFT notice (Prompt 41, owner ruling): purely
-                    informational — never blocks, no confirmation. */}
-                {showFirstVisitNotice(
-                  appointmentType,
-                  patients.find((p) => p.id === patientId)?.pendingFirstVisit,
-                ) ? (
-                  <p className="rounded-md bg-amber-500/10 px-2 py-1.5 text-xs text-amber-800">
-                    {tFirstVisit('notice')}
-                  </p>
-                ) : null}
+                {/* The P41 first-visit notice used to render here — removed
+                    by clinic request (Prompt 55 §3). The derived flag, the
+                    patients-list badge, and the book-doctor CTA all stay. */}
               </div>
             )}
 

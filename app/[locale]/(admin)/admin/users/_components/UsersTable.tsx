@@ -8,7 +8,9 @@ import { toast } from 'sonner';
 
 import { DataTable } from '@/components/data-table/DataTable';
 import { ActAsButton } from '@/components/impersonation/ActAsButton';
+import { ManageLeavesDialog } from '@/components/leave/ManageLeavesDialog';
 import { canActAsTarget } from '@/lib/impersonation/targets';
+import type { LeaveRow } from '@/lib/leave/queries';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -35,11 +37,14 @@ interface Props {
   page: number;
   pageSize: number;
   initialSearch: string;
+  /** All staff leaves — the row-menu dialog filters per user (Prompt 55 §1). */
+  leaves: LeaveRow[];
 }
 
-export function UsersTable({ rows, total, page, pageSize, initialSearch }: Props) {
+export function UsersTable({ rows, total, page, pageSize, initialSearch, leaves }: Props) {
   const t = useTranslations('admin.users');
   const tCommon = useTranslations('common');
+  const tLeave = useTranslations('leave');
   const router = useRouter();
   const searchParams = useSearchParams();
   const locale = useLocale();
@@ -211,6 +216,23 @@ export function UsersTable({ rows, total, page, pageSize, initialSearch }: Props
               </DropdownMenuItem>
             ) : (
               <>
+                {/* Per-clinician leave management (Prompt 55 §1) — list +
+                    add + delete in one dialog, scoped to this staff member. */}
+                <DropdownMenuItem asChild>
+                  <ManageLeavesDialog
+                    user={{
+                      id: user.id,
+                      name: locale === 'ar' ? user.fullNameAr : user.fullNameEn,
+                    }}
+                    leaves={leaves.filter((l) => l.userId === user.id)}
+                    trigger={
+                      <div className="w-full cursor-pointer text-start text-sm">
+                        {tLeave('manage.menuItem')}
+                      </div>
+                    }
+                  />
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <ConfirmDialog
                     title={t('forceReset')}
