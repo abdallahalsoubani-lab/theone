@@ -141,15 +141,15 @@ describe('sendAppointmentRescheduled — 4-variable contract', () => {
   });
 });
 
-describe('seed registry matches the APPROVED 4-variable bodies (P45 sync)', () => {
-  it('reference-data.ts carries {{4}} in both languages for appointment_rescheduled', async () => {
+describe('seed registry matches the APPROVED v2 bodies (P54 switch)', () => {
+  it('reference-data.ts carries the 4-var DAY-NAME bodies in both languages for appointment_rescheduled', async () => {
     const { readFileSync } = await import('node:fs');
     const src = readFileSync('prisma/seed/reference-data.ts', 'utf8');
     expect(src).toContain(
-      'Hi {{1}}, your appointment has been rescheduled to {{2}} at {{3}} with {{4}}. See you soon.',
+      'Hi {{1}}, your appointment has been moved to {{2}}, {{3}} at {{4}}. See you then.',
     );
     expect(src).toContain(
-      'مرحباً {{1}}، تم تغيير موعدك إلى {{2}} الساعة {{3}} مع {{4}}. نراك قريباً.',
+      'مرحباً {{1}}، تم تغيير موعدكم إلى يوم {{2}} الموافق {{3}} الساعة {{4}}. نراكم قريباً.',
     );
   });
 });

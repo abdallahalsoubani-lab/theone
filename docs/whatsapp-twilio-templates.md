@@ -224,16 +224,30 @@ Welcome to Theone.pt. Your username is {{1}} and temporary password is {{2}}. Pl
 
 ---
 
-# v2 package (Prompt 48b) — PENDING APPROVAL — switch SIDs only AFTER 48b is deployed
+# v2 package (Prompt 48b) — R1/R2/R5/R6 **LIVE** (approved Jul 26, switched Jul 27 via P54)
 
-New unified variable shape for all four appointment templates:
+**What "R1–R8" means (owner question, clarified):** the v2 pack is the four
+appointment templates × two languages = EIGHT console entries, numbered in
+submission order: R1/R2 = reminder ar/en (quick-reply buttons) ·
+R3/R4 = confirmation ar/en · R5/R6 = rescheduled ar/en ·
+R7/R8 = cancelled ar/en. **Only R1/R2/R5/R6 are switched and LIVE** —
+confirmation (R3/R4) and cancellation (R7/R8) stay on their v1 templates by
+owner decision; their v2 entries remain approved-but-unused until a future
+wave.
+
+New unified variable shape for the four switched templates:
 **{{1}} patient name · {{2}} day name (localized weekday) · {{3}} date · {{4}} time**
 
-Submit as NEW content (names below). After approval: in **Admin → WhatsApp →
-Templates**, for each row paste the new **SID** AND set **Variables shape** to
-`["patientName","dayName","date","time"]` — the send paths read the shape from
-the row, so the switch needs **zero deploy**. The reminder v2 is
-**quick-reply** content (two buttons); the rest stay Text.
+The switch ran through `scripts/switch-templates-v2.ts` (audited, idempotent,
+SIDs verified against the live Content API before apply — never from
+chat/screenshots). Zero send-path code changes (48b design: the registry
+row's SID + `variablesShape` drive everything).
+
+## 🗑 Cleanup list (delete from Twilio in the cleanup session)
+
+- `appointment_reminder_ar` / `appointment_reminder_en` (v1 — **REPLACED** by R1/R2)
+- `appointment_rescheduled_ar` / `appointment_rescheduled_en` (v1 — **REPLACED** by R5/R6)
+- The unused **+1 878** sandbox/number left from early setup
 
 ## R1 · appointment_reminder_ar_v2 — UTILITY — ar — **Quick reply**
 

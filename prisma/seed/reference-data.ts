@@ -94,8 +94,11 @@ type SeedTemplateSource = [
 // v2 shape for the four appointment templates = ["patientName","dayName","date","time"].
 const SEED_SHAPES: Record<string, string[] | null> = {
   appointment_confirmation_v2: ['patientName', 'therapistName', 'date', 'time'],
-  appointment_reminder_v2: ['therapistName', 'time', 'date'],
-  appointment_rescheduled: ['patientName', 'date', 'time', 'therapistName'],
+  // P54: the approved v2 pack (buttons + day-name) is the live set — a
+  // fresh DB seeds the 4-var shape; the production switch itself runs via
+  // scripts/switch-templates-v2.ts (audited, SID-verified).
+  appointment_reminder_v2: ['patientName', 'dayName', 'date', 'time'],
+  appointment_rescheduled: ['patientName', 'dayName', 'date', 'time'],
   appointment_cancelled_v2: ['date', 'time', 'reason'],
   home_exercise_reminder_v2: null,
   otp_login: null,
@@ -115,22 +118,19 @@ const WHATSAPP_TEMPLATES: ReadonlyArray<SeedTemplate> = (
     [
       'appointment_reminder_v2',
       WaTemplateCategory.APPOINTMENT,
-      // Prompt 17 wording, aligned in Prompt 45 to the 3-variable structure
-      // registered with the provider: {{1}} therapist, {{2}} time, {{3}} day.
-      // The reminder worker sends exactly this parameter order.
-      'Reminder: you have an appointment on {{3}} at {{2}} with {{1}}. Please arrive on time.',
-      'تذكير: لديك موعد يوم {{3}} الساعة {{2}} مع {{1}}. نرجو الحضور في الوقت المحدد.',
+      // P54: the APPROVED v2 quick-reply body (buttons confirm/decline) —
+      // {{1}} patient, {{2}} day name, {{3}} date, {{4}} time.
+      'Hello {{1}}, this is a reminder of your appointment on {{2}}, {{3}} at {{4}}.\nPlease confirm by tapping an option below. To change or cancel, let us know at least 24 hours in advance.\nIf we receive no reply, the appointment will be cancelled.',
+      'مرحباً {{1}}، نذكّركم بموعدكم يوم {{2}} الموافق {{3}} الساعة {{4}}.\nيرجى تأكيد الحضور بالضغط على أحد الخيارين أدناه، وفي حال الرغبة بتعديل أو إلغاء الموعد نرجو إبلاغنا قبل 24 ساعة.\nفي حال عدم الرد سيتم إلغاء الموعد.',
       WaTemplateApprovalStatus.PENDING,
       true,
     ],
     [
       'appointment_rescheduled',
       WaTemplateCategory.APPOINTMENT,
-      // Prompt 48: synced to the 4-variable body APPROVED on the Twilio WABA
-      // (P45 cutover finding — {{4}} = clinician was added at submission and
-      // adopted as canonical). sendRescheduled passes exactly this order.
-      'Hi {{1}}, your appointment has been rescheduled to {{2}} at {{3}} with {{4}}. See you soon.',
-      'مرحباً {{1}}، تم تغيير موعدك إلى {{2}} الساعة {{3}} مع {{4}}. نراك قريباً.',
+      // P54: the APPROVED v2 body — same 4-var day-name shape.
+      'Hi {{1}}, your appointment has been moved to {{2}}, {{3}} at {{4}}. See you then.',
+      'مرحباً {{1}}، تم تغيير موعدكم إلى يوم {{2}} الموافق {{3}} الساعة {{4}}. نراكم قريباً.',
       WaTemplateApprovalStatus.PENDING,
       true,
     ],
