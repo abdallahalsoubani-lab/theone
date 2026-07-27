@@ -602,6 +602,10 @@
       "colReply": "Replied",
       "openFile": "Open file",
       "cancelAction": "Cancel appointment"
+    },
+    "tooltip": {
+      "phone": "Phone",
+      "durationMinutes": "{minutes} min"
     }
   },
   "patients": {

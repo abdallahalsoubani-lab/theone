@@ -23,6 +23,12 @@ vi.mock('@/lib/db', () => ({
   },
 }));
 
+// listAppointmentsForCalendar lazy-imports the P15 contact gate (Prompt 56 —
+// tooltip phone); stub it so this node-env suite never loads the auth chain.
+vi.mock('@/lib/patients/access', () => ({
+  viewerCanSeePatientContact: vi.fn(async () => false),
+}));
+
 import { listAppointmentsForCalendar, listCancelledAppointments } from '../queries';
 
 const range = { from: new Date('2026-07-01T00:00:00Z'), to: new Date('2026-07-02T00:00:00Z') };

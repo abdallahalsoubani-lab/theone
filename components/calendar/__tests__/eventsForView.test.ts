@@ -12,6 +12,7 @@ const base: Omit<CalendarAppointment, 'therapists'> = {
   groupPatients: [],
   roomId: null,
   roomName: null,
+  patientPhone: null,
   startsAt: new Date('2026-06-01T09:00:00Z'),
   durationMinutes: 30,
   status: 'SCHEDULED',

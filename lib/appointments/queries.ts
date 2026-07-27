@@ -32,6 +32,11 @@ export interface CalendarAppointment {
   therapists: PersonRef[];
   roomId: string | null;
   roomName: string | null;
+  /** Patient phone — present ONLY when the viewer may see contact PII
+   *  (P15 §1 + P22 §3.1: Secretary/Admin yes, Doctor/Therapist null) and
+   *  null for patient-less EVENTs. Renderers must render-if-present, never
+   *  fetch separately (Prompt 56 §1.3). */
+  patientPhone: string | null;
   startsAt: Date;
   durationMinutes: number;
   status: 'SCHEDULED' | 'CONFIRMED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
@@ -67,7 +72,7 @@ export async function listAppointmentsForCalendar(
     where,
     orderBy: { startsAt: 'asc' },
     include: {
-      patient: { select: { id: true, fullNameEn: true, fullNameAr: true } },
+      patient: { select: { id: true, fullNameEn: true, fullNameAr: true, phone: true } },
       groupPatients: {
         orderBy: { createdAt: 'asc' },
         include: { patient: { select: { id: true, fullNameEn: true, fullNameAr: true } } },
@@ -80,6 +85,12 @@ export async function listAppointmentsForCalendar(
     },
   });
 
+  // P15 contact boundary for the tooltip's phone row (Prompt 56): same
+  // lazy-import pattern as listActivePatientsBrief. Fail-closed — a caller
+  // without a session (workers, tests) ships null phones.
+  const { viewerCanSeePatientContact } = await import('@/lib/patients/access');
+  const canSeeContact = await viewerCanSeePatientContact();
+
   return rows.map((r) => ({
     id: r.id,
     patientId: r.patient?.id ?? null,
@@ -90,6 +101,7 @@ export async function listAppointmentsForCalendar(
     therapists: r.therapists.map((t) => t.therapist),
     roomId: r.room?.id ?? null,
     roomName: r.room?.name ?? null,
+    patientPhone: canSeeContact ? (r.patient?.phone ?? null) : null,
     startsAt: r.startsAt,
     durationMinutes: r.durationMinutes,
     status: r.status,
