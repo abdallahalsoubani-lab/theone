@@ -10,6 +10,7 @@ import {
   type KioskActionResult,
 } from '@/lib/arrivals/actions';
 import type { KioskArrivalRow } from '@/lib/arrivals/kiosk';
+import { kioskNamePair } from '@/lib/arrivals/name-pair';
 import { formatTime } from '@/lib/format/date';
 
 type Screen =
@@ -19,8 +20,10 @@ type Screen =
 
 const RESET_MS = 8000;
 /** List auto-refresh so the day's rows stay current untouched — a secretary
- *  manual check-in removes its row within one poll cycle. */
-const REFRESH_MS = 60_000;
+ *  manual check-in removes its row within one poll cycle. 30s (Fix 45.1;
+ *  same module-level-constant pattern as the display screen's POLL_MS —
+ *  the kiosk polls through a server action, so no URL cache-buster needed). */
+const REFRESH_MS = 30_000;
 
 /**
  * Public check-in kiosk (Prompt 18 §1; July #1/#3; cards grid in Prompt 46;
@@ -159,8 +162,13 @@ function ListView({
       <div className="min-h-0 flex-1 overflow-y-auto pb-4">
         <ul className="flex flex-col gap-3">
           {rows.map((row) => {
-            const primary = locale === 'ar' ? row.fullNameAr : row.fullNameEn;
-            const alt = locale === 'ar' ? row.fullNameEn : row.fullNameAr;
+            // Fix 45.1 — ONE typography for every row: the primary slot is
+            // always filled (locale name, falling back to the other script
+            // when it's missing — the patientDisplayName rule), so an
+            // English-only patient renders in the primary style, never as a
+            // lonely secondary line. Secondary = the other script only when
+            // it exists and differs.
+            const { primary, alt } = kioskNamePair(row, locale);
             const first = row.appointments[0];
             const time = first ? formatTime(new Date(first.startsAtIso), intlLocale) : '';
             return (
@@ -173,11 +181,17 @@ function ListView({
                   className="flex min-h-[4.5rem] w-full items-center justify-between gap-4 rounded-2xl border-2 border-brand-border bg-brand-surface px-6 py-4 shadow-sm transition-colors hover:border-brand-cyan active:border-brand-cyan"
                 >
                   <span className="flex min-w-0 flex-col items-start gap-0.5 text-start">
-                    <span className="truncate text-2xl font-medium leading-tight text-brand-navy">
+                    <span
+                      className="truncate text-2xl font-medium leading-tight text-brand-navy"
+                      dir="auto"
+                    >
                       {primary}
                     </span>
-                    {alt && alt !== primary ? (
-                      <span className="truncate text-base text-brand-textMuted" dir="auto">
+                    {alt ? (
+                      <span
+                        className="truncate text-base font-normal text-brand-textMuted"
+                        dir="auto"
+                      >
                         {alt}
                       </span>
                     ) : null}
@@ -209,8 +223,9 @@ function ConfirmView({
   onBack: () => void;
 }) {
   const t = useTranslations('kiosk');
-  const primary = locale === 'ar' ? match.fullNameAr : match.fullNameEn;
-  const alt = locale === 'ar' ? match.fullNameEn : match.fullNameAr;
+  // Same Fix 45.1 slot rule as the rows — "هل أنت …؟" must never interpolate
+  // an empty name for an English-only patient in /ar.
+  const { primary, alt } = kioskNamePair(match, locale);
   const times = match.appointments
     .map((a) => formatTime(new Date(a.startsAtIso), locale === 'ar' ? 'ar' : 'en'))
     .join('، ');
@@ -220,7 +235,11 @@ function ConfirmView({
       <p className="text-4xl font-medium text-brand-navy sm:text-5xl">
         {t('confirmTitle', { name: primary })}
       </p>
-      {alt && alt !== primary ? <p className="text-2xl text-brand-textMuted">{alt}</p> : null}
+      {alt ? (
+        <p className="text-2xl font-normal text-brand-textMuted" dir="auto">
+          {alt}
+        </p>
+      ) : null}
       {times ? (
         <p className="text-2xl text-brand-navy">
           {t('confirmAppointments')} <span className="font-medium tabular-nums">{times}</span>
