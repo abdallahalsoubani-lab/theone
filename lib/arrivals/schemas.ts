@@ -1,15 +1,18 @@
 import { z } from 'zod';
 
-/** Kiosk today's-cards list (Prompt 46 — replaced the typed name search). */
+/** Kiosk today's-rows list (July 31 item 2 — replaced the Prompt 46 cards). */
 export const kioskTodaySchema = z.object({
   token: z.string().min(16),
 });
 export type KioskTodayInput = z.infer<typeof kioskTodaySchema>;
 
-/** Kiosk commit (July #1): the device token + the selected patient id. */
+/** Kiosk commit (July #1): the device token + the selected patient id, plus
+ *  the tapped row's anchor appointment (July 31 item 2) so the commit
+ *  targets that run exactly. Optional for the legacy next-upcoming path. */
 export const kioskCheckInByNameSchema = z.object({
   token: z.string().min(16),
   patientId: z.string().min(1).max(64),
+  appointmentId: z.string().min(1).max(64).optional(),
 });
 export type KioskCheckInByNameInput = z.infer<typeof kioskCheckInByNameSchema>;
 

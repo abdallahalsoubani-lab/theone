@@ -100,6 +100,8 @@ const SEED_SHAPES: Record<string, string[] | null> = {
   appointment_reminder_v2: ['patientName', 'dayName', 'date', 'time'],
   appointment_rescheduled: ['patientName', 'dayName', 'date', 'time'],
   appointment_cancelled_v2: ['date', 'time', 'reason'],
+  // July 31 item 3: {{1}} = patient first name.
+  arrival_confirmation: ['patientName'],
   home_exercise_reminder_v2: null,
   otp_login: null,
   patient_account_credentials: null,
@@ -140,6 +142,17 @@ const WHATSAPP_TEMPLATES: ReadonlyArray<SeedTemplate> = (
       'Your appointment on {{1}} at {{2}} was cancelled. Reason: {{3}}. You can rebook anytime.',
       'نأسف، تم إلغاء موعدك بتاريخ {{1}} الساعة {{2}}. السبب: {{3}}. يمكنك حجز موعد جديد في أي وقت.',
       WaTemplateApprovalStatus.PENDING,
+      true,
+    ],
+    [
+      'arrival_confirmation',
+      WaTemplateCategory.APPOINTMENT,
+      // July 31 item 3 — sent once per arrival group on every check-in
+      // commit (kiosk + secretary). Twilio-only: production SIDs are applied
+      // by scripts/add-arrival-templates.ts; Meta never had this template.
+      'Hi {{1}}, your arrival at The One Physiotherapy Center has been registered. We wish you a great session.',
+      'أهلاً {{1}}، تم تسجيل وصولك في المركز الأول للعلاج الطبيعي. نتمنى لك جلسة موفقة.',
+      WaTemplateApprovalStatus.NOT_SUBMITTED,
       true,
     ],
     [

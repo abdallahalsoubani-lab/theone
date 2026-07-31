@@ -47,6 +47,8 @@ export const LEGACY_SHAPES: Record<string, TemplateVarToken[]> = {
   // P48 4-variable rescheduled: {{1}} patient, {{2}} date, {{3}} time, {{4}} clinician.
   appointment_rescheduled: ['patientName', 'date', 'time', 'therapistName'],
   appointment_cancelled_v2: ['date', 'time', 'reason'],
+  // July 31 item 3: {{1}} = patient first name, nothing else.
+  arrival_confirmation: ['patientName'],
 };
 
 function isTokenArray(v: unknown): v is TemplateVarToken[] {

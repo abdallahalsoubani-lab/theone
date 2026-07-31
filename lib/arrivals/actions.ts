@@ -1,6 +1,6 @@
 'use server';
 
-import { AuditAction, CheckInVia } from '@prisma/client';
+import { AuditAction } from '@prisma/client';
 import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 
@@ -13,10 +13,10 @@ import { requirePermission } from '@/lib/rbac/guards';
 
 import {
   checkInByName,
-  listTodaysArrivablePatients,
-  recordCheckIn,
+  listTodaysArrivalRows,
+  manualCheckIn,
+  type KioskArrivalRow,
   type KioskCheckInResult,
-  type KioskPatientCard,
 } from './kiosk';
 import {
   arrivalActionSchema,
@@ -55,15 +55,16 @@ export type KioskActionResult =
   | { kind: 'RATE_LIMITED' };
 
 export type KioskTodayResult =
-  | { kind: 'PATIENTS'; patients: KioskPatientCard[] }
+  | { kind: 'ROWS'; rows: KioskArrivalRow[] }
   | { kind: 'INVALID_TOKEN' }
   | { kind: 'RATE_LIMITED' };
 
 /**
- * Public kiosk TODAY'S CARDS (Prompt 46 — replaces the typed name search per
- * the owner's privacy reversal; see lib/arrivals/kiosk.ts). Token-gated +
- * rate-limited per device IP (the grid refreshes ~1/min, so 30/min is ample
- * headroom without inviting scraping bursts). Any error → empty list.
+ * Public kiosk TODAY'S ROWS (July 31 item 2 — one row per remaining arrival
+ * group, time-sorted; the Prompt 46 open-names ruling carries over — see
+ * lib/arrivals/kiosk.ts). Token-gated + rate-limited per device IP (the list
+ * refreshes ~1/min, so 30/min is ample headroom without inviting scraping
+ * bursts). Any error → empty list.
  */
 export async function kioskTodayAction(input: KioskTodayInput): Promise<KioskTodayResult> {
   const parsed = kioskTodaySchema.safeParse(input);
@@ -78,9 +79,9 @@ export async function kioskTodayAction(input: KioskTodayInput): Promise<KioskTod
   if (!rl.allowed) return { kind: 'RATE_LIMITED' };
 
   try {
-    return { kind: 'PATIENTS', patients: await listTodaysArrivablePatients() };
+    return { kind: 'ROWS', rows: await listTodaysArrivalRows() };
   } catch {
-    return { kind: 'PATIENTS', patients: [] };
+    return { kind: 'ROWS', rows: [] };
   }
 }
 
@@ -106,7 +107,10 @@ export async function kioskCheckInByNameAction(
   if (!rl.allowed) return { kind: 'RATE_LIMITED' };
 
   try {
-    return await checkInByName({ patientId: parsed.data.patientId });
+    return await checkInByName({
+      patientId: parsed.data.patientId,
+      appointmentId: parsed.data.appointmentId,
+    });
   } catch {
     // Never leak internals to the public screen — generic rejection.
     return { kind: 'NO_APPOINTMENT' };
@@ -126,12 +130,21 @@ export async function manualCheckInAction(
   if (!session?.user?.id) return fail(FORBIDDEN);
 
   try {
-    await recordCheckIn({
+    // Service-layer check-in (July 31 item 3): the state-transition guard +
+    // the arrival-message seam live in `manualCheckIn`, shared with the
+    // kiosk's grouping path. ALREADY_CHECKED_IN is a silent success — the
+    // race just means someone else won; no second message fires.
+    const res = await manualCheckIn({
       appointmentId: parsed.data.appointmentId,
-      via: CheckInVia.STAFF,
       actorId: session.user.id,
-      at: new Date(),
     });
+    if (res.kind === 'NOT_FOUND') {
+      return fail({
+        code: 'NOT_FOUND',
+        message_en: 'Appointment not found.',
+        message_ar: 'الموعد غير موجود.',
+      });
+    }
     revalidateArrivals();
     return ok({ appointmentId: parsed.data.appointmentId });
   } catch (err) {

@@ -1721,8 +1721,7 @@
     "noAppointment": "No appointment registered today — please see reception.",
     "rateLimited": "Too many attempts. Please wait a moment or see reception.",
     "tapYourName": "Tap your name to check in",
-    "emptyToday": "No more appointments to check in today.",
-    "cardCheckedIn": "Checked in"
+    "emptyToday": "No more appointments to check in today."
   },
   "display": {
     "title": "Arrivals",

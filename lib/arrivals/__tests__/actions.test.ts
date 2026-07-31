@@ -24,10 +24,9 @@ const {
       fullNameEn: 'Abdullah',
       fullNameAr: 'عبدالله',
       appointments: [],
-      checkedIn: false,
     },
   ]),
-  recordCheckInMock: vi.fn(async () => undefined),
+  recordCheckInMock: vi.fn(async () => ({ kind: 'CHECKED_IN' })),
   requirePermissionMock: vi.fn(async () => undefined),
   updateAppt: vi.fn(async (..._args: unknown[]) => ({})),
   updateSettings: vi.fn(async (..._args: unknown[]) => ({})),
@@ -47,8 +46,8 @@ vi.mock('@/lib/arrivals/tokens', () => ({
 }));
 vi.mock('@/lib/arrivals/kiosk', () => ({
   checkInByName: checkInByNameMock,
-  listTodaysArrivablePatients: listTodaysMock,
-  recordCheckIn: recordCheckInMock,
+  listTodaysArrivalRows: listTodaysMock,
+  manualCheckIn: recordCheckInMock,
 }));
 
 vi.mock('@/lib/db', () => ({
@@ -83,7 +82,7 @@ beforeEach(() => {
   requirePermissionMock.mockResolvedValue(undefined);
 });
 
-describe('kioskTodayAction — gating (Prompt 46 cards grid)', () => {
+describe('kioskTodayAction — gating (July 31 rows list)', () => {
   it('denies an invalid token without listing', async () => {
     validateTokenMock.mockResolvedValue(false);
     const res = await kioskTodayAction({ token: TOKEN });
@@ -98,9 +97,9 @@ describe('kioskTodayAction — gating (Prompt 46 cards grid)', () => {
     expect(listTodaysMock).not.toHaveBeenCalled();
   });
 
-  it("returns the day's cards when token + rate-limit pass", async () => {
+  it("returns the day's rows when token + rate-limit pass", async () => {
     const res = await kioskTodayAction({ token: TOKEN });
-    expect(res).toMatchObject({ kind: 'PATIENTS' });
+    expect(res).toMatchObject({ kind: 'ROWS' });
     expect(listTodaysMock).toHaveBeenCalled();
   });
 });
@@ -123,18 +122,32 @@ describe('kioskCheckInByNameAction — gating (July #1 confirm → commit)', () 
   it('commits by patientId when token + rate-limit pass', async () => {
     const res = await kioskCheckInByNameAction({ token: TOKEN, patientId: 'pat-1' });
     expect(res).toMatchObject({ kind: 'CHECKED_IN' });
-    expect(checkInByNameMock).toHaveBeenCalledWith({ patientId: 'pat-1' });
+    expect(checkInByNameMock).toHaveBeenCalledWith({
+      patientId: 'pat-1',
+      appointmentId: undefined,
+    });
+  });
+
+  it('forwards the tapped row anchor to the commit (July 31 item 2)', async () => {
+    await kioskCheckInByNameAction({ token: TOKEN, patientId: 'pat-1', appointmentId: 'appt-9' });
+    expect(checkInByNameMock).toHaveBeenCalledWith({ patientId: 'pat-1', appointmentId: 'appt-9' });
   });
 });
 
 describe('staff arrivals actions', () => {
-  it('manual check-in records STAFF via and requires arrivals.manage', async () => {
+  it('manual check-in runs the service (STAFF via + arrival seam) and requires arrivals.manage', async () => {
     const res = await manualCheckInAction({ appointmentId: 'appt-1' });
     expect(res.ok).toBe(true);
     expect(requirePermissionMock).toHaveBeenCalledWith('arrivals.manage');
     expect(recordCheckInMock).toHaveBeenCalledWith(
-      expect.objectContaining({ appointmentId: 'appt-1', via: 'STAFF', actorId: 'sec-1' }),
+      expect.objectContaining({ appointmentId: 'appt-1', actorId: 'sec-1' }),
     );
+  });
+
+  it('manual check-in surfaces NOT_FOUND as a failed Result', async () => {
+    recordCheckInMock.mockResolvedValue({ kind: 'NOT_FOUND' });
+    const res = await manualCheckInAction({ appointmentId: 'ghost' });
+    expect(res.ok).toBe(false);
   });
 
   it('undo check-in clears the columns', async () => {

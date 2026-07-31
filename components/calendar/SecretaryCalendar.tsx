@@ -27,6 +27,7 @@ import { CalendarToolbar } from './CalendarToolbar';
 import { OTHER_LANE_ID, eventCardContent, eventsForView } from './eventsForView';
 import { leaveBackgroundEvents } from './leaveEvents';
 import { resourcesForView } from './resourcesForView';
+import { CALENDAR_SLOTS_PER_GROUP, CALENDAR_STEP_MINUTES } from './slotConfig';
 
 interface CalendarResource {
   resourceId: string;
@@ -251,8 +252,10 @@ export function SecretaryCalendar({
             // they cover/clip each other — unreadable for 3+, worse in narrow week
             // columns). Calendar overlap fix, Option ①.
             dayLayoutAlgorithm="no-overlap"
-            step={15}
-            timeslots={2}
+            // 15-min interaction step grouped into whole-hour gridline/label
+            // groups (July 31 item 1) — see ./slotConfig for the contract.
+            step={CALENDAR_STEP_MINUTES}
+            timeslots={CALENDAR_SLOTS_PER_GROUP}
             min={minTime}
             max={maxTime}
             selectable={editable}

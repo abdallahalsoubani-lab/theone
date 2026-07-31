@@ -119,12 +119,20 @@
 }
 
 .rbc-day-bg + .rbc-day-bg,
-.rbc-day-slot .rbc-time-slot,
 .rbc-time-content > * + * > * {
   border-color: rgba(216, 222, 232, 0.6); /* brand-border @ 60% — fainter grid */
 }
 
-/* Hour boundaries — a touch heavier than the half-hour line below */
+/* Whole-hour gridlines only (July 31 item 1): the sub-hour slot lines inside
+ * each hour group are hidden — the clinic wants 1, 2, 3 … with nothing in
+ * between. Selection/drag still snaps at 15 min (slotConfig.ts); this is
+ * purely the background grid. The 12:00 AM/PM divider below keeps its own
+ * heavier border via !important. */
+.rbc-day-slot .rbc-time-slot {
+  border-block-start: 0;
+}
+
+/* Hour boundaries — the only horizontal line in the grid body */
 .rbc-day-slot .rbc-timeslot-group {
   border-block-end: 1px solid var(--brand-border);
 }

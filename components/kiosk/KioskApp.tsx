@@ -9,39 +9,43 @@ import {
   kioskTodayAction,
   type KioskActionResult,
 } from '@/lib/arrivals/actions';
-import type { KioskPatientCard } from '@/lib/arrivals/kiosk';
+import type { KioskArrivalRow } from '@/lib/arrivals/kiosk';
 import { formatTime } from '@/lib/format/date';
 
 type Screen =
   | { kind: 'grid' }
-  | { kind: 'confirm'; match: KioskPatientCard }
+  | { kind: 'confirm'; match: KioskArrivalRow }
   | { kind: 'result'; result: KioskActionResult };
 
 const RESET_MS = 8000;
-/** Grid auto-refresh so the day's list stays current untouched (Prompt 46). */
+/** List auto-refresh so the day's rows stay current untouched — a secretary
+ *  manual check-in removes its row within one poll cycle. */
 const REFRESH_MS = 60_000;
 
 /**
- * Public check-in kiosk (Prompt 18 §1; July #1/#3; cards grid in Prompt 46).
+ * Public check-in kiosk (Prompt 18 §1; July #1/#3; cards grid in Prompt 46;
+ * time-sorted rows in the July 31 bundle).
  *
- * Today's arrivable patients render as large tappable cards — the patient
- * taps their name instead of typing it (owner ruling; the Prompt 27 §2
- * privacy stance was explicitly reversed — full names on the entrance
- * screen). Tap → mandatory confirm ("are you {name}?") → check-in with the
- * back-to-back grouping untouched → result → auto-reset. Already-checked-in
- * patients stay on the grid in a ✓ state. No staff session; the device token
- * is forwarded to the rate-limited actions.
+ * Today's remaining arrivals render as tappable ROWS sorted by appointment
+ * time, earliest first — one row per back-to-back run (open names on the
+ * entrance screen: the Prompt 46 owner ruling, re-confirmed July 31). Tap →
+ * mandatory confirm ("are you {name}?" — mis-tap guard, clinic re-confirmed
+ * it stays) → check-in commits for exactly that run → success with the delay
+ * message → auto-reset → the refetched list no longer contains the row (the
+ * query excludes checked-in arrivals — removal is data-driven, not a client
+ * splice). No staff session; the device token is forwarded to the
+ * rate-limited actions.
  */
 export function KioskApp({ token, locale }: { token: string; locale: string }) {
   const [screen, setScreen] = useState<Screen>({ kind: 'grid' });
-  const [patients, setPatients] = useState<KioskPatientCard[] | null>(null);
+  const [rows, setRows] = useState<KioskArrivalRow[] | null>(null);
   const [pending, setPending] = useState(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const refresh = useCallback(async () => {
     const res = await kioskTodayAction({ token });
     // Rate-limit / token hiccups keep the last good list on screen.
-    if (res.kind === 'PATIENTS') setPatients(res.patients);
+    if (res.kind === 'ROWS') setRows(res.rows);
   }, [token]);
 
   // Load on mount + refresh periodically while the grid is showing.
@@ -71,10 +75,16 @@ export function KioskApp({ token, locale }: { token: string; locale: string }) {
   }, [screen, reset]);
 
   const confirmCheckIn = useCallback(
-    async (patientId: string) => {
+    async (match: KioskArrivalRow) => {
       if (pending) return;
       setPending(true);
-      const result = await kioskCheckInByNameAction({ token, patientId });
+      // The tapped run's first appointment anchors the commit — a later
+      // spaced-apart row checks in ITS run, not the next-upcoming one.
+      const result = await kioskCheckInByNameAction({
+        token,
+        patientId: match.patientId,
+        appointmentId: match.appointments[0]?.id,
+      });
       setScreen({ kind: 'result', result });
       setPending(false);
     },
@@ -84,8 +94,8 @@ export function KioskApp({ token, locale }: { token: string; locale: string }) {
   if (screen.kind === 'grid') {
     return (
       <KioskFrame token={token} locale={locale}>
-        <GridView
-          patients={patients}
+        <ListView
+          rows={rows}
           locale={locale}
           onPick={(match) => setScreen({ kind: 'confirm', match })}
         />
@@ -100,7 +110,7 @@ export function KioskApp({ token, locale }: { token: string; locale: string }) {
           match={screen.match}
           locale={locale}
           pending={pending}
-          onConfirm={() => confirmCheckIn(screen.match.patientId)}
+          onConfirm={() => confirmCheckIn(screen.match)}
           onBack={reset}
         />
       </KioskFrame>
@@ -114,23 +124,23 @@ export function KioskApp({ token, locale }: { token: string; locale: string }) {
   );
 }
 
-function GridView({
-  patients,
+function ListView({
+  rows,
   locale,
   onPick,
 }: {
-  patients: KioskPatientCard[] | null;
+  rows: KioskArrivalRow[] | null;
   locale: string;
-  onPick: (match: KioskPatientCard) => void;
+  onPick: (match: KioskArrivalRow) => void;
 }) {
   const t = useTranslations('kiosk');
   const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
 
-  if (patients === null) {
+  if (rows === null) {
     return <p className="text-2xl text-brand-textMuted">…</p>;
   }
 
-  if (patients.length === 0) {
+  if (rows.length === 0) {
     return (
       <div className="flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-4 text-center">
         <p className="text-4xl font-medium text-brand-navy">{t('welcome')}</p>
@@ -140,45 +150,41 @@ function GridView({
   }
 
   return (
-    <div className="flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-5 pt-2">
+    <div className="flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-5 pt-2">
       <p className="text-center text-3xl font-medium text-brand-navy sm:text-4xl">
         {t('tapYourName')}
       </p>
-      {/* Scrollable grid — must stay usable at 30–50 patients (Prompt 46 §4). */}
+      {/* Scrollable rows, earliest appointment first — must stay usable at
+          30–50 patients (Prompt 46 §4 scale requirement carries over). */}
       <div className="min-h-0 flex-1 overflow-y-auto pb-4">
-        <ul className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          {patients.map((p) => {
-            const primary = locale === 'ar' ? p.fullNameAr : p.fullNameEn;
-            const alt = locale === 'ar' ? p.fullNameEn : p.fullNameAr;
-            const next = p.appointments[0]
-              ? formatTime(new Date(p.appointments[0].startsAtIso), intlLocale)
-              : '';
+        <ul className="flex flex-col gap-3">
+          {rows.map((row) => {
+            const primary = locale === 'ar' ? row.fullNameAr : row.fullNameEn;
+            const alt = locale === 'ar' ? row.fullNameEn : row.fullNameAr;
+            const first = row.appointments[0];
+            const time = first ? formatTime(new Date(first.startsAtIso), intlLocale) : '';
             return (
-              <li key={p.patientId}>
+              // A row key needs the run anchor: the same patient can have two
+              // spaced-apart rows on screen at once.
+              <li key={`${row.patientId}:${first?.id ?? ''}`}>
                 <button
                   type="button"
-                  onClick={() => onPick(p)}
-                  className={`flex min-h-[7.5rem] w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 px-4 py-5 text-center shadow-sm transition-colors ${
-                    p.checkedIn
-                      ? 'border-brand-teal/60 bg-brand-teal/10'
-                      : 'border-brand-border bg-brand-surface hover:border-brand-cyan active:border-brand-cyan'
-                  }`}
+                  onClick={() => onPick(row)}
+                  className="flex min-h-[4.5rem] w-full items-center justify-between gap-4 rounded-2xl border-2 border-brand-border bg-brand-surface px-6 py-4 shadow-sm transition-colors hover:border-brand-cyan active:border-brand-cyan"
                 >
-                  <span className="text-2xl font-medium leading-tight text-brand-navy">
-                    {primary}
+                  <span className="flex min-w-0 flex-col items-start gap-0.5 text-start">
+                    <span className="truncate text-2xl font-medium leading-tight text-brand-navy">
+                      {primary}
+                    </span>
+                    {alt && alt !== primary ? (
+                      <span className="truncate text-base text-brand-textMuted" dir="auto">
+                        {alt}
+                      </span>
+                    ) : null}
                   </span>
-                  {alt && alt !== primary ? (
-                    <span className="text-base text-brand-textMuted" dir="auto">
-                      {alt}
-                    </span>
-                  ) : null}
-                  {p.checkedIn ? (
-                    <span className="mt-1 rounded-full bg-brand-teal px-3 py-1 text-sm font-medium text-white">
-                      ✓ {t('cardCheckedIn')}
-                    </span>
-                  ) : (
-                    <span className="mt-1 text-lg tabular-nums text-brand-cyan">{next}</span>
-                  )}
+                  <span className="shrink-0 text-2xl font-medium tabular-nums text-brand-cyan">
+                    {time}
+                  </span>
                 </button>
               </li>
             );
@@ -196,7 +202,7 @@ function ConfirmView({
   onConfirm,
   onBack,
 }: {
-  match: KioskPatientCard;
+  match: KioskArrivalRow;
   locale: string;
   pending: boolean;
   onConfirm: () => void;

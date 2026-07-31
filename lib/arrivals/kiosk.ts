@@ -9,18 +9,19 @@ import { clinicDayRange } from './time';
 
 /**
  * Kiosk check-in matching (Prompt 18 §1; reworked July change requests #1/#3;
- * cards grid in Prompt 46).
+ * cards grid in Prompt 46; time-sorted rows in the July 31 bundle).
  *
  * Confirmed client decisions baked in here:
- *   - Check-in is by NAME, not phone: the patient taps their card from
+ *   - Check-in is by NAME, not phone: the patient taps their row from
  *     today's list and confirms (the confirm step lives in the kiosk UI —
- *     the server commit takes a patientId).
- *   - PRIVACY REVERSAL (Prompt 46, owner ruling): Prompt 27 §2 deliberately
- *     hid the day's full patient list behind typed search. The owner has
- *     explicitly chosen to show every patient with a today's appointment as
- *     a tappable card — full names, both scripts, no masking — accepting
- *     the trade-off as the clinic's informed decision.
- *     `listTodaysArrivablePatients` is that list.
+ *     the server commit takes a patientId + the tapped run's anchor).
+ *   - PRIVACY REVERSAL (Prompt 46, owner ruling; RE-CONFIRMED July 31):
+ *     Prompt 27 §2 deliberately hid the day's full patient list behind typed
+ *     search. The owner has explicitly chosen to show every patient with a
+ *     today's appointment openly — full names, both scripts, no masking —
+ *     accepting the trade-off as the clinic's informed decision.
+ *     `listTodaysArrivalRows` is that list (one row per arrival group,
+ *     checked-in rows excluded at the query layer).
  *   - The rejection message on the COMMIT path stays GENERIC: an unknown
  *     patientId and "no appointment today" both surface as `NO_APPOINTMENT`
  *     (the server guard is intact even though no typing path reaches it).
@@ -52,16 +53,17 @@ export type KioskCheckInResult =
   | { kind: 'ALREADY_CHECKED_IN'; firstName: string; delayMinutes: number }
   | { kind: 'NO_APPOINTMENT' };
 
-/** One patient card — name in both scripts + today's arrivable appointment
- *  times + whether their whole day is already checked in. */
-export interface KioskPatientCard {
+/** One kiosk ROW = one arrival group (July 31 item 2): a back-to-back run of
+ *  still-open appointments for one patient. Spaced-apart appointments are
+ *  separate rows; checked-in arrivals are excluded at the query layer (the
+ *  row disappears — no ✓ state, superseding the Prompt 46 card behavior). */
+export interface KioskArrivalRow {
   patientId: string;
   fullNameEn: string;
   fullNameAr: string;
+  /** The run's appointments, ascending. The first start is the row's time;
+   *  the confirm screen lists all of them. */
   appointments: { id: string; startsAtIso: string; durationMinutes: number }[];
-  /** Every arrivable appointment today is already checked in — the card
-   *  renders in its ✓ state instead of dropping off the grid. */
-  checkedIn: boolean;
 }
 
 const BOOKABLE: AppointmentStatus[] = [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED];
@@ -109,16 +111,18 @@ export async function recordCheckIn(args: {
 }
 
 /**
- * Today's arrivable patients as tappable cards (Prompt 46 — replaces the
- * typed-name search; see the privacy-reversal note in the module doc).
- * Eligibility per appointment is unchanged from the search era: today,
- * SCHEDULED/CONFIRMED, scheduled end not yet passed (Prompt 31 §4.4).
- * Already-fully-checked-in patients stay on the grid with `checkedIn: true`.
- * Sorted by next arrivable appointment time. Name + times only — never phone.
+ * Today's remaining arrivals as time-sorted rows (July 31 item 2 — replaces
+ * the Prompt 46 per-patient cards; the open-names privacy ruling carries
+ * over unchanged, see the module doc). Eligibility per appointment is
+ * unchanged: today, SCHEDULED/CONFIRMED, scheduled end not yet passed
+ * (Prompt 31 §4.4). Checked-in appointments are excluded HERE — the row's
+ * disappearance is data-driven, so a secretary manual check-in removes it on
+ * the kiosk's next poll too. One row per back-to-back run; ascending by the
+ * run's first start. Name + times only — never phone.
  */
-export async function listTodaysArrivablePatients(
+export async function listTodaysArrivalRows(
   input: { now?: Date } = {},
-): Promise<KioskPatientCard[]> {
+): Promise<KioskArrivalRow[]> {
   const now = input.now ?? new Date();
   const settings = await db.clinicSettings.findUnique({
     where: { id: 'default' },
@@ -149,23 +153,23 @@ export async function listTodaysArrivablePatients(
   });
 
   return patients
-    .map((p) => {
-      // Already-ended appointments are not arrivable (§4.4) — a patient whose
-      // every appointment has passed simply has no card.
-      const arrivable = p.appointmentsAsPatient.filter((a) => endsAfter(a, now));
-      return {
+    .flatMap((p) => {
+      // Not arrivable: already ended (§4.4) or already checked in (item 2 —
+      // the query layer is what makes the row disappear).
+      const open = p.appointmentsAsPatient.filter((a) => endsAfter(a, now) && !a.checkedInAt);
+      // One row per back-to-back run — the same grouping the check-in commit
+      // uses, so a row always maps 1:1 onto one arrival.
+      return groupAdjacentAppointments(open).map((run) => ({
         patientId: p.id,
         fullNameEn: p.fullNameEn,
         fullNameAr: p.fullNameAr,
-        appointments: arrivable.map((a) => ({
+        appointments: run.map((a) => ({
           id: a.id,
           startsAtIso: a.startsAt.toISOString(),
           durationMinutes: a.durationMinutes,
         })),
-        checkedIn: arrivable.length > 0 && arrivable.every((a) => a.checkedInAt !== null),
-      };
+      }));
     })
-    .filter((p) => p.appointments.length > 0)
     .sort(
       (a, b) =>
         new Date(a.appointments[0]!.startsAtIso).getTime() -
@@ -181,6 +185,11 @@ export async function listTodaysArrivablePatients(
  */
 export async function checkInByName(input: {
   patientId: string;
+  /** The tapped row's first appointment (July 31 item 2) — anchors the
+   *  commit to THAT run, so tapping a later spaced-apart row checks in that
+   *  row and not the next-upcoming one. Omitted → legacy next-upcoming
+   *  targeting. */
+  appointmentId?: string;
   now?: Date;
 }): Promise<KioskCheckInResult> {
   const now = input.now ?? new Date();
@@ -220,9 +229,22 @@ export async function checkInByName(input: {
     return { kind: 'ALREADY_CHECKED_IN', firstName: greetName, delayMinutes };
   }
 
-  // Target = the next upcoming still-open appointment; if the patient is late
-  // for the day's last slot, fall back to the earliest still-open one.
-  const target = open.find((c) => c.startsAt.getTime() >= now.getTime()) ?? open[0]!;
+  // Target: the anchored appointment when the row passed one (item 2 —
+  // stale anchors resolve safely: unknown id → generic rejection; already
+  // arrived → ALREADY_CHECKED_IN, never a second arrival). Without an
+  // anchor: the next upcoming still-open appointment; if the patient is
+  // late for the day's last slot, fall back to the earliest still-open one.
+  let target: (typeof open)[number];
+  if (input.appointmentId) {
+    const anchored = arrivable.find((c) => c.id === input.appointmentId);
+    if (!anchored) return { kind: 'NO_APPOINTMENT' };
+    if (anchored.checkedInAt) {
+      return { kind: 'ALREADY_CHECKED_IN', firstName: greetName, delayMinutes };
+    }
+    target = anchored;
+  } else {
+    target = open.find((c) => c.startsAt.getTime() >= now.getTime()) ?? open[0]!;
+  }
 
   // The arrival covers the back-to-back run that contains the target; other
   // runs (spaced apart) stay open for their own check-in later.
@@ -244,4 +266,37 @@ export async function checkInByName(input: {
   );
 
   return { kind: 'CHECKED_IN', firstName: greetName, delayMinutes, appointmentCount: run.length };
+}
+
+/**
+ * Staff manual check-in (July 31 item 3): the arrivals-panel path now runs
+ * through the same arrival seam as the kiosk. Documented rule (owner):
+ * EVERY successful check-in COMMIT sends the arrival message — undo sends
+ * nothing, a re-check-in after undo sends again. The transition guard here
+ * is what keeps repeats silent: an already-checked-in appointment returns
+ * without writing or messaging, so double-clicks/races can't double-message.
+ * Patient-less bookings (EVENT / GROUP, Prompt 29/30) check in without a
+ * message — there is no single recipient to notify.
+ */
+export async function manualCheckIn(args: {
+  appointmentId: string;
+  actorId: string;
+  at?: Date;
+}): Promise<{ kind: 'CHECKED_IN' | 'ALREADY_CHECKED_IN' | 'NOT_FOUND' }> {
+  const appt = await db.appointment.findUnique({
+    where: { id: args.appointmentId },
+    select: { id: true, patientId: true, checkedInAt: true },
+  });
+  if (!appt) return { kind: 'NOT_FOUND' };
+  if (appt.checkedInAt) return { kind: 'ALREADY_CHECKED_IN' };
+
+  await recordCheckIn({
+    appointmentId: appt.id,
+    via: CheckInVia.STAFF,
+    actorId: args.actorId,
+    at: args.at ?? new Date(),
+  });
+  // Manual check-in is per appointment — each commit is its own arrival.
+  if (appt.patientId) await notifyArrival(appt.patientId, [appt.id]);
+  return { kind: 'CHECKED_IN' };
 }
