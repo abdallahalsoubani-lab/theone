@@ -185,70 +185,76 @@ export const cancelledAppointmentFiltersSchema = z.object({
 
 export type CancelledAppointmentFilters = z.infer<typeof cancelledAppointmentFiltersSchema>;
 
-// ─── Recurring series (Prompt 7b §4.4) ────────────────────────────────────
+// ─── Multi-appointment batch booking (July 31 item 4 — replaces the
+//     Prompt 7b weekly-pattern series) ────────────────────────────────────
 
-const weekdayEnum = z.enum(['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']);
+/**
+ * Row cap for one batch. Keeps validation + the per-row conflict sweep
+ * snappy and the modal scrollable; a treatment course beyond 30 visits is
+ * booked as two batches. Well under the old 52-occurrence series bound.
+ */
+export const MAX_BATCH_ROWS = 30;
 
-export const recurrenceRuleSchema = z
-  .object({
-    frequency: z.literal('WEEKLY'),
-    interval: z.number().int().min(1).max(8),
-    // Prompt 46 (owner ruling): the fixed 2-days-per-week cap from Prompt 22
-    // §4.2 is REMOVED — any subset of the week is selectable. The remaining
-    // limits are the R-6 refine below (days ≤ count) and the closed-day
-    // check in the series service (settings-driven).
-    byWeekday: z.array(weekdayEnum).min(1).max(7),
-    count: z.number().int().min(1).max(52),
-  })
-  // R-6 (Prompt 42): you can't spread the pattern over more weekdays than the
-  // series has appointments (count=1 → 1 selectable day). The picker enforces
-  // this in the UI; the refine rejects crafted requests server-side.
-  .refine((r) => r.byWeekday.length <= r.count, {
-    message: 'byWeekday must not exceed count (R-6)',
-    path: ['byWeekday'],
-  });
-
-export type RecurrenceRuleInput = z.infer<typeof recurrenceRuleSchema>;
-
-/** Per-occurrence resolution chosen in the preview UI. */
-export const seriesResolutionSchema = z.enum(['KEEP', 'SKIP', 'SHIFT_1D', 'SHIFT_1W', 'OVERRIDE']);
-export type SeriesResolution = z.infer<typeof seriesResolutionSchema>;
-
-export const seriesOccurrenceInputSchema = z.object({
-  /** 0-based index from the original expansion. Preserved so the
-   *  server can recompute the expanded list and match user choices
-   *  back to the planned slots after shifts. */
-  index: z.number().int().min(0),
-  /** UTC start. May differ from the expanded value when the user
-   *  chose SHIFT_1D / SHIFT_1W. */
+/** One explicit appointment row: date+time (one instant), its own
+ *  therapist set, room, and duration. What you see is what gets booked. */
+export const batchRowSchema = z.object({
   startsAt: z.coerce.date(),
-  resolution: seriesResolutionSchema,
-});
-
-export const seriesPreviewSchema = z.object({
-  patientId: z.string().min(1),
-  therapistIds: therapistIdsSchema,
-  // Room required for recurring create too (QA retest #7/#13).
-  roomId: z.string().min(1),
-  startsAt: z.coerce.date(),
+  /** Floor = the calendar's 15-minute resize/step unit (Prompt 26). */
   durationMinutes: z
     .number()
     .int()
-    .positive()
+    .min(RESIZE_MIN_MINUTES)
     .max(8 * 60),
-  rule: recurrenceRuleSchema,
+  therapistIds: therapistIdsSchema,
+  // Room required — consistent with single SESSION booking (QA retest #7/#13).
+  roomId: z.string().min(1),
 });
 
-export type SeriesPreviewInput = z.infer<typeof seriesPreviewSchema>;
+export type BatchRowInput = z.infer<typeof batchRowSchema>;
 
-export const seriesCreateSchema = seriesPreviewSchema.extend({
-  notes: z.string().max(2000).optional().nullable(),
-  /** Resolved per-occurrence decisions. Must cover every occurrence in
-   *  the expansion (the server re-expands to validate the count). */
-  resolutions: z.array(seriesOccurrenceInputSchema).min(1).max(52),
-});
+const rowKey = (r: BatchRowInput) =>
+  `${r.startsAt.getTime()}|${r.roomId}|${[...new Set(r.therapistIds)].sort().join(',')}`;
 
-export type SeriesCreateInput = z.infer<typeof seriesCreateSchema>;
+export const seriesBatchCreateSchema = z
+  .object({
+    patientId: z.string().min(1),
+    notes: z.string().max(2000).optional().nullable(),
+    rows: z.array(batchRowSchema).min(1).max(MAX_BATCH_ROWS),
+  })
+  .superRefine((data, ctx) => {
+    // Identical rows (same instant + room + therapist set) are a mistake,
+    // not a booking. Flag the LATER duplicate so the first stays valid.
+    const seen = new Map<string, number>();
+    data.rows.forEach((row, i) => {
+      const key = rowKey(row);
+      if (seen.has(key)) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['rows', i], message: 'duplicateRow' });
+      } else {
+        seen.set(key, i);
+      }
+    });
+    // Same-patient overlap INSIDE the batch (duration-aware) — the Prompt 42
+    // total-block applied to the rows themselves. The conflict engine can't
+    // see not-yet-inserted siblings, so this refine is the authority for
+    // batch-internal overlaps; the engine covers overlaps vs. existing rows.
+    for (let i = 0; i < data.rows.length; i++) {
+      for (let j = i + 1; j < data.rows.length; j++) {
+        const a = data.rows[i]!;
+        const b = data.rows[j]!;
+        const aEnd = a.startsAt.getTime() + a.durationMinutes * 60_000;
+        const bEnd = b.startsAt.getTime() + b.durationMinutes * 60_000;
+        if (a.startsAt.getTime() < bEnd && b.startsAt.getTime() < aEnd) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['rows', j],
+            message: 'overlappingRows',
+          });
+        }
+      }
+    }
+  });
+
+export type SeriesBatchCreateInput = z.infer<typeof seriesBatchCreateSchema>;
 
 export const appointmentListFiltersSchema = z.object({
   /** Inclusive UTC range. Defaults to today through 14 days out at the call site. */

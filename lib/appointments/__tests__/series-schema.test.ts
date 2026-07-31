@@ -1,156 +1,111 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  recurrenceRuleSchema,
-  seriesCreateSchema,
-  seriesPreviewSchema,
-  seriesResolutionSchema,
-} from '../schemas';
+import { MAX_BATCH_ROWS, seriesBatchCreateSchema } from '../schemas';
 
-const validId = 'cl' + 'a'.repeat(23);
+/**
+ * July 31 item 4 — the explicit multi-row batch schema (replaces the
+ * Prompt 7b weekly-pattern schemas). Shape rules, the duplicate-row guard,
+ * and the duration-aware same-patient overlap check INSIDE the batch (the
+ * Prompt 42 total-block applied to the rows themselves). Past dates and
+ * closed days are service/engine checks — see series-batch.test.ts.
+ */
 
-describe('recurrenceRuleSchema', () => {
-  it('accepts a minimal weekly rule', () => {
+const T10 = new Date('2030-01-06T10:00:00Z'); // Sunday
+const row = (over: Record<string, unknown> = {}) => ({
+  startsAt: T10,
+  durationMinutes: 60,
+  therapistIds: ['t1'],
+  roomId: 'r1',
+  ...over,
+});
+const batch = (rows: unknown[], over: Record<string, unknown> = {}) => ({
+  patientId: 'p1',
+  rows,
+  ...over,
+});
+
+describe('seriesBatchCreateSchema — shape', () => {
+  it('accepts a single complete row', () => {
+    expect(seriesBatchCreateSchema.safeParse(batch([row()])).success).toBe(true);
+  });
+
+  it('rejects an empty batch', () => {
+    expect(seriesBatchCreateSchema.safeParse(batch([])).success).toBe(false);
+  });
+
+  it('rejects more rows than the batch cap', () => {
+    const rows = Array.from({ length: MAX_BATCH_ROWS + 1 }, (_, i) =>
+      row({ startsAt: new Date(T10.getTime() + i * 24 * 60 * 60 * 1000) }),
+    );
+    expect(seriesBatchCreateSchema.safeParse(batch(rows)).success).toBe(false);
+  });
+
+  it('rejects an incomplete row: missing room / no therapist / short duration', () => {
+    expect(seriesBatchCreateSchema.safeParse(batch([row({ roomId: '' })])).success).toBe(false);
+    expect(seriesBatchCreateSchema.safeParse(batch([row({ therapistIds: [] })])).success).toBe(
+      false,
+    );
+    // Duration floor = the calendar's 15-minute step (Prompt 26).
+    expect(seriesBatchCreateSchema.safeParse(batch([row({ durationMinutes: 10 })])).success).toBe(
+      false,
+    );
+  });
+
+  it('requires a patient', () => {
+    expect(seriesBatchCreateSchema.safeParse(batch([row()], { patientId: '' })).success).toBe(
+      false,
+    );
+  });
+});
+
+describe('seriesBatchCreateSchema — duplicates + batch-internal overlap', () => {
+  it('rejects two identical rows (same instant + room + therapist set)', () => {
+    const parsed = seriesBatchCreateSchema.safeParse(batch([row(), row()]));
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues.some((i) => i.message === 'duplicateRow')).toBe(true);
+    }
+  });
+
+  it('rejects same-date overlapping rows even with different therapists/rooms (duration-aware)', () => {
+    const parsed = seriesBatchCreateSchema.safeParse(
+      batch([
+        row(), // 10:00–11:00
+        row({
+          startsAt: new Date('2030-01-06T10:30:00Z'), // starts inside the first
+          therapistIds: ['t2'],
+          roomId: 'r2',
+        }),
+      ]),
+    );
+    expect(parsed.success).toBe(false);
+    if (!parsed.success) {
+      expect(parsed.error.issues.some((i) => i.message === 'overlappingRows')).toBe(true);
+    }
+  });
+
+  it('accepts back-to-back rows (end == next start is not an overlap)', () => {
     expect(
-      recurrenceRuleSchema.safeParse({
-        frequency: 'WEEKLY',
-        interval: 1,
-        byWeekday: ['SUN'],
-        count: 4,
-      }).success,
+      seriesBatchCreateSchema.safeParse(
+        batch([row(), row({ startsAt: new Date('2030-01-06T11:00:00Z') })]),
+      ).success,
     ).toBe(true);
   });
 
-  it('rejects unsupported frequencies (DAILY / MONTHLY not in scope)', () => {
+  it('accepts a valid mixed batch: same date twice at different times, per-row therapists + durations', () => {
     expect(
-      recurrenceRuleSchema.safeParse({
-        frequency: 'DAILY',
-        interval: 1,
-        byWeekday: ['SUN'],
-        count: 4,
-      }).success,
-    ).toBe(false);
-  });
-
-  it('caps count at 52 and interval at 8', () => {
-    expect(
-      recurrenceRuleSchema.safeParse({
-        frequency: 'WEEKLY',
-        interval: 1,
-        byWeekday: ['SUN'],
-        count: 53,
-      }).success,
-    ).toBe(false);
-    expect(
-      recurrenceRuleSchema.safeParse({
-        frequency: 'WEEKLY',
-        interval: 9,
-        byWeekday: ['SUN'],
-        count: 4,
-      }).success,
-    ).toBe(false);
-  });
-
-  it('requires at least one weekday', () => {
-    expect(
-      recurrenceRuleSchema.safeParse({
-        frequency: 'WEEKLY',
-        interval: 1,
-        byWeekday: [],
-        count: 4,
-      }).success,
-    ).toBe(false);
-  });
-
-  it('rejects a series with no valid end condition (count < 1)', () => {
-    // The occurrence count IS the end condition (1–52); an unbounded/zero
-    // series must be rejected, not silently created (Fix Prompt 3).
-    for (const count of [0, -1]) {
-      expect(
-        recurrenceRuleSchema.safeParse({
-          frequency: 'WEEKLY',
-          interval: 1,
-          byWeekday: ['SUN'],
-          count,
-        }).success,
-      ).toBe(false);
-    }
-  });
-});
-
-describe('seriesResolutionSchema', () => {
-  it('exposes exactly the four user-facing resolutions plus KEEP', () => {
-    for (const r of ['KEEP', 'SKIP', 'SHIFT_1D', 'SHIFT_1W', 'OVERRIDE']) {
-      expect(seriesResolutionSchema.safeParse(r).success).toBe(true);
-    }
-    expect(seriesResolutionSchema.safeParse('IGNORE').success).toBe(false);
-  });
-});
-
-describe('seriesPreviewSchema', () => {
-  it('accepts a complete preview payload', () => {
-    expect(
-      seriesPreviewSchema.safeParse({
-        patientId: validId,
-        therapistIds: [validId],
-        roomId: validId,
-        startsAt: new Date(),
-        durationMinutes: 30,
-        rule: {
-          frequency: 'WEEKLY',
-          interval: 1,
-          byWeekday: ['SUN', 'TUE'],
-          count: 4,
-        },
-      }).success,
+      seriesBatchCreateSchema.safeParse(
+        batch([
+          row(), // Sun 10:00, t1, r1, 60m
+          row({
+            startsAt: new Date('2030-01-06T14:00:00Z'), // same day, later
+            therapistIds: ['t2', 't3'], // multi-therapist preserved (Prompt 20)
+            durationMinutes: 45,
+            roomId: 'r2',
+          }),
+          row({ startsAt: new Date('2030-01-08T10:00:00Z') }), // another day
+        ]),
+      ).success,
     ).toBe(true);
-  });
-});
-
-describe('seriesCreateSchema', () => {
-  it('requires at least one resolution row', () => {
-    const r = seriesCreateSchema.safeParse({
-      patientId: validId,
-      therapistIds: [validId],
-      roomId: validId,
-      startsAt: new Date(),
-      durationMinutes: 30,
-      rule: { frequency: 'WEEKLY', interval: 1, byWeekday: ['SUN'], count: 4 },
-      resolutions: [],
-    });
-    expect(r.success).toBe(false);
-  });
-
-  it('caps resolutions at 52 rows (matches the expansion cap)', () => {
-    const r = seriesCreateSchema.safeParse({
-      patientId: validId,
-      therapistIds: [validId],
-      roomId: validId,
-      startsAt: new Date(),
-      durationMinutes: 30,
-      rule: { frequency: 'WEEKLY', interval: 1, byWeekday: ['SUN'], count: 4 },
-      resolutions: Array.from({ length: 53 }, (_, i) => ({
-        index: i,
-        startsAt: new Date(),
-        resolution: 'KEEP',
-      })),
-    });
-    expect(r.success).toBe(false);
-  });
-
-  it('accepts an OVERRIDE resolution (action layer enforces the permission)', () => {
-    const r = seriesCreateSchema.safeParse({
-      patientId: validId,
-      therapistIds: [validId],
-      roomId: validId,
-      startsAt: new Date(),
-      durationMinutes: 30,
-      rule: { frequency: 'WEEKLY', interval: 1, byWeekday: ['SUN'], count: 2 },
-      resolutions: [
-        { index: 0, startsAt: new Date(), resolution: 'KEEP' },
-        { index: 1, startsAt: new Date(), resolution: 'OVERRIDE' },
-      ],
-    });
-    expect(r.success).toBe(true);
   });
 });

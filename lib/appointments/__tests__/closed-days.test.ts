@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { closedDayKeys, weekdayToDayKey } from '../closed-days';
+import { closedDayKeys } from '../closed-days';
 
 const OPEN = { open: '09:00', close: '18:00', closed: false };
 const CLOSED = { open: '09:00', close: '18:00', closed: true };
@@ -51,13 +51,5 @@ describe('closedDayKeys — non-working days from businessHours (Prompt 22 §4.2
   it('ignores unknown keys and preserves week order (sun…sat)', () => {
     const hours = { sat: CLOSED, holiday: CLOSED, sun: CLOSED };
     expect(closedDayKeys(hours)).toEqual(['sun', 'sat']);
-  });
-});
-
-describe('weekdayToDayKey — recurrence Weekday → settings DayKey', () => {
-  it('maps every SUN…SAT to its lowercase day key', () => {
-    expect(
-      (['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const).map(weekdayToDayKey),
-    ).toEqual(['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat']);
   });
 });

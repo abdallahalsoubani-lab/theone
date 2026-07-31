@@ -96,21 +96,22 @@ describe('localDayKey', () => {
   });
 });
 
-describe('D-9r regression (Prompt 31): a full 11:15 recurring series inside 09:00–18:00', () => {
-  it('every expanded occurrence passes the hours check under a UTC process clock', async () => {
-    const { expandRecurrence } = await import('../recurrence');
-    // Thursday 2026-07-23 11:15 Amman = 08:15Z.
+describe('D-9r regression (Prompt 31): a full 11:15 twice-weekly batch inside 09:00–18:00', () => {
+  it('every weekly slot passes the hours check under a UTC process clock', () => {
+    // Thursday 2026-07-23 11:15 Amman = 08:15Z; the batch model books explicit
+    // rows, so generate the same Tue/Thu × 4-week set the old expansion made.
     const first = new Date('2026-07-23T08:15:00Z');
-    const occurrences = expandRecurrence(
-      { frequency: 'WEEKLY', interval: 1, byWeekday: ['TUE', 'THU'], count: 8 },
-      first,
-      45,
-    );
+    const WEEK = 7 * 24 * 60 * 60 * 1000;
+    const occurrences: Date[] = [];
+    for (let w = 0; w < 4; w++) {
+      occurrences.push(new Date(first.getTime() + w * WEEK)); // Thursdays
+      occurrences.push(new Date(first.getTime() + w * WEEK + 5 * 24 * 60 * 60 * 1000)); // Tuesdays
+    }
     expect(occurrences).toHaveLength(8);
-    for (const occ of occurrences) {
+    for (const startsAt of occurrences) {
       const verdict = isWithinWorkingHours(
-        occ.startsAt,
-        new Date(occ.startsAt.getTime() + 45 * 60_000),
+        startsAt,
+        new Date(startsAt.getTime() + 45 * 60_000),
         SETTINGS,
       );
       expect(verdict).toEqual({ ok: true });

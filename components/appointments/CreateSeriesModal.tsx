@@ -2,13 +2,12 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
-import { SearchablePillGroup, SearchableSelect } from '@/components/ui/searchable-select';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   ResponsiveModal,
   ResponsiveModalContent,
@@ -17,72 +16,41 @@ import {
   ResponsiveModalHeader,
   ResponsiveModalTitle,
 } from '@/components/ui/responsive-modal';
-import {
-  createSeriesAction,
-  previewSeriesAction,
-  previewSeriesSlotAction,
-} from '@/lib/appointments/actions';
-import { weekdayToDayKey } from '@/lib/appointments/closed-days';
-import { hasHardBlockedConflict, type ConflictResult } from '@/lib/appointments/conflicts';
+import { createSeriesBatchAction, previewSeriesBatchAction } from '@/lib/appointments/actions';
+import { rowInstant, validateBatchRows } from '@/lib/appointments/batch-validation';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
-import { WEEKDAYS, type Weekday } from '@/lib/appointments/recurrence';
-import type { SeriesResolution } from '@/lib/appointments/schemas';
-import type { SeriesPreviewOccurrence } from '@/lib/appointments/services';
-import { formatDate, formatTime } from '@/lib/format/date';
-import { formatClinicDateTimeLocal, parseClinicDateTimeLocal } from '@/lib/time/clinic';
+import { MAX_BATCH_ROWS } from '@/lib/appointments/schemas';
+import { clinicDateKey, clinicHm } from '@/lib/time/clinic';
 
-interface Patient {
+import { BatchRowsEditor, type BatchRowUI } from './BatchRowsEditor';
+
+interface Person {
   id: string;
   fullNameEn: string;
   fullNameAr: string;
-}
-
-interface Clinician {
-  id: string;
-  fullNameEn: string;
-  fullNameAr: string;
-}
-
-interface Room {
-  id: string;
-  name: string;
 }
 
 interface Props {
   open: boolean;
   onClose: () => void;
-  patients: Patient[];
-  clinicians: Clinician[];
-  rooms: Room[];
+  patients: Person[];
+  clinicians: Person[];
+  rooms: { id: string; name: string }[];
   defaultStartsAt: Date | null;
   defaultTherapistId?: string;
   defaultDurationMinutes: number;
-  /** Non-working days from ClinicSettings.businessHours (Prompt 22 §4.2) —
-   *  their weekday buttons render disabled. */
+  /** Non-working weekdays from ClinicSettings.businessHours — rows landing
+   *  on one flag instantly; the conflict engine re-blocks server-side. */
   closedDays?: DayKey[];
-  canOverride: boolean;
 }
 
 /**
- * Recurring series builder — Prompt 7b §4.4.
- *
- * Pattern: weekly with N occurrences across one-or-more chosen weekdays.
- * For every conflicting occurrence the user must pick one of four
- * resolutions:
- *
- *   - Skip            — drop this occurrence entirely.
- *   - Shift +1 day    — try the same time the next day; re-run engine.
- *   - Shift +1 week   — try the next pattern occurrence; re-run engine.
- *   - Override        — book despite conflicts (gated on
- *                       `appointments.override_conflict`).
- *
- * No silent acceptance of any shifted slot — after either shift the
- * server re-runs the conflict engine on the new time, and if conflicts
- * persist the row stays "Resolve" until the user picks again.
- *
- * Save: the server re-expands the rule, re-validates every final slot,
- * and inserts the entire series in a single transaction. A race on any
- * occurrence aborts the whole series with the failing index surfaced.
+ * Multi-appointment batch booking (July 31 item 4 — replaces the Prompt 7b
+ * weekly-pattern series). The secretary builds the EXACT list of
+ * appointments as rows — date · time · therapist(s) · room · duration —
+ * and one save books them all (shared seriesId, atomic). No pattern, no
+ * skip/shift/override: a conflicting row is highlighted with the named
+ * cause and must be fixed or removed before saving.
  */
 export function CreateSeriesModal({
   open,
@@ -94,220 +62,122 @@ export function CreateSeriesModal({
   defaultTherapistId,
   defaultDurationMinutes,
   closedDays,
-  canOverride,
 }: Props) {
   const t = useTranslations('calendar.series');
   const tForm = useTranslations('appointments.form');
   const tCommon = useTranslations('common');
-  const tConflicts = useTranslations('appointments.conflicts');
   const locale = useLocale();
-  const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   const [patientId, setPatientId] = useState('');
-  const [therapistIds, setTherapistIds] = useState<string[]>(
-    defaultTherapistId ? [defaultTherapistId] : [],
-  );
-  const [roomId, setRoomId] = useState('');
-  const [startsAt, setStartsAt] = useState(defaultStartsAt ? toLocalInput(defaultStartsAt) : '');
-  const [duration, setDuration] = useState(defaultDurationMinutes);
   const [notes, setNotes] = useState('');
-  const [interval, setInterval] = useState(1);
-  const [count, setCount] = useState(4);
-  const [byWeekday, setByWeekday] = useState<Weekday[]>(() => {
-    if (!defaultStartsAt) return ['SUN'];
-    return [WEEKDAYS[defaultStartsAt.getUTCDay()]!];
+  const [rows, setRows] = useState<BatchRowUI[]>([]);
+  /** Per-row server conflict findings from the submit-time sweep. */
+  const [conflicts, setConflicts] = useState<Record<number, unknown[]>>({});
+  /** Incomplete-row nagging starts only after the first save attempt. */
+  const [attempted, setAttempted] = useState(false);
+
+  const firstRow = (): BatchRowUI => ({
+    key: `row-${Math.random().toString(36).slice(2)}`,
+    date: defaultStartsAt ? clinicDateKey(defaultStartsAt) : '',
+    time: defaultStartsAt ? clinicHm(defaultStartsAt) : '',
+    therapistIds: defaultTherapistId ? [defaultTherapistId] : [],
+    roomId: '',
+    durationMinutes: defaultDurationMinutes,
   });
 
-  interface SlotState {
-    index: number;
-    startsAt: Date;
-    durationMinutes: number;
-    conflicts: ConflictResult;
-    /** `null` until the user makes a decision; cleared back to `null`
-     *  whenever the slot's conflicts re-appear after a shift. */
-    resolution: SeriesResolution | null;
-  }
-  const [slots, setSlots] = useState<SlotState[]>([]);
-  const [previewing, setPreviewing] = useState(false);
-
-  // Reset state every time the modal re-opens so a previous draft
-  // doesn't bleed in.
+  // Reset the draft every time the modal re-opens.
   useEffect(() => {
     if (!open) return;
-    setTherapistIds(defaultTherapistId ? [defaultTherapistId] : []);
-    setStartsAt(defaultStartsAt ? toLocalInput(defaultStartsAt) : '');
-    setDuration(defaultDurationMinutes);
-    setSlots([]);
-    setByWeekday(defaultStartsAt ? [WEEKDAYS[defaultStartsAt.getUTCDay()]!] : ['SUN']);
+    setPatientId('');
+    setNotes('');
+    setConflicts({});
+    setAttempted(false);
+    setRows([firstRow()]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultStartsAt, defaultTherapistId, defaultDurationMinutes]);
 
-  const therapistKey = therapistIds.join(',');
-  const toggleTherapist = (id: string) =>
-    setTherapistIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
-  // R-6 (Prompt 42): selectable weekdays ≤ appointment count. The old fixed
-  // 2-days-per-week cap (Prompt 22 §4.2) was removed by owner ruling in
-  // Prompt 46 — the week itself (7) is the only structural bound. Lowering
-  // the count below the current selection surfaces a validation state —
-  // days are never silently dropped, and preview/save stay disabled until
-  // the user fixes it.
-  const maxSelectableWeekdays = Math.min(7, Math.max(1, count || 1));
-  const daysExceedCount = byWeekday.length > maxSelectableWeekdays;
-  // Room required for recurring create too (QA retest #7/#13).
-  const canPreview = Boolean(
-    patientId &&
-    therapistIds.length > 0 &&
-    roomId &&
-    startsAt &&
-    byWeekday.length > 0 &&
-    count > 0 &&
-    !daysExceedCount,
+  const issues = useMemo(
+    () => validateBatchRows(rows, { closedDays: closedDays ?? [] }),
+    [rows, closedDays],
   );
+  const shownIssues = useMemo(
+    () => (attempted ? issues : issues.map((list) => list.filter((x) => x !== 'incomplete'))),
+    [issues, attempted],
+  );
+  const hasIssues = issues.some((list) => list.length > 0);
 
-  // Run the initial preview when the pattern + actors are settled.
-  useEffect(() => {
-    if (!open || !canPreview) {
-      setSlots([]);
+  const minDate = clinicDateKey(new Date());
+
+  const patch = (index: number, changes: Partial<BatchRowUI>) => {
+    setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...changes } : r)));
+    setConflicts({}); // any edit invalidates the last conflict sweep
+  };
+
+  // Copy-previous defaults (date cleared): "same setup, next date" is the
+  // overwhelmingly common case — two clicks per extra visit.
+  const addRow = () => {
+    setRows((prev) => {
+      if (prev.length >= MAX_BATCH_ROWS) return prev;
+      const last = prev[prev.length - 1]!;
+      return [...prev, { ...last, key: `row-${Math.random().toString(36).slice(2)}`, date: '' }];
+    });
+    setConflicts({});
+  };
+
+  const removeRow = (index: number) => {
+    setRows((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== index)));
+    setConflicts({});
+  };
+
+  const submit = () => {
+    setAttempted(true);
+    if (!patientId) {
+      toast.error(t('patientRequired'));
       return;
     }
-    const handle = setTimeout(() => {
-      setPreviewing(true);
-      void previewSeriesAction({
-        patientId,
-        therapistIds,
-        roomId,
-        // Picker value is CLINIC wall time (Prompt 31) — machine-TZ-proof.
-        startsAt: parseClinicDateTimeLocal(startsAt) ?? new Date(NaN),
-        durationMinutes: duration,
-        rule: {
-          frequency: 'WEEKLY',
-          interval,
-          byWeekday,
-          count,
-        },
-      })
-        .then((r) => {
-          if (!r.ok) {
-            toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
-            setSlots([]);
-            return;
-          }
-          setSlots(
-            r.data.occurrences.map((occ: SeriesPreviewOccurrence) => ({
-              index: occ.index,
-              startsAt: new Date(occ.startsAt),
-              durationMinutes: occ.durationMinutes,
-              conflicts: occ.conflicts,
-              // Auto-decide KEEP for clean slots so the user only has
-              // to focus on the conflicting rows.
-              resolution: occ.conflicts.ok ? 'KEEP' : null,
-            })),
-          );
-        })
-        .finally(() => setPreviewing(false));
-    }, 400);
-    return () => clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    open,
-    canPreview,
-    patientId,
-    therapistKey,
-    roomId,
-    startsAt,
-    duration,
-    interval,
-    count,
-    byWeekday,
-    locale,
-  ]);
-
-  const applyShift = useCallback(
-    async (slot: SlotState, kind: 'SHIFT_1D' | 'SHIFT_1W') => {
-      const offsetMs = kind === 'SHIFT_1D' ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
-      const shifted = new Date(slot.startsAt.getTime() + offsetMs);
-      const r = await previewSeriesSlotAction({
-        patientId,
-        therapistIds,
-        startsAt: shifted.toISOString(),
-        durationMinutes: slot.durationMinutes,
-      });
-      if (!r.ok) {
-        toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
+    if (hasIssues) {
+      toast.error(t('fixRowsError'));
+      return;
+    }
+    const payload = {
+      patientId,
+      notes: notes || null,
+      rows: rows.map((r) => ({
+        startsAt: rowInstant(r)!,
+        durationMinutes: r.durationMinutes,
+        therapistIds: r.therapistIds,
+        roomId: r.roomId,
+      })),
+    };
+    startTransition(async () => {
+      // Sweep first so EVERY conflicting row lights up at once …
+      const preview = await previewSeriesBatchAction(payload);
+      if (!preview.ok) {
+        toast.error(locale === 'ar' ? preview.error.message_ar : preview.error.message_en);
         return;
       }
-      setSlots((prev) =>
-        prev.map((s) =>
-          s.index === slot.index
-            ? {
-                ...s,
-                startsAt: shifted,
-                conflicts: r.data,
-                // Only auto-accept the shift when the new slot is clean.
-                // A still-conflicting shift reverts to "Resolve" so the
-                // user picks again (Prompt 7b §4.4 — no silent accept).
-                resolution: r.data.ok ? kind : null,
-              }
-            : s,
-        ),
-      );
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [locale, patientId, therapistKey],
-  );
-
-  function setSlotResolution(slot: SlotState, resolution: SeriesResolution) {
-    if (resolution === 'SHIFT_1D' || resolution === 'SHIFT_1W') {
-      void applyShift(slot, resolution);
-      return;
-    }
-    setSlots((prev) => prev.map((s) => (s.index === slot.index ? { ...s, resolution } : s)));
-  }
-
-  const allResolved = slots.length > 0 && slots.every((s) => s.resolution !== null);
-  const conflictCount = slots.filter((s) => !s.conflicts.ok).length;
-
-  const overrideUsed = useMemo(() => slots.some((s) => s.resolution === 'OVERRIDE'), [slots]);
-
-  function submit() {
-    if (!allResolved) {
-      toast.error(t('unresolvedError'));
-      return;
-    }
-    if (overrideUsed && !canOverride) {
-      toast.error(t('overrideNotPermitted'));
-      return;
-    }
-    startTransition(async () => {
-      const r = await createSeriesAction({
-        patientId,
-        therapistIds,
-        roomId,
-        startsAt: parseClinicDateTimeLocal(startsAt) ?? new Date(NaN),
-        durationMinutes: duration,
-        notes: notes || null,
-        rule: {
-          frequency: 'WEEKLY',
-          interval,
-          byWeekday,
-          count,
-        },
-        resolutions: slots.map((s) => ({
-          index: s.index,
-          startsAt: s.startsAt,
-          resolution: s.resolution!,
-        })),
-      });
+      const found: Record<number, unknown[]> = {};
+      for (const row of preview.data.rows) {
+        if (!row.conflicts.ok) found[row.rowIndex] = row.conflicts.conflicts;
+      }
+      if (Object.keys(found).length > 0) {
+        setConflicts(found);
+        toast.error(t('fixRowsError'));
+        return;
+      }
+      // … then create (the service re-checks transactionally — race safety).
+      const r = await createSeriesBatchAction(payload);
       if (!r.ok) {
-        const occurrenceIndex =
-          typeof r.error.details?.occurrenceIndex === 'number'
-            ? r.error.details.occurrenceIndex
-            : null;
-        if (occurrenceIndex !== null) {
+        const rowIndex =
+          typeof r.error.details?.rowIndex === 'number' ? r.error.details.rowIndex : null;
+        if (rowIndex !== null) {
+          const raced = r.error.details?.conflicts;
+          if (Array.isArray(raced)) setConflicts({ [rowIndex]: raced });
           toast.error(
-            t('occurrenceFailed', {
-              index: String(occurrenceIndex + 1),
+            t('rowFailed', {
+              index: String(rowIndex + 1),
               message: locale === 'ar' ? r.error.message_ar : r.error.message_en,
             }),
           );
@@ -320,158 +190,66 @@ export function CreateSeriesModal({
       onClose();
       router.refresh();
     });
-  }
+  };
 
   return (
     <ResponsiveModal open={open} onOpenChange={(o) => (o ? null : onClose())}>
-      <ResponsiveModalContent desktopMaxWidth="max-w-2xl">
+      <ResponsiveModalContent desktopMaxWidth="max-w-3xl">
         <ResponsiveModalHeader>
           <ResponsiveModalTitle>{t('title')}</ResponsiveModalTitle>
           <ResponsiveModalDescription>{t('subtitle')}</ResponsiveModalDescription>
         </ResponsiveModalHeader>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="series-patient">{tForm('patient')}</Label>
-            {/* Prompt 47 — searchable patient picker (both scripts). */}
-            <SearchableSelect
-              id="series-patient"
-              value={patientId}
-              onChange={setPatientId}
-              options={patients.map((p) => ({
-                id: p.id,
-                label: locale === 'ar' ? p.fullNameAr : p.fullNameEn,
-                sublabel: locale === 'ar' ? p.fullNameEn : p.fullNameAr,
-              }))}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label>{tForm('therapists')}</Label>
-            {/* Prompt 47 — filterable clinician wall (P20 semantics kept). */}
-            <SearchablePillGroup
-              options={clinicians.map((c) => ({
-                id: c.id,
-                label: locale === 'ar' ? c.fullNameAr : c.fullNameEn,
-                sublabel: locale === 'ar' ? c.fullNameEn : c.fullNameAr,
-              }))}
-              selectedIds={therapistIds}
-              onToggle={toggleTherapist}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="series-room">
-              {tForm('room')} <span className="text-destructive">*</span>
-            </Label>
-            <select
-              id="series-room"
-              value={roomId}
-              required
-              onChange={(e) => setRoomId(e.target.value)}
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            >
-              <option value="">{tForm('roomPlaceholder')}</option>
-              {rooms.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="series-duration">{tForm('duration')}</Label>
-            <Input
-              id="series-duration"
-              type="number"
-              min={5}
-              max={480}
-              step={15}
-              value={duration}
-              onChange={(e) => setDuration(parseInt(e.target.value || '30', 10))}
-            />
-          </div>
-          <div className="space-y-1 sm:col-span-2">
-            <Label htmlFor="series-starts">{tForm('startsAt')}</Label>
-            <Input
-              id="series-starts"
-              type="datetime-local"
-              value={startsAt}
-              onChange={(e) => setStartsAt(e.target.value)}
-            />
-          </div>
+        <div className="space-y-1">
+          <Label htmlFor="batch-patient">{tForm('patient')}</Label>
+          <SearchableSelect
+            id="batch-patient"
+            value={patientId}
+            onChange={setPatientId}
+            options={patients.map((p) => ({
+              id: p.id,
+              label: locale === 'ar' ? p.fullNameAr : p.fullNameEn,
+              sublabel: locale === 'ar' ? p.fullNameEn : p.fullNameAr,
+            }))}
+          />
         </div>
 
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium text-brand-navy">{t('patternLegend')}</legend>
-          <div className="flex items-center gap-2 text-sm">
-            <span>{t('intervalLabel')}</span>
-            <Input
-              type="number"
-              min={1}
-              max={8}
-              value={interval}
-              onChange={(e) => setInterval(parseInt(e.target.value || '1', 10))}
-              className="w-20"
-            />
-            <span>{t('intervalSuffix')}</span>
-            <span className="ms-4">{t('countLabel')}</span>
-            <Input
-              type="number"
-              min={1}
-              max={52}
-              value={count}
-              onChange={(e) => setCount(parseInt(e.target.value || '1', 10))}
-              className="w-20"
-            />
-          </div>
-          <div>
-            <span className="text-xs uppercase tracking-wide text-brand-textMuted">
-              {t('weekdayLegend')}
-            </span>
-            <div className="mt-1 flex flex-wrap gap-2">
-              {WEEKDAYS.map((day) => {
-                const active = byWeekday.includes(day);
-                // Non-working days are unselectable (Prompt 22 §4.2); an
-                // already-active day stays clickable so it can be deselected.
-                const closed = (closedDays ?? []).includes(weekdayToDayKey(day));
-                // Cap = appointment count (R-6) — no fixed weekly cap (P46).
-                const capReached = !active && byWeekday.length >= maxSelectableWeekdays;
-                const disabled = (closed && !active) || capReached;
-                return (
-                  <button
-                    type="button"
-                    key={day}
-                    disabled={disabled}
-                    title={closed ? t('closedDay') : undefined}
-                    aria-label={closed ? `${t(`weekdays.${day}`)} — ${t('closedDay')}` : undefined}
-                    onClick={() =>
-                      setByWeekday((prev) =>
-                        prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
-                      )
-                    }
-                    className={`rounded-md border px-3 py-1 text-xs font-medium disabled:cursor-not-allowed disabled:opacity-40 ${
-                      active
-                        ? 'border-brand-cyan bg-brand-cyan/10 text-brand-navy'
-                        : 'border-brand-border bg-brand-surface text-brand-textMuted hover:bg-brand-bg disabled:hover:bg-brand-surface'
-                    }`}
-                  >
-                    {t(`weekdays.${day}`)}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1 text-xs text-brand-textMuted">{t('daysLeCountHint')}</p>
-            {daysExceedCount ? (
-              <p className="mt-1 text-xs font-medium text-red-700" role="alert">
-                {t('daysExceedCount', { max: String(maxSelectableWeekdays) })}
-              </p>
-            ) : null}
-          </div>
-        </fieldset>
+        <div className="max-h-[50vh] space-y-3 overflow-y-auto pe-1">
+          <BatchRowsEditor
+            rows={rows}
+            issues={shownIssues}
+            conflicts={conflicts}
+            clinicians={clinicians}
+            rooms={rooms}
+            minDate={minDate}
+            onChange={patch}
+            onRemove={removeRow}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={addRow}
+            disabled={rows.length >= MAX_BATCH_ROWS}
+            title={
+              rows.length >= MAX_BATCH_ROWS
+                ? t('maxRows', { max: String(MAX_BATCH_ROWS) })
+                : undefined
+            }
+          >
+            {t('addRow')}
+          </Button>
+          <p className="text-sm font-medium text-brand-navy" aria-live="polite">
+            {t('totalSummary', { count: String(rows.length) })}
+          </p>
+        </div>
 
         <div className="space-y-1">
-          <Label htmlFor="series-notes">{tForm('notes')}</Label>
+          <Label htmlFor="batch-notes">{tForm('notes')}</Label>
           <textarea
-            id="series-notes"
+            id="batch-notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
@@ -479,224 +257,15 @@ export function CreateSeriesModal({
           />
         </div>
 
-        <section className="space-y-2">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-brand-navy">{t('previewLegend')}</h3>
-            <span className="text-xs text-brand-textMuted">
-              {previewing
-                ? '…'
-                : slots.length > 0
-                  ? t('previewIntro', { count: String(slots.length) })
-                  : ''}
-            </span>
-          </div>
-          <ul className="max-h-72 space-y-2 overflow-y-auto rounded-md border border-brand-border bg-brand-bg p-2">
-            {slots.map((s) => {
-              // Hard-blocked occurrences (same-patient overlap / closed day —
-              // Prompt 22 §4.1/§4.2) can never be overridden: the server
-              // rejects OVERRIDE for them, so the button is withheld and only
-              // the legitimate escapes (skip / shift) remain.
-              const slotHardBlocked =
-                !s.conflicts.ok && hasHardBlockedConflict(s.conflicts.conflicts);
-              return (
-                <li
-                  key={s.index}
-                  className={`rounded-md border bg-brand-surface p-2 text-sm ${
-                    s.conflicts.ok
-                      ? 'border-brand-border'
-                      : s.resolution
-                        ? 'border-amber-200'
-                        : 'border-red-300'
-                  }`}
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
-                      <p className="font-medium text-brand-navy">
-                        #{s.index + 1} · {formatDate(s.startsAt, intlLocale)} ·{' '}
-                        {formatTime(s.startsAt, intlLocale)}
-                      </p>
-                      <p
-                        className={`text-xs ${
-                          s.conflicts.ok ? 'text-brand-textMuted' : 'text-red-700'
-                        }`}
-                      >
-                        {s.conflicts.ok
-                          ? t('noConflict')
-                          : t('conflictCount', { count: String(s.conflicts.conflicts.length) })}
-                      </p>
-                    </div>
-                    {!s.conflicts.ok ? (
-                      <div className="flex flex-wrap gap-1">
-                        <ResolutionButton
-                          active={s.resolution === 'SKIP'}
-                          onClick={() => setSlotResolution(s, 'SKIP')}
-                        >
-                          {t('resolutionSkip')}
-                        </ResolutionButton>
-                        <ResolutionButton
-                          active={s.resolution === 'SHIFT_1D'}
-                          onClick={() => setSlotResolution(s, 'SHIFT_1D')}
-                        >
-                          {t('resolutionShift1d')}
-                        </ResolutionButton>
-                        <ResolutionButton
-                          active={s.resolution === 'SHIFT_1W'}
-                          onClick={() => setSlotResolution(s, 'SHIFT_1W')}
-                        >
-                          {t('resolutionShift1w')}
-                        </ResolutionButton>
-                        {canOverride && !slotHardBlocked ? (
-                          <ResolutionButton
-                            variant="danger"
-                            active={s.resolution === 'OVERRIDE'}
-                            onClick={() => setSlotResolution(s, 'OVERRIDE')}
-                          >
-                            {t('resolutionOverride')}
-                          </ResolutionButton>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-                  {!s.conflicts.ok ? (
-                    <ul className="mt-1 list-disc ps-5 text-xs text-brand-textMuted">
-                      {s.conflicts.conflicts.map((c, i) => (
-                        <li key={i}>{describeConflict(c, tConflicts, locale)}</li>
-                      ))}
-                    </ul>
-                  ) : null}
-                  {slotHardBlocked ? (
-                    <p className="mt-1 text-xs text-red-700">{t('hardBlockedHint')}</p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-          {conflictCount > 0 && !allResolved ? (
-            <p className="text-xs text-amber-800">{t('unresolvedError')}</p>
-          ) : null}
-        </section>
-
         <ResponsiveModalFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
             {tCommon('cancel')}
           </Button>
-          <Button
-            type="button"
-            onClick={submit}
-            disabled={pending || !allResolved || (overrideUsed && !canOverride)}
-          >
+          <Button type="button" onClick={submit} disabled={pending}>
             {pending ? t('saving') : t('save')}
           </Button>
         </ResponsiveModalFooter>
       </ResponsiveModalContent>
     </ResponsiveModal>
   );
-}
-
-function ResolutionButton({
-  children,
-  active,
-  variant,
-  onClick,
-}: {
-  children: React.ReactNode;
-  active: boolean;
-  variant?: 'danger';
-  onClick: () => void;
-}) {
-  const base = 'rounded-md border px-2 py-1 text-xs font-medium transition-colors';
-  const palette = active
-    ? variant === 'danger'
-      ? 'border-red-500 bg-red-500 text-white'
-      : 'border-brand-cyan bg-brand-cyan text-white'
-    : 'border-brand-border bg-brand-surface text-brand-text hover:bg-brand-bg';
-  return (
-    <button type="button" className={`${base} ${palette}`} onClick={onClick}>
-      {children}
-    </button>
-  );
-}
-
-/** Instant → clinic-wall picker value (was browser-local before Prompt 31). */
-function toLocalInput(d: Date): string {
-  return formatClinicDateTimeLocal(d);
-}
-
-type ConflictType =
-  | {
-      kind: 'THERAPIST_OVERLAP';
-      therapist: { fullNameEn: string; fullNameAr: string };
-      appointment: { patient: { fullNameEn: string; fullNameAr: string } | null; startsAt: Date };
-    }
-  | {
-      kind: 'PATIENT_OVERLAP';
-      // The engine ships `therapists` (plural, Prompt 20) — the singular
-      // shape this file assumed crashed the preview row for a same-patient
-      // clash (fixed with R-22 / Prompt 42).
-      appointment: {
-        therapists: Array<{ fullNameEn: string; fullNameAr: string }>;
-        startsAt: Date;
-      };
-    }
-  | { kind: 'THERAPIST_ON_LEAVE' }
-  | {
-      kind: 'OUTSIDE_BUSINESS_HOURS';
-      reason: 'before_open' | 'after_close' | 'end_exceeds_close';
-      openTime: string;
-      closeTime: string;
-    }
-  | { kind: 'CLINIC_CLOSED_THIS_DAY' };
-
-function describeConflict(
-  c: unknown,
-  t: (key: string, params?: Record<string, string>) => string,
-  locale: string,
-): string {
-  const conflict = c as ConflictType;
-  const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
-  const clashTime = (startsAt: Date | string) => {
-    const d = new Date(startsAt);
-    return `${formatDate(d, intlLocale)} ${formatTime(d, intlLocale)}`;
-  };
-  switch (conflict.kind) {
-    case 'THERAPIST_OVERLAP': {
-      const p = conflict.appointment.patient;
-      const th = conflict.therapist;
-      return t('therapistOverlap', {
-        therapist: locale === 'ar' ? th.fullNameAr : th.fullNameEn,
-        patient: p ? (locale === 'ar' ? p.fullNameAr : p.fullNameEn) : '',
-        time: clashTime(conflict.appointment.startsAt),
-      });
-    }
-    case 'PATIENT_OVERLAP': {
-      const names = conflict.appointment.therapists
-        .map((th) => (locale === 'ar' ? th.fullNameAr : th.fullNameEn))
-        .join(locale === 'ar' ? '، ' : ', ');
-      return t('patientOverlap', {
-        therapist: names,
-        time: clashTime(conflict.appointment.startsAt),
-      });
-    }
-    case 'THERAPIST_ON_LEAVE':
-      return t('therapistOnLeave');
-    case 'OUTSIDE_BUSINESS_HOURS':
-      return t(outsideHoursKey(conflict.reason), {
-        open: conflict.openTime,
-        close: conflict.closeTime,
-      });
-    case 'CLINIC_CLOSED_THIS_DAY':
-      return t('clinicClosedThisDay');
-  }
-}
-
-/** Map a working-hours reason to its localized message key. */
-function outsideHoursKey(reason: 'before_open' | 'after_close' | 'end_exceeds_close'): string {
-  switch (reason) {
-    case 'before_open':
-      return 'beforeOpen';
-    case 'after_close':
-      return 'afterClose';
-    case 'end_exceeds_close':
-      return 'endExceedsClose';
-  }
 }

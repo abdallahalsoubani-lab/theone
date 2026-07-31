@@ -19,19 +19,12 @@ import { clinicDateKey, clinicHm } from '@/lib/time/clinic';
 import { getClinicTimeZone } from '@/lib/time/clinic-server';
 import { notifyWaitlistForFreedSlot } from '@/lib/waitlist/services';
 
-import { closedDayKeys, weekdayToDayKey } from './closed-days';
 import {
   checkConflicts,
   hasHardBlockedConflict,
   type Conflict,
   type ConflictResult,
 } from './conflicts';
-import {
-  expandRecurrence,
-  MAX_SERIES_OCCURRENCES,
-  type PlannedOccurrence,
-  type Weekday,
-} from './recurrence';
 import { parseHhMm, type ReminderConfig } from './reminderWindow';
 import { getSessionGraceConfig } from './session-settings';
 import {
@@ -46,8 +39,7 @@ import type {
   AppointmentChangeTherapistParsed,
   AppointmentCreateInput,
   AppointmentRescheduleParsed,
-  SeriesCreateInput,
-  SeriesPreviewInput,
+  SeriesBatchCreateInput,
 } from './schemas';
 import { selectSeriesOccurrences, type SeriesOccurrenceRow } from './series';
 import { canTransition, permissionForTransition, STATUS_ERRORS } from './status';
@@ -1408,324 +1400,184 @@ export const updateAppointmentStatus = withAudit<
   },
 );
 
-// ─── Recurring series (Prompt 7b §4.4) ────────────────────────────────────
+// ─── Multi-appointment batch booking (July 31 item 4 — replaces the
+//     Prompt 7b weekly-pattern series) ────────────────────────────────────
 
-export interface SeriesPreviewOccurrence {
-  index: number;
-  startsAt: Date;
-  durationMinutes: number;
+export interface BatchRowPreview {
+  rowIndex: number;
   conflicts: ConflictResult;
 }
 
 /**
- * Expand a recurrence rule and run the conflict engine against every
- * occurrence. Pure-read; no transactions, no audit — the Secretary's
- * series-builder UI calls this to render the per-occurrence resolution
- * picker. Each occurrence carries its own conflict list so the user
- * can chose Skip / Shift +1d / Shift +1w / Override per row.
- *
- * The preview is also re-run after every resolution change so a shifted
- * slot never lands silently — if the +1d shift still conflicts, the
- * client surfaces the new conflicts and asks the user to resolve again.
+ * Run the conflict engine against every explicit row. Pure-read; no
+ * transactions, no audit — the batch modal calls this on submit so ALL
+ * conflicting rows light up at once (FR-APP-8 replacement: the skip/shift
+ * resolution picker is gone — the secretary fixes or removes the row).
+ * Unlike the old pattern preview, the room rides along, so room
+ * capacity / event-block conflicts are caught per row too.
  */
-/**
- * R-6 (Prompt 42): the recurring rule may not include a clinic non-working
- * day. Settings-driven — reads ClinicSettings.businessHours live, never a
- * hardcoded Fri/Sat. The per-occurrence CLINIC_CLOSED_THIS_DAY hard block in
- * the conflict engine stays the deeper authority; this rejects the RULE up
- * front with a clear localized error (UI disabling alone is not enforcement).
- */
-async function assertRuleAvoidsClosedDays(byWeekday: Weekday[]): Promise<void> {
-  const settings = await db.clinicSettings.findUnique({
-    where: { id: 'default' },
-    select: { businessHours: true },
-  });
-  const closed = new Set(closedDayKeys(settings?.businessHours));
-  const offenders = byWeekday.filter((d) => closed.has(weekdayToDayKey(d)));
-  if (offenders.length > 0) {
-    throw new AppointmentError({
-      code: 'SERIES_DAY_CLOSED',
-      message_en:
-        'The selected pattern includes a non-working day. Closed days cannot be part of a recurring series.',
-      message_ar: 'النمط المحدد يتضمن يوم عطلة. لا يمكن تضمين أيام العطلة في السلسلة المتكررة.',
-      details: { closedWeekdays: offenders },
-    });
-  }
-}
-
-export async function previewSeries(
-  input: SeriesPreviewInput,
-): Promise<{ occurrences: SeriesPreviewOccurrence[] }> {
-  await assertRuleAvoidsClosedDays(input.rule.byWeekday);
-  const planned = expandRecurrence(input.rule, input.startsAt, input.durationMinutes);
-  const occurrences = await Promise.all(
-    planned.map(async (p) => ({
-      index: p.index,
-      startsAt: p.startsAt,
-      durationMinutes: p.durationMinutes,
+export async function previewSeriesBatch(
+  input: SeriesBatchCreateInput,
+): Promise<{ rows: BatchRowPreview[] }> {
+  const rows = await Promise.all(
+    input.rows.map(async (row, rowIndex) => ({
+      rowIndex,
       conflicts: await checkConflicts({
         patientId: input.patientId,
-        therapistIds: input.therapistIds,
-        startsAt: p.startsAt,
-        durationMinutes: p.durationMinutes,
+        therapistIds: row.therapistIds,
+        startsAt: row.startsAt,
+        durationMinutes: row.durationMinutes,
+        appointmentType: AppointmentType.SESSION,
+        roomId: row.roomId,
       }),
     })),
   );
-  return { occurrences };
+  return { rows };
 }
 
-/**
- * Re-validate a single occurrence against the conflict engine. Used by
- * the resolution UI after a +1d / +1w shift so the new slot is checked
- * before the user moves on (no silent acceptance — Prompt 7b §4.4).
- */
-export async function previewSingleOccurrence(input: {
-  patientId: string;
-  therapistIds: string[];
-  startsAt: Date;
-  durationMinutes: number;
-}): Promise<ConflictResult> {
-  return checkConflicts({
-    patientId: input.patientId,
-    therapistIds: input.therapistIds,
-    startsAt: input.startsAt,
-    durationMinutes: input.durationMinutes,
-  });
-}
-
-export const createSeries = withAudit<
-  [SeriesCreateInput],
-  {
-    seriesId: string;
-    appointmentIds: string[];
-    skippedCount: number;
-    overrideCount: number;
-  }
+export const createSeriesBatch = withAudit<
+  [SeriesBatchCreateInput],
+  { seriesId: string; appointmentIds: string[] }
 >(
   {
     entityType: 'Appointment',
     action: AuditAction.CREATE,
     extractEntityId: (_args, result) => result.seriesId,
     extractAfter: (result) => ({
-      event: result.overrideCount > 0 ? 'OVERRIDE_CONFLICT' : 'APPOINTMENT_SERIES_CREATED',
+      event: 'APPOINTMENT_SERIES_CREATED',
       seriesId: result.seriesId,
       appointmentCount: result.appointmentIds.length,
-      skippedCount: result.skippedCount,
-      overrideCount: result.overrideCount,
     }),
   },
-  async function createSeriesInner(input): Promise<{
-    seriesId: string;
-    appointmentIds: string[];
-    skippedCount: number;
-    overrideCount: number;
-  }> {
+  async function createSeriesBatchInner(
+    input: SeriesBatchCreateInput,
+  ): Promise<{ seriesId: string; appointmentIds: string[] }> {
     const session = await auth();
     if (!session?.user?.id) throw new AppointmentError(unauthenticated);
 
-    // The first occurrence is `input.startsAt` and every other occurrence is
-    // later, so rejecting a past first-start guarantees no past occurrence is
-    // created (Fix 6C item 1).
-    if (isStartInPast(input.startsAt)) throw new AppointmentError(inPast);
-
-    // R-6 (Prompt 42): off-days are rejected at the rule level too — a
-    // crafted create request can't smuggle a closed weekday past the picker.
-    await assertRuleAvoidsClosedDays(input.rule.byWeekday);
-
-    // Re-expand from the rule + first slot to validate the client's
-    // resolution list matches the actual occurrence count. The client
-    // cannot smuggle extra rows past this check.
-    const planned = expandRecurrence(input.rule, input.startsAt, input.durationMinutes);
-    if (planned.length === 0) {
-      throw new AppointmentError({
-        code: 'SERIES_EMPTY',
-        message_en: 'Series produced no occurrences.',
-        message_ar: 'لم تنتج السلسلة أي مواعيد.',
-      });
-    }
-    if (planned.length > MAX_SERIES_OCCURRENCES) {
-      throw new AppointmentError({
-        code: 'SERIES_TOO_LARGE',
-        message_en: `Series exceeds the ${MAX_SERIES_OCCURRENCES}-occurrence limit.`,
-        message_ar: `تجاوزت السلسلة الحد الأقصى ${MAX_SERIES_OCCURRENCES} موعداً.`,
-      });
-    }
-    if (input.resolutions.length !== planned.length) {
-      throw new AppointmentError({
-        code: 'SERIES_RESOLUTION_MISMATCH',
-        message_en: 'Resolution list does not match the expanded series.',
-        message_ar: 'قائمة القرارات لا تطابق السلسلة الموسعة.',
-      });
-    }
-
-    const byIndex = new Map<number, PlannedOccurrence>();
-    for (const p of planned) byIndex.set(p.index, p);
-
-    // Decide the final occurrences (Skip drops the row; Shift moves
-    // startsAt; Override accepts conflicts; Keep requires conflict-free).
-    interface FinalOccurrence {
-      index: number;
-      startsAt: Date;
-      durationMinutes: number;
-      override: boolean;
-    }
-    const finalOccurrences: FinalOccurrence[] = [];
-    let skippedCount = 0;
-    let overrideCount = 0;
-
-    for (const r of input.resolutions) {
-      if (!byIndex.has(r.index)) {
+    // Every row is an explicit concrete slot — reject any past start up
+    // front, naming the row (Fix 6C item 1 applied per row).
+    for (let i = 0; i < input.rows.length; i++) {
+      if (isStartInPast(input.rows[i]!.startsAt)) {
         throw new AppointmentError({
-          code: 'SERIES_UNKNOWN_INDEX',
-          message_en: `Resolution references unknown occurrence index ${r.index}.`,
-          message_ar: `القرار يشير إلى موعد غير معروف رقم ${r.index}.`,
+          code: 'SERIES_ROW_IN_PAST',
+          message_en: `Row ${i + 1} starts in the past. Pick a current or future time.`,
+          message_ar: `الصف رقم ${i + 1} يبدأ في وقت مضى. اختر وقتاً حالياً أو مستقبلياً.`,
+          details: { rowIndex: i },
         });
       }
-      if (r.resolution === 'SKIP') {
-        skippedCount++;
-        continue;
-      }
-      const base = byIndex.get(r.index)!;
-      // The startsAt in the resolution is authoritative for shifts;
-      // for KEEP / OVERRIDE the client should send the original value.
-      // We trust input.startsAt but re-run the conflict engine before
-      // accepting — the engine is the only source of truth for whether
-      // a slot is bookable.
-      finalOccurrences.push({
-        index: r.index,
-        startsAt: r.resolution === 'KEEP' ? base.startsAt : r.startsAt,
-        durationMinutes: input.durationMinutes,
-        override: r.resolution === 'OVERRIDE',
-      });
-      if (r.resolution === 'OVERRIDE') overrideCount++;
     }
 
-    if (finalOccurrences.length === 0) {
-      throw new AppointmentError({
-        code: 'SERIES_ALL_SKIPPED',
-        message_en: 'Every occurrence was skipped — nothing to book.',
-        message_ar: 'تم تخطي جميع المواعيد — لا يوجد شيء للحجز.',
-      });
-    }
-
-    // Re-run conflict check on every final slot. KEEP / SHIFT must be
-    // conflict-free; OVERRIDE accepts conflicts. Race protection: this
-    // happens inside the transaction below so the read+write is serialized
-    // against any concurrent insert that lands between preview and submit.
+    // Batch-internal duplicates/overlaps are the schema's job (superRefine);
+    // conflicts vs. EXISTING data are the engine's job below — including
+    // closed days (CLINIC_CLOSED_THIS_DAY, hard-blocked, settings-driven),
+    // so a crafted holiday date can't get past the disabled picker.
     const seriesId = `ser_${session.user.id}_${Date.now().toString(36)}`;
     let appointmentIds: string[];
     try {
       appointmentIds = await db.$transaction(async (tx) => {
         const ids: string[] = [];
-        for (const occ of finalOccurrences) {
+        for (let i = 0; i < input.rows.length; i++) {
+          const row = input.rows[i]!;
           const conflicts = await checkConflicts({
             patientId: input.patientId,
-            therapistIds: input.therapistIds,
-            startsAt: occ.startsAt,
-            durationMinutes: occ.durationMinutes,
+            therapistIds: row.therapistIds,
+            startsAt: row.startsAt,
+            durationMinutes: row.durationMinutes,
+            appointmentType: AppointmentType.SESSION,
+            roomId: row.roomId,
           });
-          // Hard-blocked kinds (same-patient overlap, closed day) can never
-          // be resolved via OVERRIDE — abort the series atomically even when
-          // the occurrence carries an override resolution (Prompt 22 §4.1).
-          if (!conflicts.ok && hasHardBlockedConflict(conflicts.conflicts)) {
-            throw new AppointmentError(await hardBlockedError(conflicts.conflicts));
-          }
-          if (!conflicts.ok && !occ.override) {
-            // Atomic abort — Prompt 7b §4.4: any failure rolls back the
-            // entire series and surfaces the failing occurrence in the
-            // error payload.
+          if (!conflicts.ok) {
+            // No override path in the batch (FR-APP-8 replacement): ANY
+            // conflicting row aborts the whole batch atomically — nothing
+            // is half-created. The failing row + its conflicts ride in the
+            // details so the modal highlights exactly that row.
             throw new AppointmentError({
-              code: 'SERIES_OCCURRENCE_CONFLICT',
-              message_en: `Occurrence ${occ.index + 1} conflicts — resolve or override before saving.`,
-              message_ar: `الموعد رقم ${occ.index + 1} يتعارض — يرجى الحل أو التجاوز قبل الحفظ.`,
+              code: 'SERIES_ROW_CONFLICT',
+              message_en: `Row ${i + 1} conflicts — fix or remove it before saving.`,
+              message_ar: `الصف رقم ${i + 1} يتعارض — عدّله أو احذفه قبل الحفظ.`,
               details: {
-                occurrenceIndex: occ.index,
-                startsAt: occ.startsAt.toISOString(),
+                rowIndex: i,
+                startsAt: row.startsAt.toISOString(),
                 conflicts: conflicts.conflicts as unknown as Record<string, unknown>,
               },
             });
           }
-          if (occ.override) {
-            // Tightened permission check — the action-layer guard already
-            // validated the caller holds appointments.override_conflict;
-            // surfacing the conflicts in the audit payload happens via
-            // overrideCount on the outer return.
-          }
           const created = await tx.appointment.create({
             data: {
               patientId: input.patientId,
-              roomId: input.roomId ?? null,
-              startsAt: occ.startsAt,
-              durationMinutes: occ.durationMinutes,
+              roomId: row.roomId,
+              startsAt: row.startsAt,
+              durationMinutes: row.durationMinutes,
               status: AppointmentStatus.SCHEDULED,
               notes: input.notes ?? null,
               createdById: session.user!.id!,
               seriesId,
               therapists: {
-                create: [...new Set(input.therapistIds)].map((therapistId) => ({ therapistId })),
+                create: [...new Set(row.therapistIds)].map((therapistId) => ({ therapistId })),
               },
             },
-            select: { id: true, startsAt: true },
+            select: { id: true },
           });
           ids.push(created.id);
         }
-        // Booking adds every assigned therapist to the patient's care team.
-        for (const therapistId of new Set(input.therapistIds)) {
+        // Booking adds every therapist appearing in ANY row to the patient's
+        // care team (deduped across rows) — same rule as a single booking.
+        const allTherapists = new Set(input.rows.flatMap((r) => r.therapistIds));
+        for (const therapistId of allTherapists) {
           await addCareTeamMemberTx(tx, input.patientId, therapistId, session.user!.id!);
         }
         return ids;
       });
     } catch (err) {
-      // Re-throw AppointmentError untouched; wrap unexpected DB errors
-      // so the caller gets a localized message either way.
+      // Re-throw AppointmentError untouched; wrap unexpected DB errors so
+      // the caller gets a localized message either way. Either way the
+      // transaction rolled back — no partial batch survives.
       if (err instanceof AppointmentError) throw err;
       throw new AppointmentError({
         code: 'SERIES_TRANSACTION_FAILED',
-        message_en: 'Series creation failed — no appointments were saved.',
-        message_ar: 'فشل إنشاء السلسلة — لم يتم حفظ أي موعد.',
+        message_en: 'Batch creation failed — no appointments were saved.',
+        message_ar: 'فشل إنشاء المواعيد — لم يتم حفظ أي موعد.',
         details: { cause: String((err as Error)?.message ?? err) },
       });
     }
 
-    // Enqueue reminders best-effort after the transaction commits. If
-    // the reminder queue is down the appointments are still booked.
+    // Enqueue reminders best-effort after the transaction commits. If the
+    // reminder queue is down the appointments are still booked.
     const config = await getReminderConfig();
     await Promise.all(
       appointmentIds.map((id, i) =>
         enqueueAppointmentReminder({
           appointmentId: id,
-          startsAt: finalOccurrences[i]!.startsAt,
+          startsAt: input.rows[i]!.startsAt,
           config,
         }).catch((err: unknown) => {
           console.error('[series.create] reminder enqueue failed', { id, err });
         }),
       ),
     );
-    // July #4 — schedule each occurrence's zero-grace auto-complete.
+    // July #4 — schedule each row's zero-grace auto-complete.
     await Promise.all(
       appointmentIds.map((id, i) =>
         enqueueAutoCompleteSession({
           appointmentId: id,
-          startsAt: finalOccurrences[i]!.startsAt,
-          durationMinutes: finalOccurrences[i]!.durationMinutes,
+          startsAt: input.rows[i]!.startsAt,
+          durationMinutes: input.rows[i]!.durationMinutes,
         }).catch((err: unknown) => {
           console.error('[series.create] auto-complete enqueue failed', { id, err });
         }),
       ),
     );
 
-    // P53 §1-Item2.1: a recurring series sends ONE booking confirmation —
-    // for the NEAREST upcoming occurrence — through the same deferred
-    // lifecycle scheduler as any confirmation. Reminders above stay
-    // per-occurrence (P17, untouched).
+    // P53 §1-Item2.1 (unchanged by the batch rework): a series sends ONE
+    // booking confirmation — for the NEAREST upcoming row — through the same
+    // deferred lifecycle scheduler as any confirmation. Reminders above stay
+    // per-row (P17, untouched).
     const nowMs = Date.now();
     let nearestIdx = -1;
-    for (let i = 0; i < finalOccurrences.length; i += 1) {
-      const st = finalOccurrences[i]!.startsAt.getTime();
-      if (
-        st > nowMs &&
-        (nearestIdx === -1 || st < finalOccurrences[nearestIdx]!.startsAt.getTime())
-      ) {
+    for (let i = 0; i < input.rows.length; i += 1) {
+      const st = input.rows[i]!.startsAt.getTime();
+      if (st > nowMs && (nearestIdx === -1 || st < input.rows[nearestIdx]!.startsAt.getTime())) {
         nearestIdx = i;
       }
     }
@@ -1733,7 +1585,7 @@ export const createSeries = withAudit<
       const delays = await getLifecycleDelays();
       await scheduleLifecycleMessage({
         appointmentId: appointmentIds[nearestIdx]!,
-        startsAt: finalOccurrences[nearestIdx]!.startsAt,
+        startsAt: input.rows[nearestIdx]!.startsAt,
         kind: 'confirmation',
         delayMinutes: delays.confirmation,
       }).catch((err: unknown) => {
@@ -1741,7 +1593,7 @@ export const createSeries = withAudit<
       });
     }
 
-    return { seriesId, appointmentIds, skippedCount, overrideCount };
+    return { seriesId, appointmentIds };
   },
 );
 

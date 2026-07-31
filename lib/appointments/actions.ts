@@ -13,15 +13,13 @@ import {
   appointmentCreateSchema,
   appointmentRescheduleSchema,
   appointmentStatusSchema,
-  seriesCreateSchema,
-  seriesPreviewSchema,
+  seriesBatchCreateSchema,
   type AppointmentCancelInput,
   type AppointmentChangeTherapistInput,
   type AppointmentCreateInput,
   type AppointmentRescheduleInput,
   type AppointmentStatusInput,
-  type SeriesCreateInput,
-  type SeriesPreviewInput,
+  type SeriesBatchCreateInput,
 } from './schemas';
 import {
   appointmentToLocalized,
@@ -30,15 +28,14 @@ import {
   changeAppointmentTherapist,
   changeAppointmentTherapistSeries,
   createAppointment,
-  createSeries,
+  createSeriesBatch,
   getTherapistAvailabilityForTimeSlot,
   permissionForStatusChange,
-  previewSeries,
-  previewSingleOccurrence,
+  previewSeriesBatch,
   rescheduleAppointment,
   rescheduleAppointmentSeries,
   updateAppointmentStatus,
-  type SeriesPreviewOccurrence,
+  type BatchRowPreview,
   type TherapistAvailabilityRow,
 } from './services';
 
@@ -200,63 +197,38 @@ export async function cancelAppointmentAction(input: AppointmentCancelInput): Pr
   }
 }
 
-// ─── Recurring series (Prompt 7b §4.4) ────────────────────────────────────
-
-export async function previewSeriesAction(
-  input: SeriesPreviewInput,
-): Promise<Result<{ occurrences: SeriesPreviewOccurrence[] }>> {
-  await requirePermission('appointments.read');
-  const parsed = seriesPreviewSchema.safeParse(input);
-  if (!parsed.success) return fail(appointmentToLocalized(parsed.error));
-  try {
-    const data = await previewSeries(parsed.data);
-    return ok(data);
-  } catch (err) {
-    return fail(appointmentToLocalized(err));
-  }
-}
+// ─── Multi-appointment batch booking (July 31 item 4 — replaces the
+//     Prompt 7b weekly-pattern series) ────────────────────────────────────
 
 /**
- * Re-check a single shifted slot after the user picks Shift +1d / +1w.
- * Returns the updated conflict result so the UI can prompt for another
- * resolution if the new slot also conflicts.
+ * Submit-time conflict sweep for the batch modal: every row runs the
+ * conflict engine (room included) so ALL problem rows highlight at once.
+ * Pure-read; the create below re-checks transactionally (race protection).
  */
-export async function previewSeriesSlotAction(input: {
-  patientId: string;
-  therapistIds: string[];
-  startsAt: string;
-  durationMinutes: number;
-}): Promise<Result<ConflictResult>> {
+export async function previewSeriesBatchAction(
+  input: SeriesBatchCreateInput,
+): Promise<Result<{ rows: BatchRowPreview[] }>> {
   await requirePermission('appointments.read');
+  const parsed = seriesBatchCreateSchema.safeParse(input);
+  if (!parsed.success) return fail(appointmentToLocalized(parsed.error));
   try {
-    const data = await previewSingleOccurrence({
-      ...input,
-      startsAt: new Date(input.startsAt),
-    });
+    const data = await previewSeriesBatch(parsed.data);
     return ok(data);
   } catch (err) {
     return fail(appointmentToLocalized(err));
   }
 }
 
-export async function createSeriesAction(input: SeriesCreateInput): Promise<
-  Result<{
-    seriesId: string;
-    appointmentIds: string[];
-    skippedCount: number;
-    overrideCount: number;
-  }>
-> {
+export async function createSeriesBatchAction(
+  input: SeriesBatchCreateInput,
+): Promise<Result<{ seriesId: string; appointmentIds: string[] }>> {
   await requirePermission('appointments.create');
-  const parsed = seriesCreateSchema.safeParse(input);
+  const parsed = seriesBatchCreateSchema.safeParse(input);
   if (!parsed.success) return fail(appointmentToLocalized(parsed.error));
-  // Override permission gated up-front so the transactional path
-  // doesn't even start when the caller cannot legally override.
-  if (parsed.data.resolutions.some((r) => r.resolution === 'OVERRIDE')) {
-    await requirePermission('appointments.override_conflict');
-  }
+  // No override path in the batch (FR-APP-8 replacement): a conflicting row
+  // is fixed or removed, never overridden — so no override permission gate.
   try {
-    const data = await createSeries(parsed.data);
+    const data = await createSeriesBatch(parsed.data);
     revalidate();
     return ok(data);
   } catch (err) {
