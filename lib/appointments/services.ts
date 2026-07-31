@@ -1569,29 +1569,31 @@ export const createSeriesBatch = withAudit<
       ),
     );
 
-    // P53 §1-Item2.1 (unchanged by the batch rework): a series sends ONE
-    // booking confirmation — for the NEAREST upcoming row — through the same
-    // deferred lifecycle scheduler as any confirmation. Reminders above stay
-    // per-row (P17, untouched).
-    const nowMs = Date.now();
-    let nearestIdx = -1;
-    for (let i = 0; i < input.rows.length; i += 1) {
-      const st = input.rows[i]!.startsAt.getTime();
-      if (st > nowMs && (nearestIdx === -1 || st < input.rows[nearestIdx]!.startsAt.getTime())) {
-        nearestIdx = i;
+    // Amendment 46.1 — WhatsApp POLICY for a batch (owner decision, verbatim):
+    // confirm FIRST only, remind ALL. Exactly ONE booking confirmation is
+    // sent — for the EARLIEST row — through the same deferred lifecycle
+    // scheduler a single booking uses (same template/variables/queue/logging;
+    // the admin-configurable P53 coalescing delay applies identically).
+    // Every OTHER row deliberately sends NO confirmation — this is the
+    // policy, not an accident of control flow. Per-row reminders +
+    // auto-complete above are untouched. Rows are all future (past rejected
+    // up front), so "earliest" needs no now-guard; a scheduling failure must
+    // never fail or roll back the already-committed batch.
+    let earliestIdx = 0;
+    for (let i = 1; i < input.rows.length; i += 1) {
+      if (input.rows[i]!.startsAt.getTime() < input.rows[earliestIdx]!.startsAt.getTime()) {
+        earliestIdx = i;
       }
     }
-    if (nearestIdx >= 0) {
-      const delays = await getLifecycleDelays();
-      await scheduleLifecycleMessage({
-        appointmentId: appointmentIds[nearestIdx]!,
-        startsAt: input.rows[nearestIdx]!.startsAt,
-        kind: 'confirmation',
-        delayMinutes: delays.confirmation,
-      }).catch((err: unknown) => {
-        console.error('[series.create] confirmation schedule failed', err);
-      });
-    }
+    const delays = await getLifecycleDelays();
+    await scheduleLifecycleMessage({
+      appointmentId: appointmentIds[earliestIdx]!,
+      startsAt: input.rows[earliestIdx]!.startsAt,
+      kind: 'confirmation',
+      delayMinutes: delays.confirmation,
+    }).catch((err: unknown) => {
+      console.error('[series.create] confirmation schedule failed', err);
+    });
 
     return { seriesId, appointmentIds };
   },

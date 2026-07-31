@@ -196,6 +196,47 @@ describe('createSeriesBatch — conflicts abort atomically (FR-APP-8 replacement
   });
 });
 
+describe('createSeriesBatch — WhatsApp policy (Amendment 46.1: confirm first only, remind all)', () => {
+  it('rows entered OUT OF ORDER → the one confirmation targets the EARLIEST appointment', async () => {
+    // Row 0 is the LATEST date; the earliest is row 1.
+    const rows = [
+      { startsAt: future(8, 9), durationMinutes: 60, therapistIds: ['t1'], roomId: 'r1' },
+      { startsAt: future(8), durationMinutes: 60, therapistIds: ['t1'], roomId: 'r1' },
+      { startsAt: future(8, 4), durationMinutes: 60, therapistIds: ['t1'], roomId: 'r1' },
+    ];
+    const res = await createSeriesBatch({ patientId: 'p1', notes: null, rows });
+    expect(lifecycleMock).toHaveBeenCalledTimes(1);
+    expect(lifecycleMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointmentId: res.appointmentIds[1],
+        startsAt: rows[1]!.startsAt,
+        kind: 'confirmation',
+      }),
+    );
+  });
+
+  it('every row still gets ITS OWN reminder + auto-complete job (remind all)', async () => {
+    const res = await createSeriesBatch({ patientId: 'p1', notes: null, rows: threeRows() });
+    const reminderIds = (reminderMock.mock.calls as unknown as Array<[{ appointmentId: string }]>)
+      .map((c) => c[0].appointmentId)
+      .sort();
+    const autoIds = (autoCompleteMock.mock.calls as unknown as Array<[{ appointmentId: string }]>)
+      .map((c) => c[0].appointmentId)
+      .sort();
+    expect(reminderIds).toEqual([...res.appointmentIds].sort());
+    expect(autoIds).toEqual([...res.appointmentIds].sort());
+  });
+
+  it('a confirmation scheduling failure never fails the committed batch', async () => {
+    lifecycleMock.mockRejectedValueOnce(new Error('redis down'));
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const res = await createSeriesBatch({ patientId: 'p1', notes: null, rows: threeRows() });
+    expect(res.appointmentIds).toHaveLength(3);
+    expect(errSpy).toHaveBeenCalled();
+    errSpy.mockRestore();
+  });
+});
+
 describe('previewSeriesBatch — submit-time sweep', () => {
   it('returns per-row conflict results (room included) without writing anything', async () => {
     checkConflictsMock
