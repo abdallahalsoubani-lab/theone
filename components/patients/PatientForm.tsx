@@ -33,9 +33,14 @@ interface EditProps {
   initial: PatientCreateInput & { id: string };
 }
 
-type Props = CreateProps | EditProps;
+/** The viewer's patients segment (A-19: post-save redirects + cancel stay in
+ *  the viewer's own shell). Defaults to the Secretary flow. */
+type Props = (CreateProps | EditProps) & {
+  basePath?: '/secretary/patients' | '/admin/patients';
+};
 
 export function PatientForm(props: Props) {
+  const basePath = props.basePath ?? '/secretary/patients';
   const t = useTranslations('patients.form');
   const tCommon = useTranslations('common');
   const tPatients = useTranslations('patients.toasts');
@@ -86,7 +91,7 @@ export function PatientForm(props: Props) {
       successToast={isEdit ? tPatients('updated') : tPatients('created')}
       onSuccess={(data) => {
         if (isEdit) {
-          router.push(`/${locale}/secretary/patients/${(data as { patientId: string }).patientId}`);
+          router.push(`/${locale}${basePath}/${(data as { patientId: string }).patientId}`);
           return;
         }
         const d = data as {
@@ -94,10 +99,7 @@ export function PatientForm(props: Props) {
           tempPassword: string;
           whatsappStatus: 'SENT' | 'FAILED';
         };
-        const url = new URL(
-          `/${locale}/secretary/patients/${d.patientId}/created`,
-          window.location.origin,
-        );
+        const url = new URL(`/${locale}${basePath}/${d.patientId}/created`, window.location.origin);
         url.searchParams.set('p', d.tempPassword);
         url.searchParams.set('w', d.whatsappStatus);
         router.replace(url.pathname + url.search);
@@ -270,7 +272,7 @@ export function PatientForm(props: Props) {
 
             <div className="flex items-center justify-end gap-2">
               <Button asChild variant="outline" type="button">
-                <Link href="/secretary/patients">{tCommon('cancel')}</Link>
+                <Link href={basePath}>{tCommon('cancel')}</Link>
               </Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>
                 {t('submit')}

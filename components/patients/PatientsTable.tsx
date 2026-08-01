@@ -27,7 +27,7 @@ interface Props {
   pageSize: number;
   initialSearch: string;
   /** Path prefix for the role-specific patient routes. */
-  basePath: '/secretary/patients' | '/doctor/patients' | '/therapist/patients';
+  basePath: '/secretary/patients' | '/admin/patients' | '/doctor/patients' | '/therapist/patients';
   /** Secretary/Admin can add new patients; doctor/therapist cannot. */
   canCreate: boolean;
   /** Secretary/Admin can edit profile inline; clinical roles read-only. */
@@ -224,7 +224,7 @@ export function PatientsTable({
             ) : null}
             {canCreate ? (
               <DropdownMenuItem asChild>
-                <Link href={`/secretary/patients/${p.id}/intake/new`}>{t('addIntake')}</Link>
+                <Link href={`${basePath}/${p.id}/intake/new`}>{t('addIntake')}</Link>
               </DropdownMenuItem>
             ) : null}
           </DropdownMenuContent>

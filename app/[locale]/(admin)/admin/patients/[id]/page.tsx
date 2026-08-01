@@ -27,8 +27,9 @@ const TIMELINE_PAGE_SIZE = 25;
  * cross-role surface (calendar side panel, etc.) sent Admins to the
  * SECRETARY patient page, silently swapping their sidebar and navigation for
  * the Secretary interface. Same shared PatientFilePage as the other roles,
- * admin basePath, read-only flags (patient editing keeps its home in the
- * Secretary flows; Admin manages accounts under /admin/users).
+ * admin basePath. Edit/reset were deliberately read-only at A-19; the owner
+ * reversed that on Aug 1 — the Admin now adds/edits patients from their own
+ * shell (/admin/patients list + new + edit, same shared forms).
  */
 export default async function AdminPatientFilePage({
   params,
@@ -85,8 +86,8 @@ export default async function AdminPatientFilePage({
       activity={activity}
       intakes={intakes}
       basePath="/admin/patients"
-      canEdit={false}
-      canResetPassword={false}
+      canEdit
+      canResetPassword
       locale={locale === 'ar' ? 'ar' : 'en'}
       planState={planState}
       notes={notes}

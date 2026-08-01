@@ -9,6 +9,8 @@ import { Link } from '@/i18n/navigation';
 
 interface Props {
   patientId: string;
+  /** The viewer's patients segment (A-19) — CTA links stay in their shell. */
+  basePath: '/secretary/patients' | '/admin/patients';
   name: string;
   tempPassword: string | null;
   whatsappOk: boolean;
@@ -26,6 +28,7 @@ interface Props {
 
 export function PatientCreatedView({
   patientId,
+  basePath,
   tempPassword,
   whatsappOk,
   title,
@@ -92,10 +95,10 @@ export function PatientCreatedView({
 
       <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
         <Button asChild variant="outline">
-          <Link href="/secretary/patients">{ctaListLabel}</Link>
+          <Link href={basePath}>{ctaListLabel}</Link>
         </Button>
         <Button asChild>
-          <Link href={`/secretary/patients/${patientId}/intake/new`}>{ctaIntakeLabel}</Link>
+          <Link href={`${basePath}/${patientId}/intake/new`}>{ctaIntakeLabel}</Link>
         </Button>
       </div>
     </section>

@@ -5,6 +5,7 @@ import {
   CalendarOff,
   ClipboardList,
   DoorOpen,
+  HeartPulse,
   MessageSquare,
   ScrollText,
   Settings,
@@ -38,6 +39,9 @@ export default async function AdminLayout({
   const links: NavLink[] = [
     { label: t('calendar'), href: '/admin/calendar', icon: <CalendarDays className="size-4" /> },
     { label: t('users'), href: '/admin/users', icon: <Users className="size-4" /> },
+    // Aug 1 (owner request): patient add/edit from the admin shell — the
+    // permissions existed since Prompt 6; only the surface was missing.
+    { label: t('patients'), href: '/admin/patients', icon: <HeartPulse className="size-4" /> },
     // Prompt 55 §1 — the leaves board existed but was reachable only via
     // notification deep-links; it now has a proper sidebar entry.
     { label: t('leaves'), href: '/admin/leaves', icon: <CalendarOff className="size-4" /> },

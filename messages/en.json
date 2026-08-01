@@ -931,6 +931,7 @@
     "empty": "No navigation items configured for your role.",
     "admin": {
       "users": "Users",
+      "patients": "Patients",
       "specialties": "Specialties",
       "rooms": "Rooms",
       "customQuestions": "Intake questions",

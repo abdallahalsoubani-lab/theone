@@ -18,6 +18,8 @@ import type { PatientFileData } from '@/lib/patients/queries';
 interface Props {
   patient: PatientFileData;
   customQuestions: CustomQuestionRow[];
+  /** Viewer's patients segment (A-19) — links/redirects stay in-shell. */
+  basePath?: '/secretary/patients' | '/admin/patients';
 }
 
 /**
@@ -25,7 +27,11 @@ interface Props {
  * crosscheck; the question fields are rendered by the shared
  * <PediatricIntakeFields/> (also used by the public form, Prompt 23).
  */
-export function PediatricIntakeForm({ patient, customQuestions }: Props) {
+export function PediatricIntakeForm({
+  patient,
+  customQuestions,
+  basePath = '/secretary/patients',
+}: Props) {
   const tIntake = useTranslations('intake');
   const tCommon = useTranslations('common');
   const tPatients = useTranslations('patients.form');
@@ -51,7 +57,7 @@ export function PediatricIntakeForm({ patient, customQuestions }: Props) {
       }
       successToast={tIntake('completedToast')}
       onSuccess={() => {
-        router.push(`/${locale}/secretary/patients/${patient.id}`);
+        router.push(`/${locale}${basePath}/${patient.id}`);
       }}
     >
       {(form) => (
@@ -64,9 +70,7 @@ export function PediatricIntakeForm({ patient, customQuestions }: Props) {
                   {tIntake('profileCrosscheck')}
                 </h2>
                 <Button asChild variant="outline" size="sm">
-                  <Link href={`/secretary/patients/${patient.id}/edit`}>
-                    {tPatients('editTitle')}
-                  </Link>
+                  <Link href={`${basePath}/${patient.id}/edit`}>{tPatients('editTitle')}</Link>
                 </Button>
               </div>
               <p className="text-xs text-brand-textMuted">{tIntake('profileCrosscheckHelp')}</p>
@@ -90,7 +94,7 @@ export function PediatricIntakeForm({ patient, customQuestions }: Props) {
 
           <div className="sticky bottom-2 flex items-center justify-end gap-2 rounded-md border border-brand-border bg-brand-surface/95 p-3 backdrop-blur">
             <Button asChild variant="outline" type="button">
-              <Link href={`/secretary/patients/${patient.id}`}>{tCommon('cancel')}</Link>
+              <Link href={`${basePath}/${patient.id}`}>{tCommon('cancel')}</Link>
             </Button>
             <Button type="submit" disabled={form.formState.isSubmitting}>
               {tCommon('save')}

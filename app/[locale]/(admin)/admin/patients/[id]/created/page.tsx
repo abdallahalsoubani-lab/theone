@@ -1,19 +1,16 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
+import { PatientCreatedView } from '@/components/patients/PatientCreatedView';
 import { getPatientById } from '@/lib/patients/queries';
 import { requirePermission } from '@/lib/rbac/guards';
 
-import { PatientCreatedView } from '@/components/patients/PatientCreatedView';
-
 /**
- * Single-use success screen after createPatientAction.
- *
- * The temp password is passed via query string so it can be copied once and
- * never persisted in storage. After a refresh, the param is gone and the
- * password slot reads "shown once — already copied".
+ * Single-use success screen after createPatientAction — admin shell (Aug 1).
+ * The temp password rides the query string so it can be copied once and
+ * never persisted; a refresh loses it by design.
  */
-export default async function PatientCreatedPage({
+export default async function AdminPatientCreatedPage({
   params,
   searchParams,
 }: {
@@ -30,7 +27,7 @@ export default async function PatientCreatedPage({
   return (
     <PatientCreatedView
       patientId={id}
-      basePath="/secretary/patients"
+      basePath="/admin/patients"
       name={locale === 'ar' ? patient.fullNameAr : patient.fullNameEn}
       tempPassword={tempPassword ?? null}
       whatsappOk={whatsappStatus !== 'FAILED'}
