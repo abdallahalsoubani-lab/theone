@@ -617,7 +617,10 @@ describe('doctor edit notifies the therapist (NI-6, Prompt 43)', () => {
     sessionRef.current = doctor;
     await onHomeProgramEdited('p1');
 
-    expect(__state.approvals.get('p1')?.status).toBe('APPROVED');
+    // PT-B2 item 3: editing while reviewing is part of the review, not the
+    // decision — the program stays in the queue until the doctor approves or
+    // returns it explicitly. The NI-6 notification still fires unchanged.
+    expect(__state.approvals.get('p1')?.status).toBe('PENDING_APPROVAL');
     expect(vi.mocked(createNotification)).toHaveBeenCalledTimes(1);
     expect(vi.mocked(createNotification)).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -713,5 +716,84 @@ describe('approvals queue scope + sidebar count (NI-7, Prompt 43)', () => {
     const rows = await listPendingApprovals(null);
     expect(rows.map((r) => r.patientId)).toEqual(['p1']);
     expect(await countPendingApprovals(null)).toBe(1);
+  });
+});
+
+describe('unsent changes after submitting (PT-B2 item 2)', () => {
+  it('a therapist edit while PENDING reopens a DRAFT so the program can be re-sent', async () => {
+    // The reported dead end: submit, then keep adding exercises. The status
+    // stayed PENDING, which hides the submit button — changed content with no
+    // way to send it, and the doctor would have approved whatever was live.
+    seedItem('p1', 'first-item');
+    sessionRef.current = therapist;
+    await submitHomeProgram('p1');
+    expect(canSubmitHomeProgram('PENDING_APPROVAL')).toBe(false);
+
+    seedItem('p1', 'added-after-submit');
+    await onHomeProgramEdited('p1');
+
+    const state = await getApprovalState('p1');
+    expect(state.status).toBe('DRAFT');
+    expect(state.submittedAt).toBeNull();
+    // The submit button comes back, and re-submitting is accepted.
+    expect(canSubmitHomeProgram(state.status)).toBe(true);
+    await expect(submitHomeProgram('p1')).resolves.toMatchObject({
+      status: 'PENDING_APPROVAL',
+    });
+  });
+
+  it('reopening a never-approved program does not freeze the draft as approved content', async () => {
+    // The snapshot backfill guard exists for rows APPROVED by migration with a
+    // NULL snapshot. It must not fire here — freezing an unapproved draft
+    // would publish it to the patient as if a doctor had signed it off.
+    seedItem('p1', 'never-approved');
+    sessionRef.current = therapist;
+    await submitHomeProgram('p1');
+    await onHomeProgramEdited('p1');
+
+    expect((await getApprovalState('p1')).status).toBe('DRAFT');
+    // Nothing was frozen, so the patient still has no program at all.
+    expect(__state.approvals.get('p1')?.approvedSnapshot).toBeUndefined();
+    expect(await getVisibleHomeProgram('p1')).toEqual([]);
+  });
+
+  it('re-submitting clears the doctor’s previous changes note', async () => {
+    seedItem('p1', 'item-1');
+    sessionRef.current = therapist;
+    await submitHomeProgram('p1');
+    sessionRef.current = doctor;
+    await requestHomeProgramChanges('p1', 'Please lower the reps.');
+    expect(await getApprovalState('p1')).toMatchObject({
+      status: 'CHANGES_REQUESTED',
+      changesComment: 'Please lower the reps.',
+    });
+
+    sessionRef.current = therapist;
+    await submitHomeProgram('p1');
+    expect(await getApprovalState('p1')).toMatchObject({
+      status: 'PENDING_APPROVAL',
+      changesComment: null,
+    });
+  });
+
+  it('the full round trip: draft → submit → returned → edit → submit → approved', async () => {
+    seedItem('p1', 'item-1');
+    sessionRef.current = therapist;
+    await submitHomeProgram('p1');
+    sessionRef.current = doctor;
+    await requestHomeProgramChanges('p1', 'Swap the second exercise.');
+
+    sessionRef.current = therapist;
+    seedItem('p1', 'item-2');
+    await onHomeProgramEdited('p1');
+    // CHANGES_REQUESTED survives an edit — the doctor's note stays readable.
+    expect((await getApprovalState('p1')).status).toBe('CHANGES_REQUESTED');
+    await submitHomeProgram('p1');
+
+    sessionRef.current = doctor;
+    await approveHomeProgram('p1');
+
+    expect((await getApprovalState('p1')).status).toBe('APPROVED');
+    expect((await getVisibleHomeProgram('p1')).map((i) => i.id)).toEqual(['item-1', 'item-2']);
   });
 });

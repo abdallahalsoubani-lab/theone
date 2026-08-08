@@ -55,6 +55,7 @@ export default async function DoctorHomeProgramEditPage({
         status={approval.status}
         remindersEnabled={approval.remindersEnabled}
         changesComment={approval.changesComment}
+        itemCount={items.length}
         canSubmit={false}
         hasApprovedSnapshot={approval.hasApprovedSnapshot}
         submittedAt={approval.submittedAt}

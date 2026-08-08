@@ -185,6 +185,9 @@ export const submitHomeProgram = withAudit<
         status: HomeProgramStatus.PENDING_APPROVAL,
         submittedById: actorId,
         submittedAt: new Date(),
+        // The doctor's previous note belongs to the revision that was just
+        // reworked; carrying it forward would re-show it on the next return.
+        changesComment: null,
       },
       create: {
         patientId,
@@ -222,10 +225,14 @@ export const reopenHomeProgramDraft = withAudit<
   async function reopenInner(patientId): Promise<{ patientId: string; status: HomeProgramStatus }> {
     const row = await db.homeProgramApproval.findUnique({
       where: { patientId },
-      select: { approvedSnapshot: true },
+      select: { approvedSnapshot: true, status: true },
     });
+    // Freeze the current items ONLY when leaving APPROVED with no snapshot yet
+    // (rows created by the 20260612100000 backfill). Reopening a program that
+    // was never approved must not freeze anything — that would publish an
+    // unapproved draft to the patient as if a doctor had signed it off.
     const snapshotPatch =
-      row && row.approvedSnapshot === null
+      row && row.status === HomeProgramStatus.APPROVED && row.approvedSnapshot === null
         ? { approvedSnapshot: await buildSnapshot(patientId) }
         : {};
     await db.homeProgramApproval.upsert({
@@ -386,11 +393,22 @@ export const setHomeProgramReminders = withAudit<
 
 /**
  * Called after any clinical edit to a patient's program items. Drives the
- * auto-transitions: doctor/admin → auto-approve; therapist editing an APPROVED
- * program → back to DRAFT (reopened revision, preserving the approved
- * snapshot — the therapist submits explicitly, QA 7.8). A therapist editing a
- * DRAFT/PENDING/CHANGES program just keeps building (status unchanged); a
- * DRAFT row is ensured so the builder shows a status.
+ * auto-transitions.
+ *
+ * Therapist edits mean "there are unsubmitted changes", so anything already
+ * settled reopens as a DRAFT:
+ *   - APPROVED → DRAFT (reopened revision, approved snapshot preserved — the
+ *     therapist submits explicitly, QA 7.8).
+ *   - PENDING_APPROVAL → DRAFT (PT-B2 item 2). Previously the status was left
+ *     untouched, which produced the reported dead end: the submit button is
+ *     hidden while PENDING, so a therapist who added more exercises after
+ *     submitting had changed content and no way to send it — and the doctor
+ *     would have approved whatever happened to be live at approve time, not
+ *     what was submitted.
+ *   - DRAFT / CHANGES_REQUESTED → unchanged (still building; submit is shown).
+ *
+ * Doctor/admin edits auto-approve (the doctor IS the approver) EXCEPT while a
+ * therapist's submission is under review — see below.
  */
 export async function onHomeProgramEdited(patientId: string): Promise<void> {
   const session = await auth();
@@ -400,11 +418,18 @@ export async function onHomeProgramEdited(patientId: string): Promise<void> {
     // being explicit here decouples the two).
     const before = await db.homeProgramApproval.findUnique({
       where: { patientId },
-      select: { submittedById: true },
+      select: { submittedById: true, status: true },
     });
-    // The generic "approved" notification would mislabel an edit (and repeat
-    // per item change) — suppressed in favour of the accurate one (NI-6).
-    await approveHomeProgram(patientId, { notifySubmitter: false });
+    // While a submission is under review, a doctor edit is part of reviewing
+    // it — not a decision (PT-B2 item 3). Auto-approving here is what made the
+    // outcome invisible: tweak a field and the program silently left the
+    // queue. The program stays PENDING and the reviewer approves or returns it
+    // explicitly from the review page.
+    if (before?.status !== HomeProgramStatus.PENDING_APPROVAL) {
+      // The generic "approved" notification would mislabel an edit (and repeat
+      // per item change) — suppressed in favour of the accurate one (NI-6).
+      await approveHomeProgram(patientId, { notifySubmitter: false });
+    }
     await notifyTherapistsOfDoctorEdit(
       patientId,
       session?.user?.id ?? null,
@@ -414,7 +439,10 @@ export async function onHomeProgramEdited(patientId: string): Promise<void> {
   }
   if (role === 'THERAPIST') {
     const state = await getApprovalState(patientId);
-    if (state.status === HomeProgramStatus.APPROVED) {
+    if (
+      state.status === HomeProgramStatus.APPROVED ||
+      state.status === HomeProgramStatus.PENDING_APPROVAL
+    ) {
       await reopenHomeProgramDraft(patientId);
     } else {
       await db.homeProgramApproval.upsert({

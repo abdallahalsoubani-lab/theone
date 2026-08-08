@@ -1433,6 +1433,8 @@
         "statusApproved": "Approved",
         "statusChanges": "Changes requested",
         "submit": "Submit for approval",
+        "submitHint": "The patient does not follow this program until the doctor approves it.",
+        "submitNeedsItems": "Add at least one exercise before submitting for approval.",
         "submittedToast": "Submitted for approval",
         "changesRequestedTitle": "Changes requested by the doctor",
         "remindersLabel": "Send exercise reminders to the patient via WhatsApp",

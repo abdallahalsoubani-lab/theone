@@ -37,6 +37,7 @@ export function HomeProgramApprovalPanel({
   remindersEnabled,
   changesComment,
   canSubmit,
+  itemCount = 0,
   hasApprovedSnapshot = false,
   submittedAt = null,
 }: {
@@ -46,6 +47,10 @@ export function HomeProgramApprovalPanel({
   changesComment: string | null;
   /** True for the THERAPIST view (shows the Submit button). */
   canSubmit: boolean;
+  /** Exercises in the working draft. An empty program has nothing to send, so
+   *  the button stays visible but disabled with a hint (PT-B2 item 2) — an
+   *  absent button is what the QA round read as a missing feature. */
+  itemCount?: number;
   /** True when a frozen approved snapshot exists — a DRAFT then means the
    *  patient still sees the last approved version (QA 7.8 hint). */
   hasApprovedSnapshot?: boolean;
@@ -63,12 +68,13 @@ export function HomeProgramApprovalPanel({
   const badge = STATUS_BADGE[status];
   // One rule shared with the server-side submit guard (P-2, Prompt 43).
   const submittable = canSubmit && canSubmitHomeProgram(status);
+  const nothingToSend = submittable && itemCount === 0;
 
   function handleSubmit() {
     startTransition(async () => {
       const r = await submitHomeProgramAction(patientId);
       if (!r.ok) {
-        toast.error(r.error.message_en);
+        toast.error(intlLocale === 'ar' ? r.error.message_ar : r.error.message_en);
         return;
       }
       toast.success(t('submittedToast'));
@@ -82,7 +88,7 @@ export function HomeProgramApprovalPanel({
       const r = await setHomeProgramRemindersAction(patientId, next);
       if (!r.ok) {
         setReminders(!next);
-        toast.error(r.error.message_en);
+        toast.error(intlLocale === 'ar' ? r.error.message_ar : r.error.message_en);
       }
     });
   }
@@ -96,11 +102,19 @@ export function HomeProgramApprovalPanel({
             <Badge variant={badge.variant}>{t(badge.key)}</Badge>
           </div>
           {submittable ? (
-            <Button size="sm" disabled={pending} onClick={handleSubmit}>
+            <Button size="sm" disabled={pending || nothingToSend} onClick={handleSubmit}>
               {t('submit')}
             </Button>
           ) : null}
         </div>
+
+        {/* The whole point of the gate: until this is sent and approved, the
+            program is not the patient's. Say so next to the button. */}
+        {submittable ? (
+          <p className="text-sm text-brand-textMuted">
+            {nothingToSend ? t('submitNeedsItems') : t('submitHint')}
+          </p>
+        ) : null}
 
         {/* P-2 (Prompt 43): PENDING means "already sent — the doctor has it".
             Without this line the missing submit button read as a bug. */}

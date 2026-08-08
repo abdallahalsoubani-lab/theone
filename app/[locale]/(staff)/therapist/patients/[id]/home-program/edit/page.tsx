@@ -49,6 +49,7 @@ export default async function TherapistHomeProgramEditPage({
         status={approval.status}
         remindersEnabled={approval.remindersEnabled}
         changesComment={approval.changesComment}
+        itemCount={items.length}
         canSubmit
         hasApprovedSnapshot={approval.hasApprovedSnapshot}
         submittedAt={approval.submittedAt}
