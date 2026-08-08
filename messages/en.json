@@ -980,6 +980,7 @@
     "genderFemale": "Female",
     "emailOptional": "Email (optional)",
     "address": "Address",
+    "addressOptional": "Address (optional)",
     "thankYouTitle": "Thank you!",
     "thankYouBody": "Your intake has been received. The clinic will review it and contact you to confirm your registration.",
     "submitAnother": "Submit another",

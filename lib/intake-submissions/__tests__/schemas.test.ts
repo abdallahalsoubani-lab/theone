@@ -73,3 +73,47 @@ describe('publicProfileSchema — preferred language (QA 5.3)', () => {
     );
   });
 });
+
+describe('publicProfileSchema — optional address (PT-B4 item 2)', () => {
+  /**
+   * A patient filling this on a phone should not be blocked by an address the
+   * clinic can just as easily take at the desk. Mirrors the same relaxation
+   * already made for the staff patient form (patientCreateSchema).
+   */
+  it('accepts a submission with the address omitted entirely', () => {
+    const { address: _omitted, ...withoutAddress } = validProfile;
+    const parsed = publicProfileSchema.parse(withoutAddress);
+    expect(parsed.address).toBe('');
+  });
+
+  it('accepts an empty address', () => {
+    expect(publicProfileSchema.parse({ ...validProfile, address: '' }).address).toBe('');
+  });
+
+  it('accepts a short address that the old min(5) rule rejected', () => {
+    expect(publicProfileSchema.parse({ ...validProfile, address: 'خلدا' }).address).toBe('خلدا');
+  });
+
+  it('still keeps and trims a real address', () => {
+    expect(publicProfileSchema.parse({ ...validProfile, address: '  Amman  ' }).address).toBe(
+      'Amman',
+    );
+  });
+
+  it('still rejects an address beyond the column bound', () => {
+    expect(
+      publicProfileSchema.safeParse({ ...validProfile, address: 'x'.repeat(501) }).success,
+    ).toBe(false);
+  });
+
+  it('leaving the address out does not relax any other required field', () => {
+    const { address: _a, ...withoutAddress } = validProfile;
+    expect(publicProfileSchema.safeParse({ ...withoutAddress, fullNameAr: '' }).success).toBe(
+      false,
+    );
+    expect(publicProfileSchema.safeParse({ ...withoutAddress, phone: '' }).success).toBe(false);
+    expect(publicProfileSchema.safeParse({ ...withoutAddress, dateOfBirth: '' }).success).toBe(
+      false,
+    );
+  });
+});

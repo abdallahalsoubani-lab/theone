@@ -28,9 +28,9 @@ const LANGUAGE_OPTIONS = [
 /**
  * Identifying-fields section of the public intake form (Prompt 23). These
  * drive patient creation on approval (each name → its own name column, phone
- * for duplicate detection, DOB/gender/address required by the patient-create
- * service). Two name fields per QA 13/7 item 5.2 — the Arabic name is
- * required, the English one optional (approval falls back to the AR name).
+ * for duplicate detection, DOB/gender). Two name fields per QA 13/7 item 5.2 —
+ * the Arabic name is required, the English one optional (approval falls back
+ * to the AR name). Address is optional too (PT-B4 item 2).
  * The preferred-language radio (QA 5.3) is the patient's explicit choice for
  * WhatsApp + portal language; the host form defaults it to the form locale.
  */
@@ -129,7 +129,9 @@ export function PublicProfileFields({ form, namePrefix = 'profile.' }: Props) {
             </FormItem>
           )}
         />
-        <TextareaField form={form} name={n('address')} label={t('address')} rows={2} />
+        {/* Optional (PT-B4 item 2) — labelled the same way as the email field,
+            which is the project's only marker for a non-required input. */}
+        <TextareaField form={form} name={n('address')} label={t('addressOptional')} rows={2} />
       </CardContent>
     </Card>
   );

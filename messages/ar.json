@@ -552,6 +552,7 @@
     "genderFemale": "أنثى",
     "emailOptional": "البريد الإلكتروني (اختياري)",
     "address": "العنوان",
+    "addressOptional": "العنوان (اختياري)",
     "thankYouTitle": "شكراً لك!",
     "thankYouBody": "تم استلام استمارتك. سيقوم المركز بمراجعتها والتواصل معك لتأكيد التسجيل.",
     "submitAnother": "إرسال استمارة أخرى",

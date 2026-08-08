@@ -33,7 +33,11 @@ export const publicProfileSchema = z.object({
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'required'),
   gender: z.nativeEnum(Gender),
   languagePref: z.nativeEnum(LanguagePref).optional(),
-  address: z.string().trim().min(5).max(500),
+  // Optional (PT-B4 item 2), matching patientCreateSchema — a patient filling
+  // this on a phone should not be stopped by an address the clinic can take
+  // at the desk. Stored as null when omitted (PatientProfile.address is
+  // nullable) and every display site already falls back to a dash.
+  address: z.string().trim().max(500).optional().default(''),
   email: z.string().email().max(255).optional().or(z.literal('')),
 });
 export type PublicProfileInput = z.infer<typeof publicProfileSchema>;

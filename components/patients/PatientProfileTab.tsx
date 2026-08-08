@@ -150,7 +150,9 @@ function Field({
     <div className={`space-y-1 ${className ?? ''}`}>
       <p className="text-xs font-medium uppercase tracking-wider text-brand-textMuted">{label}</p>
       <p className={`text-sm text-brand-text ${multiline ? 'whitespace-pre-wrap' : ''}`}>
-        {value ?? '—'}
+        {/* Empty string as well as null — an omitted optional field (address,
+            PT-B4 item 2) must read as a dash, never as a blank row. */}
+        {value?.trim() ? value : '—'}
       </p>
     </div>
   );

@@ -137,7 +137,8 @@ function ReadField({ label, value }: { label: string; value: string | null }) {
   return (
     <div>
       <p className="text-xs font-medium uppercase tracking-wider text-brand-textMuted">{label}</p>
-      <p className="text-sm text-brand-text">{value ?? '—'}</p>
+      {/* Empty string as well as null — see PatientProfileTab (PT-B4 item 2). */}
+      <p className="text-sm text-brand-text">{value?.trim() ? value : '—'}</p>
     </div>
   );
 }
