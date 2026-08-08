@@ -392,11 +392,11 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
       </div>
     );
   }
-  // Prompt 55 §2 (clinic request): the card is patient name + booking note
-  // ONLY. The grid rows carry the time; the resource column carries the
-  // therapist. Full details stay in the click-open side panel — and, since
-  // Prompt 56, in the hover tooltip wrapping this card.
-  const { note } = eventCardContent(event);
+  // PT-B3 item 3 (owner request, reversing Prompt 55 §2's name-only card):
+  // the chip leads with the start time, then the patient name. The therapist
+  // is still the resource column; full details stay in the click-open side
+  // panel and the hover tooltip wrapping this card.
+  const { time, primary, note } = eventCardContent(event);
   const tint = therapistTint(event.resourceId);
   // Overdue while IN_PROGRESS past scheduled end (Prompt 22 §4.4). No
   // auto-transition — computed at render time (fresh on navigation/refresh);
@@ -419,7 +419,20 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
             className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
             style={{ backgroundColor: tint.swatch }}
           />
-          <span className="truncate text-[13px] font-semibold leading-tight">{event.title}</span>
+          {/* Time first, then the name, on ONE line: a 30-minute chip has
+              room for a single row, so they share it and the name — the part
+              that varies in length — is what truncates. `dir="ltr"` keeps the
+              clock reading left-to-right next to an Arabic name; tabular
+              figures keep the times aligned down a column. */}
+          {time ? (
+            <span
+              dir="ltr"
+              className="shrink-0 text-[12px] font-semibold tabular-nums leading-tight opacity-90"
+            >
+              {time}
+            </span>
+          ) : null}
+          <span className="truncate text-[13px] font-semibold leading-tight">{primary}</span>
           {event.appointment.appointmentType === 'STRETCHING' ? (
             <span className="shrink-0 rounded-full bg-brand-teal/15 px-1.5 py-px text-[9px] font-semibold uppercase text-brand-teal ring-1 ring-inset ring-brand-teal/25">
               {tForm('typeStretchingShort')}

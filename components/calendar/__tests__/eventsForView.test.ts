@@ -167,8 +167,8 @@ describe('clinic-wall grid mapping (Prompt 31 — P-8)', () => {
   });
 });
 
-describe('name-first cards (Prompt 55 §2 — clinic request, reverses P38 NI-10)', () => {
-  it('no view ever prefixes the start time to the chip title — the grid rows carry the hour', () => {
+describe('time-then-name cards (PT-B3 item 3 — owner request, reverses Prompt 55 §2)', () => {
+  it('the TITLE stays the name alone — the card composes the time beside it', () => {
     const event: CalendarAppointment = {
       ...base,
       appointmentType: 'EVENT',
@@ -194,7 +194,7 @@ describe('name-first cards (Prompt 55 §2 — clinic request, reverses P38 NI-10
     expect(eventsForView([session], 'week', 'ar')[0]!.title).toBe('جون دو');
   });
 
-  it('eventCardContent: patient name + booking note only — no time string, no therapist name', () => {
+  it('eventCardContent: start time, patient name, booking note — and no therapist name', () => {
     const withNote: CalendarAppointment = {
       ...base,
       notes: '  Re-assessment  ',
@@ -202,10 +202,27 @@ describe('name-first cards (Prompt 55 §2 — clinic request, reverses P38 NI-10
     };
     const [chip] = eventsForView([withNote], 'day', 'en');
     const card = eventCardContent(chip!);
+    // 09:00Z is 12:00 in Amman — the chip shows the CLINIC clock, not the
+    // machine's, and the name never carries the time itself.
+    expect(card.time).toBe('12:00');
     expect(card.primary).toBe('John Doe');
     expect(card.note).toBe('Re-assessment');
     expect(card.primary).not.toMatch(/\d{2}:\d{2}/);
     expect(JSON.stringify([card.primary, card.note])).not.toContain('Ahmad');
+  });
+
+  it('eventCardContent: the time is the clinic wall clock in every locale and view', () => {
+    const evening: CalendarAppointment = {
+      ...base,
+      startsAt: new Date('2026-06-01T16:45:00Z'), // 19:45 Amman
+      therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
+    };
+    for (const view of ['day', 'week', 'month', 'agenda'] as const) {
+      for (const locale of ['en', 'ar'] as const) {
+        const card = eventCardContent(eventsForView([evening], view, locale)[0]!);
+        expect(card.time).toBe('19:45');
+      }
+    }
   });
 
   it('eventCardContent: empty / whitespace / absent note → single line (note null)', () => {
@@ -217,7 +234,11 @@ describe('name-first cards (Prompt 55 §2 — clinic request, reverses P38 NI-10
     const blankNote: CalendarAppointment = { ...noNote, notes: '   ' };
     expect(eventCardContent(eventsForView([noNote], 'day', 'en')[0]!).note).toBeNull();
     expect(eventCardContent(eventsForView([blankNote], 'day', 'en')[0]!).note).toBeNull();
-    // Leave overlays (no appointment payload) stay title-only.
-    expect(eventCardContent({ title: 'في إجازة' })).toEqual({ primary: 'في إجازة', note: null });
+    // Leave overlays (no appointment payload) stay title-only — no time.
+    expect(eventCardContent({ title: 'في إجازة' })).toEqual({
+      time: null,
+      primary: 'في إجازة',
+      note: null,
+    });
   });
 });

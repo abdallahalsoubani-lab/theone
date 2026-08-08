@@ -266,15 +266,16 @@
   opacity: 1; /* rbc's base .rbc-background-event dims to .75 — keep ours flat */
 }
 
-/* Prompt 55 §2 — the card is name + note only; rbc's built-in time label
- * above the custom card content would reintroduce the hour the clinic asked
- * to drop ("بتقرأها من السطور"). The grid rows carry the time. */
+/* rbc's built-in label prints its own time range on a line of its own above
+ * the custom card. The card renders the start time itself, inline before the
+ * name (PT-B3 item 3), so this stays hidden — otherwise a 30-minute chip
+ * spends its only line on a duplicate. */
 .rbc-day-slot .rbc-event-label {
   display: none;
 }
 
 /* Short bookings (≤15 min, class added by eventPropGetter): tighter padding
- * + line-height so the single name line stays visible at slot height
+ * + line-height so the single time+name line stays visible at slot height
  * instead of clipping into the event padding. */
 .rbc-event.rbc-event-compact {
   padding: 0.1rem 0.45rem;
