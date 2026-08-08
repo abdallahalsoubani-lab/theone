@@ -134,9 +134,10 @@ export function AppointmentSidePanel({
     appointment.startsAt,
     sessionStartGraceMinutes,
   );
-  // July change request #4 — sessions auto-complete at their scheduled end
-  // (worker-driven, zero grace), so there is no manual "End session" here and
-  // no "Overdue" badge (a session no longer sits un-ended past its time).
+  // PT-B3 item 1 — sessions are closed by a human again (auto-complete is
+  // disabled), so the calendar needs its own way to end one; otherwise a
+  // session started here could only be closed at the arrivals desk.
+  const canComplete = status === AppointmentStatus.IN_PROGRESS;
   const canCancel =
     status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED;
   const canNoShow =
@@ -220,8 +221,17 @@ export function AppointmentSidePanel({
               {tActions('checkIn')}
             </Button>
           ) : null}
-          {/* July change request #4 — the manual "End session" button was
-              removed here; sessions auto-complete at their scheduled end. */}
+          {canComplete ? (
+            <Button
+              type="button"
+              className="w-full justify-start"
+              disabled={pending}
+              onClick={() => handleStatus(AppointmentStatus.COMPLETED, 'markedCompleted')}
+            >
+              <Check className="me-2 size-4" />
+              {tActions('endSession')}
+            </Button>
+          ) : null}
           {canNoShow ? (
             <Button
               type="button"

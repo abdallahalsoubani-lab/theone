@@ -116,3 +116,33 @@ describe('isStartInPast — booking past-time guard (Fix 6C item 1)', () => {
     expect(isStartInPast(new Date('2026-06-01T08:00:00Z'), now)).toBe(true);
   });
 });
+
+describe('overdue badge boundaries — clinic sessions run long (PT-B3 item 1)', () => {
+  // A 13:00–13:30 booking. The clinic's rule: never close it automatically,
+  // just show how far past its slot it has run, so the desk can act.
+  const start = new Date('2026-06-01T13:00:00Z');
+  const duration = 30;
+
+  it('shows nothing before the scheduled end', () => {
+    expect(minutesOverdue(new Date('2026-06-01T13:29:59Z'), start, duration)).toBe(0);
+  });
+
+  it('shows nothing exactly ON the scheduled end (the slot is not over-run yet)', () => {
+    expect(minutesOverdue(new Date('2026-06-01T13:30:00Z'), start, duration)).toBe(0);
+  });
+
+  it('shows the elapsed over-run once past the end', () => {
+    expect(minutesOverdue(new Date('2026-06-01T13:55:00Z'), start, duration)).toBe(25);
+  });
+
+  it('keeps counting for a long over-run instead of capping or resetting', () => {
+    expect(minutesOverdue(new Date('2026-06-01T15:00:00Z'), start, duration)).toBe(90);
+  });
+
+  it('is unaffected by the machine timezone — the same instants either way', () => {
+    // 16:30 Amman is 13:30Z: the exact end, so still not overdue.
+    expect(minutesOverdue(new Date('2026-06-01T13:30:00Z'), start, duration)).toBe(0);
+    // 16:45 Amman is 13:45Z → 15 minutes over.
+    expect(minutesOverdue(new Date('2026-06-01T13:45:00Z'), start, duration)).toBe(15);
+  });
+});

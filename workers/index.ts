@@ -27,7 +27,6 @@
  * by another worker that early-returned without doing the real work.
  */
 
-import { startAutoCompleteWorker } from './autoCompleteSession';
 import {
   ensureComplianceDailyCheckScheduled,
   startComplianceDailyCheckWorker,
@@ -51,17 +50,20 @@ void ensureComplianceDailyCheckScheduled().catch((err: unknown) => {
 });
 const whatsappWorker = startWhatsappOutboundWorker();
 console.warn(`[workers] whatsapp outbound worker listening on queue=${whatsappWorker.name}`);
-// July change request #4 — sessions auto-complete at their scheduled end
-// (zero grace). This reverses the Prompt-22 §4.4 "manual End Session only"
-// decision (clinic-approved). Per-appointment delayed jobs are enqueued on
-// create/reschedule and consumed here.
-const autoCompleteWorker = startAutoCompleteWorker();
-console.warn(
-  `[workers] session auto-complete worker listening on queue=${autoCompleteWorker.name}`,
-);
+// Session auto-complete is DISABLED (PT-B3 item 1, owner ruling): a session
+// may legitimately run past its slot, and closing it automatically records a
+// clinical event that never happened. Completion is a human action again —
+// the desk closes the session from the arrivals board or the calendar side
+// panel, and an over-running session is flagged with the "Overdue +Nm" badge
+// instead of being silently ended.
+//
+// The worker is not started, so any delayed job still sitting in Redis from a
+// previous deployment simply never fires; nothing new is enqueued either (see
+// lib/appointments/services.ts). The queue + job modules are kept intact so
+// this is one commit to reverse if the clinic changes its mind.
+//
 // Drop the legacy 15-min repeatable sweep if an older deployment ever
-// registered it in this Redis (the new model is per-appointment delayed jobs,
-// not a recurring cron).
+// registered it in this Redis.
 void sessionMaintenanceQueue
   .removeRepeatable('sessionAutoComplete', { pattern: '*/15 * * * *', tz: 'Asia/Amman' })
   .then((removed) => {
@@ -77,7 +79,6 @@ async function shutdown(signal: string) {
     homeReminderWorker.close(),
     complianceWorker.close(),
     whatsappWorker.close(),
-    autoCompleteWorker.close(),
   ]);
   console.warn('[workers] all workers closed; exiting');
   process.exit(0);

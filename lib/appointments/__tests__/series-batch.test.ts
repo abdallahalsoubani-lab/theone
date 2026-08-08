@@ -140,9 +140,10 @@ describe('createSeriesBatch — happy path', () => {
     );
     expect(new Set(careTherapists)).toEqual(new Set(['t1', 't2', 't3']));
 
-    // Reminder + auto-complete per appointment; ONE P53 confirmation.
+    // Reminder per appointment; ONE P53 confirmation. No auto-complete job —
+    // sessions are closed by a human (PT-B3 item 1).
     expect(reminderMock).toHaveBeenCalledTimes(3);
-    expect(autoCompleteMock).toHaveBeenCalledTimes(3);
+    expect(autoCompleteMock).not.toHaveBeenCalled();
     expect(lifecycleMock).toHaveBeenCalledTimes(1);
 
     // One audit row for the series create.
@@ -215,16 +216,14 @@ describe('createSeriesBatch — WhatsApp policy (Amendment 46.1: confirm first o
     );
   });
 
-  it('every row still gets ITS OWN reminder + auto-complete job (remind all)', async () => {
+  it('every row still gets ITS OWN reminder job (remind all), and none is auto-completed', async () => {
     const res = await createSeriesBatch({ patientId: 'p1', notes: null, rows: threeRows() });
     const reminderIds = (reminderMock.mock.calls as unknown as Array<[{ appointmentId: string }]>)
       .map((c) => c[0].appointmentId)
       .sort();
-    const autoIds = (autoCompleteMock.mock.calls as unknown as Array<[{ appointmentId: string }]>)
-      .map((c) => c[0].appointmentId)
-      .sort();
     expect(reminderIds).toEqual([...res.appointmentIds].sort());
-    expect(autoIds).toEqual([...res.appointmentIds].sort());
+    // PT-B3 item 1 — nothing schedules a session to close itself.
+    expect(autoCompleteMock).not.toHaveBeenCalled();
   });
 
   it('a confirmation scheduling failure never fails the committed batch', async () => {

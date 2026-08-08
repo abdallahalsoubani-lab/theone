@@ -11,10 +11,7 @@ import {
   enqueueAppointmentReminder,
   scheduleLifecycleMessage,
 } from '@/lib/queue/jobs/appointmentReminder';
-import {
-  cancelAutoCompleteSession,
-  enqueueAutoCompleteSession,
-} from '@/lib/queue/jobs/autoCompleteSession';
+import { cancelAutoCompleteSession } from '@/lib/queue/jobs/autoCompleteSession';
 import { clinicDateKey, clinicHm } from '@/lib/time/clinic';
 import { getClinicTimeZone } from '@/lib/time/clinic-server';
 import { notifyWaitlistForFreedSlot } from '@/lib/waitlist/services';
@@ -292,12 +289,6 @@ export const createAppointment = withAudit<
         config,
       });
     }
-    // July #4 — schedule the zero-grace auto-complete for the session's end.
-    await enqueueAutoCompleteSession({
-      appointmentId: appointment.id,
-      startsAt: appointment.startsAt,
-      durationMinutes: input.durationMinutes,
-    });
 
     // P53 — the booking confirmation goes through the DEFERRED lifecycle
     // scheduler (admin-configurable delay, default 0 = an immediate job —
@@ -461,11 +452,6 @@ export const rescheduleAppointment = withAudit<
         appointmentId: input.id,
         startsAt: input.startsAt,
         config,
-      });
-      await enqueueAutoCompleteSession({
-        appointmentId: input.id,
-        startsAt: input.startsAt,
-        durationMinutes,
       });
     }
 
@@ -1115,17 +1101,6 @@ export const rescheduleAppointmentSeries = withAudit<
         }),
       ),
     );
-    await Promise.all(
-      activePlanned.map((p) =>
-        enqueueAutoCompleteSession({
-          appointmentId: p.occ.id,
-          startsAt: p.newStartsAt,
-          durationMinutes: p.newDurationMinutes,
-        }).catch((err: unknown) => {
-          console.error('[appointments.rescheduleSeries] auto-complete enqueue failed', err);
-        }),
-      ),
-    );
 
     // Prompt 48 — reschedule message for the bulk path: ONE message about the
     // explicitly-targeted occurrence, not one per moved occurrence (a
@@ -1552,18 +1527,6 @@ export const createSeriesBatch = withAudit<
           config,
         }).catch((err: unknown) => {
           console.error('[series.create] reminder enqueue failed', { id, err });
-        }),
-      ),
-    );
-    // July #4 — schedule each row's zero-grace auto-complete.
-    await Promise.all(
-      appointmentIds.map((id, i) =>
-        enqueueAutoCompleteSession({
-          appointmentId: id,
-          startsAt: input.rows[i]!.startsAt,
-          durationMinutes: input.rows[i]!.durationMinutes,
-        }).catch((err: unknown) => {
-          console.error('[series.create] auto-complete enqueue failed', { id, err });
         }),
       ),
     );

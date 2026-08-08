@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useEffect, useTransition } from 'react';
 import { toast } from 'sonner';
 
+import { OverdueBadge } from '@/components/appointments/OverdueBadge';
 import { Button } from '@/components/ui/button';
 import { useRouter } from '@/i18n/navigation';
 import { updateStatusAction } from '@/lib/appointments/actions';
@@ -129,16 +130,15 @@ export function ArrivalsPanel({ board, locale }: { board: ArrivalsBoard; locale:
                 title={name(r)}
                 lines={[therapist(r), `${t('appointmentAt')} ${time(r.startsAt)}`]}
               />
-              {/* July change request #4 — sessions auto-complete at their
-                  scheduled end (zero grace). This manual complete stays only
-                  as a low-prominence fallback for a session that over-runs or
-                  a missed job (§3.3); the amber "Overdue" badge is gone. */}
+              {/* PT-B3 item 1 — closing a session is a human action again
+                  (auto-complete disabled: a session that legitimately runs
+                  long must not be recorded as having finished on time). An
+                  over-running session gets the overdue badge instead, so the
+                  desk can see it without the system deciding for them. */}
+              <OverdueBadge startsAt={r.startsAt} durationMinutes={r.durationMinutes} />
               <Button
                 size="sm"
-                variant="ghost"
-                className="text-brand-textMuted"
                 disabled={pending}
-                title={t('markDoneManualHint')}
                 onClick={() =>
                   run(() => updateStatusAction({ id: r.appointmentId, to: 'COMPLETED' }))
                 }

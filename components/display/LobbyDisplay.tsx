@@ -3,6 +3,7 @@
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import { minutesOverdue } from '@/lib/appointments/session-timing';
 import type { ArrivalRow, ArrivalsBoard } from '@/lib/arrivals/queries';
 import { bidiIsolate } from '@/lib/format/bidi';
 import { formatTime } from '@/lib/format/date';
@@ -32,6 +33,7 @@ const timeFmt = (locale: string, d: Date, withSeconds = false) =>
  */
 export function LobbyDisplay({ token, locale }: { token: string; locale: string }) {
   const t = useTranslations('display');
+  const tStatus = useTranslations('appointments.status');
   const [board, setBoard] = useState<ArrivalsBoard | null>(null);
   const [stale, setStale] = useState(false);
   const [clock, setClock] = useState('');
@@ -124,9 +126,20 @@ export function LobbyDisplay({ token, locale }: { token: string; locale: string 
           empty={!board?.inSession.length}
           emptyLabel={t('noneInSession')}
         >
-          {board?.inSession.map((r) => (
-            <Row key={r.appointmentId} primary={name(r)} secondary={therapist(r)} />
-          ))}
+          {board?.inSession.map((r) => {
+            // PT-B3 item 1 — a session running past its slot is flagged, never
+            // closed automatically. Recomputed on every 10s poll render.
+            const over = minutesOverdue(new Date(), new Date(r.startsAt), r.durationMinutes);
+            return (
+              <Row
+                key={r.appointmentId}
+                primary={name(r)}
+                secondary={therapist(r)}
+                badge={over > 0 ? tStatus('overdue', { minutes: over }) : undefined}
+                badgeTone={over > 0 ? 'amber' : 'default'}
+              />
+            );
+          })}
         </Section>
 
         <Section
@@ -185,10 +198,14 @@ function Row({
   primary,
   secondary,
   badge,
+  badgeTone = 'default',
 }: {
   primary: string;
   secondary: string;
   badge?: string;
+  /** 'amber' marks an over-running session (PT-B3 item 1) — the text says so
+   *  too, so the tint is reinforcement, never the only signal. */
+  badgeTone?: 'default' | 'amber';
 }) {
   return (
     <li className="flex items-center justify-between gap-4 rounded-xl bg-waiting-green/10 px-4 py-3">
@@ -197,7 +214,13 @@ function Row({
         <p className="truncate text-lg text-brand-navy/60">{secondary}</p>
       </div>
       {badge && (
-        <span className="shrink-0 rounded-full bg-waiting-green px-3 py-1 text-lg font-medium tabular-nums text-brand-navy">
+        <span
+          className={`shrink-0 rounded-full px-3 py-1 text-lg font-medium tabular-nums ${
+            badgeTone === 'amber'
+              ? 'bg-amber-500/20 text-amber-800 ring-1 ring-inset ring-amber-500/40'
+              : 'bg-waiting-green text-brand-navy'
+          }`}
+        >
           {badge}
         </span>
       )}
