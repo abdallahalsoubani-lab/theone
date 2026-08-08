@@ -159,8 +159,37 @@ vi.mock('@/lib/db', () => ({
       ]),
     },
     sessionNote: { count: vi.fn(async () => 3) },
+    // The export now reads the APPROVED program (PT-B2 item 1): the approval
+    // row decides, and APPROVED resolves to the live items.
+    homeProgramApproval: {
+      findUnique: vi.fn(async () => ({ status: 'APPROVED', approvedSnapshot: null })),
+    },
     homeProgramItem: {
-      findMany: vi.fn(async () => [{ id: 'h1', exercise: { nameEn: 'Bridge', nameAr: 'الجسر' } }]),
+      findMany: vi.fn(async () => [
+        {
+          id: 'h1',
+          patientId: 'p1',
+          exerciseId: 'e1',
+          exercise: {
+            nameEn: 'Bridge',
+            nameAr: 'الجسر',
+            videoUrl: null,
+            imageUrl: null,
+            descriptionEn: 'Bridge',
+            descriptionAr: 'الجسر',
+            defaultInstructionEn: null,
+            defaultInstructionAr: null,
+          },
+          daysOfWeek: [0, 2],
+          scheduledTime: '09:00',
+          durationMinutes: 10,
+          setsReps: null,
+          therapistNote: null,
+          active: true,
+          reminderJobKey: null,
+          createdAt: new Date('2026-06-01T09:00:00Z'),
+        },
+      ]),
     },
     auditLog: { count: vi.fn(async () => 7), create: vi.fn(async () => ({})) },
   },

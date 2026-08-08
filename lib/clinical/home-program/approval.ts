@@ -6,8 +6,8 @@ import { db, type LocalizedError } from '@/lib/db';
 import { createNotification } from '@/lib/notifications/actions';
 import { getCareTeam } from '@/lib/patients/assignment';
 
-import { listHomeProgramForPatient, type HomeProgramItemRow } from './queries';
-import { getApprovalState, parseSnapshot } from './visibility';
+import { listHomeProgramForPatient } from './queries';
+import { getApprovalState } from './visibility';
 
 export { getApprovalState } from './visibility';
 export type { ApprovalState } from './visibility';
@@ -58,33 +58,12 @@ const alreadySubmitted: LocalizedError = {
     'هذا البرنامج المنزلي بانتظار الموافقة أو تمت الموافقة عليه بالفعل. عدّل البرنامج لفتح مسودة مراجعة جديدة قبل الإرسال.',
 };
 
-/**
- * THE patient-facing read (data-layer guarantee, Prompt 16). Returns the
- * APPROVED content only: the live items when the program is APPROVED, otherwise
- * the frozen `approvedSnapshot` (the last approved content), or nothing if the
- * program was never approved. Used by the patient portal, the reminder worker,
- * and the compliance check — never the raw `listHomeProgramForPatient` (which
- * is the clinicians' working draft).
- */
-export async function getVisibleHomeProgram(patientId: string): Promise<HomeProgramItemRow[]> {
-  const row = await db.homeProgramApproval.findUnique({
-    where: { patientId },
-    select: { status: true, approvedSnapshot: true },
-  });
-  if (!row) return [];
-  if (row.status === HomeProgramStatus.APPROVED) return listHomeProgramForPatient(patientId);
-  return parseSnapshot(row.approvedSnapshot);
-}
-
-/** Visible (approved) items scheduled for today. */
-export async function getVisibleTodayItems(
-  patientId: string,
-  now: Date = new Date(),
-): Promise<HomeProgramItemRow[]> {
-  const dow = new Date(now).getUTCDay();
-  const items = await getVisibleHomeProgram(patientId);
-  return items.filter((i) => i.active && i.daysOfWeek.includes(dow));
-}
+// The approved-program READ lives in ./visible so read-only surfaces (patient
+// portal, patient-file tab, PDF export) don't pull this module's write-side
+// graph (@/auth, notifications, withAudit) — importing it into the PDF route
+// broke that module's test environment on next-auth's edge `next/server`.
+// Re-exported here because this is where callers have always looked for it.
+export { getVisibleHomeProgram, getVisibleTodayItems } from './visible';
 
 export interface PendingApprovalRow {
   patientId: string;

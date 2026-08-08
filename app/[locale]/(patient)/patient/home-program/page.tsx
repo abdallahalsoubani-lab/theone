@@ -1,7 +1,7 @@
 import { setRequestLocale } from 'next-intl/server';
 
 import { PatientHomeProgramView } from '@/components/home-program/PatientHomeProgramView';
-import { getVisibleHomeProgram, getVisibleTodayItems } from '@/lib/clinical/home-program/approval';
+import { getVisibleHomeProgram, getVisibleTodayItems } from '@/lib/clinical/home-program/visible';
 import { calculateStreak } from '@/lib/clinical/compliance/calculate';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac/guards';

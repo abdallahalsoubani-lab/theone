@@ -6,7 +6,7 @@ import { redirect } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
-import { getVisibleHomeProgram } from '@/lib/clinical/home-program/approval';
+import { getVisibleHomeProgram } from '@/lib/clinical/home-program/visible';
 import { db } from '@/lib/db';
 import { formatDate, formatTime } from '@/lib/format/date';
 import { getEffectiveSession } from '@/lib/impersonation/session';

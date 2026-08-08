@@ -104,6 +104,8 @@ export default async function DoctorPatientFilePage({
         <PatientHomeProgramTab
           patientId={patient.id}
           items={homeProgramData.items}
+          approval={homeProgramData.approval}
+          draftItemCount={homeProgramData.draftItemCount}
           sevenDay={homeProgramData.sevenDay}
           thirtyDay={homeProgramData.thirtyDay}
           streak={homeProgramData.streak}

@@ -2,6 +2,7 @@ import { AuditAction, type AppointmentStatus } from '@prisma/client';
 import { Document, Page, StyleSheet, View } from '@react-pdf/renderer';
 
 import { withAudit } from '@/lib/audit/withAudit';
+import { getVisibleHomeProgram } from '@/lib/clinical/home-program/visible';
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
 import { formatDateTime, formatShortDate } from '@/lib/format/date';
 import { getPatientFile } from '@/lib/patients/queries';
@@ -122,14 +123,10 @@ const generatePatientFilePdfInner = async ({
           select: { id: true, diagnosisPrimary: true, status: true, createdAt: true },
         }),
     redaction === 'SELF' ? Promise.resolve(0) : db.sessionNote.count({ where: { patientId } }),
-    db.homeProgramItem.findMany({
-      where: { patientId, active: true },
-      take: 50,
-      select: {
-        id: true,
-        exercise: { select: { nameEn: true, nameAr: true } },
-      },
-    }),
+    // The APPROVED program only (PT-B2 item 1). This export is handed to the
+    // patient (right-of-access) and read as the official program, so a
+    // therapist's unapproved draft must never appear in it.
+    getVisibleHomeProgram(patientId).then((items) => items.filter((i) => i.active).slice(0, 50)),
     redaction === 'ADMIN'
       ? db.auditLog.count({ where: { entityType: 'PatientProfile', entityId: patientId } })
       : Promise.resolve(0),
@@ -152,8 +149,8 @@ const generatePatientFilePdfInner = async ({
     noteCount,
     homeProgram: homeProgram.map((h) => ({
       id: h.id,
-      exerciseNameEn: h.exercise.nameEn,
-      exerciseNameAr: h.exercise.nameAr,
+      exerciseNameEn: h.exerciseNameEn,
+      exerciseNameAr: h.exerciseNameAr,
     })),
     auditCount,
   };

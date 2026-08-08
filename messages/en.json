@@ -1454,7 +1454,11 @@
         "pendingExplainer": "Awaiting the doctor’s approval — sent {date}. Nothing more to submit; you’ll be notified when it’s reviewed.",
         "pendingExplainerNoDate": "Awaiting the doctor’s approval — already sent. Nothing more to submit; you’ll be notified when it’s reviewed."
       },
-      "emptyTab": "No home program yet."
+      "emptyTab": "No home program yet.",
+      "approvedProgram": "Approved program",
+      "emptyTabAwaitingApproval": "No approved program yet — a draft is waiting for the doctor's approval.",
+      "revisionPendingNote": "A revised program is awaiting the doctor's approval. The patient still follows the approved program shown here.",
+      "revisionDraftNote": "A draft revision is in progress and has not been submitted for approval yet. The patient still follows the approved program shown here."
     },
     "compliance": {
       "sevenDay": "7-day rate",
