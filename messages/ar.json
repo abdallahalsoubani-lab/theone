@@ -1544,6 +1544,7 @@
       "removeRow": "حذف الصف",
       "totalSummary": "سيتم إنشاء {count} موعد/مواعيد.",
       "maxRows": "الحد الأقصى {max} صفاً في الدفعة الواحدة.",
+      "closedDaysHint": "العيادة مغلقة أيام {days} — لا يمكن حجز مواعيد في هذه الأيام.",
       "patientRequired": "اختر المريض أولاً.",
       "fixRowsError": "عدّل أو احذف الصفوف المميّزة قبل الحفظ.",
       "rowFailed": "الصف رقم {index}: {message}",

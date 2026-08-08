@@ -1544,6 +1544,7 @@
       "removeRow": "Remove row",
       "totalSummary": "{count} appointment(s) will be created.",
       "maxRows": "Maximum {max} rows per batch.",
+      "closedDaysHint": "The clinic is closed on {days} — appointments cannot be booked on those days.",
       "patientRequired": "Pick the patient first.",
       "fixRowsError": "Fix or remove the highlighted rows before saving.",
       "rowFailed": "Row #{index}: {message}",

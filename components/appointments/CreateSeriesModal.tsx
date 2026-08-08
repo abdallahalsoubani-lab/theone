@@ -66,6 +66,9 @@ export function CreateSeriesModal({
   const t = useTranslations('calendar.series');
   const tForm = useTranslations('appointments.form');
   const tCommon = useTranslations('common');
+  // The weekday names already exist for the admin hours editor — one source
+  // for "Friday" rather than a second copy in this namespace.
+  const tDays = useTranslations('admin.settings.days');
   const locale = useLocale();
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -107,6 +110,10 @@ export function CreateSeriesModal({
     [issues, attempted],
   );
   const hasIssues = issues.some((list) => list.length > 0);
+  const closedDayNames = useMemo(
+    () => (closedDays ?? []).map((d) => tDays(d)),
+    [closedDays, tDays],
+  );
 
   const minDate = clinicDateKey(new Date());
 
@@ -213,6 +220,16 @@ export function CreateSeriesModal({
             }))}
           />
         </div>
+
+        {/* PT-B3 item 2 — say which days are unbookable BEFORE a date is
+            picked. A native date input cannot grey out individual weekdays,
+            so the closed days are named up front; picking one still flags the
+            row and blocks the save, and the server hard-blocks it regardless. */}
+        {closedDayNames.length > 0 ? (
+          <p className="rounded-md border border-brand-border bg-brand-bg px-3 py-2 text-xs text-brand-textMuted">
+            {t('closedDaysHint', { days: closedDayNames.join(locale === 'ar' ? '، ' : ', ') })}
+          </p>
+        ) : null}
 
         <div className="max-h-[50vh] space-y-3 overflow-y-auto pe-1">
           <BatchRowsEditor
