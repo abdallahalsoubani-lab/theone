@@ -7,12 +7,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  *   - a clash for the second therapist blocks the drop;
  *   - the room is KEPT when the caller omits roomId (the calendar drag never
  *     sends one — the old `?? null` write stripped the room on every drag);
- *   - resize stays duration-only and skips the conflict check (July #6).
+ *   - resize stays duration-only and free of every SOFT conflict (July #6),
+ *     but same-patient overlap blocks it like every other path (PT-B1 item 3).
  */
 
-const { checkConflictsMock, hardBlockedMock } = vi.hoisted(() => ({
+const { checkConflictsMock, hardBlockedMock, samePatientMock } = vi.hoisted(() => ({
   checkConflictsMock: vi.fn(),
   hardBlockedMock: vi.fn((_conflicts: unknown) => false),
+  samePatientMock: vi.fn((_conflicts: unknown) => false),
 }));
 
 vi.mock('@/auth', () => ({ auth: vi.fn(async () => ({ user: { id: 'sec-1' } })) }));
@@ -46,6 +48,7 @@ vi.mock('@/lib/time/clinic-server', () => ({ getClinicTimeZone: vi.fn(async () =
 vi.mock('../conflicts', () => ({
   checkConflicts: (...a: unknown[]) => checkConflictsMock(...a),
   hasHardBlockedConflict: (...a: unknown[]) => hardBlockedMock(...(a as [unknown])),
+  hasSamePatientOverlap: (...a: unknown[]) => samePatientMock(...(a as [unknown])),
 }));
 
 const { txAppointmentUpdate, txTherapistFindMany, txTherapistDeleteMany, txTherapistCreate } =
@@ -104,6 +107,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   checkConflictsMock.mockResolvedValue({ ok: true, conflicts: [] });
   hardBlockedMock.mockReturnValue(false);
+  samePatientMock.mockReturnValue(false);
 });
 
 describe('multi-therapist drag (time-only move)', () => {
@@ -178,8 +182,8 @@ describe('single-therapist lane change (explicit therapistIds)', () => {
   });
 });
 
-describe('resize (July #6 — duration-only, free)', () => {
-  it('skips the conflict check, keeps start/room, retains all therapists', async () => {
+describe('resize (July #6 — duration-only, free of soft conflicts)', () => {
+  it('keeps start/room and retains all therapists', async () => {
     const r = await rescheduleAppointment({
       id: 'a1',
       startsAt: FUTURE,
@@ -188,9 +192,82 @@ describe('resize (July #6 — duration-only, free)', () => {
       overrideConflicts: false,
     } as never);
     expect(r).toMatchObject({ resized: true });
-    expect(checkConflictsMock).not.toHaveBeenCalled();
     expect(txAppointmentUpdate.mock.calls[0]![0].data).toEqual({ durationMinutes: 60 });
     expect(txTherapistDeleteMany).not.toHaveBeenCalled();
+  });
+
+  it('still stretches over a therapist overlap — the free-resize rule stands', async () => {
+    checkConflictsMock.mockResolvedValue({
+      ok: false,
+      conflicts: [
+        {
+          kind: 'THERAPIST_OVERLAP',
+          therapist: { id: 't2', fullNameEn: 'Layan Haddad', fullNameAr: 'ليان حداد' },
+          appointment: {},
+        },
+      ],
+    });
+    // A room block is hard for a booking, but a resize may still hold the room.
+    hardBlockedMock.mockReturnValue(true);
+
+    const r = await rescheduleAppointment({
+      id: 'a1',
+      startsAt: FUTURE,
+      durationMinutes: 60,
+      resize: true,
+      overrideConflicts: false,
+    } as never);
+    expect(r).toMatchObject({ resized: true });
+    expect(txAppointmentUpdate).toHaveBeenCalled();
+  });
+
+  it('is BLOCKED when the longer session swallows the same patient’s next booking', async () => {
+    // PT-B1 item 3: same-patient overlap is absolute on every path, and a
+    // resize is the one that used to skip the engine entirely.
+    checkConflictsMock.mockResolvedValue({
+      ok: false,
+      conflicts: [
+        {
+          kind: 'PATIENT_OVERLAP',
+          appointment: { id: 'a2', startsAt: new Date('2030-01-05T11:00:00Z') },
+        },
+      ],
+    });
+    samePatientMock.mockReturnValue(true);
+
+    await expect(
+      rescheduleAppointment({
+        id: 'a1',
+        startsAt: FUTURE,
+        durationMinutes: 180,
+        resize: true,
+        overrideConflicts: false,
+      } as never),
+    ).rejects.toSatisfy((e: unknown) => {
+      expect(e).toBeInstanceOf(AppointmentError);
+      expect((e as AppointmentError).error.code).toBe('APPOINTMENT_SAME_PATIENT_OVERLAP');
+      return true;
+    });
+    expect(txAppointmentUpdate).not.toHaveBeenCalled();
+  });
+
+  it('cannot be forced through with the override flag either', async () => {
+    checkConflictsMock.mockResolvedValue({
+      ok: false,
+      conflicts: [{ kind: 'PATIENT_OVERLAP', appointment: { id: 'a2' } }],
+    });
+    samePatientMock.mockReturnValue(true);
+
+    await expect(
+      rescheduleAppointment({
+        id: 'a1',
+        startsAt: FUTURE,
+        durationMinutes: 180,
+        resize: true,
+        overrideConflicts: true,
+      } as never),
+    ).rejects.toBeInstanceOf(AppointmentError);
+    expect(txAppointmentUpdate).not.toHaveBeenCalled();
   });
 });
 

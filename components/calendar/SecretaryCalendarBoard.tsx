@@ -206,8 +206,11 @@ export function SecretaryCalendarBoard({
   };
 
   // Edge-resize → duration-only change (July #6). Start is unchanged; free
-  // resize (overlaps allowed, conflict check skipped server-side). Always a
-  // single-appointment op — no series scope picker, even for a series member.
+  // resize (therapist / leave / room overlaps still allowed server-side). The
+  // one rejection is stretching over the same patient's next booking (PT-B1
+  // item 3) — it returns a localized error and the optimistic resize reverts.
+  // Always a single-appointment op — no series scope picker, even for a
+  // series member.
   const handleEventResize = (args: { appointmentId: string; start: Date; end: Date }) => {
     const existing = appointments.find((a) => a.id === args.appointmentId);
     if (!existing) return;

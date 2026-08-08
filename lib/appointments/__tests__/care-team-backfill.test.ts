@@ -346,11 +346,11 @@ describe('hard-blocked conflicts reject even with override (Prompt 22 §4.1/§4.
   });
 });
 
-describe('appointment resize — duration-only, free (July #6)', () => {
+describe('appointment resize — duration-only, free of SOFT conflicts (July #6)', () => {
   const auditLogs = (__state as unknown as { auditLogs: Array<Record<string, unknown>> }).auditLogs;
   const startOf = (id: string) => __state.appointments.find((a) => a.id === id)!.startsAt as Date;
 
-  it('changes duration, keeps startsAt, audits RESIZED, and NEVER calls the conflict engine', async () => {
+  it('changes duration, keeps startsAt, audits RESIZED', async () => {
     const { appointmentId } = await createAppointment(baseCreate);
     const start = startOf(appointmentId);
     auditLogs.length = 0;
@@ -369,19 +369,18 @@ describe('appointment resize — duration-only, free (July #6)', () => {
     const appt = __state.appointments.find((a) => a.id === appointmentId)!;
     expect(appt.durationMinutes).toBe(60);
     expect(appt.startsAt).toEqual(start); // start not moved
-    expect(checkConflicts).not.toHaveBeenCalled(); // free resize
     expect(auditLogs.at(-1)).toMatchObject({ after: { event: 'APPOINTMENT_RESIZED' } });
   });
 
-  it('is allowed even when it would overlap — the case that differs from drop', async () => {
+  it('is allowed even when it would overlap a therapist — the case that differs from drop', async () => {
     const { appointmentId } = await createAppointment(baseCreate);
     const start = startOf(appointmentId);
-    // Even if the engine WOULD flag an overlap, resize never consults it.
-    vi.mocked(checkConflicts).mockResolvedValue({
+    // The engine is consulted (PT-B1 item 3) but only same-patient overlap
+    // rejects a resize; a therapist clash still goes through.
+    vi.mocked(checkConflicts).mockResolvedValueOnce({
       ok: false,
       conflicts: [{ kind: 'THERAPIST_OVERLAP', therapist: {}, appointment: {} }],
     } as never);
-    vi.mocked(checkConflicts).mockClear();
     await expect(
       rescheduleAppointment({
         id: appointmentId,
@@ -392,8 +391,30 @@ describe('appointment resize — duration-only, free (July #6)', () => {
         resize: true,
       } as Parameters<typeof rescheduleAppointment>[0]),
     ).resolves.toMatchObject({ resized: true });
-    expect(checkConflicts).not.toHaveBeenCalled();
-    vi.mocked(checkConflicts).mockResolvedValue({ ok: true } as never); // restore default
+  });
+
+  it('is BLOCKED when it stretches over the same patient’s next booking', async () => {
+    // PT-B1 item 3: the same patient can never hold two overlapping slots, and
+    // dragging the bottom edge is a way to create one — so the engine runs.
+    const { appointmentId } = await createAppointment(baseCreate);
+    const start = startOf(appointmentId);
+    const clashAt = new Date(start.getTime() + 60 * 60 * 1000);
+    vi.mocked(checkConflicts).mockResolvedValueOnce({
+      ok: false,
+      conflicts: [{ kind: 'PATIENT_OVERLAP', appointment: { startsAt: clashAt } }],
+    } as never);
+
+    await expect(
+      rescheduleAppointment({
+        id: appointmentId,
+        startsAt: start,
+        durationMinutes: 180,
+        overrideConflicts: true, // the override flag does not help either
+        seriesMode: 'ONE',
+        resize: true,
+      } as Parameters<typeof rescheduleAppointment>[0]),
+    ).rejects.toMatchObject({ error: { code: 'APPOINTMENT_SAME_PATIENT_OVERLAP' } });
+    expect(__state.appointments.find((a) => a.id === appointmentId)!.durationMinutes).toBe(30);
   });
 
   it('clamps a sub-floor resize up to the 15-min grid minimum', async () => {

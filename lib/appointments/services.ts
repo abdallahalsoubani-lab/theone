@@ -22,6 +22,7 @@ import { notifyWaitlistForFreedSlot } from '@/lib/waitlist/services';
 import {
   checkConflicts,
   hasHardBlockedConflict,
+  hasSamePatientOverlap,
   type Conflict,
   type ConflictResult,
 } from './conflicts';
@@ -388,25 +389,31 @@ export const rescheduleAppointment = withAudit<
       ? Math.max(RESIZE_MIN_MINUTES, input.durationMinutes)
       : input.durationMinutes;
 
-    // Free resize: the clinic explicitly allows a resize to overlap another
-    // appointment / leave / room booking (confirmed decision #1), so we SKIP
-    // the conflict check entirely for a resize. Booking and drag-to-reschedule
-    // are unaffected — they still run the full check below.
     let conflictsOverridden = false;
-    if (!input.resize) {
-      const conflicts = await checkConflicts({
-        appointmentId: input.id,
-        patientId: existing.patientId,
-        patientIds: existing.groupPatients.map((g) => g.patientId),
-        therapistIds,
-        startsAt: input.startsAt,
-        durationMinutes,
-        // A drag of a STRETCHING appointment re-runs the bed-capacity check
-        // at the new time (July #8). roomId omitted on a drag → keep existing.
-        appointmentType: existing.appointmentType,
-        roomId: input.roomId ?? existing.roomId,
-      });
-      if (!conflicts.ok) {
+    const conflicts = await checkConflicts({
+      appointmentId: input.id,
+      patientId: existing.patientId,
+      patientIds: existing.groupPatients.map((g) => g.patientId),
+      therapistIds,
+      startsAt: input.startsAt,
+      durationMinutes,
+      // A drag of a STRETCHING appointment re-runs the bed-capacity check
+      // at the new time (July #8). roomId omitted on a drag → keep existing.
+      appointmentType: existing.appointmentType,
+      roomId: input.roomId ?? existing.roomId,
+    });
+    if (!conflicts.ok) {
+      if (input.resize) {
+        // Free resize: the clinic explicitly allows a resize to overlap
+        // another appointment / leave / room booking (confirmed decision #1),
+        // so every other kind stays permitted here. The engine still runs
+        // because dragging the bottom edge past the same patient's next
+        // booking would double-book that patient, and same-patient overlap is
+        // absolute on EVERY path (PT-B1 item 3) — a resize is no exception.
+        if (hasSamePatientOverlap(conflicts.conflicts)) {
+          throw new AppointmentError(await hardBlockedError(conflicts.conflicts));
+        }
+      } else {
         // Hard-blocked kinds (same-patient overlap, closed day, bed capacity)
         // reject even with overrideConflicts + the permission (Prompt 22 §4.1).
         if (hasHardBlockedConflict(conflicts.conflicts)) {
