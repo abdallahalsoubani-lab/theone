@@ -1155,6 +1155,10 @@
         "title": "Waitlist slot freed",
         "body": "The {time} slot just freed — {patientName} is on the waitlist for it."
       },
+      "INTAKE_SUBMISSION_RECEIVED": {
+        "title": "New intake request",
+        "body": "{patientName} submitted an intake form. Review it in the reception requests."
+      },
       "HOME_PROGRAM_DOCTOR_EDITED": {
         "title": "Home program edited by the doctor",
         "body": "Dr. {doctorName} edited the home program for {patientName}."

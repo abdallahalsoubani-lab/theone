@@ -1,9 +1,18 @@
 'use client';
 
 import { useTranslations } from 'next-intl';
+import { useEffect, useState } from 'react';
 
 import { Link, usePathname } from '@/i18n/navigation';
+import type { StaffNavBadge } from '@/components/shell/staff-nav';
+import { getNavBadgeCountsAction } from '@/lib/shell/actions';
+import type { NavBadgeCounts } from '@/lib/shell/nav-badges';
 import { cn } from '@/lib/utils';
+
+/** How often the badges re-read their counts. Matches the notification bell's
+ *  cadence — these are "somebody did something elsewhere" counters, not
+ *  live data. */
+const POLL_MS = 60_000;
 
 export interface NavLink {
   /** Localized label. Already-translated string — caller handles i18n. */
@@ -14,6 +23,8 @@ export interface NavLink {
   icon?: React.ReactNode;
   /** Optional unread / count badge — e.g. unread inbox items. */
   badge?: number;
+  /** Which counter this badge tracks, so the poll can update it in place. */
+  badgeKey?: StaffNavBadge;
 }
 
 /**
@@ -26,6 +37,31 @@ export interface NavLink {
 export function Sidebar({ links }: { links: ReadonlyArray<NavLink> }) {
   const pathname = usePathname();
   const t = useTranslations('navigation');
+  // PT-B4 item 3 — the counts arrive with the first server render of the
+  // (staff) layout, which the App Router then reuses across sibling
+  // navigations without re-running it. Left alone the badges freeze: three
+  // intake requests would arrive and the sidebar would still read "1". Poll
+  // (and refresh on focus, the moment the secretary looks back at the tab).
+  const [counts, setCounts] = useState<NavBadgeCounts | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      if (document.hidden) return;
+      const next = await getNavBadgeCountsAction();
+      if (!cancelled && next) setCounts(next);
+    };
+    const id = window.setInterval(() => void tick(), POLL_MS);
+    const onFocus = () => void tick();
+    window.addEventListener('focus', onFocus);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
+
+  const badgeOf = (link: NavLink): number | undefined =>
+    link.badgeKey && counts ? counts[link.badgeKey] : link.badge;
 
   return (
     <aside
@@ -65,11 +101,14 @@ export function Sidebar({ links }: { links: ReadonlyArray<NavLink> }) {
                   {link.icon}
                 </span>
                 <span className="flex-1 truncate">{link.label}</span>
-                {link.badge != null && link.badge > 0 ? (
-                  <span className="ms-auto rounded-full bg-brand-cyan/20 px-2 py-0.5 text-[11px] font-semibold text-brand-blue ring-1 ring-inset ring-brand-cyan/30">
-                    {link.badge > 99 ? '99+' : link.badge}
-                  </span>
-                ) : null}
+                {(() => {
+                  const badge = badgeOf(link);
+                  return badge != null && badge > 0 ? (
+                    <span className="ms-auto rounded-full bg-brand-cyan/20 px-2 py-0.5 text-[11px] font-semibold text-brand-blue ring-1 ring-inset ring-brand-cyan/30">
+                      {badge > 99 ? '99+' : badge}
+                    </span>
+                  ) : null;
+                })()}
               </Link>
             );
           })}

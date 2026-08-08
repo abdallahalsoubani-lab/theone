@@ -1,9 +1,10 @@
-import { AuditAction, IntakeType } from '@prisma/client';
+import { AuditAction, IntakeType, UserRole } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 
 import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
 import { db } from '@/lib/db';
+import { createNotification } from '@/lib/notifications/actions';
 import { normalizeJordanPhone } from '@/lib/format/phone';
 import { createAdultIntake, createPediatricIntake } from '@/lib/intake/services';
 import { adultIntakeSchema, pediatricIntakeSchema } from '@/lib/intake/schemas';
@@ -57,7 +58,46 @@ export async function createPublicSubmission(
     },
     select: { id: true },
   });
+  await notifyReceptionOfSubmission(input.profile.fullNameAr, row.id);
   return { submissionId: row.id };
+}
+
+/**
+ * Tell the desk a request is waiting (PT-B4 item 3).
+ *
+ * There was no notification here at all — a submission landed in the queue in
+ * silence, and the sidebar count was the only signal (and that count was
+ * itself frozen). Every SECRETARY and ADMIN gets one, and they are NEVER
+ * deduped the way the home-program doctor-edit notification is: each
+ * submission is a different person waiting to be seen, so collapsing them
+ * would lose exactly the requests the desk needs to notice.
+ *
+ * Best-effort: a notification failure must not lose the patient's form —
+ * the submission row is already committed by the time we get here.
+ */
+async function notifyReceptionOfSubmission(patientName: string, submissionId: string) {
+  try {
+    const recipients = await db.user.findMany({
+      where: { role: { in: [UserRole.SECRETARY, UserRole.ADMIN] }, deletedAt: null },
+      select: { id: true },
+    });
+    await Promise.all(
+      recipients.map((r) =>
+        createNotification({
+          recipientId: r.id,
+          type: 'INTAKE_SUBMISSION_RECEIVED',
+          params: { patientName },
+          linkPath: '/secretary/intake-submissions',
+          relatedEntityType: 'IntakeSubmission',
+          relatedEntityId: submissionId,
+        }).catch((err: unknown) => {
+          console.error('[intake-submissions] notification failed', err);
+        }),
+      ),
+    );
+  } catch (err) {
+    console.error('[intake-submissions] notification fan-out failed', err);
+  }
 }
 
 function profileString(v: unknown): string {

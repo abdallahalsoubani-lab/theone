@@ -26,14 +26,18 @@ export interface StaffNavEntry {
     | 'clipboardCheck'
     | 'dumbbell'
     | 'messageCircle';
-  badge?:
-    | 'inbox'
-    | 'waitlist'
-    | 'intakeSubmissions'
-    | 'homeProgramApprovals'
-    | 'unconfirmed'
-    | 'waInbox';
+  badge?: StaffNavBadge;
 }
+
+/** The counters the sidebar can show. Values live in lib/shell/nav-badges.ts —
+ *  seeded by the layout, then refreshed by the sidebar's poll. */
+export type StaffNavBadge =
+  | 'inbox'
+  | 'waitlist'
+  | 'intakeSubmissions'
+  | 'homeProgramApprovals'
+  | 'unconfirmed'
+  | 'waInbox';
 
 export function staffNavEntries(role: UserRole): StaffNavEntry[] {
   if (role === 'SECRETARY' || role === 'ADMIN') {

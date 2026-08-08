@@ -1155,6 +1155,10 @@
         "title": "تحرّر موعد من قائمة الانتظار",
         "body": "تحرّر موعد الساعة {time} — {patientName} على قائمة الانتظار لنفس الوقت."
       },
+      "INTAKE_SUBMISSION_RECEIVED": {
+        "title": "طلب استقبال جديد",
+        "body": "أرسل/أرسلت {patientName} استمارة استقبال. راجعها في طلبات الاستقبال."
+      },
       "HOME_PROGRAM_DOCTOR_EDITED": {
         "title": "تعديل البرنامج المنزلي من الدكتورة",
         "body": "قامت د. {doctorName} بتعديل البرنامج المنزلي لـ{patientName}."

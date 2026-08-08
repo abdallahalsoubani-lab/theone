@@ -126,6 +126,10 @@ enum NotificationType {
   // (cancellation / no-show). Targets SECRETARY + ADMIN; links to the
   // waitlist page for one-click placement.
   BOOKING_WAITLIST_SLOT_FREED
+  // PT-B4 — a patient submitted the public intake form. Targets SECRETARY +
+  // ADMIN; links to the reception-requests queue. One per submission: each is
+  // a different person waiting, so these are never deduped.
+  INTAKE_SUBMISSION_RECEIVED
 }
 
 enum LeaveType {
