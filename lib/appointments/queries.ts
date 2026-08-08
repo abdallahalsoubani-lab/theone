@@ -322,7 +322,7 @@ export async function listAppointmentsForPatientFile(
   }));
 }
 
-// ── Doctor-dashboard "clinic appointments today" (Prompt 33 NI-1 → Prompt 39 owner ruling c) ──
+// ── Doctor-dashboard "my appointments today" (PT-B1 item 2) ──
 
 export interface ClinicTodayAppointment {
   id: string;
@@ -337,18 +337,27 @@ export interface ClinicTodayAppointment {
 }
 
 /**
- * ALL clinic appointments for the clinic-local day bounded by
- * [dayStart, dayEnd) — the doctor-dashboard definition the owner ruled in
- * Prompt 39 (option c, superseding Prompt 33's own-bookings reading).
+ * ONE clinician's appointments for the clinic-local day bounded by
+ * [dayStart, dayEnd). Doctors are bookable clinicians (they get calendar
+ * resource lanes), so "my appointments" means the rows where this user is an
+ * assigned clinician in the AppointmentTherapist M2M.
+ *
+ * `clinicianId` always comes from the server session — never a request
+ * parameter, so one clinician can't ask for another's day (PT-B1 item 2,
+ * reversing the Prompt 39 clinic-wide ruling). The clinic-wide view still
+ * exists as the calendar itself.
+ *
  * Cancelled rows are excluded, matching the calendar; therapist names are
- * included so the compact list stays readable at ~70 rows; no phone.
+ * included so co-treated sessions read correctly; no phone.
  */
-export async function listTodayAppointmentsForClinic(args: {
+export async function listTodayAppointmentsForClinician(args: {
+  clinicianId: string;
   dayStart: Date;
   dayEnd: Date;
 }): Promise<ClinicTodayAppointment[]> {
   const rows = await db.appointment.findMany({
     where: {
+      therapists: { some: { therapistId: args.clinicianId } },
       startsAt: { gte: args.dayStart, lt: args.dayEnd },
       status: { not: AppointmentStatus.CANCELLED },
     },

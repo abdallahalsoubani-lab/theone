@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { getComplianceTrendForDoctor } from '@/lib/analytics/queries';
-import { listTodayAppointmentsForClinic } from '@/lib/appointments/queries';
+import { listTodayAppointmentsForClinician } from '@/lib/appointments/queries';
 import { clinicDayRange } from '@/lib/arrivals/time';
 import { listPendingProposalsForDoctor } from '@/lib/clinical/plans/queries';
 import { db } from '@/lib/db';
@@ -35,10 +35,9 @@ export default async function DoctorDashboard({ params }: { params: Promise<{ lo
   const since7d = new Date();
   since7d.setUTCDate(since7d.getUTCDate() - 7);
 
-  // NI-1 → Prompt 39 owner ruling (option c): the dashboard shows ALL clinic
-  // appointments for the clinic-local day, not just the doctor's own
-  // bookings. Kept readable at ~70/day via a compact, internally-scrolling
-  // chronological list with a total count.
+  // PT-B1 item 2: the dashboard shows THIS doctor's appointments for the
+  // clinic-local day — the Prompt 39 clinic-wide ruling is reversed. The
+  // clinic-wide view lives on the calendar; a dashboard is a personal surface.
   const settings = await db.clinicSettings.findUnique({
     where: { id: 'default' },
     select: { timezone: true },
@@ -57,7 +56,12 @@ export default async function DoctorDashboard({ params }: { params: Promise<{ lo
     recentReports,
     complianceTrend,
   ] = await Promise.all([
-    listTodayAppointmentsForClinic({ dayStart: today, dayEnd: tomorrow }),
+    // doctorId is the session user — never a searchParam (this page takes none).
+    listTodayAppointmentsForClinician({
+      clinicianId: doctorId,
+      dayStart: today,
+      dayEnd: tomorrow,
+    }),
     db.treatmentPlan.count({
       where: { doctorId, status: 'ACTIVE' },
     }),
@@ -102,10 +106,10 @@ export default async function DoctorDashboard({ params }: { params: Promise<{ lo
         <Stat label={t('unreadNotifs')} value={unread} href="/notifications" />
       </div>
 
-      {/* Prompt 39 owner ruling (option c): ALL clinic appointments for the
-          day. Compact chronological rows + internal scroll + a total in the
-          heading — readable even at ~70/day; a richer grouped layout is a
-          flagged follow-up (function first). */}
+      {/* This doctor's own appointments for the clinic day (PT-B1 item 2).
+          Compact chronological rows + internal scroll + a total in the
+          heading; the co-treating clinicians stay listed because a session
+          can carry several. */}
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-brand-navy">
           {t('todayScheduleHeading')}{' '}
