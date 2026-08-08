@@ -797,3 +797,67 @@ describe('unsent changes after submitting (PT-B2 item 2)', () => {
     expect((await getVisibleHomeProgram('p1')).map((i) => i.id)).toEqual(['item-1', 'item-2']);
   });
 });
+
+describe('doctor reviews, edits, then approves in one step (PT-B2 item 3)', () => {
+  it('the edit stays PENDING and the later approve carries it into the approved program', async () => {
+    // The reported dead end: the doctor opened the program, edited it, and had
+    // no way back to approve — so it stayed pending. Editing must not decide
+    // anything, and approving must include what was just edited.
+    seedItem('p1', 'as-submitted');
+    sessionRef.current = therapist;
+    await submitHomeProgram('p1');
+
+    sessionRef.current = doctor;
+    seedItem('p1', 'doctor-added');
+    await onHomeProgramEdited('p1');
+
+    // Still in the queue — the decision has not been made yet.
+    expect((await getApprovalState('p1')).status).toBe('PENDING_APPROVAL');
+    expect((await listPendingApprovals(null)).map((r) => r.patientId)).toEqual(['p1']);
+    // And the patient is not following the doctor's unapproved edit.
+    expect(await getVisibleHomeProgram('p1')).toEqual([]);
+
+    await approveHomeProgram('p1');
+
+    expect((await getApprovalState('p1')).status).toBe('APPROVED');
+    expect((await getVisibleHomeProgram('p1')).map((i) => i.id)).toEqual([
+      'as-submitted',
+      'doctor-added',
+    ]);
+    // The queue is clear.
+    expect(await countPendingApprovals(null)).toBe(0);
+  });
+
+  it('returning it after an edit sends it back as CHANGES_REQUESTED with the note', async () => {
+    seedItem('p1', 'as-submitted');
+    sessionRef.current = therapist;
+    await submitHomeProgram('p1');
+
+    sessionRef.current = doctor;
+    await onHomeProgramEdited('p1');
+    await requestHomeProgramChanges('p1', 'Reduce to three sessions a week.');
+
+    expect(await getApprovalState('p1')).toMatchObject({
+      status: 'CHANGES_REQUESTED',
+      changesComment: 'Reduce to three sessions a week.',
+    });
+    expect(vi.mocked(createNotification)).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'HOME_PROGRAM_CHANGES_REQUESTED',
+        recipientId: 'therapist-1',
+      }),
+    );
+    // Back with the therapist, who can send it again.
+    expect(canSubmitHomeProgram('CHANGES_REQUESTED')).toBe(true);
+  });
+
+  it('a doctor building a program with nothing under review still auto-approves', async () => {
+    // The pre-existing "the doctor IS the approver" path must not regress.
+    sessionRef.current = doctor;
+    seedItem('p1', 'doctor-built');
+    await onHomeProgramEdited('p1');
+
+    expect((await getApprovalState('p1')).status).toBe('APPROVED');
+    expect((await getVisibleHomeProgram('p1')).map((i) => i.id)).toEqual(['doctor-built']);
+  });
+});

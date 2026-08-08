@@ -1,59 +1,26 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
-import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
-import { toast } from 'sonner';
 
-import { Button } from '@/components/ui/button';
+import { HomeProgramReviewActions } from '@/components/home-program/HomeProgramReviewActions';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
-import {
-  approveHomeProgramAction,
-  requestHomeProgramChangesAction,
-} from '@/lib/clinical/home-program/actions';
 import type { PendingApprovalRow } from '@/lib/clinical/home-program/approval';
 import { bidiIsolate } from '@/lib/format/bidi';
 
+/**
+ * One row of the doctor's approval queue. Quick approve / return live here for
+ * the obvious cases; "Review program" opens the full review page where the
+ * doctor reads every exercise, edits, and decides — the same actions, same
+ * rules (PT-B2 item 3).
+ */
 export function HomeProgramReviewCard({ row }: { row: PendingApprovalRow }) {
   const t = useTranslations('clinical.homeProgram.approval');
   const locale = useLocale();
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [showChanges, setShowChanges] = useState(false);
-  const [comment, setComment] = useState('');
 
   const patientName = locale === 'ar' ? row.patientFullNameAr : row.patientFullNameEn;
   const therapistName =
     (locale === 'ar' ? row.therapistFullNameAr : row.therapistFullNameEn) ?? '—';
-
-  function handleApprove() {
-    startTransition(async () => {
-      const r = await approveHomeProgramAction(row.patientId);
-      if (!r.ok) {
-        toast.error(r.error.message_en);
-        return;
-      }
-      toast.success(t('approvedToast'));
-      router.refresh();
-    });
-  }
-
-  function handleRequestChanges() {
-    if (!comment.trim()) {
-      toast.error(t('commentRequired'));
-      return;
-    }
-    startTransition(async () => {
-      const r = await requestHomeProgramChangesAction(row.patientId, comment);
-      if (!r.ok) {
-        toast.error(r.error.message_en);
-        return;
-      }
-      toast.success(t('changesRequestedToast'));
-      router.refresh();
-    });
-  }
 
   return (
     <Card>
@@ -76,34 +43,7 @@ export function HomeProgramReviewCard({ row }: { row: PendingApprovalRow }) {
           </Link>
         </div>
 
-        {showChanges ? (
-          <div className="space-y-2">
-            <textarea
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              rows={3}
-              placeholder={t('commentPlaceholder')}
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-            <div className="flex gap-2">
-              <Button size="sm" variant="outline" disabled={pending} onClick={handleRequestChanges}>
-                {t('sendChanges')}
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setShowChanges(false)}>
-                {t('cancel')}
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex gap-2">
-            <Button size="sm" disabled={pending} onClick={handleApprove}>
-              {t('approve')}
-            </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowChanges(true)}>
-              {t('requestChanges')}
-            </Button>
-          </div>
-        )}
+        <HomeProgramReviewActions patientId={row.patientId} />
       </CardContent>
     </Card>
   );
