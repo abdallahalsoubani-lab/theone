@@ -3,6 +3,9 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { CancelledAppointmentsTable } from '@/components/appointments/CancelledAppointmentsTable';
 import { listActiveClinicians, listCancelledAppointments } from '@/lib/appointments/queries';
 import { requirePermission } from '@/lib/rbac/guards';
+import { customRange } from '@/lib/reports/range';
+import { clinicDateKey } from '@/lib/time/clinic';
+import { getClinicTimeZone } from '@/lib/time/clinic-server';
 
 const DAY_MS = 86_400_000;
 const PAGE_SIZE = 20;
@@ -32,10 +35,15 @@ export async function CancelledAppointmentsContent({
   const search = str(searchParams.q);
   const page = Math.max(1, parseInt(str(searchParams.page) ?? '1', 10) || 1);
 
-  // Default: last 30 days. `from` is start-of-day; `to` (if given) end-of-day.
-  const defaultFrom = new Date(Date.now() - 30 * DAY_MS);
-  const fromDate = new Date(`${fromStr ?? defaultFrom.toISOString().slice(0, 10)}T00:00:00.000Z`);
-  const toDate = toStr ? new Date(`${toStr}T23:59:59.999Z`) : undefined;
+  // Default: last 30 days. The typed dates are CLINIC calendar days — `from` is
+  // that day's opening midnight in Amman and `to` is inclusive, so the bound is
+  // the last instant before the following clinic midnight. (Parsing them as
+  // UTC midnight shifted every edge by the Amman offset.)
+  const timeZone = await getClinicTimeZone();
+  const defaultFrom = clinicDateKey(new Date(Date.now() - 30 * DAY_MS), timeZone);
+  const range = customRange(fromStr ?? defaultFrom, toStr ?? fromStr ?? defaultFrom, timeZone);
+  const fromDate = range?.start;
+  const toDate = toStr && range ? new Date(range.end.getTime() - 1) : undefined;
 
   const canSeePhone = viewer.role === 'SECRETARY' || viewer.role === 'ADMIN';
 
@@ -64,7 +72,7 @@ export async function CancelledAppointmentsContent({
           fullNameEn: c.fullNameEn,
           fullNameAr: c.fullNameAr,
         }))}
-        filterFrom={fromStr ?? defaultFrom.toISOString().slice(0, 10)}
+        filterFrom={fromStr ?? defaultFrom}
         filterTo={toStr ?? ''}
         filterTherapistId={therapistId ?? ''}
       />

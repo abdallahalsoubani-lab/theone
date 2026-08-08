@@ -11,6 +11,8 @@ import { db } from '@/lib/db';
 import { listApprovedLeavesInRange } from '@/lib/leave/queries';
 import { can } from '@/lib/rbac/can';
 import { requirePermission } from '@/lib/rbac/guards';
+import { clinicDaySpan } from '@/lib/time/clinic';
+import { getClinicTimeZone } from '@/lib/time/clinic-server';
 
 /**
  * Shared calendar page body (Prompt 15 §2). The same interactive board is the
@@ -34,13 +36,13 @@ export async function CalendarPageContent({
   const viewer = await requirePermission('appointments.read');
   const tAppointments = await getTranslations('appointments');
 
-  const now = new Date();
-  const from = new Date(now);
-  from.setDate(from.getDate() - 7);
-  from.setHours(0, 0, 0, 0);
-  const to = new Date(now);
-  to.setDate(to.getDate() + 21);
-  to.setHours(23, 59, 59, 999);
+  // Whole CLINIC days (Prompt 31): the process runs on UTC, so `setHours` day
+  // math would anchor the window to 03:00 Amman and clip the clinic day.
+  const span = clinicDaySpan(new Date(), 7, 21, await getClinicTimeZone());
+  const from = span.start;
+  // The calendar + leave queries compare with `lte`, so pass the last instant
+  // inside the span rather than its exclusive end.
+  const to = new Date(span.end.getTime() - 1);
 
   const [appointments, resources, patients, rooms, settings, leaves] = await Promise.all([
     listAppointmentsForCalendar({ from, to }),

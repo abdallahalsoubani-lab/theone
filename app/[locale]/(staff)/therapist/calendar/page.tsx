@@ -6,6 +6,8 @@ import { listAppointmentsForCalendar } from '@/lib/appointments/queries';
 import { db } from '@/lib/db';
 import { listApprovedLeavesInRange } from '@/lib/leave/queries';
 import { requirePermission } from '@/lib/rbac/guards';
+import { clinicDaySpan } from '@/lib/time/clinic';
+import { getClinicTimeZone } from '@/lib/time/clinic-server';
 
 /**
  * Therapist's full schedule (Prompt 15.6) — read-only calendar of their own
@@ -29,13 +31,14 @@ export default async function TherapistCalendarPage({
   const t = await getTranslations('appointments');
 
   // Generous window: a week back through a year out, so any reasonable future
-  // booking date the therapist navigates to has data.
-  const from = new Date();
-  from.setDate(from.getDate() - 7);
-  from.setHours(0, 0, 0, 0);
-  const to = new Date();
-  to.setDate(to.getDate() + 365);
-  to.setHours(23, 59, 59, 999);
+  // booking date the therapist navigates to has data. Boundaries are CLINIC
+  // days (Prompt 31) — the process runs on UTC, so day math must not use the
+  // local getters or the window starts at 03:00 Amman.
+  const span = clinicDaySpan(new Date(), 7, 365, await getClinicTimeZone());
+  const from = span.start;
+  // listAppointmentsForCalendar / listApprovedLeavesInRange compare with `lte`,
+  // so pass the last instant inside the span rather than its exclusive end.
+  const to = new Date(span.end.getTime() - 1);
 
   const [appointments, settings, allLeaves] = await Promise.all([
     listAppointmentsForCalendar({ from, to, therapistIds: [therapistId] }),

@@ -96,6 +96,26 @@ export function clinicDayRange(
   return { start, end };
 }
 
+/**
+ * A multi-day fetch window aligned to whole CLINIC days: from the start of the
+ * clinic day `daysBefore` back, to the end of the clinic day `daysAfter`
+ * ahead. `end` is exclusive, like `clinicDayRange`.
+ *
+ * Calendar pages used to build this with `setHours(0, 0, 0, 0)`, which is the
+ * PROCESS timezone — under `TZ=UTC` (every container) that anchors the window
+ * to 03:00 Amman and clips the first hours of the clinic day.
+ */
+export function clinicDaySpan(
+  now: Date,
+  daysBefore: number,
+  daysAfter: number,
+  timeZone: string = CLINIC_TIME_ZONE,
+): { start: Date; end: Date } {
+  const start = clinicDayRange(new Date(now.getTime() - daysBefore * 86_400_000), timeZone).start;
+  const end = clinicDayRange(new Date(now.getTime() + daysAfter * 86_400_000), timeZone).end;
+  return { start, end };
+}
+
 /** Clinic-local calendar date of an instant — "YYYY-MM-DD". */
 export function clinicDateKey(instant: Date, timeZone: string = CLINIC_TIME_ZONE): string {
   const p = clinicWallParts(instant, timeZone);

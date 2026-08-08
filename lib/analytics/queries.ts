@@ -1,6 +1,9 @@
 import { AppointmentStatus, type CancellationCategory } from '@prisma/client';
 
 import { db } from '@/lib/db';
+import { presetRange } from '@/lib/reports/range';
+import { clinicDateKey } from '@/lib/time/clinic';
+import { getClinicTimeZone } from '@/lib/time/clinic-server';
 
 import { cached } from './cache';
 
@@ -318,12 +321,11 @@ export async function getScheduleDensityForTherapist(
   return cached(
     { name: 'getScheduleDensityForTherapist', args: { therapistId } },
     async () => {
-      const now = new Date();
-      const start = new Date(now);
-      start.setDate(start.getDate() - start.getDay());
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(start);
-      end.setDate(end.getDate() + 7);
+      // Clinic-local week (Sunday → Sunday), not the process week: the app runs
+      // under TZ=UTC, so the local day getters would start the week at 03:00
+      // Amman and drop an early-morning session into the previous bar.
+      const timeZone = await getClinicTimeZone();
+      const { start, end } = presetRange('week', new Date(), timeZone);
 
       const rows = await db.appointment.findMany({
         where: {
@@ -343,12 +345,10 @@ export async function getScheduleDensityForTherapist(
 
       const buckets = new Map<string, number>();
       for (let i = 0; i < 7; i++) {
-        const d = new Date(start);
-        d.setDate(d.getDate() + i);
-        buckets.set(toDateKey(d), 0);
+        buckets.set(clinicDateKey(new Date(start.getTime() + i * 86_400_000), timeZone), 0);
       }
       for (const a of rows) {
-        const key = toDateKey(a.startsAt);
+        const key = clinicDateKey(a.startsAt, timeZone);
         buckets.set(key, (buckets.get(key) ?? 0) + a.durationMinutes);
       }
       return Array.from(buckets.entries()).map(([day, minutes]) => ({ day, minutes }));

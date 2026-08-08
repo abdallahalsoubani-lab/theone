@@ -3,6 +3,8 @@ import 'server-only';
 import { AppointmentStatus } from '@prisma/client';
 
 import { db } from '@/lib/db';
+import { clinicWallToInstant } from '@/lib/time/clinic';
+import { getClinicTimeZone } from '@/lib/time/clinic-server';
 
 export interface DayReportRow {
   id: string;
@@ -76,10 +78,20 @@ export async function buildDayReportDraft(args: { therapistId: string; date: Dat
   existing: DayReportRow | null;
 }> {
   const existing = await getDayReport(args);
-  const start = new Date(args.date);
-  start.setUTCHours(0, 0, 0, 0);
-  const end = new Date(start);
-  end.setUTCDate(end.getUTCDate() + 1);
+  // `args.date` is the report KEY — midnight-UTC of a YYYY-MM-DD, matching the
+  // @db.Date column. The appointments it covers are real instants, so the
+  // window must be that CLINIC day, not the UTC day: they differ by the Amman
+  // offset, which used to push a late-evening session into the next report.
+  const timeZone = await getClinicTimeZone();
+  const start = clinicWallToInstant(
+    {
+      year: args.date.getUTCFullYear(),
+      month: args.date.getUTCMonth() + 1,
+      day: args.date.getUTCDate(),
+    },
+    timeZone,
+  );
+  const end = new Date(start.getTime() + 86_400_000);
 
   const appts = await db.appointment.findMany({
     where: {
