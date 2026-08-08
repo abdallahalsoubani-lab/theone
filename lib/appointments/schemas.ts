@@ -118,9 +118,10 @@ export const appointmentRescheduleSchema = z.object({
   /**
    * Duration-only resize from the calendar edge (July change request #6).
    * When true this is NOT a reschedule: `startsAt` is unchanged and only the
-   * end (durationMinutes) moves. The clinic wants free resize — it SKIPS the
-   * conflict check (overlaps allowed) and the "start in the past" guard, and
-   * is audited as APPOINTMENT_RESIZED. Always a single-appointment op
+   * end (durationMinutes) moves. It runs the SAME conflict engine as a drag
+   * (PT-B2 §5.2 — the original "free resize" exemption is withdrawn), skips
+   * only the "start in the past" guard since the start does not move, and is
+   * audited as APPOINTMENT_RESIZED. Always a single-appointment op
    * (seriesMode ONE); no therapist/room change.
    */
   resize: z.boolean().default(false),

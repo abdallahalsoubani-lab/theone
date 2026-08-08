@@ -22,7 +22,6 @@ import { notifyWaitlistForFreedSlot } from '@/lib/waitlist/services';
 import {
   checkConflicts,
   hasHardBlockedConflict,
-  hasSamePatientOverlap,
   type Conflict,
   type ConflictResult,
 } from './conflicts';
@@ -402,28 +401,21 @@ export const rescheduleAppointment = withAudit<
       appointmentType: existing.appointmentType,
       roomId: input.roomId ?? existing.roomId,
     });
+    // A resize is treated exactly like a drag (PT-B2 §5.2, owner ruling —
+    // "free resize" is withdrawn): the same engine, the same messages, the
+    // same override permission. Dragging the bottom edge moves the end of the
+    // appointment, which double-books a therapist or a room just as surely as
+    // moving the whole block does.
     if (!conflicts.ok) {
-      if (input.resize) {
-        // Free resize: the clinic explicitly allows a resize to overlap
-        // another appointment / leave / room booking (confirmed decision #1),
-        // so every other kind stays permitted here. The engine still runs
-        // because dragging the bottom edge past the same patient's next
-        // booking would double-book that patient, and same-patient overlap is
-        // absolute on EVERY path (PT-B1 item 3) — a resize is no exception.
-        if (hasSamePatientOverlap(conflicts.conflicts)) {
-          throw new AppointmentError(await hardBlockedError(conflicts.conflicts));
-        }
-      } else {
-        // Hard-blocked kinds (same-patient overlap, closed day, bed capacity)
-        // reject even with overrideConflicts + the permission (Prompt 22 §4.1).
-        if (hasHardBlockedConflict(conflicts.conflicts)) {
-          throw new AppointmentError(await hardBlockedError(conflicts.conflicts));
-        }
-        if (!input.overrideConflicts) {
-          throw new AppointmentError(conflictError(conflicts.conflicts));
-        }
-        conflictsOverridden = true;
+      // Hard-blocked kinds (same-patient overlap, closed day, bed capacity)
+      // reject even with overrideConflicts + the permission (Prompt 22 §4.1).
+      if (hasHardBlockedConflict(conflicts.conflicts)) {
+        throw new AppointmentError(await hardBlockedError(conflicts.conflicts));
       }
+      if (!input.overrideConflicts) {
+        throw new AppointmentError(conflictError(conflicts.conflicts));
+      }
+      conflictsOverridden = true;
     }
 
     await db.$transaction(async (tx) => {

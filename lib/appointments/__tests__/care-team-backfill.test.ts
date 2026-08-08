@@ -346,7 +346,7 @@ describe('hard-blocked conflicts reject even with override (Prompt 22 §4.1/§4.
   });
 });
 
-describe('appointment resize — duration-only, free of SOFT conflicts (July #6)', () => {
+describe('appointment resize — duration-only, full conflict engine (PT-B2 §5.2)', () => {
   const auditLogs = (__state as unknown as { auditLogs: Array<Record<string, unknown>> }).auditLogs;
   const startOf = (id: string) => __state.appointments.find((a) => a.id === id)!.startsAt as Date;
 
@@ -372,11 +372,13 @@ describe('appointment resize — duration-only, free of SOFT conflicts (July #6)
     expect(auditLogs.at(-1)).toMatchObject({ after: { event: 'APPOINTMENT_RESIZED' } });
   });
 
-  it('is allowed even when it would overlap a therapist — the case that differs from drop', async () => {
+  it('is rejected by a therapist overlap, exactly like a drop (PT-B2 §5.2)', async () => {
+    // "Free resize" is withdrawn by owner ruling: stretching the end of an
+    // appointment over a colleague's slot double-books just as moving it does,
+    // so the resize path now enforces the whole engine.
     const { appointmentId } = await createAppointment(baseCreate);
     const start = startOf(appointmentId);
-    // The engine is consulted (PT-B1 item 3) but only same-patient overlap
-    // rejects a resize; a therapist clash still goes through.
+    const before = __state.appointments.find((a) => a.id === appointmentId)!.durationMinutes;
     vi.mocked(checkConflicts).mockResolvedValueOnce({
       ok: false,
       conflicts: [{ kind: 'THERAPIST_OVERLAP', therapist: {}, appointment: {} }],
@@ -390,7 +392,8 @@ describe('appointment resize — duration-only, free of SOFT conflicts (July #6)
         seriesMode: 'ONE',
         resize: true,
       } as Parameters<typeof rescheduleAppointment>[0]),
-    ).resolves.toMatchObject({ resized: true });
+    ).rejects.toMatchObject({ error: { code: 'APPOINTMENT_CONFLICT' } });
+    expect(__state.appointments.find((a) => a.id === appointmentId)!.durationMinutes).toBe(before);
   });
 
   it('is BLOCKED when it stretches over the same patient’s next booking', async () => {

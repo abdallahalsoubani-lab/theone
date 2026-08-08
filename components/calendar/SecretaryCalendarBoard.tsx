@@ -205,12 +205,11 @@ export function SecretaryCalendarBoard({
     dispatchReschedule(drop, 'ONE');
   };
 
-  // Edge-resize → duration-only change (July #6). Start is unchanged; free
-  // resize (therapist / leave / room overlaps still allowed server-side). The
-  // one rejection is stretching over the same patient's next booking (PT-B1
-  // item 3) — it returns a localized error and the optimistic resize reverts.
-  // Always a single-appointment op — no series scope picker, even for a
-  // series member.
+  // Edge-resize → duration-only change (July #6). Start is unchanged. The
+  // server runs the FULL conflict engine here, same as a drag (PT-B2 §5.2 —
+  // "free resize" withdrawn): a rejection comes back as a localized error and
+  // the optimistic resize reverts. Always a single-appointment op — no series
+  // scope picker, even for a series member.
   const handleEventResize = (args: { appointmentId: string; start: Date; end: Date }) => {
     const existing = appointments.find((a) => a.id === args.appointmentId);
     if (!existing) return;

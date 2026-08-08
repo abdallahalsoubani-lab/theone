@@ -182,7 +182,7 @@ describe('single-therapist lane change (explicit therapistIds)', () => {
   });
 });
 
-describe('resize (July #6 — duration-only, free of soft conflicts)', () => {
+describe('resize — duration-only, full conflict engine (PT-B2 §5.2)', () => {
   it('keeps start/room and retains all therapists', async () => {
     const r = await rescheduleAppointment({
       id: 'a1',
@@ -196,7 +196,10 @@ describe('resize (July #6 — duration-only, free of soft conflicts)', () => {
     expect(txTherapistDeleteMany).not.toHaveBeenCalled();
   });
 
-  it('still stretches over a therapist overlap — the free-resize rule stands', async () => {
+  it('is blocked by a therapist overlap, exactly like a drag (free resize withdrawn)', async () => {
+    // PT-B2 §5.2 owner ruling: stretching an appointment over a colleague's
+    // slot, a leave, or a held room double-books just as a move would, so the
+    // resize path is no longer exempt from the soft-conflict block either.
     checkConflictsMock.mockResolvedValue({
       ok: false,
       conflicts: [
@@ -207,18 +210,44 @@ describe('resize (July #6 — duration-only, free of soft conflicts)', () => {
         },
       ],
     });
-    // A room block is hard for a booking, but a resize may still hold the room.
-    hardBlockedMock.mockReturnValue(true);
+
+    await expect(
+      rescheduleAppointment({
+        id: 'a1',
+        startsAt: FUTURE,
+        durationMinutes: 60,
+        resize: true,
+        overrideConflicts: false,
+      } as never),
+    ).rejects.toSatisfy((e: unknown) => {
+      expect(e).toBeInstanceOf(AppointmentError);
+      // Same error the drag path raises — same message, same shape.
+      expect((e as AppointmentError).error.code).toBe('APPOINTMENT_CONFLICT');
+      return true;
+    });
+    expect(txAppointmentUpdate).not.toHaveBeenCalled();
+  });
+
+  it('a soft conflict can still be overridden by a user who holds the permission', async () => {
+    checkConflictsMock.mockResolvedValue({
+      ok: false,
+      conflicts: [
+        {
+          kind: 'THERAPIST_OVERLAP',
+          therapist: { id: 't2', fullNameEn: 'Layan Haddad', fullNameAr: 'ليان حداد' },
+          appointment: {},
+        },
+      ],
+    });
 
     const r = await rescheduleAppointment({
       id: 'a1',
       startsAt: FUTURE,
       durationMinutes: 60,
       resize: true,
-      overrideConflicts: false,
+      overrideConflicts: true,
     } as never);
-    expect(r).toMatchObject({ resized: true });
-    expect(txAppointmentUpdate).toHaveBeenCalled();
+    expect(r).toMatchObject({ resized: true, conflictsOverridden: true });
   });
 
   it('is BLOCKED when the longer session swallows the same patient’s next booking', async () => {
@@ -233,7 +262,8 @@ describe('resize (July #6 — duration-only, free of soft conflicts)', () => {
         },
       ],
     });
-    samePatientMock.mockReturnValue(true);
+    // Same-patient overlap is a hard-blocked kind.
+    hardBlockedMock.mockReturnValue(true);
 
     await expect(
       rescheduleAppointment({
@@ -256,7 +286,7 @@ describe('resize (July #6 — duration-only, free of soft conflicts)', () => {
       ok: false,
       conflicts: [{ kind: 'PATIENT_OVERLAP', appointment: { id: 'a2' } }],
     });
-    samePatientMock.mockReturnValue(true);
+    hardBlockedMock.mockReturnValue(true);
 
     await expect(
       rescheduleAppointment({
