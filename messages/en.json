@@ -514,6 +514,7 @@
     "form": {
       "type": "Booking type",
       "typeSession": "Session (with therapist)",
+      "typeSessionDoctor": "Session (with doctor)",
       "typeStretching": "Stretching (room + beds, no therapist)",
       "typeStretchingShort": "Stretch",
       "typeEvent": "Event (meeting / maintenance / training — no patient)",
@@ -534,6 +535,8 @@
       "therapist": "Therapist",
       "therapists": "Therapists",
       "therapistsHint": "Pick at least one therapist.",
+      "doctors": "Doctor",
+      "doctorsHint": "Pick the doctor for this visit.",
       "room": "Room",
       "roomPlaceholder": "Select a room…",
       "roomRequired": "A room is required.",

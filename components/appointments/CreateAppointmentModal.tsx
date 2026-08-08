@@ -24,6 +24,11 @@ import {
   type ConflictResult,
 } from '@/lib/appointments/conflicts';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
+import {
+  cliniciansForKind,
+  kindOfSelection,
+  type SessionKind,
+} from '@/lib/appointments/session-kind';
 import { SearchablePillGroup, SearchableSelect } from '@/components/ui/searchable-select';
 import { formatClinicDateTimeLocal, parseClinicDateTimeLocal } from '@/lib/time/clinic';
 import { addWaitlistEntryAction, fulfillWaitlistEntryAction } from '@/lib/waitlist/actions';
@@ -47,6 +52,9 @@ interface Clinician {
   id: string;
   fullNameEn: string;
   fullNameAr: string;
+  /** THERAPIST | DOCTOR — drives the session-kind split (PT-B4 item 1).
+   *  Absent for older callers, which then read as therapists. */
+  role?: string;
 }
 
 interface Room {
@@ -75,6 +83,13 @@ interface Props {
    * waitlist entry FULFILLED (linked to the new appointment).
    */
   waitlistEntryId?: string;
+  /**
+   * Which session the form opens on (PT-B4 item 1). The patient-file
+   * "Book doctor visit" CTA opens on DOCTOR — that is the whole point of the
+   * button — but the user can still switch: the first-doctor-visit rule is a
+   * team convention, not a system block.
+   */
+  defaultSessionKind?: SessionKind;
 }
 
 /**
@@ -97,6 +112,7 @@ export function CreateAppointmentModal({
   canOverride,
   defaultPatientId,
   waitlistEntryId,
+  defaultSessionKind = 'THERAPIST',
 }: Props) {
   const t = useTranslations('appointments.form');
   const tCommon = useTranslations('common');
@@ -119,6 +135,13 @@ export function CreateAppointmentModal({
   const isStretching = appointmentType === AppointmentType.STRETCHING;
   const isEvent = appointmentType === AppointmentType.EVENT;
   const isGroup = appointmentType === AppointmentType.GROUP;
+  // PT-B4 item 1 — a SESSION is booked either with a therapist or with the
+  // doctor. Same appointment type either way; this only decides which
+  // clinicians the picker offers (the assignee's role stays the truth).
+  const [sessionKind, setSessionKind] = useState<SessionKind>(defaultSessionKind);
+  const isSession = appointmentType === AppointmentType.SESSION;
+  const isDoctorSession = isSession && sessionKind === 'DOCTOR';
+  const kindClinicians = cliniciansForKind(clinicians, sessionKind);
   // GROUP members (July #8 part 3) — open capacity, ≥1 required.
   const [patientIds, setPatientIds] = useState<string[]>([]);
   const [title, setTitle] = useState('');
@@ -140,8 +163,14 @@ export function CreateAppointmentModal({
     setAppointmentType(AppointmentType.SESSION);
     setTitle('');
     setTherapistIds(defaultTherapistId ? [defaultTherapistId] : []);
+    // Dragging into a doctor's lane prefills a doctor — open on the matching
+    // kind so the picker actually contains the preselected clinician.
+    setSessionKind(
+      defaultTherapistId ? kindOfSelection(clinicians, [defaultTherapistId]) : defaultSessionKind,
+    );
     setStartsAt(defaultStartsAt ? toLocalInput(defaultStartsAt) : '');
     setDuration(defaultDurationMinutes);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultStartsAt, defaultTherapistId, defaultDurationMinutes, defaultPatientId]);
 
   // Switching to STRETCHING clears any picked therapists (it has none).
@@ -307,13 +336,32 @@ export function CreateAppointmentModal({
           <div className="space-y-3">
             <div className="space-y-1">
               <Label htmlFor="appt-type">{t('type')}</Label>
+              {/* PT-B4 item 1 — the first two options both create a SESSION;
+                  they differ only in whose list the picker below offers. The
+                  clinic's rule is that a new patient is assessed by the doctor
+                  first, so that has to be bookable from here. */}
               <select
                 id="appt-type"
-                value={appointmentType}
-                onChange={(e) => setAppointmentType(e.target.value as AppointmentType)}
+                value={
+                  appointmentType === AppointmentType.SESSION
+                    ? `SESSION:${sessionKind}`
+                    : appointmentType
+                }
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v.startsWith('SESSION:')) {
+                    setAppointmentType(AppointmentType.SESSION);
+                    setSessionKind(v.slice('SESSION:'.length) as SessionKind);
+                    // Picks from the other list don't belong to this one.
+                    setTherapistIds([]);
+                    return;
+                  }
+                  setAppointmentType(v as AppointmentType);
+                }}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                <option value={AppointmentType.SESSION}>{t('typeSession')}</option>
+                <option value="SESSION:DOCTOR">{t('typeSessionDoctor')}</option>
+                <option value="SESSION:THERAPIST">{t('typeSession')}</option>
                 <option value={AppointmentType.STRETCHING}>{t('typeStretching')}</option>
                 <option value={AppointmentType.EVENT}>{t('typeEvent')}</option>
                 <option value={AppointmentType.GROUP}>{t('typeGroup')}</option>
@@ -391,12 +439,13 @@ export function CreateAppointmentModal({
 
             {isStretching ? null : (
               <div className="space-y-1">
-                <Label>{t('therapists')}</Label>
                 {/* Prompt 47 — filterable clinician wall (P20 multi-select).
-                    The P41 doctor-scoping arrives pre-filtered via the
-                    `clinicians` prop, untouched here. */}
+                    PT-B4 item 1: the list follows the chosen session kind, so
+                    a doctor session offers doctors and says so. EVENT and
+                    GROUP keep the full staff list — either may involve both. */}
+                <Label>{isDoctorSession ? t('doctors') : t('therapists')}</Label>
                 <SearchablePillGroup
-                  options={clinicians.map((c) => ({
+                  options={(isSession ? kindClinicians : clinicians).map((c) => ({
                     id: c.id,
                     label: locale === 'ar' ? c.fullNameAr : c.fullNameEn,
                     sublabel: locale === 'ar' ? c.fullNameEn : c.fullNameAr,
@@ -405,7 +454,9 @@ export function CreateAppointmentModal({
                   onToggle={toggleTherapist}
                 />
                 {therapistIds.length === 0 ? (
-                  <p className="text-xs text-brand-textMuted">{t('therapistsHint')}</p>
+                  <p className="text-xs text-brand-textMuted">
+                    {isDoctorSession ? t('doctorsHint') : t('therapistsHint')}
+                  </p>
                 ) : null}
               </div>
             )}

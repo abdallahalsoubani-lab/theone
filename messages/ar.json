@@ -86,6 +86,7 @@
     "form": {
       "type": "نوع الحجز",
       "typeSession": "جلسة (مع معالج)",
+      "typeSessionDoctor": "جلسة (مع دكتور)",
       "typeStretching": "استطالة (غرفة وأسرّة، بلا معالج)",
       "typeStretchingShort": "استطالة",
       "typeEvent": "فعالية (اجتماع / صيانة / تدريب — بلا مريض)",
@@ -106,6 +107,8 @@
       "therapist": "المعالج",
       "therapists": "المعالجون",
       "therapistsHint": "اختر معالجاً واحداً على الأقل.",
+      "doctors": "الدكتور",
+      "doctorsHint": "اختر الدكتور لهذه الزيارة.",
       "room": "الغرفة",
       "roomPlaceholder": "اختر غرفة…",
       "roomRequired": "الغرفة مطلوبة.",

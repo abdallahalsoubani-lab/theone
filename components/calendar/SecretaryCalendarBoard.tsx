@@ -270,13 +270,11 @@ export function SecretaryCalendarBoard({
           setAutoBookActive(false);
         }}
         patients={patients}
-        // NI-5 CTA path: the doctor-visit deep link scopes the clinician
-        // picker to doctors so the secretary can't mis-pick a therapist here.
-        clinicians={
-          autoBookActive && autoBook?.doctorsOnly
-            ? resources.filter((r) => r.role === 'DOCTOR')
-            : resources
-        }
+        // The full staff list goes in; the modal narrows it to doctors or
+        // therapists from the chosen session kind (PT-B4 item 1). This used to
+        // hard-filter to doctors on the CTA path, which left the secretary
+        // stuck if the doctor visit had to become a therapist booking.
+        clinicians={resources}
         rooms={rooms}
         defaultStartsAt={createSlot.start}
         defaultTherapistId={createSlot.therapistId}
@@ -284,6 +282,9 @@ export function SecretaryCalendarBoard({
         closedDays={closedDays}
         canOverride={canOverride}
         defaultPatientId={autoBookActive ? autoBook?.patientId : undefined}
+        // NI-5 CTA path: "Book doctor visit" opens on the doctor session —
+        // that is the button's whole purpose — but stays switchable.
+        defaultSessionKind={autoBookActive && autoBook?.doctorsOnly ? 'DOCTOR' : 'THERAPIST'}
       />
 
       <AppointmentSidePanel
