@@ -12,6 +12,7 @@ import {
 import type { KioskArrivalRow } from '@/lib/arrivals/kiosk';
 import { kioskNamePair } from '@/lib/arrivals/name-pair';
 import { formatTime } from '@/lib/format/date';
+import type { KioskWait } from '@/lib/arrivals/wait';
 
 type Screen =
   | { kind: 'grid' }
@@ -274,19 +275,28 @@ function ResultView({ result, onDone }: { result: KioskActionResult; onDone: () 
   let title = '';
   let detail: string | null = null;
 
+  // The wait line, from the patient's own appointment time (PT-B5 item 3).
+  // A patient who is well past their slot is sent to reception instead of
+  // being given a countdown — the check-in itself already succeeded.
+  const waitLine = (wait: KioskWait): string => {
+    if (wait.kind === 'OVERDUE') return t('appointmentPassed', { time: wait.scheduledHm });
+    if (wait.kind === 'NOW') return t('turnNow');
+    return t('turnIn', { minutes: wait.minutes });
+  };
+
   switch (result.kind) {
     case 'CHECKED_IN':
-      tone = 'text-brand-teal';
+      tone = result.wait.kind === 'OVERDUE' ? 'text-amber-700' : 'text-brand-teal';
       title = t('checkedIn', { name: result.firstName });
       detail =
         result.appointmentCount > 1
           ? t('checkedInRun', { count: result.appointmentCount })
-          : t('turnIn', { minutes: result.delayMinutes });
+          : waitLine(result.wait);
       break;
     case 'ALREADY_CHECKED_IN':
-      tone = 'text-brand-teal';
+      tone = result.wait.kind === 'OVERDUE' ? 'text-amber-700' : 'text-brand-teal';
       title = t('alreadyCheckedIn', { name: result.firstName });
-      detail = t('turnIn', { minutes: result.delayMinutes });
+      detail = waitLine(result.wait);
       break;
     case 'RATE_LIMITED':
       tone = 'text-brand-navy';

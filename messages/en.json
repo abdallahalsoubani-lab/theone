@@ -1724,6 +1724,8 @@
     "confirmNo": "No, go back",
     "done": "Done",
     "checkedIn": "Welcome, {name}! You are checked in.",
+    "turnNow": "It is your turn — please take a seat and wait to be called.",
+    "appointmentPassed": "Your appointment was at {time} — please see reception.",
     "turnIn": "Your turn in about {minutes} minutes.",
     "checkedInRun": "Your {count} back-to-back appointments are checked in.",
     "alreadyCheckedIn": "You are already checked in, {name}. ✅",
@@ -1789,7 +1791,7 @@
     "undoCheckIn": "Undo",
     "checkIn": "Check in",
     "currentDelay": "Current delay",
-    "currentDelayHint": "Shown on the kiosk as “your turn in ~X minutes”.",
+    "currentDelayHint": "How far behind the clinic is running, shown on this board and the lobby screen. The kiosk counts down to each patient\u2019s own appointment time.",
     "minutesValue": "{minutes} min"
   },
   "pediatricAssessment": {

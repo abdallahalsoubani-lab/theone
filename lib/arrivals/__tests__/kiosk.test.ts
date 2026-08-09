@@ -179,7 +179,9 @@ describe('checkInByName', () => {
     expect(res).toEqual({
       kind: 'CHECKED_IN',
       firstName: 'Abdullah',
-      delayMinutes: 10,
+      // 09:00 now, 10:00 appointment → an hour, from the patient's OWN slot
+      // (PT-B5 item 3).
+      wait: { kind: 'WAIT', minutes: 60 },
       appointmentCount: 1,
     });
     expect(state.appts[0]!.checkedInAt).toEqual(NOW);
@@ -207,12 +209,35 @@ describe('checkInByName', () => {
     expect(state.audits).toHaveLength(0);
   });
 
-  it('reflects the live currentDelayMinutes setting', async () => {
+  it('ignores the clinic-wide delay setting — the wait is this patient’s own slot', async () => {
+    // This used to assert the opposite: the kiosk echoed currentDelayMinutes,
+    // so every patient got the same number and an appointment three hours out
+    // read the same as one three minutes out (PT-B5 item 3).
     addPatient('pat-1', 'Abdullah', 'عبدالله');
     addAppt({ id: 'appt-1', patientId: 'pat-1', startsAt: new Date('2026-06-10T10:00:00Z') });
     state.settings.currentDelayMinutes = 25;
     const res = await checkInByName({ patientId: 'pat-1', now: NOW });
-    expect(res).toMatchObject({ kind: 'CHECKED_IN', delayMinutes: 25 });
+    expect(res).toMatchObject({ kind: 'CHECKED_IN', wait: { kind: 'WAIT', minutes: 60 } });
+  });
+
+  it('tells a patient whose slot has passed to see reception, and still checks them in', async () => {
+    addPatient('pat-1', 'Abdullah', 'عبدالله');
+    // Started 09:00, runs 90 minutes, so it is still arrivable at 10:00 —
+    // but the patient is an hour late for it.
+    addAppt({
+      id: 'appt-1',
+      patientId: 'pat-1',
+      startsAt: new Date('2026-06-10T08:00:00Z'),
+      durationMinutes: 180,
+    });
+    const res = await checkInByName({
+      patientId: 'pat-1',
+      now: new Date('2026-06-10T09:00:00Z'),
+    });
+    expect(res).toMatchObject({ kind: 'CHECKED_IN', wait: { kind: 'OVERDUE' } });
+    // The message changes; the arrival itself must not.
+    expect(state.appts[0]!.checkedInAt).toEqual(new Date('2026-06-10T09:00:00Z'));
+    expect(state.appts[0]!.checkedInVia).toBe('KIOSK');
   });
 });
 

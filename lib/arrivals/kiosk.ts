@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 import { groupAdjacentAppointments } from './grouping';
 import { notifyArrival } from './notify-arrival';
 import { clinicDayRange } from './time';
+import { kioskWait, type KioskWait } from './wait';
 
 /**
  * Kiosk check-in matching (Prompt 18 §1; reworked July change requests #1/#3;
@@ -29,8 +30,11 @@ import { clinicDayRange } from './time';
  *     arrival — a single check-in marks the whole run; spaced-apart
  *     appointments each need their own check-in. `notifyArrival` fires once
  *     per arrival (the deferred item-2 message seam).
- *   - The "your turn in ~X minutes" value is the manual `currentDelayMinutes`
- *     clinic setting — no queue-position math.
+ *   - The "your turn in ~X minutes" value is computed from the patient's OWN
+ *     appointment time (PT-B5 item 3). It used to echo the clinic-wide
+ *     `currentDelayMinutes` setting, which made it the same number for every
+ *     patient and a future countdown for an appointment that had passed.
+ *     Still no queue-position math — just now vs. the slot, server-side.
  *   - PASSED = GONE (Prompt 31 §4.4, supersedes Prompt 22 §4.3): an
  *     appointment whose scheduled END is already behind us is no longer
  *     arrivable — it neither matches in search nor checks in. A patient with
@@ -46,11 +50,13 @@ export type KioskCheckInResult =
   | {
       kind: 'CHECKED_IN';
       firstName: string;
-      delayMinutes: number;
+      /** Computed from the patient's OWN appointment time (PT-B5 item 3),
+       *  not the clinic-wide delay this used to echo. */
+      wait: KioskWait;
       /** How many appointments this one arrival covered (back-to-back run). */
       appointmentCount: number;
     }
-  | { kind: 'ALREADY_CHECKED_IN'; firstName: string; delayMinutes: number }
+  | { kind: 'ALREADY_CHECKED_IN'; firstName: string; wait: KioskWait }
   | { kind: 'NO_APPOINTMENT' };
 
 /** One kiosk ROW = one arrival group (July 31 item 2): a back-to-back run of
@@ -196,10 +202,9 @@ export async function checkInByName(input: {
 
   const settings = await db.clinicSettings.findUnique({
     where: { id: 'default' },
-    select: { timezone: true, currentDelayMinutes: true },
+    select: { timezone: true },
   });
   const timeZone = settings?.timezone ?? 'Asia/Amman';
-  const delayMinutes = settings?.currentDelayMinutes ?? 10;
   const { start, end } = clinicDayRange(now, timeZone);
 
   const patient = await db.user.findFirst({
@@ -226,7 +231,14 @@ export async function checkInByName(input: {
   // left open, the patient already checked in for everything today.
   const open = arrivable.filter((c) => !c.checkedInAt);
   if (open.length === 0) {
-    return { kind: 'ALREADY_CHECKED_IN', firstName: greetName, delayMinutes };
+    // Everything today is already checked in — count down to whichever of
+    // those slots is still ahead.
+    const next = arrivable.find((c) => c.startsAt.getTime() >= now.getTime()) ?? arrivable[0]!;
+    return {
+      kind: 'ALREADY_CHECKED_IN',
+      firstName: greetName,
+      wait: kioskWait(now, next.startsAt, timeZone),
+    };
   }
 
   // Target: the anchored appointment when the row passed one (item 2 —
@@ -239,7 +251,11 @@ export async function checkInByName(input: {
     const anchored = arrivable.find((c) => c.id === input.appointmentId);
     if (!anchored) return { kind: 'NO_APPOINTMENT' };
     if (anchored.checkedInAt) {
-      return { kind: 'ALREADY_CHECKED_IN', firstName: greetName, delayMinutes };
+      return {
+        kind: 'ALREADY_CHECKED_IN',
+        firstName: greetName,
+        wait: kioskWait(now, anchored.startsAt, timeZone),
+      };
     }
     target = anchored;
   } else {
@@ -265,7 +281,14 @@ export async function checkInByName(input: {
     run.map((a) => a.id),
   );
 
-  return { kind: 'CHECKED_IN', firstName: greetName, delayMinutes, appointmentCount: run.length };
+  // The countdown belongs to the slot the patient is actually waiting for —
+  // the first of the run they just checked in for.
+  return {
+    kind: 'CHECKED_IN',
+    firstName: greetName,
+    wait: kioskWait(now, run[0]!.startsAt, timeZone),
+    appointmentCount: run.length,
+  };
 }
 
 /**
