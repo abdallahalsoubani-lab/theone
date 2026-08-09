@@ -344,13 +344,57 @@ describe('duplicate-name guard (Prompt 36 — D-23 note)', () => {
     });
   });
 
-  it('archiving the only active holder frees the name', async () => {
+  it('archiving does NOT free the name for a brand-new exercise (PT-B5 item 2)', async () => {
+    // Reversed from the original rule. Reusing an archived exercise's name is
+    // exactly the confusion the clinic reported: two rows, one name, nothing
+    // on screen telling them apart.
     const first = await createExercise(baseInput, { actorId: 'actor' });
     // Flip active=false directly (the archive service enforces Admin via auth,
     // whose mock returns THERAPIST here — the guard itself is what we test).
     state.exercises.find((e) => e.id === first.exerciseId)!.active = false;
-    await expect(createExercise(baseInput, { actorId: 'actor' })).resolves.toMatchObject({
-      exerciseId: expect.any(String),
+    await expect(createExercise(baseInput, { actorId: 'actor' })).rejects.toMatchObject({
+      error: { code: 'EXERCISE_NAME_TAKEN' },
+    });
+  });
+
+  it('a superseded name is not free for a new exercise either', async () => {
+    const first = await createExercise(baseInput, { actorId: 'actor' });
+    // v2 takes over the name; v1 is now superseded.
+    await updateExercise({ id: first.exerciseId, ...baseInput }, { actorId: 'actor' });
+    await expect(createExercise(baseInput, { actorId: 'actor' })).rejects.toMatchObject({
+      error: { code: 'EXERCISE_NAME_TAKEN' },
+    });
+  });
+
+  describe('normalized matching (PT-B5 item 2)', () => {
+    it('folds Arabic alif variants — the same exercise typed two ways', async () => {
+      await createExercise(
+        { ...baseInput, nameEn: 'Shoulder stretch', nameAr: 'تمرين الإطالة' },
+        { actorId: 'actor' },
+      );
+      await expect(
+        createExercise(
+          { ...baseInput, nameEn: 'Something else entirely', nameAr: 'تمرين الاطالة' },
+          { actorId: 'actor' },
+        ),
+      ).rejects.toMatchObject({ error: { code: 'EXERCISE_NAME_TAKEN' } });
+    });
+
+    it('collapses internal whitespace — "Wall  pushup" is not a second exercise', async () => {
+      await createExercise(baseInput, { actorId: 'actor' });
+      await expect(
+        createExercise({ ...baseInput, nameEn: 'Wall   pushup' }, { actorId: 'actor' }),
+      ).rejects.toMatchObject({ error: { code: 'EXERCISE_NAME_TAKEN' } });
+    });
+
+    it('still allows a genuinely different name', async () => {
+      await createExercise(baseInput, { actorId: 'actor' });
+      await expect(
+        createExercise(
+          { ...baseInput, nameEn: 'Doorway chest stretch', nameAr: 'إطالة الصدر' },
+          { actorId: 'actor' },
+        ),
+      ).resolves.toMatchObject({ exerciseId: expect.any(String) });
     });
   });
 });

@@ -24,6 +24,10 @@ export interface ExerciseOption {
   /** True for archived (active=false) or superseded (replacedById set)
    *  versions surfaced only because an existing row references them. */
   archived: boolean;
+  /** Replaced by a newer version. Distinct from `archived`: it marks the OLD
+   *  end of a version chain, which must carry its number too or "v2" would
+   *  sit next to a bare name (PT-B5 item 2). */
+  superseded: boolean;
 }
 
 const OPTION_SELECT = {
@@ -54,6 +58,7 @@ function shapeOption(row: OptionRow): ExerciseOption {
     category: row.category,
     version: row.version,
     archived: !row.active || row.replacedById !== null,
+    superseded: row.replacedById !== null,
   };
 }
 

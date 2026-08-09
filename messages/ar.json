@@ -1376,6 +1376,7 @@
       "restoredToast": "تمت استعادة التمرين.",
       "archive": "أرشفة",
       "restore": "استعادة",
+      "versionSuffix": "(نسخة {version})",
       "archived": "مؤرشف",
       "edit": "تعديل",
       "view": "عرض",

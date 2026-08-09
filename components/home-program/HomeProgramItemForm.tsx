@@ -14,6 +14,7 @@ import {
 } from '@/lib/clinical/home-program/actions';
 import type { HomeProgramItemRow } from '@/lib/clinical/home-program/queries';
 import type { ExerciseOption } from '@/lib/clinical/plans/exercises';
+import { exerciseDisplayName } from '@/lib/exercises/display-name';
 
 interface Props {
   patientId: string;
@@ -110,8 +111,9 @@ export function HomeProgramItemForm({ patientId, exerciseOptions, initial, onDon
               choosing one used to bounce off the server guard mid-flow). */}
           {exerciseOptions.map((opt) => (
             <option key={opt.id} value={opt.id} disabled={opt.archived}>
-              {locale === 'ar' ? opt.nameAr : opt.nameEn}
-              {opt.version > 1 ? ` (v${opt.version})` : ''}
+              {exerciseDisplayName(locale === 'ar' ? opt.nameAr : opt.nameEn, opt, (version) =>
+                tEx('versionSuffix', { version }),
+              )}
               {opt.archived ? ` (${tEx('archived')})` : ''}
             </option>
           ))}

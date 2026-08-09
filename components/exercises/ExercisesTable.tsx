@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Link } from '@/i18n/navigation';
 import { archiveExerciseAction, restoreExerciseAction } from '@/lib/exercises/actions';
 import type { ExerciseRow } from '@/lib/exercises/queries';
+import { hasVersionHistory } from '@/lib/exercises/display-name';
 import {
   ANATOMICAL_REGIONS,
   EXERCISE_CATEGORIES,
@@ -199,8 +200,13 @@ export function ExercisesTable({ rows, total, page, pageSize, showArchived, canA
                       {name}
                     </Link>
                     {/* Version badge only where history exists — no "v1" noise
-                        on never-edited exercises (Prompt 36 §3.2). */}
-                    {row.version > 1 ? (
+                        on never-edited exercises (Prompt 36 §3.2). A REPLACED
+                        v1 is marked too (PT-B5 item 2): showing "v2" beside a
+                        bare name still leaves the reader guessing. */}
+                    {hasVersionHistory({
+                      version: row.version,
+                      superseded: row.replacedById !== null,
+                    }) ? (
                       <span className="font-mono text-xs text-brand-textMuted">v{row.version}</span>
                     ) : null}
                   </div>

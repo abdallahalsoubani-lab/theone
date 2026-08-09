@@ -9,6 +9,7 @@ import type { ComplianceResult } from '@/lib/clinical/compliance/calculate';
 import type { HomeProgramItemRow } from '@/lib/clinical/home-program/queries';
 import type { ApprovalState } from '@/lib/clinical/home-program/visibility';
 import { formatShortDate } from '@/lib/format/date';
+import { exerciseDisplayName } from '@/lib/exercises/display-name';
 
 interface Props {
   patientId: string;
@@ -55,6 +56,7 @@ export async function PatientHomeProgramTab({
   const t = await getTranslations('clinical.compliance');
   const tHp = await getTranslations('clinical.homeProgram');
   const tApproval = await getTranslations('clinical.homeProgram.approval');
+  const tEx = await getTranslations('clinical.exercises');
   const dayLabels = locale === 'ar' ? DAY_LABELS_AR : DAY_LABELS_EN;
   const localeTag = locale === 'ar' ? 'ar' : 'en';
   // A revision is outstanding whenever the working draft is not the approved
@@ -124,7 +126,13 @@ export async function PatientHomeProgramTab({
         ) : (
           <ul className="divide-y divide-brand-border overflow-hidden rounded-md border border-brand-border bg-brand-surface text-sm">
             {items.map((item) => {
-              const name = localeTag === 'ar' ? item.exerciseNameAr : item.exerciseNameEn;
+              // Version-marked: this tab is the clinician's read of the
+              // patient's program (PT-B5 item 2).
+              const name = exerciseDisplayName(
+                localeTag === 'ar' ? item.exerciseNameAr : item.exerciseNameEn,
+                { version: item.exerciseVersion ?? 1, superseded: item.exerciseSuperseded },
+                (version) => tEx('versionSuffix', { version }),
+              );
               const last = lastCompletedById.get(item.id);
               return (
                 <li key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">

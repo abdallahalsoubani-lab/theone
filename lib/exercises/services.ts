@@ -4,6 +4,7 @@ import type { Prisma } from '@prisma/client';
 import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
+import { normalizeName } from '@/lib/text/normalize';
 
 import type { ExerciseCreateInput, ExerciseUpdateInput } from './schemas';
 
@@ -55,36 +56,51 @@ const forbiddenArchive: LocalizedError = {
 
 const nameTaken: LocalizedError = {
   code: 'EXERCISE_NAME_TAKEN',
-  message_en: 'An exercise with this name already exists.',
-  message_ar: 'يوجد تمرين بهذا الاسم.',
+  // The message has to point somewhere: whoever hits this usually wants a new
+  // VERSION of the exercise that already owns the name, and when the clash is
+  // with an archived row the library's archive filter is where it is hiding.
+  message_en:
+    'That name is already used by another exercise (archived ones included). Open that exercise and save a new version, or pick a different name.',
+  message_ar:
+    'الاسم مستخدم لتمرين آخر (بما في ذلك المؤرشف). افتح ذلك التمرين وأنشئ نسخة جديدة منه، أو اختر اسماً آخر.',
 };
 
 /**
- * Duplicate-name guard (Prompt 36 — D-23 note). A name (EN or AR) may belong
- * to at most ONE current exercise: active, un-replaced rows only, so version
- * chains legitimately keep their name (the predecessor is superseded and no
- * longer counts) and archiving frees the name. Case-insensitive + trimmed.
- * Service-level only: a matching DB constraint would need a partial
- * functional unique index (lower(name) WHERE active AND "replacedById" IS
- * NULL) that Prisma can't express in schema.prisma — at single-clinic write
- * volume the race window is negligible.
+ * Duplicate-name guard (Prompt 36 — D-23; widened in PT-B5 item 2).
+ *
+ * Matching is NORMALIZED, not merely case-insensitive: trimmed, internal
+ * whitespace collapsed, Latin lowercased, and Arabic folded (diacritics and
+ * tatweel stripped, alif/yaa/taa-marbuta variants unified). Without the Arabic
+ * fold "تمرين الإطالة" and "تمرين الاطالة" were two rows to the database and
+ * one exercise to every human reading the list.
+ *
+ * Scope differs by intent:
+ *   - 'all' (CREATE) — a genuinely new exercise may not take ANY existing
+ *     name, archived and superseded included. That is the clinic's complaint:
+ *     a new exercise reusing an archived name, indistinguishable afterwards.
+ *   - 'current' (UPDATE → new version) — only active, un-replaced rows count,
+ *     so a version chain keeps its own name (its predecessor is superseded and
+ *     no longer competes) while renaming onto a live exercise stays blocked.
+ *
+ * Normalization cannot be expressed in a Prisma `where`, so the comparison
+ * runs in JS over the name columns — one small read at clinic scale (hundreds
+ * of exercises, rare writes). The race window is negligible, as before.
  */
 async function assertExerciseNameAvailable(
   nameEn: string,
   nameAr: string,
-  excludeId?: string,
+  opts: { scope: 'all' | 'current'; excludeId?: string },
 ): Promise<void> {
-  const clash = await db.exercise.findFirst({
-    where: {
-      active: true,
-      replacedById: null,
-      ...(excludeId ? { id: { not: excludeId } } : {}),
-      OR: [
-        { nameEn: { equals: nameEn.trim(), mode: 'insensitive' } },
-        { nameAr: { equals: nameAr.trim(), mode: 'insensitive' } },
-      ],
-    },
-    select: { id: true },
+  const rows = await db.exercise.findMany({
+    select: { id: true, nameEn: true, nameAr: true, active: true, replacedById: true },
+  });
+  const wantedEn = normalizeName(nameEn);
+  const wantedAr = normalizeName(nameAr);
+
+  const clash = rows.find((row) => {
+    if (row.id === opts.excludeId) return false;
+    if (opts.scope === 'current' && (!row.active || row.replacedById !== null)) return false;
+    return normalizeName(row.nameEn) === wantedEn || normalizeName(row.nameAr) === wantedAr;
   });
   if (clash) throw new ExerciseError(nameTaken);
 }
@@ -100,7 +116,9 @@ export const createExercise = withAudit<
     extractAfter: () => ({ event: 'CREATED' }) as Prisma.InputJsonValue,
   },
   async function createInner(input, ctx): Promise<{ exerciseId: string }> {
-    await assertExerciseNameAvailable(input.nameEn, input.nameAr);
+    // A brand-new exercise competes with EVERY name ever used, archived rows
+    // included — reusing an archived name is the confusion being fixed.
+    await assertExerciseNameAvailable(input.nameEn, input.nameAr, { scope: 'all' });
     const row = await db.exercise.create({
       data: {
         nameEn: input.nameEn,
@@ -145,9 +163,13 @@ export const updateExercise = withAudit<
     if (!current) throw new ExerciseError(notFound);
     if (current.replacedById) throw new ExerciseError(supersededAlready);
 
-    // A new version keeps its predecessor's name legitimately (the old row is
-    // excluded); renaming onto another current exercise's name is blocked.
-    await assertExerciseNameAvailable(input.nameEn, input.nameAr, current.id);
+    // A new version legitimately keeps its predecessor's name (the old row is
+    // excluded and superseded rows don't compete); renaming onto another
+    // CURRENT exercise's name is still blocked.
+    await assertExerciseNameAvailable(input.nameEn, input.nameAr, {
+      scope: 'current',
+      excludeId: current.id,
+    });
 
     const result = await db.$transaction(async (tx) => {
       const created = await tx.exercise.create({

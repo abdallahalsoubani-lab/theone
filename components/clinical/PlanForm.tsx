@@ -16,6 +16,7 @@ import {
   updateTreatmentPlanAction,
 } from '@/lib/clinical/plans/actions';
 import type { ExerciseOption } from '@/lib/clinical/plans/exercises';
+import { exerciseDisplayName } from '@/lib/exercises/display-name';
 
 export interface PlanFormPatient {
   id: string;
@@ -309,8 +310,11 @@ export function PlanForm({
                 >
                   {exerciseOptions.map((opt) => (
                     <option key={opt.id} value={opt.id} disabled={opt.archived}>
-                      {locale === 'ar' ? opt.nameAr : opt.nameEn}
-                      {opt.version > 1 ? ` (v${opt.version})` : ''}
+                      {exerciseDisplayName(
+                        locale === 'ar' ? opt.nameAr : opt.nameEn,
+                        opt,
+                        (version) => tEx('versionSuffix', { version }),
+                      )}
                       {opt.archived ? ` (${tEx('archived')})` : ''}
                     </option>
                   ))}

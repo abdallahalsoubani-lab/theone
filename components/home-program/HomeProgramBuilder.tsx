@@ -15,6 +15,7 @@ import {
 } from '@/lib/clinical/home-program/actions';
 import type { HomeProgramItemRow } from '@/lib/clinical/home-program/queries';
 import type { ExerciseOption } from '@/lib/clinical/plans/exercises';
+import { exerciseDisplayName } from '@/lib/exercises/display-name';
 
 interface Props {
   patientId: string;
@@ -38,6 +39,7 @@ type BuilderMode = { kind: 'add' } | { kind: 'edit'; id: string } | null;
  */
 export function HomeProgramBuilder({ patientId, items, exerciseOptions }: Props) {
   const t = useTranslations('clinical.homeProgram');
+  const tEx = useTranslations('clinical.exercises');
   const locale = useLocale();
   const router = useRouter();
   const [mode, setMode] = useState<BuilderMode>(items.length === 0 ? { kind: 'add' } : null);
@@ -87,7 +89,13 @@ export function HomeProgramBuilder({ patientId, items, exerciseOptions }: Props)
         ) : (
           <ul className="space-y-2">
             {items.map((item) => {
-              const name = locale === 'ar' ? item.exerciseNameAr : item.exerciseNameEn;
+              // Version-marked so a therapist can tell WHICH version this item
+              // references once the exercise has been edited (PT-B5 item 2).
+              const name = exerciseDisplayName(
+                locale === 'ar' ? item.exerciseNameAr : item.exerciseNameEn,
+                { version: item.exerciseVersion ?? 1, superseded: item.exerciseSuperseded },
+                (version) => tEx('versionSuffix', { version }),
+              );
               const dayLabels = locale === 'ar' ? DAY_LABELS_AR : DAY_LABELS_EN;
               return (
                 <li

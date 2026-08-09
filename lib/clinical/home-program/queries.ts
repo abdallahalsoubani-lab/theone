@@ -14,6 +14,12 @@ export interface HomeProgramItemRow {
   exerciseDescriptionAr: string;
   exerciseDefaultInstructionEn: string | null;
   exerciseDefaultInstructionAr: string | null;
+  /** Version of the exercise this item references, and whether a newer one
+   *  has replaced it — so every surface can say WHICH version the patient was
+   *  actually given (PT-B5 item 2). Optional: rows revived from an approval
+   *  snapshot taken before this existed simply render the clean name. */
+  exerciseVersion?: number;
+  exerciseSuperseded?: boolean;
   daysOfWeek: number[];
   scheduledTime: string;
   durationMinutes: number;
@@ -37,6 +43,8 @@ function shape(row: NonNullable<Awaited<ReturnType<typeof loadItem>>>): HomeProg
     exerciseDescriptionAr: row.exercise.descriptionAr,
     exerciseDefaultInstructionEn: row.exercise.defaultInstructionEn,
     exerciseDefaultInstructionAr: row.exercise.defaultInstructionAr,
+    exerciseVersion: row.exercise.version,
+    exerciseSuperseded: row.exercise.replacedById !== null,
     daysOfWeek: row.daysOfWeek,
     scheduledTime: row.scheduledTime,
     durationMinutes: row.durationMinutes,
@@ -62,6 +70,8 @@ async function loadItem(id: string) {
           descriptionAr: true,
           defaultInstructionEn: true,
           defaultInstructionAr: true,
+          version: true,
+          replacedById: true,
         },
       },
     },
@@ -88,6 +98,8 @@ export async function listHomeProgramForPatient(patientId: string): Promise<Home
           descriptionAr: true,
           defaultInstructionEn: true,
           defaultInstructionAr: true,
+          version: true,
+          replacedById: true,
         },
       },
     },
