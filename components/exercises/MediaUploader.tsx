@@ -76,7 +76,14 @@ export function MediaUploader({ kind, value, onChange, label }: Props) {
             ? t('errors.storageUnavailable')
             : kind === 'network'
               ? t('errors.networkError')
-              : t('errors.uploadFailed'),
+              : // classifyUploadError has always returned 'unauthorized' for
+                // 401/403 but nothing rendered it. An upload capability token
+                // lives 15 minutes, which a 100 MB video on clinic wifi can
+                // outlast — the user then saw the generic "try again" and the
+                // retry failed identically (PT-B5 item 1).
+                kind === 'unauthorized'
+                ? t('errors.uploadExpired')
+                : t('errors.uploadFailed'),
       );
     } finally {
       setProgress(null);

@@ -7,6 +7,7 @@ import type { LocalizedError } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac/guards';
 
 import { exerciseCreateSchema, exerciseUpdateSchema } from './schemas';
+import { exerciseValidationMessage } from './validation-message';
 import {
   archiveExercise,
   createExercise,
@@ -22,14 +23,9 @@ export async function createExerciseAction(
   await requirePermission('exercises.create');
   const parsed = exerciseCreateSchema.safeParse(raw);
   if (!parsed.success) {
-    return {
-      ok: false,
-      error: {
-        code: 'VALIDATION',
-        message_en: parsed.error.issues[0]?.message ?? 'Invalid exercise input.',
-        message_ar: 'بيانات التمرين غير صالحة.',
-      },
-    };
+    // Name the field, and say so in Arabic too — a flat "invalid data"
+    // sentence is what made the media failure unreadable (PT-B5 item 1).
+    return { ok: false, error: exerciseValidationMessage(parsed.error) };
   }
   try {
     const actorId = await currentClinicianId();
@@ -47,14 +43,9 @@ export async function updateExerciseAction(
   await requirePermission('exercises.update');
   const parsed = exerciseUpdateSchema.safeParse(raw);
   if (!parsed.success) {
-    return {
-      ok: false,
-      error: {
-        code: 'VALIDATION',
-        message_en: parsed.error.issues[0]?.message ?? 'Invalid exercise input.',
-        message_ar: 'بيانات التمرين غير صالحة.',
-      },
-    };
+    // Name the field, and say so in Arabic too — a flat "invalid data"
+    // sentence is what made the media failure unreadable (PT-B5 item 1).
+    return { ok: false, error: exerciseValidationMessage(parsed.error) };
   }
   try {
     const actorId = await currentClinicianId();

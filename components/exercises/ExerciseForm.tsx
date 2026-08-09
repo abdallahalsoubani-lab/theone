@@ -47,12 +47,19 @@ export function ExerciseForm({ initial }: Props) {
   const [defaultInstructionAr, setDefaultInstructionAr] = useState(
     initial?.defaultInstructionAr ?? '',
   );
+  // Seed the media METADATA from the row too, not just the URL: editing an
+  // exercise without re-uploading used to write the new version with the
+  // image/video kept but its mime type and size blanked (PT-B5 item 1).
   const [imageUrl, setImageUrl] = useState<string | null>(initial?.imageUrl ?? null);
-  const [imageMimeType, setImageMimeType] = useState<string | null>(null);
-  const [imageSizeBytes, setImageSizeBytes] = useState<number | null>(null);
+  const [imageMimeType, setImageMimeType] = useState<string | null>(initial?.imageMimeType ?? null);
+  const [imageSizeBytes, setImageSizeBytes] = useState<number | null>(
+    initial?.imageSizeBytes ?? null,
+  );
   const [videoUrl, setVideoUrl] = useState<string | null>(initial?.videoUrl ?? null);
-  const [videoMimeType, setVideoMimeType] = useState<string | null>(null);
-  const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(null);
+  const [videoMimeType, setVideoMimeType] = useState<string | null>(initial?.videoMimeType ?? null);
+  const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(
+    initial?.videoSizeBytes ?? null,
+  );
 
   function submit() {
     startTransition(async () => {

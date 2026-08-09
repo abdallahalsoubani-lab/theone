@@ -16,7 +16,11 @@ export interface ExerciseRow {
   defaultInstructionEn: string | null;
   defaultInstructionAr: string | null;
   videoUrl: string | null;
+  videoMimeType: string | null;
+  videoSizeBytes: number | null;
   imageUrl: string | null;
+  imageMimeType: string | null;
+  imageSizeBytes: number | null;
   version: number;
   active: boolean;
   replacedById: string | null;

@@ -1398,6 +1398,7 @@
       "errors": {
         "unsupportedType": "File type is not supported.",
         "tooLarge": "File exceeds the {maxMb} MB limit.",
+        "uploadExpired": "The upload session expired — please try uploading the file again.",
         "uploadFailed": "Upload failed. Try again.",
         "storageUnavailable": "File storage is currently unavailable — please tell the administrator.",
         "networkError": "Connection dropped during upload. Check your network and try again."
