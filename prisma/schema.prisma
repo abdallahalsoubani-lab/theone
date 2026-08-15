@@ -180,6 +180,33 @@ enum WaInboundIntent {
   UNKNOWN
 }
 
+// ── P48: WhatsApp dispatch control (per-type AUTO/MANUAL + admin outbox) ──
+enum WaDispatchMode {
+  AUTO
+  MANUAL
+}
+
+enum WaDispatchType {
+  BOOKING_CONFIRMATION
+  RESCHEDULE
+  CANCELLATION
+}
+
+enum WaDispatchStatus {
+  PENDING // MANUAL mode — waiting for the admin's Send
+  SCHEDULED // AUTO/safety/manual-send — a queue job exists (worker flips to SENT/FAILED)
+  SENT
+  SUPERSEDED // replaced by a later event on the same appointment (last-state-wins)
+  EXCLUDED // admin removed it from the batch
+  FAILED
+}
+
+enum WaDispatchReason {
+  AUTO
+  MANUAL
+  SAFETY_EXCEPTION // start < 24h away — sent immediately regardless of mode
+}
+
 enum InboxItemType {
   INBOUND_RESCHEDULE_REQUEST
   INBOUND_CANCEL_REQUEST
@@ -299,11 +326,6 @@ enum CustomQuestionAppliesTo {
   BOTH
 }
 
-enum HomeProgramFrequency {
-  DAILY
-  WEEKLY_N
-}
-
 // Home-program approval workflow (Prompt 16). A therapist-built program needs
 // doctor approval before the patient sees it or is reminded; doctor-built
 // programs are auto-approved.
@@ -408,6 +430,9 @@ model User {
   // Note: real `phone` and `email` uniqueness scoped to non-deleted rows is enforced
   // by partial unique indexes in the init migration (Prisma can't express them).
   // These indexes are *also* useful for lookup performance.
+  waDispatchesAsPatient WhatsAppDispatch[] @relation("WaDispatchPatient")
+  waDispatchesSent      WhatsAppDispatch[] @relation("WaDispatchSender")
+
   @@index([phone])
   @@index([email])
   @@index([role])
@@ -586,6 +611,8 @@ model Appointment {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  waDispatches WhatsAppDispatch[]
 
   @@index([patientId, startsAt])
   @@index([status])
@@ -1064,6 +1091,38 @@ model WhatsAppMessage {
   @@index([appointmentId])
 }
 
+// ── P48: pending/sent ledger for the appointment-message dispatch layer ──
+// Deliberately a NEW table, not an extension of WhatsAppMessage: that model
+// is the SEND LOG (rows exist only once a send is enqueued, feed the admin
+// message log + inbound correlation); an outbox entry exists BEFORE any
+// send, can be superseded or excluded, and must never pollute those
+// surfaces. The two link up at send time via appointmentId + template.
+model WhatsAppDispatch {
+  id             String            @id @default(cuid())
+  type           WaDispatchType
+  status         WaDispatchStatus  @default(PENDING)
+  // Why it (was) sent — null while PENDING in MANUAL mode.
+  dispatchReason WaDispatchReason?
+  appointmentId  String
+  appointment    Appointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  patientId      String?
+  patient        User?             @relation("WaDispatchPatient", fields: [patientId], references: [id], onDelete: SetNull)
+  // Last-state-wins: the newer entry that replaced this one (null for the
+  // silent booking+cancel close-out — nothing replaced it, nothing sent).
+  supersededById String?
+  sentAt         DateTime?
+  // Admin who pressed Send (manual batches only).
+  sentById       String?
+  sentBy         User?             @relation("WaDispatchSender", fields: [sentById], references: [id], onDelete: SetNull)
+  failureReason  String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@index([type, status])
+  @@index([appointmentId, status])
+  @@index([status, createdAt(sort: Desc)])
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Secretary inbox — action items raised by inbound WhatsApp parsing and by
 //  outbound delivery failures. The Secretary works the inbox to triage
@@ -1508,14 +1567,21 @@ model ClinicSettings {
   reminderWindowStart          String @default("08:00")
   reminderWindowEnd            String @default("18:00")
 
-  // P53 — deferred, coalescing lifecycle messages ("المريض مرات بحجز وبعد
-  // ساعتين برن بحكي بدي أغير"): the booking-confirmation and reschedule
-  // messages wait X minutes before sending, and an edit/cancel during the
-  // wait replaces/removes the pending message. 0 (the seeded default) =
-  // immediate — today's behavior exactly. CANCELLATION has NO delay by
-  // owner decision — no setting exists for it on purpose.
-  bookingConfirmationDelayMinutes Int @default(0)
-  rescheduleMessageDelayMinutes   Int @default(0)
+  // P53 → P48 — per-type WhatsApp dispatch control. Each appointment
+  // message type (booking confirmation / reschedule / cancellation) has its
+  // own mode: AUTO sends after its delay (the P53 deferred, coalescing
+  // lifecycle jobs — an edit/cancel during the wait replaces/removes the
+  // pending message); MANUAL parks the message in the admin outbox until
+  // the admin presses Send. Defaults preserve pre-P48 behavior exactly:
+  // AUTO everywhere, existing delays kept, cancellation delay 0 (its old
+  // hardwired "immediate"). The <24h safety exception (lib/whatsapp/
+  // dispatch) overrides everything.
+  bookingDispatchMode             WaDispatchMode @default(AUTO)
+  rescheduleDispatchMode          WaDispatchMode @default(AUTO)
+  cancellationDispatchMode        WaDispatchMode @default(AUTO)
+  bookingConfirmationDelayMinutes Int            @default(0)
+  rescheduleMessageDelayMinutes   Int            @default(0)
+  cancellationMessageDelayMinutes Int            @default(0)
 
   // Session lifecycle grace windows (Fix Prompt 2). Start Session is gated to
   // `appointment_start − sessionStartGraceMinutes`; an open IN_PROGRESS session

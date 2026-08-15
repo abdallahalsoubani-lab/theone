@@ -72,5 +72,4 @@ export {
   ReferralSource,
   CustomQuestionType,
   CustomQuestionAppliesTo,
-  HomeProgramFrequency,
 } from '@prisma/client';
