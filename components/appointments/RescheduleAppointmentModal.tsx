@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
-import { SeriesScopePicker } from '@/components/appointments/SeriesScopePicker';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,14 +18,12 @@ import {
 } from '@/components/ui/responsive-modal';
 import { previewConflictsAction, rescheduleAppointmentAction } from '@/lib/appointments/actions';
 import { hasHardBlockedConflict, type ConflictResult } from '@/lib/appointments/conflicts';
-import type { SeriesEditMode } from '@/lib/appointments/schemas';
 import { formatClinicDateTimeLocal, parseClinicDateTimeLocal } from '@/lib/time/clinic';
 
 export interface RescheduleTarget {
   id: string;
   startsAt: Date;
   durationMinutes: number;
-  seriesId: string | null;
   /** For the LIVE preview only — the server re-derives both on submit. */
   patientId: string | null;
   therapistIds: string[];
@@ -45,6 +42,10 @@ export interface RescheduleTarget {
  * Scope: date + time + duration. Clinician changes have their own modal
  * (Manage therapists); the room is intentionally left untouched (the action
  * keeps it when omitted — P34 rule).
+ *
+ * Series members (Prompt 45 rows 1+2): the edit always applies to THIS
+ * occurrence only — the scope chooser was removed from every edit path, so
+ * the modal is identical whether or not the appointment belongs to a series.
  */
 export function RescheduleAppointmentModal({
   open,
@@ -66,7 +67,6 @@ export function RescheduleAppointmentModal({
 
   const [startsAt, setStartsAt] = useState('');
   const [duration, setDuration] = useState(30);
-  const [seriesMode, setSeriesMode] = useState<SeriesEditMode>('ONE');
   const [conflicts, setConflicts] = useState<ConflictResult | null>(null);
 
   // Prefill from the target each time the modal opens.
@@ -74,7 +74,6 @@ export function RescheduleAppointmentModal({
     if (!open || !target) return;
     setStartsAt(formatClinicDateTimeLocal(target.startsAt));
     setDuration(target.durationMinutes);
-    setSeriesMode('ONE');
     setConflicts(null);
   }, [open, target]);
 
@@ -112,7 +111,6 @@ export function RescheduleAppointmentModal({
         startsAt: parsed!,
         durationMinutes: duration,
         overrideConflicts: override,
-        seriesMode: target.seriesId ? seriesMode : 'ONE',
       });
       if (!r.ok) {
         toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
@@ -130,8 +128,6 @@ export function RescheduleAppointmentModal({
           <ResponsiveModalTitle>{t('title')}</ResponsiveModalTitle>
           <ResponsiveModalDescription>{t('subtitle')}</ResponsiveModalDescription>
         </ResponsiveModalHeader>
-
-        {target.seriesId ? <SeriesScopePicker value={seriesMode} onChange={setSeriesMode} /> : null}
 
         <div className="space-y-3">
           <div className="space-y-1">

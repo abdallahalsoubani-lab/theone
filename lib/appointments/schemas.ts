@@ -75,10 +75,10 @@ export const appointmentCreateSchema = z
 export type AppointmentCreateInput = z.infer<typeof appointmentCreateSchema>;
 
 /**
- * Series-edit scope (Prompt 7b §4.7). The user is prompted before
- * cancel / reschedule / change-therapist actions on a series-bound
- * appointment. The action then receives the explicit mode so the
- * service can fan out atomically across the chosen scope.
+ * Series scope — CANCEL ONLY (Prompt 45 rows 1+2). Edits (reschedule,
+ * therapist change, drag, resize) always target the single occurrence and
+ * carry no scope field at all; only the cancel flow still prompts for a
+ * scope and fans out atomically across the series.
  */
 export const seriesEditModeSchema = z.enum(['ONE', 'FOLLOWING', 'ALL']);
 export type SeriesEditMode = z.infer<typeof seriesEditModeSchema>;
@@ -112,17 +112,18 @@ export const appointmentRescheduleSchema = z.object({
    * reschedule modal accepts an override flag.
    */
   overrideConflicts: z.boolean().default(false),
-  /** Defaults to ONE so the existing single-appointment paths continue
-   *  to work unchanged. FOLLOWING / ALL fan out across the series. */
-  seriesMode: seriesEditModeSchema.default('ONE'),
+  // NOTE (Prompt 45 rows 1+2): a reschedule NEVER carries a series scope.
+  // The field was removed entirely — an old client (or crafted request)
+  // sending `seriesMode` has it silently stripped by Zod, so a mass-edit
+  // can no longer be smuggled through this action.
   /**
    * Duration-only resize from the calendar edge (July change request #6).
    * When true this is NOT a reschedule: `startsAt` is unchanged and only the
    * end (durationMinutes) moves. It runs the SAME conflict engine as a drag
    * (PT-B2 §5.2 — the original "free resize" exemption is withdrawn), skips
    * only the "start in the past" guard since the start does not move, and is
-   * audited as APPOINTMENT_RESIZED. Always a single-appointment op
-   * (seriesMode ONE); no therapist/room change.
+   * audited as APPOINTMENT_RESIZED. Always a single-appointment op; no
+   * therapist/room change.
    */
   resize: z.boolean().default(false),
 });
@@ -142,7 +143,7 @@ export const appointmentChangeTherapistSchema = z.object({
    *  in the assigned/removed notification body when present. */
   reason: z.string().max(500).optional().nullable(),
   overrideConflicts: z.boolean().default(false),
-  seriesMode: seriesEditModeSchema.default('ONE'),
+  // Prompt 45 rows 1+2 — no series scope on edits; see the reschedule schema.
 });
 
 export type AppointmentChangeTherapistInput = z.input<typeof appointmentChangeTherapistSchema>;

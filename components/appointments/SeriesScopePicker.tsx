@@ -13,10 +13,10 @@ interface Props {
 }
 
 /**
- * Inline radio group for the Prompt 7b §4.7 series-edit prompt.
- * Three options always visible: ONE / FOLLOWING / ALL. The selected
- * value is passed back to the parent which then includes it in the
- * eventual action call.
+ * Inline radio group for the series-scope prompt (Prompt 7b §4.7) —
+ * CANCEL ONLY since Prompt 45 rows 1+2: every edit path applies to the
+ * single occurrence with no scope choice, so the only remaining consumer
+ * is the cancel modal. Three options: ONE / FOLLOWING / ALL.
  */
 export function SeriesScopePicker({ value, onChange, disabled }: Props) {
   const t = useTranslations('calendar.seriesScope');

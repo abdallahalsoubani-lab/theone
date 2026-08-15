@@ -26,14 +26,12 @@ import {
   cancelAppointment,
   cancelAppointmentSeries,
   changeAppointmentTherapist,
-  changeAppointmentTherapistSeries,
   createAppointment,
   createSeriesBatch,
   getTherapistAvailabilityForTimeSlot,
   permissionForStatusChange,
   previewSeriesBatch,
   rescheduleAppointment,
-  rescheduleAppointmentSeries,
   updateAppointmentStatus,
   type BatchRowPreview,
   type TherapistAvailabilityRow,
@@ -94,7 +92,6 @@ export async function createAppointmentAction(
 export async function rescheduleAppointmentAction(input: AppointmentRescheduleInput): Promise<
   Result<{
     appointmentId?: string;
-    appointmentIds?: string[];
     conflictsOverridden: boolean;
   }>
 > {
@@ -105,12 +102,10 @@ export async function rescheduleAppointmentAction(input: AppointmentRescheduleIn
     await requirePermission('appointments.override_conflict');
   }
   try {
-    if (parsed.data.seriesMode === 'ONE') {
-      const data = await rescheduleAppointment(parsed.data);
-      revalidate();
-      return ok(data);
-    }
-    const data = await rescheduleAppointmentSeries(parsed.data);
+    // Prompt 45 rows 1+2 — edits always target the single occurrence. The
+    // schema strips any `seriesMode` an old client might still send, so the
+    // series fan-out is unreachable from this action.
+    const data = await rescheduleAppointment(parsed.data);
     revalidate();
     return ok(data);
   } catch (err) {
@@ -121,7 +116,6 @@ export async function rescheduleAppointmentAction(input: AppointmentRescheduleIn
 export async function changeTherapistAction(input: AppointmentChangeTherapistInput): Promise<
   Result<{
     appointmentId?: string;
-    appointmentIds?: string[];
     conflictsOverridden: boolean;
     previousTherapistIds: string[];
     newTherapistIds: string[];
@@ -135,12 +129,9 @@ export async function changeTherapistAction(input: AppointmentChangeTherapistInp
     await requirePermission('appointments.override_conflict');
   }
   try {
-    if (parsed.data.seriesMode === 'ONE') {
-      const data = await changeAppointmentTherapist(parsed.data);
-      revalidate();
-      return ok(data);
-    }
-    const data = await changeAppointmentTherapistSeries(parsed.data);
+    // Prompt 45 rows 1+2 — therapist changes apply to this occurrence only;
+    // the series fan-out was removed (see rescheduleAppointmentAction).
+    const data = await changeAppointmentTherapist(parsed.data);
     revalidate();
     return ok(data);
   } catch (err) {

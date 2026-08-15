@@ -7,7 +7,6 @@ import { toast } from 'sonner';
 
 import { Search } from 'lucide-react';
 
-import { SeriesScopePicker } from '@/components/appointments/SeriesScopePicker';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { matchesPickerQuery } from '@/lib/pickers/filter';
@@ -23,7 +22,6 @@ import {
   changeTherapistAction,
   previewTherapistAvailabilityAction,
 } from '@/lib/appointments/actions';
-import type { SeriesEditMode } from '@/lib/appointments/schemas';
 import type { TherapistAvailabilityRow } from '@/lib/appointments/services';
 
 interface Clinician {
@@ -41,8 +39,6 @@ interface Props {
   currentTherapistIds: string[];
   startsAt: Date;
   durationMinutes: number;
-  /** When set the modal shows the series-scope picker (Prompt 7b §4.6). */
-  seriesId?: string | null;
   clinicians: Clinician[];
 }
 
@@ -52,6 +48,9 @@ interface Props {
  * (min 1). Each row shows an availability dot from the conflict engine
  * (advisory; the save re-checks server-side). Saving sets the full set; the
  * service diffs add/remove and notifies.
+ *
+ * Series members (Prompt 45 rows 1+2): the change applies to THIS occurrence
+ * only — the scope chooser was removed from every edit path.
  */
 export function ChangeTherapistModal({
   open,
@@ -61,7 +60,6 @@ export function ChangeTherapistModal({
   currentTherapistIds,
   startsAt,
   durationMinutes,
-  seriesId,
   clinicians,
 }: Props) {
   const t = useTranslations('calendar.changeTherapist');
@@ -80,7 +78,6 @@ export function ChangeTherapistModal({
   const [reason, setReason] = useState('');
   const [rows, setRows] = useState<TherapistAvailabilityRow[]>([]);
   const [loadingAvailability, setLoadingAvailability] = useState(false);
-  const [seriesMode, setSeriesMode] = useState<SeriesEditMode>('ONE');
 
   const currentKey = [...currentTherapistIds].sort().join(',');
 
@@ -129,7 +126,6 @@ export function ChangeTherapistModal({
         therapistIds: selected,
         reason: reason || null,
         overrideConflicts: false,
-        seriesMode: seriesId ? seriesMode : 'ONE',
       });
       if (!r.ok) {
         toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
@@ -150,8 +146,6 @@ export function ChangeTherapistModal({
           <ResponsiveModalTitle>{t('title')}</ResponsiveModalTitle>
           <ResponsiveModalDescription>{t('subtitle')}</ResponsiveModalDescription>
         </ResponsiveModalHeader>
-
-        {seriesId ? <SeriesScopePicker value={seriesMode} onChange={setSeriesMode} /> : null}
 
         <div className="flex items-center gap-2 rounded-md border border-brand-border bg-brand-surface px-2">
           <Search className="size-3.5 flex-none text-brand-textMuted" aria-hidden />

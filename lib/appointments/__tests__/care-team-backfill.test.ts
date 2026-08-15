@@ -361,7 +361,6 @@ describe('appointment resize — duration-only, full conflict engine (PT-B2 §5.
       startsAt: start, // unchanged — duration-only
       durationMinutes: 60,
       overrideConflicts: false,
-      seriesMode: 'ONE',
       resize: true,
     } as Parameters<typeof rescheduleAppointment>[0]);
 
@@ -389,7 +388,6 @@ describe('appointment resize — duration-only, full conflict engine (PT-B2 §5.
         startsAt: start,
         durationMinutes: 90,
         overrideConflicts: false,
-        seriesMode: 'ONE',
         resize: true,
       } as Parameters<typeof rescheduleAppointment>[0]),
     ).rejects.toMatchObject({ error: { code: 'APPOINTMENT_CONFLICT' } });
@@ -413,7 +411,6 @@ describe('appointment resize — duration-only, full conflict engine (PT-B2 §5.
         startsAt: start,
         durationMinutes: 180,
         overrideConflicts: true, // the override flag does not help either
-        seriesMode: 'ONE',
         resize: true,
       } as Parameters<typeof rescheduleAppointment>[0]),
     ).rejects.toMatchObject({ error: { code: 'APPOINTMENT_SAME_PATIENT_OVERLAP' } });
@@ -427,7 +424,6 @@ describe('appointment resize — duration-only, full conflict engine (PT-B2 §5.
       startsAt: startOf(appointmentId),
       durationMinutes: 5,
       overrideConflicts: false,
-      seriesMode: 'ONE',
       resize: true,
     } as Parameters<typeof rescheduleAppointment>[0]);
     expect(__state.appointments.find((a) => a.id === appointmentId)!.durationMinutes).toBe(15);
@@ -446,7 +442,6 @@ describe('appointment resize — duration-only, full conflict engine (PT-B2 §5.
         durationMinutes: 30,
         roomId: null,
         overrideConflicts: false,
-        seriesMode: 'ONE',
         resize: false,
       } as Parameters<typeof rescheduleAppointment>[0]),
     ).rejects.toBeDefined();

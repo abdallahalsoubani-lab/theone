@@ -1511,13 +1511,7 @@
       "legend": "Apply to",
       "ONE": "This appointment only",
       "FOLLOWING": "This and all following",
-      "ALL": "All in the series",
-      "confirmTitle": "Apply to which appointments?",
-      "confirmDescription": "This appointment is part of a recurring series. Choose the scope before continuing.",
-      "continue": "Continue",
-      "cancel": "Cancel",
-      "bulkFailedTitle": "Series edit aborted",
-      "bulkFailedDescription": "{count} occurrence(s) failed — the whole batch was rolled back."
+      "ALL": "All in the series"
     },
     "changeTherapist": {
       "title": "Change therapist",
@@ -1527,7 +1521,6 @@
       "unavailableBadge": "Unavailable",
       "reasonLabel": "Reason (optional)",
       "reasonPlaceholder": "Why is this appointment being reassigned?",
-      "seriesNote": "This appointment is part of a series. Only this single occurrence will be reassigned; bulk series edits are a separate flow.",
       "save": "Reassign",
       "saving": "Reassigning…",
       "reassignedToast": "Appointment reassigned.",
@@ -1791,7 +1784,7 @@
     "undoCheckIn": "Undo",
     "checkIn": "Check in",
     "currentDelay": "Current delay",
-    "currentDelayHint": "How far behind the clinic is running, shown on this board and the lobby screen. The kiosk counts down to each patient\u2019s own appointment time.",
+    "currentDelayHint": "How far behind the clinic is running, shown on this board and the lobby screen. The kiosk counts down to each patient’s own appointment time.",
     "minutesValue": "{minutes} min"
   },
   "pediatricAssessment": {

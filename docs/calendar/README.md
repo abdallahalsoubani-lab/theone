@@ -21,8 +21,7 @@ column.
                      │   CreateAppointmentModal     │
                      │   CreateSeriesModal          │
                      │   ChangeTherapistModal       │
-                     │   SeriesScopePicker          │
-                     │   SeriesScopeConfirmDialog   │
+                     │   SeriesScopePicker (cancel) │
                      └──────────┬───────────────────┘
                                 │  server action
                      ┌──────────▼───────────────────┐
@@ -151,27 +150,25 @@ status they were transitioned to.
 
 ### Bulk atomicity
 
-`cancelAppointmentSeries`, `rescheduleAppointmentSeries`,
-`changeAppointmentTherapistSeries` all run their loops inside a
-single `db.$transaction`. The reschedule + change-therapist paths
-run `checkConflicts` against every in-scope occurrence inside the
-transaction; if any single occurrence conflicts (without
-`overrideConflicts`), the entire batch aborts via `BulkAppointmentError`
-which carries a `details.failures[]` array of `{ appointmentId,
-startsAt, reason, conflicts }`. No partial application.
+> **Prompt 45 rows 1+2:** bulk series EDITS were removed — reschedule,
+> therapist change, drag and resize always apply to the single selected
+> occurrence with no scope prompt. Cancel is the only remaining bulk
+> series operation.
 
-Drag-reschedule for FOLLOWING / ALL applies the time delta (new
-`startsAt` − old `startsAt`) uniformly across the in-scope
-occurrences. The target's `durationMinutes` and `therapistId` are
-honoured for the target only; sibling occurrences keep their own.
+`cancelAppointmentSeries` runs its loop inside a single
+`db.$transaction`; if any single occurrence cannot legally transition,
+the entire batch aborts via `BulkAppointmentError` which carries a
+`details.failures[]` array of `{ appointmentId, startsAt, reason,
+conflicts }`. No partial application.
+
+Drag-reschedule on a series member moves ONLY that occurrence
+(Prompt 45 rows 1+2) — no scope dialog, siblings untouched.
 
 ### Notification fan-out for bulk
 
-- **Bulk cancel** — one WhatsApp template per occurrence, best-effort
-  after commit, gated on `whatsappReachable`.
-- **Bulk change-therapist** — ONE summary notification per side
-  (REMOVED → old, ASSIGNED → new). The therapist isn't spammed
-  with N rows.
+- **Bulk cancel** — ONE WhatsApp cancellation about the nearest
+  upcoming occurrence (P53 volume decision), best-effort after
+  commit, gated on `whatsappReachable`.
 
 ## Permissions
 
@@ -194,14 +191,15 @@ THERAPIST / ADMIN) — 23 cells in total.
 
 ```
 lib/appointments/
-  actions.ts          — server actions; revalidate + route to ONE vs SERIES path
-  services.ts         — single + bulk service decorated with withAudit
+  actions.ts          — server actions; edits are always single-occurrence,
+                        only cancel routes to the SERIES path (Prompt 45)
+  services.ts         — single + bulk-cancel services decorated with withAudit
   schemas.ts          — Zod schemas + Input (pre-default) / Parsed types
   conflicts.ts        — checkConflicts (single source of truth)
   conflicts-time.ts   — shared DayKey constants (split from conflicts.ts)
   queries.ts          — calendar query + clinician/patient brief
   recurrence.ts       — pure expansion + +1d / +1w shift helpers
-  series.ts           — selectSeriesOccurrences (ONE / FOLLOWING / ALL)
+  series.ts           — selectSeriesOccurrences (ONE / FOLLOWING / ALL — cancel only)
   status.ts           — STATUS_TRANSITIONS map + permission resolver
   __tests__/
     conflicts.test.ts
@@ -222,7 +220,6 @@ components/calendar/
 components/appointments/
   CreateAppointmentModal.tsx     — single appointment + Recurring toggle
   CreateSeriesModal.tsx          — pattern + per-occurrence resolution
-  ChangeTherapistModal.tsx       — availability dots + reason + scope picker
-  SeriesScopePicker.tsx          — radio group used by every series-bound modal
-  SeriesScopeConfirmDialog.tsx   — pre-action dialog for drag-reschedule
+  ChangeTherapistModal.tsx       — availability dots + reason (single occurrence)
+  SeriesScopePicker.tsx          — radio group, cancel modal only (Prompt 45)
 ```

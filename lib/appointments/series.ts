@@ -5,8 +5,10 @@ import { db } from '@/lib/db';
 import type { SeriesEditMode } from './schemas';
 
 /**
- * Resolve the set of appointments affected by a series-edit operation
- * given a target appointment id + scope mode (Prompt 7b §4.7).
+ * Resolve the set of appointments affected by a series-scope operation
+ * given a target appointment id + scope mode (Prompt 7b §4.7). Since
+ * Prompt 45 rows 1+2 the ONLY caller is the series CANCEL — every edit
+ * path targets its single occurrence and never fans out.
  *
  *   ONE       — exactly the target appointment.
  *   FOLLOWING — every appointment in the same series with

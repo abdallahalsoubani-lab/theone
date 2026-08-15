@@ -14,14 +14,12 @@ import { SecretaryCalendar } from '@/components/calendar/SecretaryCalendar';
 import { ChangeTherapistModal } from '@/components/appointments/ChangeTherapistModal';
 import { CreateAppointmentModal } from '@/components/appointments/CreateAppointmentModal';
 import { RescheduleAppointmentModal } from '@/components/appointments/RescheduleAppointmentModal';
-import { SeriesScopeConfirmDialog } from '@/components/appointments/SeriesScopeConfirmDialog';
 import { Button } from '@/components/ui/button';
 import { rescheduleAppointmentAction } from '@/lib/appointments/actions';
 import { dragReassignTherapistIds } from '@/lib/appointments/drag';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { RESIZE_MIN_MINUTES } from '@/lib/appointments/schemas';
-import type { SeriesEditMode } from '@/lib/appointments/schemas';
 
 interface Props {
   appointments: CalendarAppointment[];
@@ -52,6 +50,11 @@ interface Props {
    *  patient; doctorsOnly scopes the clinician picker to doctors (the
    *  patient-file "Book doctor visit" CTA path). */
   autoBook?: { patientId: string; doctorsOnly: boolean };
+  /** Prompt 45 row 3 — Doctor's view-only calendar. Hides every mutating
+   *  affordance (book button, slot-click booking, drag, resize, panel
+   *  actions); the same full-clinic data stays visible. RBAC denies the
+   *  server actions independently — this flag only keeps the UI honest. */
+  readOnly?: boolean;
 }
 
 /**
@@ -79,6 +82,7 @@ export function SecretaryCalendarBoard({
   newAppointmentLabel,
   viewerRole,
   autoBook,
+  readOnly = false,
 }: Props) {
   const router = useRouter();
   const locale = useLocale();
@@ -103,20 +107,8 @@ export function SecretaryCalendarBoard({
   // Prompt 48 — precision reschedule from the side panel (drag stays as-is).
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
 
-  // Pending drag-reschedule needing series-scope confirmation
-  // (Prompt 7b §4.7). When the dragged appointment is part of a series
-  // we hold the move + open the scope picker before firing the action.
-  const [pendingDrop, setPendingDrop] = useState<{
-    appointmentId: string;
-    start: Date;
-    /** Set only when a single-therapist drag reassigns to a new lane; omitted
-     *  for a multi-therapist time-only move (Prompt 20). */
-    therapistIds?: string[];
-    durationMinutes: number;
-    seriesId: string | null;
-  } | null>(null);
-
   const handleSlotSelect = (slot: { start: Date; end: Date; resourceId?: string }) => {
+    if (readOnly) return; // Prompt 45 row 3 — empty-slot click books nothing
     setCreateSlot({ start: slot.start, therapistId: slot.resourceId });
     setCreateOpen(true);
   };
@@ -152,15 +144,12 @@ export function SecretaryCalendarBoard({
     setPanelOpen(true);
   };
 
-  const dispatchReschedule = (
-    args: {
-      appointmentId: string;
-      start: Date;
-      therapistIds?: string[];
-      durationMinutes: number;
-    },
-    seriesMode: SeriesEditMode,
-  ) => {
+  const dispatchReschedule = (args: {
+    appointmentId: string;
+    start: Date;
+    therapistIds?: string[];
+    durationMinutes: number;
+  }) => {
     startTransition(async () => {
       const r = await rescheduleAppointmentAction({
         id: args.appointmentId,
@@ -170,7 +159,6 @@ export function SecretaryCalendarBoard({
         // move); set → reassign (single-therapist lane change). Prompt 20.
         ...(args.therapistIds ? { therapistIds: args.therapistIds } : {}),
         overrideConflicts: false,
-        seriesMode,
       });
       if (!r.ok) {
         toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
@@ -191,18 +179,14 @@ export function SecretaryCalendarBoard({
       existing.therapists.map((t) => t.id),
       args.resourceId,
     );
-    const drop = {
+    // Prompt 45 rows 1+2 — dragging a series member moves ONLY that
+    // occurrence; no scope dialog. Siblings are untouched.
+    dispatchReschedule({
       appointmentId: args.appointmentId,
       start: args.start,
       therapistIds,
       durationMinutes: existing.durationMinutes,
-      seriesId: existing.seriesId,
-    };
-    if (existing.seriesId) {
-      setPendingDrop(drop);
-      return;
-    }
-    dispatchReschedule(drop, 'ONE');
+    });
   };
 
   // Edge-resize → duration-only change (July #6). Start is unchanged. The
@@ -225,7 +209,6 @@ export function SecretaryCalendarBoard({
         durationMinutes,
         resize: true,
         overrideConflicts: false,
-        seriesMode: 'ONE',
       });
       if (!r.ok) {
         toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
@@ -239,17 +222,19 @@ export function SecretaryCalendarBoard({
 
   return (
     <div className={pending ? 'opacity-90' : ''}>
-      <div className="mb-3 flex justify-end">
-        <Button
-          type="button"
-          onClick={() => {
-            setCreateSlot({ start: new Date() });
-            setCreateOpen(true);
-          }}
-        >
-          {newAppointmentLabel}
-        </Button>
-      </div>
+      {readOnly ? null : (
+        <div className="mb-3 flex justify-end">
+          <Button
+            type="button"
+            onClick={() => {
+              setCreateSlot({ start: new Date() });
+              setCreateOpen(true);
+            }}
+          >
+            {newAppointmentLabel}
+          </Button>
+        </div>
+      )}
 
       <SecretaryCalendar
         appointments={appointments}
@@ -257,6 +242,7 @@ export function SecretaryCalendarBoard({
         leaves={leaves}
         minHour={minHour}
         maxHour={maxHour}
+        editable={!readOnly}
         onSelectSlot={handleSlotSelect}
         onSelectEvent={handleEventSelect}
         onEventDrop={handleEventDrop}
@@ -291,9 +277,10 @@ export function SecretaryCalendarBoard({
         open={panelOpen}
         appointment={panelAppt}
         viewerRole={viewerRole}
+        readOnly={readOnly}
         onClose={() => setPanelOpen(false)}
-        onChangeTherapist={panelAppt ? () => setChangeTherapistOpen(true) : undefined}
-        onEdit={panelAppt ? () => setRescheduleOpen(true) : undefined}
+        onChangeTherapist={panelAppt && !readOnly ? () => setChangeTherapistOpen(true) : undefined}
+        onEdit={panelAppt && !readOnly ? () => setRescheduleOpen(true) : undefined}
       />
 
       <RescheduleAppointmentModal
@@ -306,27 +293,11 @@ export function SecretaryCalendarBoard({
                 id: panelAppt.id,
                 startsAt: panelAppt.startsAt,
                 durationMinutes: panelAppt.durationMinutes,
-                seriesId: panelAppt.seriesId,
                 patientId: panelAppt.patientId,
                 therapistIds: panelAppt.therapists.map((th) => th.id),
               }
             : null
         }
-      />
-
-      <SeriesScopeConfirmDialog
-        open={pendingDrop !== null}
-        onClose={() => {
-          // User cancelled the scope picker — revert the optimistic drag.
-          setPendingDrop(null);
-          router.refresh();
-        }}
-        onConfirm={(mode) => {
-          if (!pendingDrop) return;
-          const drop = pendingDrop;
-          setPendingDrop(null);
-          dispatchReschedule(drop, mode);
-        }}
       />
 
       {panelAppt ? (
@@ -338,7 +309,6 @@ export function SecretaryCalendarBoard({
           currentTherapistIds={panelAppt.therapists.map((th) => th.id)}
           startsAt={panelAppt.startsAt}
           durationMinutes={panelAppt.durationMinutes}
-          seriesId={panelAppt.seriesId}
           clinicians={resources}
         />
       ) : null}

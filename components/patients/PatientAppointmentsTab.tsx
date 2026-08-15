@@ -21,8 +21,9 @@ import { formatDate, formatTime } from '@/lib/format/date';
  *
  * Reschedule control (Prompt 48): rows in the UPCOMING section that are
  * still SCHEDULED/CONFIRMED get a "تعديل الموعد" action when the page passes
- * `canReschedule` (secretary/admin/doctor — the P15 scheduling-parity roles;
- * therapist pages don't pass it and stay read-only). Past rows are excluded
+ * `canReschedule` (secretary/admin only since Prompt 45 row 3 — the doctor's
+ * P15 parity was reversed; doctor + therapist pages stay read-only). Past
+ * rows are excluded
  * by the time partition; cancelled/completed rows inside "upcoming" are
  * excluded by status. One shared modal — identical funnel to the calendar.
  */
@@ -54,7 +55,8 @@ export function PatientAppointmentsTab({
   locale: 'en' | 'ar';
   /** The file's subject — feeds the reschedule modal's conflict preview. */
   patientId?: string | null;
-  /** Secretary/Admin/Doctor pages pass true; therapist stays read-only. */
+  /** Secretary/Admin pages pass true; doctor + therapist stay read-only
+   *  (Prompt 45 row 3). */
   canReschedule?: boolean;
   /** Injected in tests; defaults to the render instant. */
   now?: Date;
@@ -130,7 +132,6 @@ export function PatientAppointmentsTab({
                               id: a.id,
                               startsAt: a.startsAt,
                               durationMinutes: a.durationMinutes,
-                              seriesId: a.seriesId,
                               patientId,
                               therapistIds: a.therapists.map((th) => th.id),
                             })
