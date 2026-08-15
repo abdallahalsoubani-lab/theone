@@ -282,6 +282,44 @@
   line-height: 1.15;
 }
 
+/* ── Screen fit + frozen axes (Prompt 47 row 9 + owner request) ───── */
+/*
+ * Column fit: rbc's default resource lane is 140px. 110px is the smallest
+ * width where the chip's "HH:MM Name" line stays readable (the P56 hover
+ * tooltip carries the full detail), which fits ~3 more lanes on a typical
+ * laptop before scrolling starts.
+ *
+ * Frozen time axis: rbc ships `position: sticky; left: 0` on the gutters for
+ * resource views. Two things made it dead here: (1) the layout's flex pane
+ * had no min-width clamp, so the PAGE scrolled instead of the calendar (fixed
+ * in the (staff)/(admin) layouts); (2) once the calendar scrolls internally,
+ * the gutters need an opaque brand background + a z-index above event chips.
+ * `left: 0` is correct in BOTH locales: the calendar's internal direction is
+ * pinned to LTR under RTL pages (see the RTL section below), so the hour
+ * gutter deliberately sits on the LEFT in /ar exactly like /en.
+ *
+ * Frozen header: vertical scrolling already happens inside .rbc-time-content
+ * (the names row lives outside it), so the header stays put natively — the
+ * z-index here just keeps chips from painting over it mid-scroll.
+ */
+.rbc-time-view-resources .rbc-day-slot {
+  min-width: 110px;
+}
+.rbc-time-view-resources .rbc-header,
+.rbc-time-view-resources .rbc-day-bg {
+  width: 110px;
+}
+
+.rbc-time-view-resources .rbc-time-gutter,
+.rbc-time-view-resources .rbc-time-header-gutter {
+  background-color: var(--brand-bg);
+  z-index: 20;
+}
+
+.rbc-time-view-resources .rbc-time-header {
+  z-index: 15;
+}
+
 /* ── RTL ──────────────────────────────────────────────────────────── */
 /*
  * react-big-calendar has NO real RTL support. It lays the time views out with

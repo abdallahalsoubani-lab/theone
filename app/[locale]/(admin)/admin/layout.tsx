@@ -36,7 +36,13 @@ export default async function AdminLayout({
   return (
     <div className="flex">
       <Sidebar links={links} />
-      <div className="flex-1">{children}</div>
+      {/* min-w-0: a flex child's implicit min-width is max-CONTENT, so a wide
+          calendar (13 therapist lanes) used to widen this pane past the
+          viewport and scroll the whole PAGE — which dragged the hour gutter
+          off-screen and defeated rbc's sticky time axis (P47 row 9). With the
+          pane clamped, overflow happens INSIDE the calendar's own scroll
+          container where the frozen axis works. */}
+      <div className="min-w-0 flex-1">{children}</div>
     </div>
   );
 }
