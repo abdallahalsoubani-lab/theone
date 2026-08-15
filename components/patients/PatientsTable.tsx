@@ -78,7 +78,7 @@ export function PatientsTable({
           cell: ({ row }) => {
             const p = row.original;
             const name = patientDisplayName(p.fullNameEn, p.fullNameAr, locale);
-            const alt = locale === 'ar' ? p.fullNameEn : p.fullNameAr;
+
             const initials = name
               .split(/\s+/)
               .filter(Boolean)
@@ -96,9 +96,6 @@ export function PatientsTable({
                 </Avatar>
                 <div className="flex flex-col">
                   <span className="font-medium text-brand-navy">{name}</span>
-                  {alt && alt !== name ? (
-                    <span className="text-xs text-brand-textMuted">{alt}</span>
-                  ) : null}
                   {/* NI-5 soft flag (Prompt 41): calm chip until the first
                       COMPLETED doctor visit. */}
                   {showFirstVisitBadge && p.pendingFirstVisit ? (

@@ -75,7 +75,6 @@ export function PediatricIntakeForm({
               </div>
               <p className="text-xs text-brand-textMuted">{tIntake('profileCrosscheckHelp')}</p>
               <div className="grid gap-3 text-sm sm:grid-cols-2">
-                <ReadField label={tPatients('fullNameAr')} value={patient.fullNameAr} />
                 <ReadField
                   label={tPatients('dateOfBirth')}
                   value={formatDate(patient.dateOfBirth, intlLocale)}

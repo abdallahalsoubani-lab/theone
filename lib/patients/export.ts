@@ -1,4 +1,5 @@
 import { UserRole, type Gender } from '@prisma/client';
+import { patientDisplayName } from '@/lib/format/patientName';
 
 import { db } from '@/lib/db';
 import { clinicDateKey } from '@/lib/time/clinic';
@@ -28,11 +29,13 @@ export interface PatientsRosterRow {
   pendingFirstVisit: boolean;
 }
 
-/** All non-archived patients, ordered by Arabic name (the clinic's primary script). */
+/** All non-archived patients, ordered by English name with the legacy
+ *  Arabic-only records after (P47 row 8 — English is the name; the second
+ *  orderBy keeps Arabic-only rows deterministically sorted). */
 export async function listPatientsForExport(): Promise<PatientsRosterRow[]> {
   const users = await db.user.findMany({
     where: { role: UserRole.PATIENT, deletedAt: null },
-    orderBy: { fullNameAr: 'asc' },
+    orderBy: [{ fullNameEn: 'asc' }, { fullNameAr: 'asc' }],
     select: {
       id: true,
       fullNameEn: true,
@@ -63,8 +66,7 @@ export async function listPatientsForExport(): Promise<PatientsRosterRow[]> {
 
 export interface PatientsRosterLabels {
   header: {
-    nameAr: string;
-    nameEn: string;
+    name: string;
     gender: string;
     dob: string;
     age: string;
@@ -95,9 +97,10 @@ export function buildPatientsRosterCsv(
   labels: PatientsRosterLabels,
 ): string {
   const h = labels.header;
+  // P47 row 8 — ONE name column: the display name (English; stored Arabic
+  // only as the legacy fallback when English is empty).
   const header = [
-    h.nameAr,
-    h.nameEn,
+    h.name,
     h.gender,
     h.dob,
     h.age,
@@ -113,8 +116,7 @@ export function buildPatientsRosterCsv(
     const age = displayAgeYears(r.dateOfBirth);
     lines.push(
       [
-        esc(r.fullNameAr),
-        esc(r.fullNameEn),
+        esc(patientDisplayName(r.fullNameEn, r.fullNameAr)),
         esc(labels.gender[r.gender]),
         unknownDob ? '' : r.dateOfBirth.toISOString().slice(0, 10),
         age === null ? '' : String(age),

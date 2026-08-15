@@ -1,4 +1,5 @@
 import { Document, Page, StyleSheet, View } from '@react-pdf/renderer';
+import { patientDisplayName } from '@/lib/format/patientName';
 import { AuditAction } from '@prisma/client';
 
 import { withAudit } from '@/lib/audit/withAudit';
@@ -145,9 +146,7 @@ const generateInner = async ({
     },
   });
   const patientName = patient
-    ? ar
-      ? patient.fullNameAr
-      : patient.fullNameEn
+    ? patientDisplayName(patient.fullNameEn, patient.fullNameAr)
     : assessment.patientId;
   const dob = patient?.patientProfile?.dateOfBirth ?? null;
 

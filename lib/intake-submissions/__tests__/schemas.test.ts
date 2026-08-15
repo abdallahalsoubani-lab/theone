@@ -3,14 +3,12 @@ import { describe, expect, it } from 'vitest';
 import { publicProfileSchema } from '../schemas';
 
 /**
- * QA 13/7 items 5.2 + 5.3 — the public profile collects TWO name fields
- * (AR required, EN optional but bounded when provided) and an explicit
- * preferred-language choice (optional in the schema; the service falls back
- * to the form locale for legacy payloads).
+ * P47 row 8 (updates QA 5.2): the public profile collects ONE name field
+ * (English, required); a stale client's fullNameAr is stripped. Preferred
+ * language (QA 5.3) unchanged.
  */
 
 const validProfile = {
-  fullNameAr: 'يوسف النجار',
   fullNameEn: 'Yousef Al-Najjar',
   phone: '0790000000',
   dateOfBirth: '1990-01-01',
@@ -20,27 +18,17 @@ const validProfile = {
   email: '',
 };
 
-describe('publicProfileSchema — split names (QA 5.2)', () => {
-  it('accepts both names', () => {
-    const parsed = publicProfileSchema.parse(validProfile);
-    expect(parsed.fullNameAr).toBe('يوسف النجار');
+describe('publicProfileSchema — single English name (P47 row 8)', () => {
+  it('accepts the profile and strips a smuggled fullNameAr', () => {
+    const parsed = publicProfileSchema.parse({ ...validProfile, fullNameAr: 'يوسف النجار' });
     expect(parsed.fullNameEn).toBe('Yousef Al-Najjar');
+    expect('fullNameAr' in parsed).toBe(false);
   });
 
-  it('rejects an empty or too-short Arabic name', () => {
-    expect(publicProfileSchema.safeParse({ ...validProfile, fullNameAr: '' }).success).toBe(false);
-    expect(publicProfileSchema.safeParse({ ...validProfile, fullNameAr: 'أب' }).success).toBe(
-      false,
-    );
-  });
-
-  it('accepts a missing or empty English name (optional)', () => {
-    const { fullNameEn: _omitted, ...withoutEn } = validProfile;
-    expect(publicProfileSchema.safeParse(withoutEn).success).toBe(true);
-    expect(publicProfileSchema.safeParse({ ...validProfile, fullNameEn: '' }).success).toBe(true);
-  });
-
-  it('validates the English name when provided (min 3, matching patientCreateSchema)', () => {
+  it('rejects a missing, empty, or too-short name', () => {
+    const { fullNameEn: _omitted, ...withoutName } = validProfile;
+    expect(publicProfileSchema.safeParse(withoutName).success).toBe(false);
+    expect(publicProfileSchema.safeParse({ ...validProfile, fullNameEn: '' }).success).toBe(false);
     expect(publicProfileSchema.safeParse({ ...validProfile, fullNameEn: 'ab' }).success).toBe(
       false,
     );
@@ -108,7 +96,7 @@ describe('publicProfileSchema — optional address (PT-B4 item 2)', () => {
 
   it('leaving the address out does not relax any other required field', () => {
     const { address: _a, ...withoutAddress } = validProfile;
-    expect(publicProfileSchema.safeParse({ ...withoutAddress, fullNameAr: '' }).success).toBe(
+    expect(publicProfileSchema.safeParse({ ...withoutAddress, fullNameEn: '' }).success).toBe(
       false,
     );
     expect(publicProfileSchema.safeParse({ ...withoutAddress, phone: '' }).success).toBe(false);

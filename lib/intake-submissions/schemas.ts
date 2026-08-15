@@ -12,23 +12,15 @@ import { adultIntakeSchema, pediatricIntakeSchema } from '@/lib/intake/schemas';
  */
 
 /**
- * Identifying fields needed to create the patient on approval (QA 13/7
- * items 5.2 + 5.3). Two name fields, both collected regardless of the form
- * locale: the Arabic name is required (it feeds `submittedName` and
- * `User.fullNameAr`); the English name is optional because the submission
- * stores the profile as Json (no non-null column) — on approval a missing EN
- * name falls back to the AR name so `User.fullNameEn` is never empty. When
- * the EN name IS provided it must satisfy the same `min(3).max(120)` bounds
- * as `patientCreateSchema` so approval never fails on length. Phone is
- * accepted loosely here and normalised + validated server-side against the
- * Jordan E.164 rule. `languagePref` is the patient's EXPLICIT channel/portal
- * language choice (defaulted to the form locale by the UI); it is optional
- * here so pre-fix clients stay valid — the service falls back to the form
- * locale.
+ * Identifying fields needed to create the patient on approval. Since P47
+ * row 8 the form collects ONE name (the English field, required — it feeds
+ * `submittedName` and `User.fullNameEn` on approval). Language preference
+ * (QA 5.3) is optional here; the service falls back to the form locale.
  */
 export const publicProfileSchema = z.object({
-  fullNameAr: z.string().trim().min(3).max(120),
-  fullNameEn: z.string().trim().min(3).max(120).optional().or(z.literal('')),
+  // P47 row 8 — one name field, English required; the Arabic-name field is
+  // gone (a stale client sending fullNameAr has it stripped by Zod).
+  fullNameEn: z.string().trim().min(3).max(120),
   phone: z.string().trim().min(6).max(25),
   dateOfBirth: z
     .string()

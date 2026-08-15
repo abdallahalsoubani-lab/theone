@@ -77,9 +77,10 @@ const { __state } = (await import('@/lib/db')) as unknown as {
 };
 
 const labels = {
+  // P47 row 8 — one name column (English display name; Arabic only as the
+  // legacy fallback when English is empty).
   header: {
-    nameAr: 'الاسم (عربي)',
-    nameEn: 'Name (English)',
+    name: 'Name',
     gender: 'Gender',
     dob: 'DOB',
     age: 'Age',
@@ -169,16 +170,16 @@ describe('buildPatientsRosterCsv', () => {
     const csv = buildPatientsRosterCsv(await listPatientsForExport(), labels);
     const lines = csv.trimEnd().split('\n');
     expect(lines).toHaveLength(3);
-    expect(lines[0]).toBe(
-      'الاسم (عربي),Name (English),Gender,DOB,Age,Phone,Address,Occupation,Added on,Doctor visit',
-    );
-    // Row 1: known DOB (age computed), comma-bearing address gets quoted.
-    expect(lines[1]).toContain('أحمد عودة,Ahmad Odeh,ذكر,1990-05-10,');
+    expect(lines[0]).toBe('Name,Gender,DOB,Age,Phone,Address,Occupation,Added on,Doctor visit');
+    // Row 1: English display name; known DOB (age computed), comma-bearing
+    // address gets quoted.
+    expect(lines[1]).toContain('Ahmad Odeh,ذكر,1990-05-10,');
     expect(lines[1]).toContain('"عمّان, الدوار الخامس"');
     expect(lines[1]).toContain('+962790000001');
     expect(lines[1]).toContain('تمت');
-    // Row 2: sentinel DOB → both date and age EMPTY; phone/address/occupation empty.
-    expect(lines[2]).toBe('هالة سمّور,,أنثى,,,,,,2026-07-21,بانتظار زيارة الدكتورة');
+    // Row 2: an Arabic-only legacy record falls back to its stored Arabic
+    // name (never blank); sentinel DOB → date and age EMPTY.
+    expect(lines[2]).toBe('هالة سمّور,أنثى,,,,,,2026-07-21,بانتظار زيارة الدكتورة');
     expect(csv).not.toContain('1900-01-01');
     expect(csv).not.toContain('null');
   });
@@ -188,7 +189,7 @@ describe('buildPatientsRosterCsv', () => {
       [
         {
           fullNameAr: 'قال "أنا"',
-          fullNameEn: 'Q',
+          fullNameEn: '',
           gender: 'MALE',
           dateOfBirth: new Date('2000-01-01T00:00:00Z'),
           phone: null,
@@ -200,7 +201,7 @@ describe('buildPatientsRosterCsv', () => {
       ],
       labels,
     );
-    expect(csv).toContain('"قال ""أنا"""');
+    expect(csv).toContain('"قال ""أنا"""'); // fallback name still escaped
   });
 });
 
@@ -233,8 +234,9 @@ describe('GET /api/v1/exports/patients — endpoint-level RBAC (P15 boundary)', 
     expect([bytes[0], bytes[1], bytes[2]]).toEqual([0xef, 0xbb, 0xbf]);
     const body = new TextDecoder().decode(bytes);
     // getTranslations is mocked as key-echo — header carries the key names.
-    expect(body).toContain('colNameAr');
-    expect(body).toContain('أحمد عودة');
+    expect(body).toContain('colName');
+    // English display name; the Arabic-only legacy record falls back.
+    expect(body).toContain('Ahmad Odeh');
     expect(body).toContain('هالة سمّور');
     expect(res.headers.get('content-type')).toContain('text/csv');
     expect(res.headers.get('content-disposition')).toMatch(

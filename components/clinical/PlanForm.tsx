@@ -1,6 +1,7 @@
 'use client';
 
 import { Plus, Trash2 } from 'lucide-react';
+import { patientDisplayName } from '@/lib/format/patientName';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
@@ -179,7 +180,7 @@ export function PlanForm({
     });
   }
 
-  const patientName = locale === 'ar' ? patient.fullNameAr : patient.fullNameEn;
+  const patientName = patientDisplayName(patient.fullNameEn, patient.fullNameAr);
 
   return (
     <form

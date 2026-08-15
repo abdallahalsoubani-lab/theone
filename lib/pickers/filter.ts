@@ -16,6 +16,10 @@ export interface PickerOption {
    *  viewer is allowed to see it). Searched too, so AR queries match rows
    *  labeled in EN and vice versa. */
   sublabel?: string | null;
+  /** Search-only terms that are NEVER rendered (P47 row 8 — the Arabic name
+   *  disappeared from display but typed-Arabic matching must keep working,
+   *  same asymmetry as the kiosk: match yes, display no). */
+  searchTerms?: ReadonlyArray<string>;
   disabled?: boolean;
 }
 
@@ -29,9 +33,12 @@ export function matchesPickerQuery(
   return fields.some((f) => (f ?? '').toLowerCase().includes(q));
 }
 
-/** Single-select list: options matching the query (label OR sublabel). */
+/** Single-select list: options matching the query (label, sublabel, or the
+ *  hidden search-only terms). */
 export function filterPickerOptions(options: PickerOption[], query: string): PickerOption[] {
-  return options.filter((o) => matchesPickerQuery(query, o.label, o.sublabel));
+  return options.filter((o) =>
+    matchesPickerQuery(query, o.label, o.sublabel, ...(o.searchTerms ?? [])),
+  );
 }
 
 /**
@@ -48,7 +55,8 @@ export function partitionPillOptions(
   return {
     selected: options.filter((o) => sel.has(o.id)),
     unselectedMatches: options.filter(
-      (o) => !sel.has(o.id) && matchesPickerQuery(query, o.label, o.sublabel),
+      (o) =>
+        !sel.has(o.id) && matchesPickerQuery(query, o.label, o.sublabel, ...(o.searchTerms ?? [])),
     ),
   };
 }

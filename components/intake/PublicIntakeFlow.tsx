@@ -73,7 +73,6 @@ export function PublicIntakeFlow({ locale, adultQuestions, pediatricQuestions }:
   // defaults to the locale the form is being filled in. Two name fields
   // (QA 5.2): AR required, EN optional.
   const emptyProfile = {
-    fullNameAr: '',
     fullNameEn: '',
     phone: '',
     dateOfBirth: '',

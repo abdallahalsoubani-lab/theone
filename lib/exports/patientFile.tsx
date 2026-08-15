@@ -1,4 +1,5 @@
 import { AuditAction, type AppointmentStatus } from '@prisma/client';
+import { patientDisplayName } from '@/lib/format/patientName';
 import { Document, Page, StyleSheet, View } from '@react-pdf/renderer';
 
 import { withAudit } from '@/lib/audit/withAudit';
@@ -228,7 +229,8 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
   } = inputs;
   const ar = locale === 'ar';
   const d = pdfDir(ar);
-  const name = ar ? patient.fullNameAr : patient.fullNameEn;
+  // P47 row 8 — English display name in both PDF locales.
+  const name = patientDisplayName(patient.fullNameEn, patient.fullNameAr);
   return (
     <Document title={`Patient file — ${patient.fullNameEn}`}>
       <Page size="A4" style={styles.page}>

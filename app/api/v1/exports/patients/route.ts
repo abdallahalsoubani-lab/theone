@@ -41,8 +41,7 @@ export async function GET(request: Request): Promise<Response> {
   const t = await getTranslations({ locale, namespace: 'patients.export' });
   const csv = buildPatientsRosterCsv(rows, {
     header: {
-      nameAr: t('colNameAr'),
-      nameEn: t('colNameEn'),
+      name: t('colName'),
       gender: t('colGender'),
       dob: t('colDob'),
       age: t('colAge'),

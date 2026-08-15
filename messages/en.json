@@ -127,7 +127,6 @@
     "atLeastOne": "At least one item is required.",
     "openBeforeClose": "Open time must be before close time.",
     "atLeastTwoOptions": "Add at least two options.",
-    "nameRequired": "At least one name (Arabic or English) is required.",
     "phoneE164": "Enter a valid phone number in international format (e.g. +9627XXXXXXXX).",
     "dobFuture": "Date of birth cannot be in the future.",
     "dobTooEarly": "Date of birth must be after 1900."
@@ -776,8 +775,7 @@
     },
     "export": {
       "button": "Export",
-      "colNameAr": "Name (Arabic)",
-      "colNameEn": "Name (English)",
+      "colName": "Name",
       "colGender": "Gender",
       "colDob": "Date of birth",
       "colAge": "Age",
@@ -992,7 +990,6 @@
     "thankYouTitle": "Thank you!",
     "thankYouBody": "Your intake has been received. The clinic will review it and contact you to confirm your registration.",
     "submitAnother": "Submit another",
-    "fullNameAr": "Full name (Arabic)",
     "fullNameEn": "Full name (English)",
     "languagePref": "Preferred language"
   },

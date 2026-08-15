@@ -82,7 +82,8 @@ describe('sendAppointmentRescheduled — 4-variable contract', () => {
       expect.objectContaining({
         templateName: 'appointment_rescheduled',
         language: 'AR',
-        parameters: ['سارة خليل', '2026-08-01', '16:30', 'د. لينا'],
+        // P47 row 8 — the patient-name variable is the English display name.
+        parameters: ['Sara Khalil', '2026-08-01', '16:30', 'د. لينا'],
         recipientPhone: '+962790000001',
         appointmentId: 'appt-1',
       }),
@@ -106,7 +107,8 @@ describe('sendAppointmentRescheduled — 4-variable contract', () => {
     });
     await sendAppointmentRescheduled({ appointmentId: 'appt-1' });
     expect(calls()[0]![0]).toMatchObject({
-      parameters: ['سارة خليل', '2026-08-01', '16:30', 'د. لينا'],
+      // P47 row 8 — the patient-name variable is the English display name.
+      parameters: ['Sara Khalil', '2026-08-01', '16:30', 'د. لينا'],
     });
   });
 
@@ -114,7 +116,8 @@ describe('sendAppointmentRescheduled — 4-variable contract', () => {
     __state.appt = baseAppt({ appointmentType: 'STRETCHING', therapists: [] });
     await sendAppointmentRescheduled({ appointmentId: 'appt-1' });
     expect(calls()[0]![0]).toMatchObject({
-      parameters: ['سارة خليل', '2026-08-01', '16:30', 'جلسة استطالة'],
+      // P47 row 8 — the patient-name variable is the English display name.
+      parameters: ['Sara Khalil', '2026-08-01', '16:30', 'جلسة استطالة'],
     });
   });
 

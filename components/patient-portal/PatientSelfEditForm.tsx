@@ -53,7 +53,6 @@ export function PatientSelfEditForm({ initial, readOnly }: Props) {
           <Card>
             <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
               <ReadField label={t('fullNameEn')} value={readOnly.fullNameEn} />
-              <ReadField label={t('fullNameAr')} value={readOnly.fullNameAr} />
               <ReadField label={t('phone')} value={formatPhone(readOnly.phone)} />
               <ReadField
                 label={t('dateOfBirth')}

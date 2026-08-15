@@ -701,7 +701,7 @@ describe('48b — quick-reply buttons', () => {
     });
     expect(state.appointments[0]!.status).toBe(AppointmentStatus.CONFIRMED);
     const ack = String((state.enqueuedOutbound[0] as { body?: string }).body);
-    expect(ack).toContain('مرحباً سارة خليل، تم التأكيد على موعدكم');
+    expect(ack).toContain('مرحباً Sara Khalil، تم التأكيد على موعدكم'); // P47 row 8 — English name
     expect(ack).toContain('دوام الصحة والعافية');
   });
 

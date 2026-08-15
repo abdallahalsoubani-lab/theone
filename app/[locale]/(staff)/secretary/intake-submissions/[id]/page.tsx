@@ -94,10 +94,13 @@ export default async function IntakeSubmissionDetailPage({
 
   const genderKey = genderLabelKey(profile.gender);
   const profileRows: Array<{ label: string; value: string }> = [
-    // Legacy pre-split submissions stored a single `fullName` — show it in the
-    // AR slot (AR is the app default locale) so the pending queue stays readable.
-    { label: tProfile('fullNameAr'), value: formatValue(profile.fullNameAr ?? profile.fullName) },
-    { label: tProfile('fullNameEn'), value: formatValue(profile.fullNameEn) },
+    // P47 row 8 — ONE name row. Legacy submissions (pre-change) may only
+    // carry fullNameAr or the even older single fullName; fall back so the
+    // pending queue stays readable.
+    {
+      label: tProfile('fullNameEn'),
+      value: formatValue(profile.fullNameEn ?? profile.fullNameAr ?? profile.fullName),
+    },
     { label: tProfile('phone'), value: submission.submittedPhone },
     { label: tProfile('dateOfBirth'), value: formatValue(profile.dateOfBirth) },
     {

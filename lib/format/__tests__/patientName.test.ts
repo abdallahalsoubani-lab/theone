@@ -3,30 +3,34 @@ import { describe, expect, it } from 'vitest';
 import { patientDisplayName } from '../patientName';
 
 /**
- * P50 — BIDIRECTIONAL fallback (replaces the P25 "English required" rule):
- * either name alone is valid; each UI prefers its own script and falls back
- * to the other so a patient never renders blank.
+ * Prompt 47 row 8 — English-only rendering (updates, not deletes, the P50
+ * bidirectional expectations): the English name is THE display name in both
+ * UIs whenever it exists. Stored Arabic names are tolerated as a last-resort
+ * fallback ONLY when English is empty — at cutover 258/265 production
+ * patients were Arabic-only (P50 rule + P52 import) and must never render
+ * as a blank label.
  */
-describe('patientDisplayName', () => {
-  it('prefers the matching script when both names exist', () => {
-    expect(patientDisplayName('John Doe', 'جون دو', 'ar')).toBe('جون دو');
+describe('patientDisplayName (English-only, P47 row 8)', () => {
+  it('returns English in BOTH UIs when both names exist (no locale preference anymore)', () => {
+    expect(patientDisplayName('John Doe', 'جون دو', 'ar')).toBe('John Doe');
     expect(patientDisplayName('John Doe', 'جون دو', 'en')).toBe('John Doe');
+    expect(patientDisplayName('John Doe', 'جون دو')).toBe('John Doe');
   });
 
-  it('Arabic UI falls back to English when Arabic is missing', () => {
+  it('returns English when Arabic is missing', () => {
     expect(patientDisplayName('John Doe', '', 'ar')).toBe('John Doe');
     expect(patientDisplayName('John Doe', null, 'ar')).toBe('John Doe');
     expect(patientDisplayName('John Doe', '   ', 'ar')).toBe('John Doe');
   });
 
-  it('English UI falls back to Arabic when English is missing (P50)', () => {
+  it('legacy Arabic-only patient still renders (fallback, never blank) in both UIs', () => {
     expect(patientDisplayName('', 'سارة خليل', 'en')).toBe('سارة خليل');
-    expect(patientDisplayName(null, 'سارة خليل', 'en')).toBe('سارة خليل');
+    expect(patientDisplayName(null, 'سارة خليل', 'ar')).toBe('سارة خليل');
     expect(patientDisplayName('  ', 'سارة خليل', 'en')).toBe('سارة خليل');
   });
 
-  it('Arabic-only patient renders in both UIs', () => {
-    expect(patientDisplayName('', 'سارة خليل', 'ar')).toBe('سارة خليل');
-    expect(patientDisplayName('', 'سارة خليل', 'en')).toBe('سارة خليل');
+  it('never returns whitespace when both are empty', () => {
+    expect(patientDisplayName('', '', 'en')).toBe('');
+    expect(patientDisplayName(null, undefined, 'ar')).toBe('');
   });
 });

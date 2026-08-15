@@ -40,7 +40,6 @@ export default async function SecretaryPatientEditPage({
         initial={{
           id: patient.id,
           fullNameEn: patient.fullNameEn,
-          fullNameAr: patient.fullNameAr,
           // Secretary edit form: phone is always visible to Secretary/Admin.
           phone: patient.phone ?? '',
           email: patient.email,

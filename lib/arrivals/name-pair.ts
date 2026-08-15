@@ -17,7 +17,13 @@ export function kioskNamePair(
   names: { fullNameEn: string; fullNameAr: string },
   locale: string,
 ): { primary: string; alt: string | null } {
+  // P47 row 8 — display is English-only (the helper falls back to a stored
+  // Arabic name ONLY for legacy records with no English). The alt slot is
+  // permanently empty now; the shape stays so the kiosk rows and a future
+  // reversal need no re-plumbing. NOTE the asymmetry: typed-Arabic MATCHING
+  // against stored names is kept (see the kiosk search normalizer) — a
+  // pre-change patient may still type their Arabic name; only DISPLAY is
+  // English-only.
   const primary = patientDisplayName(names.fullNameEn, names.fullNameAr, locale);
-  const other = (locale === 'ar' ? names.fullNameEn : names.fullNameAr).trim();
-  return { primary, alt: other && other !== primary ? other : null };
+  return { primary, alt: null };
 }

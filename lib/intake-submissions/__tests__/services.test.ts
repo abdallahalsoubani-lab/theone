@@ -63,7 +63,6 @@ const adultAnswers = {
 };
 
 const profile = {
-  fullNameAr: 'يوسف النجار',
   fullNameEn: 'John Doe',
   phone: '+962790000000',
   dateOfBirth: '1990-01-01',
@@ -107,36 +106,41 @@ describe('approveSubmissionNew', () => {
     expect(m.updateCalls.at(-1)?.data).toEqual({ linkedPatientId: 'pat-new' });
   });
 
-  it('maps each submitted name to its own column and carries the explicit languagePref (QA 5.2/5.3)', async () => {
+  // P47 row 8 — the single English-field name feeds fullNameEn; the patient
+  // schema no longer carries a fullNameAr field at all.
+  it('maps the submitted name to the English column and carries the explicit languagePref', async () => {
     await approveSubmissionNew({ submissionId: 'sub-1' });
     expect(createPatient).toHaveBeenCalledWith(
       expect.objectContaining({
-        fullNameAr: 'يوسف النجار',
         fullNameEn: 'John Doe',
         languagePref: 'EN',
       }),
       'sec-1',
     );
+    const calls = vi.mocked(createPatient).mock.calls as unknown as Array<
+      [Record<string, unknown>, string]
+    >;
+    expect('fullNameAr' in calls[0]![0]).toBe(false);
   });
 
-  it('falls back to the AR name for fullNameEn when the EN name is missing — never empty', async () => {
-    m.submission = pendingAdult({ profile: { ...profile, fullNameEn: null } });
+  it('a legacy PENDING submission with only fullNameAr still approves (name feeds the EN column)', async () => {
+    const { fullNameEn: _en, ...rest } = profile;
+    m.submission = pendingAdult({ profile: { ...rest, fullNameAr: 'يوسف النجار' } });
     await approveSubmissionNew({ submissionId: 'sub-1' });
     expect(createPatient).toHaveBeenCalledWith(
-      expect.objectContaining({ fullNameAr: 'يوسف النجار', fullNameEn: 'يوسف النجار' }),
+      expect.objectContaining({ fullNameEn: 'يوسف النجار' }),
       'sec-1',
     );
   });
 
-  it('still approves a legacy pre-split submission (single fullName feeds both columns)', async () => {
-    const { fullNameAr: _ar, fullNameEn: _en, ...rest } = profile;
+  it('still approves a legacy pre-split submission (single fullName feeds the EN column)', async () => {
+    const { fullNameEn: _en, ...rest } = profile;
     m.submission = pendingAdult({
       profile: { ...rest, fullName: 'John Doe', languagePref: 'AR' },
     });
     await approveSubmissionNew({ submissionId: 'sub-1' });
     expect(createPatient).toHaveBeenCalledWith(
       expect.objectContaining({
-        fullNameAr: 'John Doe',
         fullNameEn: 'John Doe',
         languagePref: 'AR',
       }),

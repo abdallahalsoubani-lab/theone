@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
+import { patientDisplayName } from '@/lib/format/patientName';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
@@ -71,7 +72,7 @@ export function InboxTable({ rows }: Props) {
         <tbody>
           {rows.map((row) => {
             const patientName =
-              row.patient && (locale === 'ar' ? row.patient.fullNameAr : row.patient.fullNameEn);
+              row.patient && patientDisplayName(row.patient.fullNameEn, row.patient.fullNameAr);
             return (
               <tr
                 key={row.id}

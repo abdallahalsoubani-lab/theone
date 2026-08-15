@@ -13,7 +13,6 @@ import { patientCreateSchema } from '../schemas';
 
 const validPatient = {
   fullNameEn: 'Test Patient',
-  fullNameAr: 'مريض تجريبي',
   phone: '+962791234567',
   gender: 'MALE',
   languagePref: 'AR',
@@ -65,7 +64,7 @@ describe('patientCreateSchema.dateOfBirth', () => {
 
 describe('publicProfileSchema.dateOfBirth (public form — same bounds)', () => {
   const base = {
-    fullNameAr: 'مريض تجريبي',
+    fullNameEn: 'Test Patient',
     phone: '0791234567',
     gender: 'FEMALE',
   };

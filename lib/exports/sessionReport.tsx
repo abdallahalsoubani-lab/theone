@@ -1,4 +1,5 @@
 import { AuditAction } from '@prisma/client';
+import { patientDisplayName } from '@/lib/format/patientName';
 
 import { withAudit } from '@/lib/audit/withAudit';
 import {
@@ -63,7 +64,9 @@ const generateInner = async ({
     where: { id: note.patientId },
     select: { fullNameEn: true, fullNameAr: true },
   });
-  const patientName = patient ? (ar ? patient.fullNameAr : patient.fullNameEn) : note.patientId;
+  const patientName = patient
+    ? patientDisplayName(patient.fullNameEn, patient.fullNameAr)
+    : note.patientId;
   const therapistName = ar ? note.therapistFullNameAr : note.therapistFullNameEn;
 
   const meta = [

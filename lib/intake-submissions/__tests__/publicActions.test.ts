@@ -67,7 +67,6 @@ const validAdult = {
   locale: 'en' as const,
   website: '',
   profile: {
-    fullNameAr: 'يوسف النجار',
     fullNameEn: 'John Doe',
     phone: '0790000000',
     dateOfBirth: '1990-01-01',
@@ -84,8 +83,7 @@ const validChild = {
   locale: 'ar' as const,
   website: '',
   profile: {
-    fullNameAr: 'لينا الطفلة',
-    fullNameEn: '',
+    fullNameEn: 'Lina Child',
     phone: '0791111111',
     dateOfBirth: '2018-05-05',
     gender: 'FEMALE',
@@ -122,21 +120,15 @@ describe('submitPublicIntakeAction', () => {
     expect(data.status).toBeUndefined();
   });
 
-  it('stores both names distinctly; the AR name is the denormalized submittedName', async () => {
+  // P47 row 8 — ONE English-field name: it is the denormalized submittedName
+  // and a smuggled fullNameAr is stripped before storage.
+  it('stores the English name as submittedName and strips a smuggled fullNameAr', async () => {
     const res = await submitPublicIntakeAction(validAdult);
     expect(res.ok).toBe(true);
     const data = h.createCalls[0] as StoredCreate;
-    expect(data.submittedName).toBe('يوسف النجار');
-    expect(data.profile.fullNameAr).toBe('يوسف النجار');
+    expect(data.submittedName).toBe('John Doe');
     expect(data.profile.fullNameEn).toBe('John Doe');
-  });
-
-  it('stores a missing EN name as null (optional field, never an empty string)', async () => {
-    const res = await submitPublicIntakeAction(validChild);
-    expect(res.ok).toBe(true);
-    const data = h.createCalls[0] as StoredCreate;
-    expect(data.profile.fullNameAr).toBe('لينا الطفلة');
-    expect(data.profile.fullNameEn).toBeNull();
+    expect('fullNameAr' in data.profile).toBe(false);
   });
 
   it('explicit languagePref beats the form locale', async () => {
@@ -173,19 +165,11 @@ describe('submitPublicIntakeAction', () => {
     expect((h.createCalls[0] as { type: string }).type).toBe('PEDIATRIC');
   });
 
-  it('rejects a missing Arabic name', async () => {
-    const res = await submitPublicIntakeAction({
-      ...validAdult,
-      profile: { ...validAdult.profile, fullNameAr: '' },
-    });
-    expect(res.ok).toBe(false);
+  it('rejects a missing or too-short name (P47 row 8 — the English field is required)', async () => {
+    const { fullNameEn: _omitted, ...withoutName } = validAdult.profile;
+    const missing = await submitPublicIntakeAction({ ...validAdult, profile: withoutName });
+    expect(missing.ok).toBe(false);
     expect(h.createCalls).toHaveLength(0);
-  });
-
-  it('accepts a missing EN name but rejects a provided-yet-too-short one', async () => {
-    const { fullNameEn: _omitted, ...withoutEn } = validAdult.profile;
-    const okRes = await submitPublicIntakeAction({ ...validAdult, profile: withoutEn });
-    expect(okRes.ok).toBe(true);
 
     const badRes = await submitPublicIntakeAction({
       ...validAdult,

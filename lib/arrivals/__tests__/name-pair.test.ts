@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { kioskNamePair } from '../name-pair';
 
 /**
- * Fix 45.1 — every kiosk row gets exactly one filled primary slot; the
- * secondary appears only when the other script exists and differs. The
- * production bug: an English-only patient in /ar rendered an EMPTY primary
- * and their name in the small secondary style.
+ * Updated for P47 row 8 (was Fix 45.1): kiosk DISPLAY is English-only — the
+ * alt slot is permanently null; primary falls back to the stored Arabic name
+ * only for legacy records with no English. Typed-Arabic MATCHING is kept
+ * elsewhere (the search normalizer) — match yes, display no.
  */
 
 const BOTH = { fullNameEn: 'Yasmin Al Momani', fullNameAr: 'ياسمين المومني' };
@@ -15,18 +15,9 @@ const AR_ONLY = { fullNameEn: '', fullNameAr: 'عبدالله خليل' };
 const DUPLICATED = { fullNameEn: 'Abdullah Soubani', fullNameAr: 'Abdullah Soubani' };
 
 describe('kioskNamePair', () => {
-  it('both scripts in /ar → Arabic primary, English secondary', () => {
-    expect(kioskNamePair(BOTH, 'ar')).toEqual({
-      primary: 'ياسمين المومني',
-      alt: 'Yasmin Al Momani',
-    });
-  });
-
-  it('both scripts in /en → English primary, Arabic secondary', () => {
-    expect(kioskNamePair(BOTH, 'en')).toEqual({
-      primary: 'Yasmin Al Momani',
-      alt: 'ياسمين المومني',
-    });
+  it('both scripts → English primary and NO secondary, in both locales (P47 row 8)', () => {
+    expect(kioskNamePair(BOTH, 'ar')).toEqual({ primary: 'Yasmin Al Momani', alt: null });
+    expect(kioskNamePair(BOTH, 'en')).toEqual({ primary: 'Yasmin Al Momani', alt: null });
   });
 
   it('English-only patient in /ar → English PROMOTED to primary, no secondary (the bug)', () => {

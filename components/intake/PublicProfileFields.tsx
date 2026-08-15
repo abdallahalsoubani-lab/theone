@@ -46,12 +46,6 @@ export function PublicProfileFields({ form, namePrefix = 'profile.' }: Props) {
         <div className="grid gap-4 sm:grid-cols-2">
           <TextField
             form={form}
-            name={n('fullNameAr')}
-            label={t('fullNameAr')}
-            autoComplete="name"
-          />
-          <TextField
-            form={form}
             name={n('fullNameEn')}
             label={t('fullNameEn')}
             autoComplete="name"

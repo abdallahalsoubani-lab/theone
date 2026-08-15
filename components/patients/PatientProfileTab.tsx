@@ -51,8 +51,8 @@ export function PatientProfileTab({
 
       <Card>
         <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
+          {/* P47 row 8 — the Arabic-name row is gone for every role. */}
           <Field label={t('fullNameEn')} value={patient.fullNameEn} />
-          <Field label={t('fullNameAr')} value={patient.fullNameAr} />
           <Field
             label={t('dateOfBirth')}
             value={

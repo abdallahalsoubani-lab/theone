@@ -61,14 +61,18 @@ export function appointmentTooltipModel(
   a: CalendarAppointment,
   locale: string,
 ): AppointmentTooltipModel {
+  // PATIENT names render English-only (P47 row 8, via the helper); STAFF
+  // names keep the locale script — the row-8 removal is patients only.
   const name = (p: { fullNameEn: string; fullNameAr: string }) =>
     patientDisplayName(p.fullNameEn, p.fullNameAr, locale);
+  const staffName = (p: { fullNameEn: string; fullNameAr: string }) =>
+    locale === 'ar' ? p.fullNameAr : p.fullNameEn;
 
   const isEvent = a.appointmentType === 'EVENT';
   const isGroupLike = a.appointmentType === 'GROUP' || a.appointmentType === 'WORKSHOP';
 
   let primary: string;
-  let secondary: string | null = null;
+  const secondary: string | null = null;
   if (isEvent) {
     primary = (a.title ?? '').trim();
   } else if (isGroupLike) {
@@ -76,8 +80,7 @@ export function appointmentTooltipModel(
     primary = a.title ?? (first ? name(first) : '');
   } else {
     primary = name({ fullNameEn: a.patientFullNameEn, fullNameAr: a.patientFullNameAr });
-    const other = (locale === 'ar' ? a.patientFullNameEn : a.patientFullNameAr).trim();
-    secondary = other && other !== primary ? other : null;
+    // P47 row 8 — no other-script secondary line; English is the name.
   }
 
   const note = a.notes?.trim() ?? '';
@@ -88,7 +91,7 @@ export function appointmentTooltipModel(
     groupMembers: isGroupLike ? a.groupPatients.map(name) : [],
     timeRange: `${clinicHm(a.startsAt)}–${clinicHm(addMinutes(a.startsAt, a.durationMinutes))}`,
     durationMinutes: a.durationMinutes,
-    therapists: a.therapists.map(name),
+    therapists: a.therapists.map(staffName),
     room: a.roomName,
     typeKey: TYPE_KEYS[a.appointmentType],
     statusKey: STATUS_KEYS[a.status],

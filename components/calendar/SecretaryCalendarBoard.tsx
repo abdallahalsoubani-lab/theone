@@ -17,6 +17,7 @@ import { RescheduleAppointmentModal } from '@/components/appointments/Reschedule
 import { Button } from '@/components/ui/button';
 import { rescheduleAppointmentAction } from '@/lib/appointments/actions';
 import { dragReassignTherapistIds } from '@/lib/appointments/drag';
+import { patientDisplayName } from '@/lib/format/patientName';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { RESIZE_MIN_MINUTES } from '@/lib/appointments/schemas';
@@ -129,7 +130,7 @@ export function SecretaryCalendarBoard({
       patientFullNameAr:
         found.patientFullNameAr ||
         found.title ||
-        found.groupPatients.map((p) => p.fullNameAr).join('، '),
+        found.groupPatients.map((p) => patientDisplayName(p.fullNameEn, p.fullNameAr)).join('، '),
       // Phone is fetched lazily; the calendar list query is lean. For now,
       // leave blank and Prompt 7b can fetch on open if needed.
       patientPhone: '',

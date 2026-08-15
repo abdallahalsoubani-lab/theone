@@ -56,8 +56,8 @@ const submission = (nameAr: string) =>
     type: 'ADULT' as const,
     locale: 'ar' as const,
     profile: {
-      fullNameAr: nameAr,
-      fullNameEn: '',
+      // P47 row 8 — the form's single name field (content-agnostic).
+      fullNameEn: nameAr,
       phone: '0790000000',
       dateOfBirth: '1990-01-01',
       gender: 'MALE',

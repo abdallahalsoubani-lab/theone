@@ -42,7 +42,6 @@ export default async function AdminPatientEditPage({
         initial={{
           id: patient.id,
           fullNameEn: patient.fullNameEn,
-          fullNameAr: patient.fullNameAr,
           // Phone is always visible to Secretary/Admin (Prompt 15 §1).
           phone: patient.phone ?? '',
           email: patient.email,

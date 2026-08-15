@@ -23,11 +23,14 @@ export interface PatientPickerSource {
 }
 
 export function patientPickerOption(p: PatientPickerSource, locale: string): PickerOption {
+  // P47 row 8 — English-only display (helper falls back to Arabic only for
+  // legacy records with no English name); no other-script sublabel anymore.
   const primary = patientDisplayName(p.fullNameEn, p.fullNameAr, locale);
-  const other = patientDisplayName(p.fullNameEn, p.fullNameAr, locale === 'ar' ? 'en' : 'ar');
   return {
     id: p.id,
     label: primary + (p.phone ? ` (${p.phone})` : ''),
-    sublabel: other !== primary ? other : null,
+    sublabel: null,
+    // Match-yes/display-no: the stored Arabic name stays searchable.
+    searchTerms: p.fullNameAr ? [p.fullNameAr] : [],
   };
 }

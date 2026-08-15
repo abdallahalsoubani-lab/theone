@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
+import { patientDisplayName } from '@/lib/format/patientName';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useTransition } from 'react';
 
@@ -109,7 +110,7 @@ export function CancelledAppointmentsTable({
               return (
                 <div>
                   <p className="font-medium text-brand-navy">
-                    {localeTag === 'ar' ? r.patientFullNameAr : r.patientFullNameEn}
+                    {patientDisplayName(r.patientFullNameEn, r.patientFullNameAr)}
                   </p>
                   <p className="font-mono text-xs text-brand-textMuted" dir="ltr">
                     {r.patientPhone ?? tCommon('hidden')}

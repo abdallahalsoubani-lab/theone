@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
+import { patientDisplayName } from '@/lib/format/patientName';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -91,7 +92,7 @@ export function PlanCard({ plan, viewerRole, editHref }: Props) {
     setRejectReason('');
   }
 
-  const patientName = locale === 'ar' ? plan.patientFullNameAr : plan.patientFullNameEn;
+  const patientName = patientDisplayName(plan.patientFullNameEn, plan.patientFullNameAr);
   const therapistName = locale === 'ar' ? plan.therapistFullNameAr : plan.therapistFullNameEn;
   const doctorName = locale === 'ar' ? plan.doctorFullNameAr : plan.doctorFullNameEn;
 

@@ -56,8 +56,9 @@ describe('eventsForView', () => {
   it('computes end from duration and titles by locale', () => {
     const [en] = eventsForView([multiTherapist], 'week', 'en');
     const [ar] = eventsForView([multiTherapist], 'week', 'ar');
+    // P47 row 8 — English display name in BOTH locales.
     expect(en!.title).toBe('John Doe');
-    expect(ar!.title).toBe('جون دو');
+    expect(ar!.title).toBe('John Doe');
     expect(en!.end.getTime() - en!.start.getTime()).toBe(30 * 60_000);
   });
 
@@ -120,7 +121,7 @@ describe('eventsForView', () => {
       therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
     };
     expect(eventsForView([group], 'week', 'en')[0]!.title).toBe('John (2)');
-    expect(eventsForView([group], 'week', 'ar')[0]!.title).toBe('جون (2)');
+    expect(eventsForView([group], 'week', 'ar')[0]!.title).toBe('John (2)'); // P47 row 8
   });
 
   it('single-therapist appointment is one event in every view', () => {
@@ -192,7 +193,7 @@ describe('time-then-name cards (PT-B3 item 3 — owner request, reverses Prompt 
         expect(eventsForView([session], view, locale)[0]!.title).not.toMatch(/\d{2}:\d{2}/);
       }
     }
-    expect(eventsForView([session], 'week', 'ar')[0]!.title).toBe('جون دو');
+    expect(eventsForView([session], 'week', 'ar')[0]!.title).toBe('John Doe'); // P47 row 8
   });
 
   it('eventCardContent: start time, patient name, booking note — and no therapist name', () => {

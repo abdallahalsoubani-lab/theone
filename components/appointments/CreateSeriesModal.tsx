@@ -17,6 +17,7 @@ import {
   ResponsiveModalTitle,
 } from '@/components/ui/responsive-modal';
 import { createSeriesBatchAction, previewSeriesBatchAction } from '@/lib/appointments/actions';
+import { patientDisplayName } from '@/lib/format/patientName';
 import { rowInstant, validateBatchRows } from '@/lib/appointments/batch-validation';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
 import { MAX_BATCH_ROWS } from '@/lib/appointments/schemas';
@@ -215,8 +216,8 @@ export function CreateSeriesModal({
             onChange={setPatientId}
             options={patients.map((p) => ({
               id: p.id,
-              label: locale === 'ar' ? p.fullNameAr : p.fullNameEn,
-              sublabel: locale === 'ar' ? p.fullNameEn : p.fullNameAr,
+              label: patientDisplayName(p.fullNameEn, p.fullNameAr),
+              sublabel: null,
             }))}
           />
         </div>

@@ -4,6 +4,7 @@ import { generateTempPassword } from '@/lib/admin/temp-password';
 import { withAudit } from '@/lib/audit/withAudit';
 import { hashPassword } from '@/lib/auth/password';
 import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
+import { patientDisplayName } from '@/lib/format/patientName';
 import { sendPatientCredentials } from '@/lib/whatsapp/templates/sendCredentials';
 
 import { addCareTeamMemberTx, PatientAssignmentError } from './assignment';
@@ -72,7 +73,9 @@ export const createPatient = withAudit<[PatientCreateInput, string], CreatePatie
           phone: input.phone || null,
           role: UserRole.PATIENT,
           fullNameEn: input.fullNameEn,
-          fullNameAr: input.fullNameAr,
+          // P47 row 8 — new patients are English-name only; the column is
+          // NOT NULL so it stores ''.
+          fullNameAr: '',
           languagePref: input.languagePref,
           passwordHash,
           mustChangePassword: true,
@@ -120,8 +123,7 @@ export const createPatient = withAudit<[PatientCreateInput, string], CreatePatie
       await sendPatientCredentials({
         recipientUserId: patient.id,
         recipientPhone: patient.phone,
-        recipientName:
-          input.languagePref === 'AR' ? input.fullNameAr || input.fullNameEn : input.fullNameEn,
+        recipientName: input.fullNameEn,
         username: patient.phone,
         tempPassword,
         portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/${input.languagePref === 'AR' ? 'ar' : 'en'}/login`,
@@ -173,7 +175,10 @@ export const updatePatient = withAudit<[PatientUpdateInput], { patientId: string
         where: { id: input.id },
         data: {
           fullNameEn: input.fullNameEn,
-          fullNameAr: input.fullNameAr,
+          // P47 row 8 — fullNameAr is deliberately NOT written on edit:
+          // legacy Arabic-only records keep their stored name (the
+          // non-destructive rule; display falls back to it when English
+          // is empty).
           email: input.email,
           phone: input.phone || null,
           languagePref: input.languagePref,
@@ -277,10 +282,7 @@ export const resetPatientPassword = withAudit<[string], ResetPasswordResult>(
       await sendPatientCredentials({
         recipientUserId: patient.id,
         recipientPhone: patient.phone,
-        recipientName:
-          patient.languagePref === 'AR'
-            ? patient.fullNameAr || patient.fullNameEn
-            : patient.fullNameEn,
+        recipientName: patientDisplayName(patient.fullNameEn, patient.fullNameAr),
         username: patient.phone,
         tempPassword,
         portalUrl: `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/${patient.languagePref === 'AR' ? 'ar' : 'en'}/login`,

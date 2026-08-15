@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
+import { patientDisplayName } from '@/lib/format/patientName';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -81,7 +82,7 @@ export function DayReportForm({ date, initialOverallSummary, initialEntries }: P
     >
       <ul className="space-y-3">
         {entries.map((entry) => {
-          const name = locale === 'ar' ? entry.patientFullNameAr : entry.patientFullNameEn;
+          const name = patientDisplayName(entry.patientFullNameEn, entry.patientFullNameAr);
           return (
             <li
               key={entry.appointmentId}

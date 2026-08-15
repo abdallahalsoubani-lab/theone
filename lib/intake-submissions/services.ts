@@ -34,9 +34,8 @@ export async function createPublicSubmission(
   // a fallback for legacy payloads submitted before the field existed.
   const languagePref = input.profile.languagePref ?? (input.locale === 'ar' ? 'AR' : 'EN');
   const profile = {
-    fullNameAr: input.profile.fullNameAr,
-    // EN name is optional on the public form (QA 5.2) — store null, never ''.
-    fullNameEn: input.profile.fullNameEn || null,
+    // P47 row 8 — the public form collects ONE name (English field).
+    fullNameEn: input.profile.fullNameEn,
     phone: normalized,
     dateOfBirth: input.profile.dateOfBirth,
     gender: input.profile.gender,
@@ -50,15 +49,15 @@ export async function createPublicSubmission(
       type: input.type === 'ADULT' ? IntakeType.ADULT : IntakeType.PEDIATRIC,
       answers: input.answers as unknown as Prisma.InputJsonValue,
       profile: profile as unknown as Prisma.InputJsonValue,
-      // AR is the app's default locale — the AR name is the denormalized
+      // P47 row 8 — the submitted (English-field) name is the denormalized
       // display name for the review queue.
-      submittedName: input.profile.fullNameAr,
+      submittedName: input.profile.fullNameEn,
       submittedPhone: normalized,
       // status defaults to PENDING
     },
     select: { id: true },
   });
-  await notifyReceptionOfSubmission(input.profile.fullNameAr, row.id);
+  await notifyReceptionOfSubmission(input.profile.fullNameEn, row.id);
   return { submissionId: row.id };
 }
 
@@ -107,18 +106,17 @@ function profileString(v: unknown): string {
 /**
  * Build the patient-create input from a stored submission profile.
  *
- * Names (QA 5.2): each stored name maps to its own column. Legacy submissions
- * (pre split-name fix) carry a single `fullName` — it feeds both columns so
- * the in-flight PENDING queue stays approvable. A missing EN name falls back
- * to the AR name (`User.fullNameEn` is non-nullable — never empty).
+ * Names (P47 row 8): the form collects one English-field name. Stored
+ * PENDING submissions from before this change may carry `fullNameAr` (or the
+ * even older single `fullName`) — those still feed the English column so the
+ * in-flight queue stays approvable (`User.fullNameEn` is required).
  */
 function patientInputFromProfile(profile: Record<string, unknown>): PatientCreateInput {
   const legacyName = profileString(profile.fullName);
-  const fullNameAr = profileString(profile.fullNameAr) || legacyName;
-  const fullNameEn = profileString(profile.fullNameEn) || legacyName || fullNameAr;
+  const fullNameEn =
+    profileString(profile.fullNameEn) || legacyName || profileString(profile.fullNameAr);
   return patientCreateSchema.parse({
     fullNameEn,
-    fullNameAr,
     phone: String(profile.phone ?? ''),
     email: profile.email ? String(profile.email) : '',
     dateOfBirth: String(profile.dateOfBirth ?? ''),

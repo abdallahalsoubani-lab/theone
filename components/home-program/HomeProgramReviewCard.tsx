@@ -1,6 +1,7 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
+import { patientDisplayName } from '@/lib/format/patientName';
 
 import { HomeProgramReviewActions } from '@/components/home-program/HomeProgramReviewActions';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,7 +19,7 @@ export function HomeProgramReviewCard({ row }: { row: PendingApprovalRow }) {
   const t = useTranslations('clinical.homeProgram.approval');
   const locale = useLocale();
 
-  const patientName = locale === 'ar' ? row.patientFullNameAr : row.patientFullNameEn;
+  const patientName = patientDisplayName(row.patientFullNameEn, row.patientFullNameAr);
   const therapistName =
     (locale === 'ar' ? row.therapistFullNameAr : row.therapistFullNameEn) ?? '—';
 

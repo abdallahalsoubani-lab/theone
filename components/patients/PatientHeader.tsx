@@ -44,7 +44,7 @@ export function PatientHeader({
   const tForm = useTranslations('patients.form');
   const tFirstVisit = useTranslations('patients.firstVisit');
   const name = patientDisplayName(patient.fullNameEn, patient.fullNameAr, locale);
-  const alt = locale === 'ar' ? patient.fullNameEn : patient.fullNameAr;
+
   const initials = name
     .split(/\s+/)
     .filter(Boolean)
@@ -62,11 +62,7 @@ export function PatientHeader({
       </Avatar>
       <div className="flex-1 space-y-1">
         <h1 className="text-2xl font-medium text-brand-navy">{name}</h1>
-        {/* Legacy intake rows copied one name into both locale fields — show
-            the alternate-locale name only when it actually differs (QA 5.2). */}
-        {alt.trim() && alt.trim() !== name.trim() ? (
-          <p className="text-sm text-brand-textMuted">{alt}</p>
-        ) : null}
+        {/* P47 row 8 — the other-script subtitle is gone; English is the name. */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <Badge variant="muted">{ageYears === null ? '\u2014' : `${ageYears}y`}</Badge>
           <Badge variant="muted">

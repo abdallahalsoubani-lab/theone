@@ -3,8 +3,16 @@ import { describe, expect, it } from 'vitest';
 import { patientCreateSchema } from '../schemas';
 
 /**
- * July change request #10 — Arabic name and address become optional; English
- * name stays required.
+ * Updated (not deleted) across three eras, per the working rule of keeping
+ * decision history visible:
+ *   - July #10 (P25): Arabic name + address became optional.
+ *   - P50: either name alone was valid (the real clinic's records are
+ *     Arabic-only).
+ *   - Prompt 47 row 8 (closes the QA sheet): the Arabic-name FIELD is gone —
+ *     English is required and is the only accepted name; a stale client
+ *     sending fullNameAr has it STRIPPED (never written). The DB column and
+ *     legacy data stay untouched (non-destructive; display-level fallback
+ *     lives in lib/format/patientName.ts).
  */
 const base = {
   fullNameEn: 'John Doe',
@@ -13,56 +21,42 @@ const base = {
   gender: 'MALE',
 };
 
-describe('patientCreateSchema — optional Arabic name + address', () => {
-  it('accepts a patient with no Arabic name and no address', () => {
+describe('patientCreateSchema — English-only name (P47 row 8) + optional address', () => {
+  it('accepts a patient with English name only and no address', () => {
     const r = patientCreateSchema.safeParse(base);
     expect(r.success).toBe(true);
     if (r.success) {
-      expect(r.data.fullNameAr).toBe(''); // defaulted, not undefined
-      expect(r.data.address).toBe('');
+      expect(r.data.address).toBe(''); // address stays optional (P25 regression)
+      expect('fullNameAr' in r.data).toBe(false); // the field no longer exists
     }
   });
 
-  it('accepts explicit empty strings for Arabic name and address', () => {
-    const r = patientCreateSchema.safeParse({ ...base, fullNameAr: '', address: '' });
-    expect(r.success).toBe(true);
-  });
-
-  it('still accepts them when provided', () => {
-    const r = patientCreateSchema.safeParse({
-      ...base,
-      fullNameAr: 'جون دو',
-      address: '12 Rainbow St, Amman',
-    });
+  it('strips a smuggled fullNameAr instead of accepting it', () => {
+    const r = patientCreateSchema.safeParse({ ...base, fullNameAr: 'جون دو' });
     expect(r.success).toBe(true);
     if (r.success) {
-      expect(r.data.fullNameAr).toBe('جون دو');
-      expect(r.data.address).toBe('12 Rainbow St, Amman');
+      expect('fullNameAr' in r.data).toBe(false);
     }
   });
 
-  // P50 reversal: EN alone, AR alone — either is enough; neither is not.
-  it('accepts an ARABIC-ONLY patient (the real clinic records)', () => {
-    const { fullNameEn: _omit, ...noEn } = base;
-    const r = patientCreateSchema.safeParse({ ...noEn, fullNameAr: 'سارة خليل' });
-    expect(r.success).toBe(true);
-    if (r.success) expect(r.data.fullNameEn).toBe('');
-  });
-
-  it('rejects a patient with NEITHER name', () => {
+  it('rejects a patient with no English name (Arabic alone is no longer enough)', () => {
     const { fullNameEn: _omit, ...noEn } = base;
     expect(patientCreateSchema.safeParse(noEn).success).toBe(false);
-    expect(patientCreateSchema.safeParse({ ...noEn, fullNameAr: '  ' }).success).toBe(false);
+    expect(patientCreateSchema.safeParse({ ...noEn, fullNameAr: 'سارة خليل' }).success).toBe(false);
+    expect(patientCreateSchema.safeParse({ ...base, fullNameEn: '  ' }).success).toBe(false);
+  });
+
+  it('address still accepted when provided (P25 regression)', () => {
+    const r = patientCreateSchema.safeParse({ ...base, address: '12 Rainbow St, Amman' });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.address).toBe('12 Rainbow St, Amman');
   });
 
   it('phone accepts general E.164 — international numbers are valid (P52 owner ruling)', () => {
-    // A Qatari number (two imported patients share one) passes the EDIT form.
     const qatar = patientCreateSchema.safeParse({ ...base, phone: '+97433991799' });
     expect(qatar.success).toBe(true);
     if (qatar.success) expect(qatar.data.phone).toBe('+97433991799');
-    // Jordanian still passes.
     expect(patientCreateSchema.safeParse({ ...base, phone: '+962791234567' }).success).toBe(true);
-    // A string that is no phone anywhere still fails.
     expect(patientCreateSchema.safeParse({ ...base, phone: '+0123' }).success).toBe(false);
     expect(patientCreateSchema.safeParse({ ...base, phone: '0791234567' }).success).toBe(false);
   });
@@ -83,7 +77,6 @@ describe('patientCreateSchema — optional Arabic name + address', () => {
     const r2 = patientCreateSchema.safeParse({ ...base, phone: '' });
     expect(r2.success).toBe(true);
     if (r2.success) expect(r2.data.phone).toBeNull();
-    // A malformed phone is still rejected when provided.
     expect(patientCreateSchema.safeParse({ ...base, phone: '0791234' }).success).toBe(false);
   });
 });

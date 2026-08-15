@@ -17,19 +17,24 @@ const both = {
   phone: '+962790000001',
 };
 
-describe('patientPickerOption — bidirectional labels (P50)', () => {
-  it('an ARABIC-ONLY imported patient never renders a blank label — in either locale', () => {
+// P47 row 8 — English-only labels (updates the P50 bidirectional
+// expectations): the label is the English display name in both locales; the
+// Arabic name is no longer RENDERED but stays SEARCHABLE via hidden
+// searchTerms (match yes, display no — the kiosk asymmetry generalized).
+describe('patientPickerOption — English-only labels (P47 row 8)', () => {
+  it('an ARABIC-ONLY legacy patient never renders a blank label — fallback in either locale', () => {
     expect(patientPickerOption(arOnly, 'ar').label).toBe('طفل مستورد');
     expect(patientPickerOption(arOnly, 'en').label).toBe('طفل مستورد');
   });
 
   it('phone is appended only when provided (P15 — callers null it out when hidden)', () => {
-    expect(patientPickerOption(both, 'ar').label).toBe('عبدالله الصوباني (+962790000001)');
-    expect(patientPickerOption({ ...both, phone: null }, 'ar').label).toBe('عبدالله الصوباني');
+    expect(patientPickerOption(both, 'ar').label).toBe('Abdallah Alsoubani (+962790000001)');
+    expect(patientPickerOption({ ...both, phone: null }, 'ar').label).toBe('Abdallah Alsoubani');
   });
 
-  it('sublabel carries the other script only when it differs', () => {
-    expect(patientPickerOption(both, 'ar').sublabel).toBe('Abdallah Alsoubani');
+  it('no sublabel anymore; the Arabic name rides in the hidden searchTerms', () => {
+    expect(patientPickerOption(both, 'ar').sublabel).toBeNull();
+    expect(patientPickerOption(both, 'ar').searchTerms).toEqual(['عبدالله الصوباني']);
     expect(patientPickerOption(arOnly, 'en').sublabel).toBeNull();
   });
 });
@@ -41,7 +46,7 @@ describe('picker search — the live reproduction', () => {
     expect(filterPickerOptions(options, 'عبدالله الصو').map((o) => o.id)).toEqual(['p-new']);
   });
 
-  it('the ENGLISH name finds the same patient in the Arabic UI (sublabel searched)', () => {
+  it('the ENGLISH name finds the same patient in the Arabic UI (label searched)', () => {
     expect(filterPickerOptions(options, 'alsoubani').map((o) => o.id)).toEqual(['p-new']);
   });
 

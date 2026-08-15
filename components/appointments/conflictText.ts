@@ -1,4 +1,5 @@
 import { formatDate, formatTime } from '@/lib/format/date';
+import { patientDisplayName } from '@/lib/format/patientName';
 
 /**
  * Localized one-line description of a conflict-engine finding. Shared by the
@@ -38,8 +39,8 @@ type ConflictType =
   | { kind: 'ROOM_AT_CAPACITY'; roomName: string; bedCount: number }
   | { kind: 'ROOM_BLOCKED_BY_EVENT'; roomName: string; event: { title: string | null } };
 
-function nm(p: Person, locale: string): string {
-  return locale === 'ar' ? p.fullNameAr : p.fullNameEn;
+function nm(p: Person, _locale: string): string {
+  return patientDisplayName(p.fullNameEn, p.fullNameAr);
 }
 
 /** Clinic-local, localized "{date} {time}" for a clashing appointment — the

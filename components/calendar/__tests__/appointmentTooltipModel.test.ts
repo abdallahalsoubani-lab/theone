@@ -38,8 +38,8 @@ const base: CalendarAppointment = {
 describe('appointmentTooltipModel', () => {
   it('secretary payload → full field set including the phone', () => {
     const m = appointmentTooltipModel(base, 'ar');
-    expect(m.primary).toBe('جون دو');
-    expect(m.secondary).toBe('John Doe'); // both scripts when both exist
+    expect(m.primary).toBe('John Doe'); // P47 row 8 — English name in /ar too
+    expect(m.secondary).toBeNull(); // P47 row 8 — no other-script secondary
     expect(m.timeRange).toBe('12:00–12:45'); // clinic-wall, machine-TZ-proof
     expect(m.durationMinutes).toBe(45);
     expect(m.therapists).toEqual(['أحمد', 'ليان']); // ALL therapists
@@ -91,7 +91,7 @@ describe('appointmentTooltipModel', () => {
     };
     const m = appointmentTooltipModel(group, 'ar');
     expect(m.primary).toBe('Back-care workshop');
-    expect(m.groupMembers).toEqual(['جون', 'منى']);
+    expect(m.groupMembers).toEqual(['John', 'Mona']); // P47 row 8 — patients render English
     expect(m.typeKey).toBe('typeGroup');
     expect(appointmentTooltipModel({ ...group, appointmentType: 'WORKSHOP' }, 'ar').typeKey).toBe(
       'typeGroup',

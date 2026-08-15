@@ -59,7 +59,6 @@ export function PatientForm(props: Props) {
     ? { ...props.initial, dateOfBirth: toDateInputValue(props.initial.dateOfBirth) }
     : {
         fullNameEn: '',
-        fullNameAr: '',
         phone: '+9627',
         email: null,
         dateOfBirth: toDateInputValue(new Date()),
@@ -121,10 +120,9 @@ export function PatientForm(props: Props) {
             <Card>
               <CardContent className="space-y-4 p-6">
                 <h2 className="text-lg font-medium text-brand-navy">{t('sectionPersonal')}</h2>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <TextField form={form} name={'fullNameEn' as never} label={t('fullNameEn')} />
-                  <TextField form={form} name={'fullNameAr' as never} label={t('fullNameAr')} />
-                </div>
+                {/* P47 row 8 — the Arabic-name field is gone; English is
+                    the only name. The DB column stays untouched. */}
+                <TextField form={form} name={'fullNameEn' as never} label={t('fullNameEn')} />
                 <div className="grid gap-4 sm:grid-cols-3">
                   <DateField form={form} name={'dateOfBirth' as never} label={t('dateOfBirth')} />
                   <SelectField
