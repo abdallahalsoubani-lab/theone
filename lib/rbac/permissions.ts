@@ -316,21 +316,19 @@ const DOCTOR_PERMS = new Set<PermissionCode>([
   PERMISSIONS.OWN_PROFILE_READ,
   PERMISSIONS.OWN_PROFILE_UPDATE,
   PERMISSIONS.USERS_READ_ASSIGNED,
-  // Full appointment-scheduling parity with Secretary (Prompt 15 §2B —
-  // explicit client decision "صلاحية كاملة على كل إشي"): the Doctor may
-  // create / reschedule / cancel / set status on EVERY appointment, not just
-  // their own patients'. READ_ASSIGNED is retained for the "my patients" views.
+  // ⚠️ REVERSAL (Prompt 45 row 3, clinic QA sheet): the Doctor's calendar is
+  // VIEW-ONLY. This reverses Prompt 15 §2B ("full scheduling parity with
+  // Secretary" — an explicit client decision at the time) and the related
+  // Prompt 26 resize grant: appointment create / update (reschedule + resize)
+  // / delete / cancel / status transitions / conflict-override are all
+  // revoked. The Doctor keeps full READ of the clinic calendar (the July
+  // "لوحة الطبيب = كل مواعيد العيادة" decision is view-scope, unchanged) and
+  // READ_ASSIGNED for the "my patients" views.
   PERMISSIONS.APPOINTMENTS_READ_ASSIGNED,
-  PERMISSIONS.APPOINTMENTS_CREATE,
   PERMISSIONS.APPOINTMENTS_READ,
-  PERMISSIONS.APPOINTMENTS_UPDATE,
-  PERMISSIONS.APPOINTMENTS_DELETE,
-  PERMISSIONS.APPOINTMENTS_CANCEL,
-  PERMISSIONS.APPOINTMENTS_STATUS_CHECKIN,
-  PERMISSIONS.APPOINTMENTS_STATUS_COMPLETE,
-  PERMISSIONS.APPOINTMENTS_STATUS_NOSHOW,
-  PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT,
-  // Booking waitlist — calendar-parity with Secretary (Prompt 19 + Prompt 15 §2B).
+  // Booking waitlist — NOT booking (Prompt 45 scope note): the Doctor may
+  // still add/view/remove waitlist entries; placement into a slot is a
+  // Secretary/Admin action anyway (Prompt 19).
   PERMISSIONS.WAITLIST_READ,
   PERMISSIONS.WAITLIST_CREATE,
   PERMISSIONS.WAITLIST_REMOVE,

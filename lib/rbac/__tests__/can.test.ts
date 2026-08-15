@@ -85,16 +85,13 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.OWN_PROFILE_UPDATE]: true,
     [PERMISSIONS.USERS_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.APPOINTMENTS_READ_ASSIGNED]: 'assigned',
-    // Prompt 15 §2B — full appointment-scheduling parity with Secretary.
-    [PERMISSIONS.APPOINTMENTS_CREATE]: true,
+    // Prompt 45 row 3 REVERSAL of Prompt 15 §2B: the Doctor's calendar is
+    // view-only. Every appointment-mutation grant (create / update / delete /
+    // cancel / status transitions / override) is revoked; unscoped READ stays
+    // so the full clinic calendar remains visible.
     [PERMISSIONS.APPOINTMENTS_READ]: true,
-    [PERMISSIONS.APPOINTMENTS_UPDATE]: true,
-    [PERMISSIONS.APPOINTMENTS_DELETE]: true,
-    [PERMISSIONS.APPOINTMENTS_CANCEL]: true,
-    [PERMISSIONS.APPOINTMENTS_STATUS_CHECKIN]: true,
-    [PERMISSIONS.APPOINTMENTS_STATUS_COMPLETE]: true,
-    [PERMISSIONS.APPOINTMENTS_STATUS_NOSHOW]: true,
-    [PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT]: true,
+    // Waitlist stays (Prompt 45 scope note): entries are not bookings, and
+    // placement books through appointments.create — which is now denied.
     [PERMISSIONS.WAITLIST_READ]: true,
     [PERMISSIONS.WAITLIST_CREATE]: true,
     [PERMISSIONS.WAITLIST_REMOVE]: true,
@@ -319,36 +316,51 @@ describe('RBAC matrix — every (role × permission) pair', () => {
   }
 });
 
-describe('Doctor appointment parity (Prompt 15 §2B)', () => {
+// Prompt 45 row 3 REVERSAL: these tests originally pinned the Prompt 15 §2B
+// "full scheduling parity with Secretary" grants. The clinic's newer QA sheet
+// makes the Doctor's calendar view-only, so the expectations are flipped —
+// updated in place (not deleted) so the history of the decision stays visible.
+describe('Doctor view-only calendar (Prompt 45 row 3 — reverses Prompt 15 §2B parity)', () => {
   const OTHER_PATIENT = 'patient-not-on-care-team';
 
-  it('Doctor may reschedule / cancel / create ANY appointment (unscoped, even off-care-team)', () => {
+  it('Doctor cannot create / reschedule / cancel / override any appointment', () => {
     const doctor = u('DOCTOR', 'dr-1');
-    // Unscoped grants → allowed regardless of the resource's owner/assignee.
-    expect(can(doctor, PERMISSIONS.APPOINTMENTS_UPDATE, { ownerId: OTHER_PATIENT })).toBe(true);
-    expect(can(doctor, PERMISSIONS.APPOINTMENTS_CANCEL, { ownerId: OTHER_PATIENT })).toBe(true);
-    expect(can(doctor, PERMISSIONS.APPOINTMENTS_CREATE)).toBe(true);
-    expect(can(doctor, PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT)).toBe(true);
-    expect(can(doctor, PERMISSIONS.APPOINTMENTS_READ)).toBe(true);
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_UPDATE, { ownerId: OTHER_PATIENT })).toBe(false);
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_CANCEL, { ownerId: OTHER_PATIENT })).toBe(false);
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_CREATE)).toBe(false);
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT)).toBe(false);
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_DELETE)).toBe(false);
   });
 
-  it('Therapist still cannot edit appointments (permissions unchanged)', () => {
+  it('Doctor cannot run the status transitions (check-in / complete / no-show)', () => {
+    const doctor = u('DOCTOR', 'dr-1');
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_STATUS_CHECKIN)).toBe(false);
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_STATUS_COMPLETE)).toBe(false);
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_STATUS_NOSHOW)).toBe(false);
+  });
+
+  it('Doctor keeps the full clinic calendar READ (view scope untouched)', () => {
+    const doctor = u('DOCTOR', 'dr-1');
+    expect(can(doctor, PERMISSIONS.APPOINTMENTS_READ)).toBe(true);
+    expect(
+      can(doctor, PERMISSIONS.APPOINTMENTS_READ_ASSIGNED, { assignedClinicianIds: ['dr-1'] }),
+    ).toBe(true);
+  });
+
+  it('Therapist still cannot edit appointments (unchanged)', () => {
     const therapist = u('THERAPIST', 'th-1');
     expect(can(therapist, PERMISSIONS.APPOINTMENTS_UPDATE)).toBe(false);
     expect(can(therapist, PERMISSIONS.APPOINTMENTS_CANCEL)).toBe(false);
     expect(can(therapist, PERMISSIONS.APPOINTMENTS_CREATE)).toBe(false);
   });
 
-  it('Doctor now matches Secretary on the core scheduling permissions', () => {
-    const doctor = u('DOCTOR', 'dr-1');
-    const secretary = u('SECRETARY', 'sec-1');
-    for (const code of [
-      PERMISSIONS.APPOINTMENTS_CREATE,
-      PERMISSIONS.APPOINTMENTS_UPDATE,
-      PERMISSIONS.APPOINTMENTS_CANCEL,
-      PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT,
-    ]) {
-      expect(can(doctor, code)).toBe(can(secretary, code));
+  it('Secretary and Admin keep the full scheduling permissions (regression)', () => {
+    for (const role of ['SECRETARY', 'ADMIN'] as const) {
+      const user = u(role, `${role.toLowerCase()}-1`);
+      expect(can(user, PERMISSIONS.APPOINTMENTS_CREATE)).toBe(true);
+      expect(can(user, PERMISSIONS.APPOINTMENTS_UPDATE)).toBe(true);
+      expect(can(user, PERMISSIONS.APPOINTMENTS_CANCEL)).toBe(true);
+      expect(can(user, PERMISSIONS.APPOINTMENTS_OVERRIDE_CONFLICT)).toBe(true);
     }
   });
 });

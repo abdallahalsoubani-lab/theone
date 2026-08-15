@@ -56,6 +56,11 @@ interface Props {
   /** Start-Session grace window (minutes) from clinic settings (Fix Prompt 2).
    *  Server-enforced; this only drives the disabled state + hint. */
   sessionStartGraceMinutes?: number;
+  /** Prompt 45 row 3 — Doctor's view-only calendar: render the details and
+   *  the patient-file link but NO mutating actions (status transitions,
+   *  cancel, change-therapist, reschedule). RBAC denies the actions
+   *  server-side regardless. */
+  readOnly?: boolean;
 }
 
 /**
@@ -74,6 +79,7 @@ export function AppointmentSidePanel({
   onEdit,
   onChangeTherapist,
   sessionStartGraceMinutes = 15,
+  readOnly = false,
 }: Props) {
   const tStatus = useTranslations('appointments.status');
   const tActions = useTranslations('appointments.actions');
@@ -124,9 +130,9 @@ export function AppointmentSidePanel({
   const handleCancel = () => setCancelOpen(true);
 
   const status = appointment.status;
-  const canConfirm = status === AppointmentStatus.SCHEDULED;
+  const canConfirm = !readOnly && status === AppointmentStatus.SCHEDULED;
   const canCheckIn =
-    status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED;
+    !readOnly && (status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED);
   // Start-Session time gate (Fix Prompt 2). Reflected here; the server action is
   // the source of truth. Instant-vs-instant comparison — tz-independent.
   const startTooEarly = !canStartSessionAt(
@@ -137,13 +143,13 @@ export function AppointmentSidePanel({
   // PT-B3 item 1 — sessions are closed by a human again (auto-complete is
   // disabled), so the calendar needs its own way to end one; otherwise a
   // session started here could only be closed at the arrivals desk.
-  const canComplete = status === AppointmentStatus.IN_PROGRESS;
+  const canComplete = !readOnly && status === AppointmentStatus.IN_PROGRESS;
   const canCancel =
-    status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED;
+    !readOnly && (status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED);
   const canNoShow =
-    status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED;
+    !readOnly && (status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED);
   const canChangeTherapist =
-    status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED;
+    !readOnly && (status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED);
 
   return (
     <Sheet open={open} onOpenChange={(o) => (o ? null : onClose())}>
@@ -271,6 +277,7 @@ export function AppointmentSidePanel({
           {/* Prompt 48 — precision reschedule (same states as the other
               mutating actions; drag stays available alongside). */}
           {onEdit &&
+          !readOnly &&
           (status === AppointmentStatus.SCHEDULED || status === AppointmentStatus.CONFIRMED) ? (
             <Button
               type="button"

@@ -15,11 +15,13 @@ import { clinicDaySpan } from '@/lib/time/clinic';
 import { getClinicTimeZone } from '@/lib/time/clinic-server';
 
 /**
- * Shared calendar page body (Prompt 15 §2). The same interactive board is the
- * operational hub for Secretary, Admin, and Doctor — all three now have full
- * scheduling parity (drag-to-reschedule, book, cancel). Each role's route
- * renders this so we don't fork a second calendar; permission is enforced
- * here and again in every server action the board calls.
+ * Shared calendar page body (Prompt 15 §2). The same board is the operational
+ * hub for Secretary, Admin, and Doctor; each role's route renders this so we
+ * don't fork a second calendar. Secretary + Admin get the full interactive
+ * board (drag-to-reschedule, book, cancel). The Doctor sees the SAME
+ * full-clinic data but view-only (Prompt 45 row 3 — reverses the Prompt 15
+ * §2B scheduling parity): the read-only mode is derived from RBAC below, and
+ * every server action re-checks permissions independently.
  */
 export async function CalendarPageContent({
   locale,
@@ -67,6 +69,10 @@ export async function CalendarPageContent({
   const closedDays = closedDayKeys(settings?.businessHours);
   const defaultDurationMinutes = settings?.defaultAppointmentDuration ?? 60;
   const canOverride = can(viewer, 'appointments.override_conflict');
+  // Prompt 45 row 3 — a viewer without the update permission gets the
+  // view-only board (today: DOCTOR after the parity reversal). Capability-
+  // derived rather than role-matched so Act-As and future roles stay correct.
+  const readOnly = !can(viewer, 'appointments.update');
 
   return (
     <section className="p-4 sm:p-6">
@@ -86,7 +92,9 @@ export async function CalendarPageContent({
         // must stay inside the VIEWER's interface (A-19), and the effective
         // role keeps Act-As consistent too.
         viewerRole={viewer.role}
-        autoBook={autoBook}
+        readOnly={readOnly}
+        // A read-only viewer cannot book — drop any booking deep-link.
+        autoBook={readOnly ? undefined : autoBook}
       />
     </section>
   );

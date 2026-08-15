@@ -36,8 +36,10 @@ describe('Prompt 7b RBAC — appointments.create (series builder)', () => {
   it('PATIENT cannot create', () => {
     expect(can(u(UserRole.PATIENT), 'appointments.create')).toBe(false);
   });
-  it('DOCTOR can create (Prompt 15 §2B — full scheduling parity with Secretary)', () => {
-    expect(can(u(UserRole.DOCTOR), 'appointments.create')).toBe(true);
+  // Prompt 45 row 3 REVERSAL: the Prompt 15 §2B scheduling parity is
+  // withdrawn — the Doctor's calendar is view-only, so create is denied.
+  it('DOCTOR cannot create (Prompt 45 row 3 — reverses Prompt 15 §2B parity)', () => {
+    expect(can(u(UserRole.DOCTOR), 'appointments.create')).toBe(false);
   });
   it('THERAPIST cannot create', () => {
     expect(can(u(UserRole.THERAPIST), 'appointments.create')).toBe(false);
@@ -57,8 +59,10 @@ describe('Prompt 7b RBAC — appointments.update (change-therapist + bulk resche
   it('THERAPIST cannot reassign their own appointment (admin-only)', () => {
     expect(can(u(UserRole.THERAPIST), 'appointments.update')).toBe(false);
   });
-  it('DOCTOR can update appointments directly (Prompt 15 §2B parity)', () => {
-    expect(can(u(UserRole.DOCTOR), 'appointments.update')).toBe(true);
+  // Prompt 45 row 3 REVERSAL of Prompt 15 §2B — update (reschedule, drag,
+  // resize, change-therapist) is denied to the view-only Doctor.
+  it('DOCTOR cannot update appointments (Prompt 45 row 3 — reverses Prompt 15 §2B parity)', () => {
+    expect(can(u(UserRole.DOCTOR), 'appointments.update')).toBe(false);
   });
 });
 
@@ -75,8 +79,9 @@ describe('Prompt 7b RBAC — appointments.cancel (categorized cancel + bulk canc
   it('THERAPIST cannot cancel', () => {
     expect(can(u(UserRole.THERAPIST), 'appointments.cancel')).toBe(false);
   });
-  it('DOCTOR can cancel (Prompt 15 §2B parity)', () => {
-    expect(can(u(UserRole.DOCTOR), 'appointments.cancel')).toBe(true);
+  // Prompt 45 row 3 REVERSAL of Prompt 15 §2B — cancel is denied.
+  it('DOCTOR cannot cancel (Prompt 45 row 3 — reverses Prompt 15 §2B parity)', () => {
+    expect(can(u(UserRole.DOCTOR), 'appointments.cancel')).toBe(false);
   });
 });
 
@@ -93,8 +98,10 @@ describe('Prompt 7b RBAC — appointments.override_conflict (series OVERRIDE)', 
   it('THERAPIST cannot override conflicts (would let them double-book themselves)', () => {
     expect(can(u(UserRole.THERAPIST), 'appointments.override_conflict')).toBe(false);
   });
-  it('DOCTOR can override conflicts (Prompt 15 §2B parity)', () => {
-    expect(can(u(UserRole.DOCTOR), 'appointments.override_conflict')).toBe(true);
+  // Prompt 45 row 3 REVERSAL of Prompt 15 §2B — no overrides for a
+  // view-only calendar.
+  it('DOCTOR cannot override conflicts (Prompt 45 row 3 — reverses Prompt 15 §2B parity)', () => {
+    expect(can(u(UserRole.DOCTOR), 'appointments.override_conflict')).toBe(false);
   });
 });
 
@@ -107,5 +114,8 @@ describe('Prompt 7b RBAC — appointments.read (series preview + therapist avail
   });
   it('PATIENT cannot read the unscoped calendar (own-only scope applies)', () => {
     expect(can(u(UserRole.PATIENT), 'appointments.read')).toBe(false);
+  });
+  it('DOCTOR keeps full clinic READ (Prompt 45 narrows mutation only — the view is untouched)', () => {
+    expect(can(u(UserRole.DOCTOR), 'appointments.read')).toBe(true);
   });
 });

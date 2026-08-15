@@ -86,7 +86,8 @@ export default async function DoctorPatientFilePage({
           appointments={fileAppointments}
           locale={locale === 'ar' ? 'ar' : 'en'}
           patientId={patient.id}
-          canReschedule
+          // Prompt 45 row 3 — the Doctor no longer reschedules (P15 parity
+          // reversed); the tab stays read-only like the therapist's.
         />
       }
       activity={activity}
