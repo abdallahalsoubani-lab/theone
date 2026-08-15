@@ -30,7 +30,13 @@ export const publicProfileSchema = z.object({
   fullNameAr: z.string().trim().min(3).max(120),
   fullNameEn: z.string().trim().min(3).max(120).optional().or(z.literal('')),
   phone: z.string().trim().min(6).max(25),
-  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'required'),
+  dateOfBirth: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'required')
+    // Same bounds as patientCreateSchema (Prompt 46 item A): no future
+    // dates, 1900 floor. String-compare works on zero-padded ISO.
+    .refine((v) => v <= new Date().toISOString().slice(0, 10), { message: 'dobFuture' })
+    .refine((v) => v >= '1900-01-01', { message: 'dobTooEarly' }),
   gender: z.nativeEnum(Gender),
   languagePref: z.nativeEnum(LanguagePref).optional(),
   // Optional (PT-B4 item 2), matching patientCreateSchema — a patient filling

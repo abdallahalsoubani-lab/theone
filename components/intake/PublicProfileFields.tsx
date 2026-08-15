@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import type { FieldValues, UseFormReturn } from 'react-hook-form';
 
 import { SelectField, TextField, TextareaField } from '@/components/forms/FormFields';
+import { DateField } from '@/components/forms/DateField';
 import { Card, CardContent } from '@/components/ui/card';
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
@@ -67,14 +68,7 @@ export function PublicProfileFields({ form, namePrefix = 'profile.' }: Props) {
             description={t('phoneHint')}
             autoComplete="tel"
           />
-          <TextField
-            form={form}
-            name={n('dateOfBirth')}
-            label={t('dateOfBirth')}
-            type="text"
-            inputMode="numeric"
-            placeholder="YYYY-MM-DD"
-          />
+          <DateField form={form} name={n('dateOfBirth')} label={t('dateOfBirth')} />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <SelectField

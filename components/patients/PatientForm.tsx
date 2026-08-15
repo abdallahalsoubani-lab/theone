@@ -9,6 +9,7 @@ import type { z } from 'zod';
 
 import { AppForm } from '@/components/forms/AppForm';
 import { SelectField, SwitchField, TextField, TextareaField } from '@/components/forms/FormFields';
+import { DateField } from '@/components/forms/DateField';
 import { CareTeamEditor } from '@/components/patients/CareTeamEditor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -125,12 +126,7 @@ export function PatientForm(props: Props) {
                   <TextField form={form} name={'fullNameAr' as never} label={t('fullNameAr')} />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-3">
-                  <TextField
-                    form={form}
-                    name={'dateOfBirth' as never}
-                    type="date"
-                    label={t('dateOfBirth')}
-                  />
+                  <DateField form={form} name={'dateOfBirth' as never} label={t('dateOfBirth')} />
                   <SelectField
                     form={form}
                     name={'gender' as never}

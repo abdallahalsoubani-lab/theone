@@ -18,7 +18,12 @@
     "remove": "Remove",
     "hidden": "Hidden",
     "saving": "Saving…",
-    "saved": "Saved."
+    "saved": "Saved.",
+    "datePicker": {
+      "openCalendar": "Open calendar",
+      "month": "Month",
+      "year": "Year"
+    }
   },
   "shell": {
     "userMenu": "Account",
@@ -123,7 +128,9 @@
     "openBeforeClose": "Open time must be before close time.",
     "atLeastTwoOptions": "Add at least two options.",
     "nameRequired": "At least one name (Arabic or English) is required.",
-    "phoneE164": "Enter a valid phone number in international format (e.g. +9627XXXXXXXX)."
+    "phoneE164": "Enter a valid phone number in international format (e.g. +9627XXXXXXXX).",
+    "dobFuture": "Date of birth cannot be in the future.",
+    "dobTooEarly": "Date of birth must be after 1900."
   },
   "admin": {
     "navTitle": "Admin",
@@ -482,7 +489,9 @@
       "changeTherapist": "Manage therapists",
       "edit": "Edit",
       "reschedule": "Reschedule",
-      "openInCalendar": "Open in calendar"
+      "openInCalendar": "Open in calendar",
+      "addSessionReport": "Add session report",
+      "openSessionReport": "Open session report"
     },
     "reschedule": {
       "title": "Reschedule appointment",
@@ -572,7 +581,6 @@
       "patientHeader": "Patient",
       "appointmentDetails": "Appointment",
       "linkedPlan": "Linked treatment plan: coming in Prompt 9.",
-      "sessionNoteCta": "Write session note (coming in Prompt 9).",
       "openPatientFile": "Open patient file"
     },
     "myScheduleTitle": "My schedule",
@@ -1292,7 +1300,10 @@
       "empty": "No session notes yet.",
       "edit": "Edit",
       "addAddendum": "Add addendum",
-      "addendaHeading": "Addenda"
+      "addendaHeading": "Addenda",
+      "noteMissing": "Report missing",
+      "missingReportsHeading": "Sessions missing their report",
+      "addReport": "Add report"
     },
     "reports": {
       "endOfDayTitle": "End-of-day report",

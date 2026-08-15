@@ -18,7 +18,12 @@
     "remove": "إزالة",
     "hidden": "مخفي",
     "saving": "جارٍ الحفظ…",
-    "saved": "تم الحفظ."
+    "saved": "تم الحفظ.",
+    "datePicker": {
+      "openCalendar": "فتح التقويم",
+      "month": "الشهر",
+      "year": "السنة"
+    }
   },
   "appointments": {
     "title": "التقويم",
@@ -54,7 +59,9 @@
       "changeTherapist": "إدارة المعالجين",
       "edit": "تعديل",
       "reschedule": "تعديل الموعد",
-      "openInCalendar": "فتح في التقويم"
+      "openInCalendar": "فتح في التقويم",
+      "addSessionReport": "إضافة تقرير الجلسة",
+      "openSessionReport": "فتح تقرير الجلسة"
     },
     "reschedule": {
       "title": "تعديل الموعد",
@@ -144,7 +151,6 @@
       "patientHeader": "المراجع",
       "appointmentDetails": "الموعد",
       "linkedPlan": "الخطة العلاجية المرتبطة: قادمة في المهمة 9.",
-      "sessionNoteCta": "كتابة تقرير الجلسة (قادم في المهمة 9).",
       "openPatientFile": "فتح ملف المراجع"
     },
     "myScheduleTitle": "جدولي",
@@ -685,7 +691,9 @@
     "openBeforeClose": "يجب أن يكون وقت الفتح قبل وقت الإغلاق.",
     "atLeastTwoOptions": "أضف خيارين على الأقل.",
     "nameRequired": "مطلوب اسم واحد على الأقل (عربي أو إنجليزي).",
-    "phoneE164": "أدخل رقم هاتف صالح بالصيغة الدولية (مثل ‎+9627XXXXXXXX)."
+    "phoneE164": "أدخل رقم هاتف صالح بالصيغة الدولية (مثل ‎+9627XXXXXXXX).",
+    "dobFuture": "تاريخ الميلاد لا يمكن أن يكون في المستقبل.",
+    "dobTooEarly": "تاريخ الميلاد يجب أن يكون بعد سنة 1900."
   },
   "admin": {
     "navTitle": "الإدارة",
@@ -1292,7 +1300,10 @@
       "empty": "لا توجد ملاحظات جلسة بعد.",
       "edit": "تعديل",
       "addAddendum": "إضافة ملاحظة تكميلية",
-      "addendaHeading": "الملاحظات التكميلية"
+      "addendaHeading": "الملاحظات التكميلية",
+      "noteMissing": "التقرير غير مكتوب",
+      "missingReportsHeading": "جلسات بلا تقرير",
+      "addReport": "إضافة التقرير"
     },
     "reports": {
       "endOfDayTitle": "تقرير نهاية اليوم",

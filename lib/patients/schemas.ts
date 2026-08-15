@@ -55,9 +55,9 @@ const patientBaseSchema = z.object({
     .nullable(),
   dateOfBirth: z.coerce
     .date()
-    .refine((d) => d.getTime() <= Date.now(), { message: 'required' })
+    .refine((d) => d.getTime() <= Date.now(), { message: 'dobFuture' })
     .refine((d) => d.getTime() >= new Date('1900-01-01').getTime(), {
-      message: 'required',
+      message: 'dobTooEarly',
     }),
   gender: z.nativeEnum(Gender),
   nationalId: z.string().max(40).optional().or(z.literal('')).nullable(),
