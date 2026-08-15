@@ -221,6 +221,10 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.WHATSAPP_TEMPLATES_READ]: true,
     [PERMISSIONS.WHATSAPP_TEMPLATES_UPDATE]: true,
     [PERMISSIONS.WHATSAPP_TEMPLATES_DELETE]: true,
+    // P48 — dispatch control is ADMIN-only (owner decision).
+    [PERMISSIONS.WHATSAPP_DISPATCH]: true,
+    [PERMISSIONS.WHATSAPP_OUTBOX_READ]: true,
+    [PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE]: true,
     [PERMISSIONS.SYSTEM_SETTINGS_CREATE]: true,
     [PERMISSIONS.SYSTEM_SETTINGS_READ]: true,
     [PERMISSIONS.SYSTEM_SETTINGS_UPDATE]: true,
@@ -640,5 +644,19 @@ describe('reports.clinician_summary (Prompt 40 §1.1 — admin + doctor only)', 
   it('denies SECRETARY and THERAPIST (page, query, and export all gate on this)', () => {
     expect(can(u('SECRETARY'), PERMISSIONS.REPORTS_CLINICIAN_SUMMARY)).toBe(false);
     expect(can(u('THERAPIST'), PERMISSIONS.REPORTS_CLINICIAN_SUMMARY)).toBe(false);
+  });
+});
+
+describe('P48 — WhatsApp dispatch control is ADMIN-only', () => {
+  it('every non-admin role is denied dispatch / outbox read / exclude', () => {
+    for (const role of ['SECRETARY', 'DOCTOR', 'THERAPIST', 'PATIENT'] as const) {
+      const user = u(role);
+      expect(can(user, PERMISSIONS.WHATSAPP_DISPATCH)).toBe(false);
+      expect(can(user, PERMISSIONS.WHATSAPP_OUTBOX_READ)).toBe(false);
+      expect(can(user, PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE)).toBe(false);
+    }
+    expect(can(u('ADMIN'), PERMISSIONS.WHATSAPP_DISPATCH)).toBe(true);
+    expect(can(u('ADMIN'), PERMISSIONS.WHATSAPP_OUTBOX_READ)).toBe(true);
+    expect(can(u('ADMIN'), PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE)).toBe(true);
   });
 });

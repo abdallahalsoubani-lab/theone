@@ -203,30 +203,61 @@ export function ClinicSettingsForm({ initial }: Props) {
                 onChange={(e) => setField('reminderWindowEnd', e.target.value)}
               />
             </Field>
-            {/* P53 — deferred lifecycle messages (0 = immediate). No delay
-                field exists for cancellations by owner decision. */}
-            <Field label={t('fields.bookingConfirmationDelay')}>
-              <Input
-                type="number"
-                min={0}
-                max={24 * 60}
-                value={state.bookingConfirmationDelayMinutes}
-                onChange={(e) =>
-                  setField('bookingConfirmationDelayMinutes', parseInt(e.target.value || '0', 10))
-                }
-              />
-            </Field>
-            <Field label={t('fields.rescheduleMessageDelay')}>
-              <Input
-                type="number"
-                min={0}
-                max={24 * 60}
-                value={state.rescheduleMessageDelayMinutes}
-                onChange={(e) =>
-                  setField('rescheduleMessageDelayMinutes', parseInt(e.target.value || '0', 10))
-                }
-              />
-            </Field>
+            {/* P48 — per-type WhatsApp dispatch control (replaces the two
+                opaque delay inputs). AUTO sends after the delay; MANUAL
+                parks messages in the admin outbox until Send. */}
+            <div className="space-y-3 rounded-md border border-brand-border bg-brand-bg p-4 sm:col-span-2">
+              <p className="text-sm font-semibold text-brand-navy">{t('dispatch.heading')}</p>
+              <p className="text-xs text-brand-textMuted">{t('dispatch.safetyNote')}</p>
+              {(
+                [
+                  {
+                    key: 'booking',
+                    modeField: 'bookingDispatchMode',
+                    delayField: 'bookingConfirmationDelayMinutes',
+                  },
+                  {
+                    key: 'reschedule',
+                    modeField: 'rescheduleDispatchMode',
+                    delayField: 'rescheduleMessageDelayMinutes',
+                  },
+                  {
+                    key: 'cancellation',
+                    modeField: 'cancellationDispatchMode',
+                    delayField: 'cancellationMessageDelayMinutes',
+                  },
+                ] as const
+              ).map((row) => (
+                <div
+                  key={row.key}
+                  className="grid gap-3 border-t border-brand-border pt-3 first:border-t-0 first:pt-0 sm:grid-cols-3 sm:items-end"
+                >
+                  <p className="text-sm font-medium text-brand-text">{t(`dispatch.${row.key}`)}</p>
+                  <Field label={t('dispatch.mode')}>
+                    <select
+                      value={state[row.modeField]}
+                      onChange={(e) => setField(row.modeField, e.target.value as 'AUTO' | 'MANUAL')}
+                      className="flex h-10 w-full rounded-md border border-brand-border bg-brand-surface px-3 py-2 text-sm"
+                    >
+                      <option value="AUTO">{t('dispatch.auto')}</option>
+                      <option value="MANUAL">{t('dispatch.manual')}</option>
+                    </select>
+                  </Field>
+                  <Field label={t('dispatch.delayMinutes')}>
+                    <Input
+                      type="number"
+                      min={0}
+                      max={24 * 60}
+                      disabled={state[row.modeField] !== 'AUTO'}
+                      value={state[row.delayField]}
+                      onChange={(e) =>
+                        setField(row.delayField, parseInt(e.target.value || '0', 10))
+                      }
+                    />
+                  </Field>
+                </div>
+              ))}
+            </div>
             <Field label={t('fields.currentDelayMinutes')}>
               <Input
                 type="number"

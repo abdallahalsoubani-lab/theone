@@ -25,12 +25,17 @@ export default async function AdminLayout({
   if (session.user.role !== 'ADMIN') redirect(`/${locale}/`);
 
   const t = await getTranslations('navigation.admin');
+  // P48 — the outbox badge is the total pending count (static at render;
+  // navigating refreshes it).
+  const { pendingOutboxCount } = await import('@/lib/whatsapp/dispatch/queries');
+  const waOutbox = await pendingOutboxCount().catch(() => 0);
   // Entries live in the pure admin-nav config (Prompt 46 item C) so the
   // Header's mobile drawer renders exactly this same list.
   const links: NavLink[] = adminNavEntries().map((e) => ({
     label: t(e.labelKey),
     href: e.href,
     icon: NAV_ICONS[e.icon],
+    ...(e.badge === 'waOutbox' && waOutbox > 0 ? { badge: waOutbox } : {}),
   }));
 
   return (

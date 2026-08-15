@@ -521,7 +521,8 @@
       "whatsappMessages": "رسائل واتساب",
       "calendar": "التقويم",
       "reports": "التقارير",
-      "leaves": "الإجازات"
+      "leaves": "الإجازات",
+      "whatsappOutbox": "صندوق الرسائل الصادرة"
     },
     "inbox": "صندوق الوارد",
     "exerciseLibrary": "مكتبة التمارين",
@@ -870,9 +871,7 @@
         "reminderWindowEnd": "نهاية نافذة التذكير",
         "currentDelayMinutes": "التأخير الحالي (بالدقائق)",
         "sessionStartGraceMinutes": "مهلة بدء الجلسة (دقائق قبل الموعد)",
-        "sessionAutoCompleteGraceMinutes": "مهلة الإنهاء التلقائي (دقائق بعد الموعد)",
-        "bookingConfirmationDelay": "تأخير رسالة تأكيد الحجز (دقائق، 0 = فوري)",
-        "rescheduleMessageDelay": "تأخير رسالة إعادة الجدولة (دقائق، 0 = فوري)"
+        "sessionAutoCompleteGraceMinutes": "مهلة الإنهاء التلقائي (دقائق بعد الموعد)"
       },
       "days": {
         "sun": "الأحد",
@@ -904,6 +903,17 @@
         "display": {
           "label": "شاشة الانتظار"
         }
+      },
+      "dispatch": {
+        "heading": "رسائل واتساب للمواعيد — الإرسال",
+        "safetyNote": "استثناء الأمان: إذا كان الموعد يبدأ خلال أقل من 24 ساعة تُرسل الرسالة فوراً بغض النظر عن الوضع أدناه.",
+        "booking": "تأكيد الحجز الجديد",
+        "reschedule": "إشعار تعديل الموعد",
+        "cancellation": "إشعار الإلغاء",
+        "mode": "طريقة الإرسال",
+        "auto": "تلقائي (بعد التأخير)",
+        "manual": "يدوي (صندوق صادر)",
+        "delayMinutes": "التأخير (دقائق)"
       }
     },
     "audit": {
@@ -1013,6 +1023,36 @@
         "132001": "لغة/ترجمة القالب غير معتمدة في Meta.",
         "131008": "كان هناك معامل مطلوب مفقود في القالب."
       }
+    },
+    "outbox": {
+      "title": "صندوق واتساب الصادر",
+      "subtitle": "رسائل بانتظار ضغطة الإرسال. كل نوع يخرج دفعة واحدة؛ وما استُبدل بتعديل لاحق لا يُرسل أبداً.",
+      "types": {
+        "BOOKING_CONFIRMATION": "الحجوزات",
+        "RESCHEDULE": "التعديلات",
+        "CANCELLATION": "الإلغاءات"
+      },
+      "statuses": {
+        "PENDING": "قيد الانتظار",
+        "SCHEDULED": "يُرسل…",
+        "SENT": "أُرسلت",
+        "SUPERSEDED": "استُبدلت",
+        "EXCLUDED": "مستثناة",
+        "FAILED": "فشلت"
+      },
+      "sendN": "إرسال {count}",
+      "nothingToSend": "لا رسائل قيد الانتظار — لم يُرسل شيء.",
+      "sentToast": "أُدرجت {count} رسالة للإرسال.",
+      "excludedToast": "أُزيلت من الدفعة.",
+      "exclude": "استثناء",
+      "emptySection": "لا رسائل قيد الانتظار.",
+      "colPatient": "المريض",
+      "colAppointment": "الموعد",
+      "colTherapist": "المعالج",
+      "colCreatedAt": "أُضيفت",
+      "recentHeading": "آخر 24 ساعة ({count})",
+      "recentEmpty": "لا نشاط حديثاً.",
+      "safetyException": "أُرسلت تلقائياً — استثناء الأمان"
     }
   },
   "styleGuide": {

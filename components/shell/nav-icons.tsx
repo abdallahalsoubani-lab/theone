@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Send,
   BriefcaseMedical,
   Calendar,
   CalendarDays,
@@ -51,5 +52,6 @@ export const NAV_ICONS: Record<StaffNavEntry['icon'] | AdminNavEntry['icon'], Re
   doorOpen: <DoorOpen className="size-4" />,
   heartPulse: <HeartPulse className="size-4" />,
   scrollText: <ScrollText className="size-4" />,
+  send: <Send className="size-4" />,
   settings: <Settings className="size-4" />,
 };

@@ -225,6 +225,13 @@ export const PERMISSIONS = {
   WHATSAPP_MESSAGES_READ: 'whatsapp_messages.read',
   WHATSAPP_MESSAGES_RESEND: 'whatsapp_messages.resend',
 
+  // ── WhatsApp dispatch control (P48 — admin only) ─────────────────────
+  // Per-type AUTO/MANUAL outbox for appointment messages. The admin is the
+  // ONLY role that sees or touches any of it (owner decision).
+  WHATSAPP_DISPATCH: 'whatsapp.dispatch',
+  WHATSAPP_OUTBOX_READ: 'whatsapp_outbox.read',
+  WHATSAPP_OUTBOX_EXCLUDE: 'whatsapp_outbox.exclude',
+
   // ── Secretary inbox (Prompt 8) ───────────────────────────────────────
   // Surfaces inbound reschedule/cancel requests and outbound delivery
   // failures. ADMIN inherits via the catch-all in can().
@@ -485,6 +492,9 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.WHATSAPP_TEMPLATES_READ,
   PERMISSIONS.WHATSAPP_TEMPLATES_UPDATE,
   PERMISSIONS.WHATSAPP_TEMPLATES_DELETE,
+  PERMISSIONS.WHATSAPP_DISPATCH,
+  PERMISSIONS.WHATSAPP_OUTBOX_READ,
+  PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE,
   PERMISSIONS.SYSTEM_SETTINGS_CREATE,
   PERMISSIONS.SYSTEM_SETTINGS_READ,
   PERMISSIONS.SYSTEM_SETTINGS_UPDATE,

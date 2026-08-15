@@ -309,9 +309,7 @@
         "reminderWindowEnd": "Reminder window end",
         "currentDelayMinutes": "Current delay (minutes)",
         "sessionStartGraceMinutes": "Start session grace (minutes before)",
-        "sessionAutoCompleteGraceMinutes": "Auto-complete grace (minutes after)",
-        "bookingConfirmationDelay": "Booking confirmation delay (minutes, 0 = immediate)",
-        "rescheduleMessageDelay": "Reschedule message delay (minutes, 0 = immediate)"
+        "sessionAutoCompleteGraceMinutes": "Auto-complete grace (minutes after)"
       },
       "days": {
         "sun": "Sunday",
@@ -343,6 +341,17 @@
         "display": {
           "label": "Lobby display"
         }
+      },
+      "dispatch": {
+        "heading": "WhatsApp appointment messages — dispatch",
+        "safetyNote": "Safety exception: when the appointment starts in less than 24 hours, the message is sent immediately regardless of the mode below.",
+        "booking": "New-booking confirmation",
+        "reschedule": "Reschedule notice",
+        "cancellation": "Cancellation notice",
+        "mode": "Dispatch",
+        "auto": "Automatic (after delay)",
+        "manual": "Manual (outbox)",
+        "delayMinutes": "Delay (minutes)"
       }
     },
     "audit": {
@@ -452,6 +461,36 @@
         "132001": "The template language/translation is not approved in Meta.",
         "131008": "A required template parameter was missing."
       }
+    },
+    "outbox": {
+      "title": "WhatsApp outbox",
+      "subtitle": "Messages waiting for your Send. Each type goes out as one batch; anything superseded by a later change never sends.",
+      "types": {
+        "BOOKING_CONFIRMATION": "Bookings",
+        "RESCHEDULE": "Reschedules",
+        "CANCELLATION": "Cancellations"
+      },
+      "statuses": {
+        "PENDING": "Pending",
+        "SCHEDULED": "Sending…",
+        "SENT": "Sent",
+        "SUPERSEDED": "Superseded",
+        "EXCLUDED": "Excluded",
+        "FAILED": "Failed"
+      },
+      "sendN": "Send {count}",
+      "nothingToSend": "Nothing pending — nothing was sent.",
+      "sentToast": "{count} message(s) queued for sending.",
+      "excludedToast": "Removed from the batch.",
+      "exclude": "Exclude",
+      "emptySection": "No pending messages.",
+      "colPatient": "Patient",
+      "colAppointment": "Appointment",
+      "colTherapist": "Clinician",
+      "colCreatedAt": "Added",
+      "recentHeading": "Last 24 hours ({count})",
+      "recentEmpty": "No recent activity.",
+      "safetyException": "Sent automatically — safety exception"
     }
   },
   "appointments": {
@@ -950,7 +989,8 @@
       "whatsappMessages": "WhatsApp messages",
       "calendar": "Calendar",
       "reports": "Reports",
-      "leaves": "Leaves"
+      "leaves": "Leaves",
+      "whatsappOutbox": "Message outbox"
     },
     "inbox": "Inbox",
     "exerciseLibrary": "Exercise library",

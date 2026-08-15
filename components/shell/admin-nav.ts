@@ -12,6 +12,8 @@
 export interface AdminNavEntry {
   labelKey: string;
   href: string;
+  /** P48 — static count badge (computed by the layout at render). */
+  badge?: 'waOutbox';
   icon:
     | 'calendarDays'
     | 'users'
@@ -22,6 +24,7 @@ export interface AdminNavEntry {
     | 'clipboardList'
     | 'messageSquare'
     | 'barChart'
+    | 'send'
     | 'settings'
     | 'scrollText';
 }
@@ -38,6 +41,8 @@ export function adminNavEntries(): AdminNavEntry[] {
     { labelKey: 'rooms', href: '/admin/rooms', icon: 'doorOpen' },
     { labelKey: 'customQuestions', href: '/admin/intake-questions', icon: 'clipboardList' },
     { labelKey: 'whatsappTemplates', href: '/admin/whatsapp/templates', icon: 'messageSquare' },
+    // P48 — the manual dispatch outbox; the badge is the total pending count.
+    { labelKey: 'whatsappOutbox', href: '/admin/whatsapp/outbox', icon: 'send', badge: 'waOutbox' },
     { labelKey: 'whatsappMessages', href: '/admin/whatsapp/messages', icon: 'messageSquare' },
     { labelKey: 'reports', href: '/admin/reports/clinicians', icon: 'barChart' },
     { labelKey: 'settings', href: '/admin/settings', icon: 'settings' },
