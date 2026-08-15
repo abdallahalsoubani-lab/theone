@@ -121,7 +121,7 @@ describe('scheduleLifecycleMessage — coalescing (§1.3)', () => {
     });
     expect(queueState.added[0]!.delay).toBeGreaterThan(119 * MIN);
     // The replace step removed BOTH possible pending kinds first.
-    expect(queueState.removed).toEqual(['confirm-appt-1', 'resched-appt-1']);
+    expect(queueState.removed).toEqual(['confirm-appt-1', 'resched-appt-1', 'cancelmsg-appt-1']);
   });
 
   it('an edit during the wait REPLACES the pending job and restarts the timer', async () => {
@@ -187,7 +187,7 @@ describe('cancelLifecycleMessages — cancel during the wait (§1.3)', () => {
     queueState.pendingJobs.set('confirm-appt-1', { delay: 100 });
     const r = await cancelLifecycleMessages('appt-1');
     expect(r.confirmWasPending).toBe(true);
-    expect(queueState.removed).toEqual(['confirm-appt-1', 'resched-appt-1']);
+    expect(queueState.removed).toEqual(['confirm-appt-1', 'resched-appt-1', 'cancelmsg-appt-1']);
   });
 
   it('reports confirmWasPending=false when nothing was queued', async () => {
@@ -204,17 +204,29 @@ describe('job ids', () => {
   });
 });
 
-describe('cancellation is ALWAYS immediate (owner decision أ)', () => {
-  it('no delay path exists around any cancellation send', async () => {
+describe('cancellation joined the dispatch family (P48 — updates the P53 guard)', () => {
+  it('services no longer enqueue the cancelled template inline — everything rides the funnel', async () => {
     const { readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
     const src = readFileSync(join(process.cwd(), 'lib/appointments/services.ts'), 'utf8');
-    // Every appointment_cancelled enqueue block must be a direct
-    // enqueueWhatsappOutbound (no scheduleLifecycleMessage, no delay
-    // option) — and no 'cancellation' lifecycle kind exists at all.
-    const cancelBlocks = src.split("templateName: 'appointment_cancelled_v2'").length - 1;
-    expect(cancelBlocks).toBeGreaterThanOrEqual(2);
-    expect(src).not.toMatch(/kind:\s*'cancellation'/);
-    expect(src).not.toMatch(/cancellationDelay/i);
+    // The P53-era invariant ("cancellation is always an inline immediate
+    // enqueue") was consciously replaced in P48 by per-type dispatch
+    // control: no inline template enqueue remains in the services; the
+    // sendCancelled template module + the dispatch funnel own it.
+    expect(src).not.toContain("templateName: 'appointment_cancelled_v2'");
+    expect(src.split('recordDispatchEvent(').length - 1).toBeGreaterThanOrEqual(5);
+  });
+
+  it('the cancellation kind has a deterministic job id and skips the pre-start clamp', () => {
+    expect(lifecycleJobId('cancellation', 'a1')).toBe('cancelmsg-a1');
+    // A cancellation may be ABOUT a past slot — the delay is honored as-is.
+    expect(
+      computeLifecycleDelayMs({
+        now: new Date('2026-08-15T12:00:00Z'),
+        startsAt: new Date('2026-08-15T09:00:00Z'), // already started
+        delayMinutes: 30,
+        kind: 'cancellation',
+      }),
+    ).toBe(30 * 60 * 1000);
   });
 });

@@ -48,18 +48,40 @@ export function startReminderWorker(): Worker {
       // ids confirm-{id}/resched-{id}; the schedule/replace/remove logic
       // lives in lib/queue/jobs/appointmentReminder.ts). The senders
       // re-read the appointment so the patient always gets CURRENT details.
-      if (job.data.kind === 'confirmation') {
-        const { sendAppointmentConfirmation } =
-          await import('@/lib/whatsapp/templates/sendConfirmation');
-        await sendAppointmentConfirmation({ appointmentId });
-        console.warn(`[lifecycle] appointment=${appointmentId} confirmation dispatched`);
-        return;
-      }
-      if (job.data.kind === 'reschedule') {
-        const { sendAppointmentRescheduled } =
-          await import('@/lib/whatsapp/templates/sendRescheduled');
-        await sendAppointmentRescheduled({ appointmentId });
-        console.warn(`[lifecycle] appointment=${appointmentId} reschedule dispatched`);
+      if (
+        job.data.kind === 'confirmation' ||
+        job.data.kind === 'reschedule' ||
+        job.data.kind === 'cancellation'
+      ) {
+        // P48 — every lifecycle send reports its outcome to the dispatch
+        // ledger (SENT/FAILED); pre-P48 jobs without a ledger row no-op.
+        const kind = job.data.kind;
+        const { markDispatchOutcome } = await import('@/lib/whatsapp/dispatch/outcome');
+        try {
+          if (kind === 'confirmation') {
+            const { sendAppointmentConfirmation } =
+              await import('@/lib/whatsapp/templates/sendConfirmation');
+            await sendAppointmentConfirmation({ appointmentId });
+          } else if (kind === 'reschedule') {
+            const { sendAppointmentRescheduled } =
+              await import('@/lib/whatsapp/templates/sendRescheduled');
+            await sendAppointmentRescheduled({ appointmentId });
+          } else {
+            const { sendAppointmentCancelled } =
+              await import('@/lib/whatsapp/templates/sendCancelled');
+            await sendAppointmentCancelled({ appointmentId });
+          }
+        } catch (err) {
+          await markDispatchOutcome({
+            appointmentId,
+            kind,
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          }).catch(() => undefined);
+          throw err;
+        }
+        await markDispatchOutcome({ appointmentId, kind, ok: true }).catch(() => undefined);
+        console.warn(`[lifecycle] appointment=${appointmentId} ${kind} dispatched`);
         return;
       }
       const patientSelect = {

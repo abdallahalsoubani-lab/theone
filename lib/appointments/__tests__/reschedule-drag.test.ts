@@ -21,6 +21,12 @@ vi.mock('@/auth', () => ({ auth: vi.fn(async () => ({ user: { id: 'sec-1' } })) 
 vi.mock('@/lib/audit/withAudit', () => ({
   withAudit: (_cfg: unknown, fn: unknown) => fn,
 }));
+const dispatchMock = vi.hoisted(() =>
+  vi.fn(async () => ({ entryId: 'd1', suppressed: null, confirmWasPending: false })),
+);
+vi.mock('@/lib/whatsapp/dispatch/service', () => ({
+  recordDispatchEvent: dispatchMock,
+}));
 vi.mock('@/lib/queue/jobs/appointmentReminder', () => ({
   enqueueAppointmentReminder: vi.fn(),
   cancelAppointmentReminder: vi.fn(),
@@ -322,23 +328,21 @@ describe('dragReassignTherapistIds (cross-column rule — Prompt 20 #2 / Prompt 
 
 describe('reschedule message firing (Prompt 48 — owner ruling)', () => {
   it('schedules ONE deferred reschedule job when the start actually moves (P53)', async () => {
-    const { scheduleLifecycleMessage } = await import('@/lib/queue/jobs/appointmentReminder');
-    vi.mocked(scheduleLifecycleMessage).mockClear();
+    dispatchMock.mockClear();
     await rescheduleAppointment({
       id: 'a1',
       startsAt: FUTURE, // differs from the stored 2030-01-07T08:00Z
       durationMinutes: 30,
       overrideConflicts: false,
     } as never);
-    expect(scheduleLifecycleMessage).toHaveBeenCalledTimes(1);
-    expect(scheduleLifecycleMessage).toHaveBeenCalledWith(
-      expect.objectContaining({ appointmentId: 'a1', kind: 'reschedule' }),
+    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    expect(dispatchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 'a1', type: 'RESCHEDULE' }),
     );
   });
 
   it('does NOT fire on a duration-only resize (silent by ruling)', async () => {
-    const { scheduleLifecycleMessage } = await import('@/lib/queue/jobs/appointmentReminder');
-    vi.mocked(scheduleLifecycleMessage).mockClear();
+    dispatchMock.mockClear();
     await rescheduleAppointment({
       id: 'a1',
       startsAt: FUTURE,
@@ -346,18 +350,17 @@ describe('reschedule message firing (Prompt 48 — owner ruling)', () => {
       resize: true,
       overrideConflicts: false,
     } as never);
-    expect(scheduleLifecycleMessage).not.toHaveBeenCalled();
+    expect(dispatchMock).not.toHaveBeenCalled();
   });
 
   it('does NOT fire on a same-slot save (start unchanged)', async () => {
-    const { scheduleLifecycleMessage } = await import('@/lib/queue/jobs/appointmentReminder');
-    vi.mocked(scheduleLifecycleMessage).mockClear();
+    dispatchMock.mockClear();
     await rescheduleAppointment({
       id: 'a1',
       startsAt: new Date('2030-01-07T08:00:00Z'), // equals the stored start
       durationMinutes: 45, // duration change without the resize flag
       overrideConflicts: false,
     } as never);
-    expect(scheduleLifecycleMessage).not.toHaveBeenCalled();
+    expect(dispatchMock).not.toHaveBeenCalled();
   });
 });

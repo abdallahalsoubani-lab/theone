@@ -1,5 +1,5 @@
 import { AppointmentStatus, AppointmentType, AuditAction, UserRole } from '@prisma/client';
-import type { CancellationCategory, Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 
 import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
@@ -7,10 +7,9 @@ import { db, toLocalizedError, type LocalizedError } from '@/lib/db';
 import { addCareTeamMemberTx } from '@/lib/patients/assignment';
 import {
   cancelAppointmentReminder,
-  cancelLifecycleMessages,
   enqueueAppointmentReminder,
-  scheduleLifecycleMessage,
 } from '@/lib/queue/jobs/appointmentReminder';
+import { recordDispatchEvent } from '@/lib/whatsapp/dispatch/service';
 import { cancelAutoCompleteSession } from '@/lib/queue/jobs/autoCompleteSession';
 import { clinicDateKey, clinicHm } from '@/lib/time/clinic';
 import { getClinicTimeZone } from '@/lib/time/clinic-server';
@@ -166,17 +165,6 @@ async function setAppointmentTherapistsTx(
 }
 
 /** P53 — the two admin-configurable lifecycle delays (minutes, default 0). */
-async function getLifecycleDelays(): Promise<{ confirmation: number; reschedule: number }> {
-  const settings = await db.clinicSettings.findUnique({
-    where: { id: 'default' },
-    select: { bookingConfirmationDelayMinutes: true, rescheduleMessageDelayMinutes: true },
-  });
-  return {
-    confirmation: settings?.bookingConfirmationDelayMinutes ?? 0,
-    reschedule: settings?.rescheduleMessageDelayMinutes ?? 0,
-  };
-}
-
 async function getReminderConfig(): Promise<ReminderConfig> {
   const settings = await db.clinicSettings.findUnique({
     where: { id: 'default' },
@@ -290,21 +278,18 @@ export const createAppointment = withAudit<
       });
     }
 
-    // P53 — the booking confirmation goes through the DEFERRED lifecycle
-    // scheduler (admin-configurable delay, default 0 = an immediate job —
-    // today's behavior exactly). The worker re-reads the appointment at
-    // fire time and the sender uses the registry variable shape (§2.4 fix,
-    // was a hardcoded parameter order). GROUP/EVENT (no patientId) keep
-    // today's behavior: no confirmation.
+    // P48 — the booking confirmation goes through the dispatch funnel:
+    // AUTO (the P53 deferred job with the admin delay), MANUAL (admin
+    // outbox), or an immediate safety-exception send for <24h starts.
+    // GROUP/EVENT (no patientId) keep today's behavior: no confirmation.
     if (input.patientId) {
-      const delays = await getLifecycleDelays();
-      await scheduleLifecycleMessage({
+      await recordDispatchEvent({
         appointmentId: appointment.id,
+        patientId: input.patientId,
         startsAt: appointment.startsAt,
-        kind: 'confirmation',
-        delayMinutes: delays.confirmation,
+        type: 'BOOKING_CONFIRMATION',
       }).catch((err: unknown) => {
-        console.error('[appointments.create] confirmation schedule failed', err);
+        console.error('[appointments.create] dispatch record failed', err);
       });
     }
 
@@ -462,22 +447,16 @@ export const rescheduleAppointment = withAudit<
     // reschedule.
     const startChanged = !input.resize && existing.startsAt.getTime() !== input.startsAt.getTime();
     if (startChanged) {
-      // P53 §1.3: if the ORIGINAL confirmation never actually went out (edit
-      // during the wait), the pending job is replaced by a fresh CONFIRMATION
-      // with the new details; otherwise a deferred RESCHEDULE message.
-      // Either way the timer restarts from this edit.
-      const { confirmationAlreadySent } = await import('@/lib/whatsapp/templates/sendConfirmation');
-      const [delays, wasSent] = await Promise.all([
-        getLifecycleDelays(),
-        confirmationAlreadySent(input.id),
-      ]);
-      await scheduleLifecycleMessage({
+      // P48 dispatch funnel. The funnel itself applies the P53 §1.3 rule:
+      // a reschedule before the confirmation ever left is re-issued as a
+      // fresh CONFIRMATION with the new details.
+      await recordDispatchEvent({
         appointmentId: input.id,
+        patientId: existing.patientId,
         startsAt: input.startsAt,
-        kind: wasSent ? 'reschedule' : 'confirmation',
-        delayMinutes: wasSent ? delays.reschedule : delays.confirmation,
+        type: 'RESCHEDULE',
       }).catch((err: unknown) => {
-        console.error('[appointments.reschedule] lifecycle schedule failed', err);
+        console.error('[appointments.reschedule] dispatch record failed', err);
       });
     }
 
@@ -741,11 +720,23 @@ export const cancelAppointment = withAudit<
     });
     await cancelAppointmentReminder(input.id);
     await cancelAutoCompleteSession(input.id);
-    // P53: a cancel during the wait removes the pending confirmation/
-    // reschedule (as if never queued) — same place as the reminder removal.
-    // The cancellation message itself stays IMMEDIATE (owner decision أ —
-    // no delay setting exists for it).
-    const { confirmWasPending } = await cancelLifecycleMessages(input.id);
+    // P48 dispatch funnel: supersedes any pending confirmation/reschedule
+    // (last-state-wins), applies the silent booking+cancel close, honors
+    // the per-type mode/delay, and fires the <24h safety exception. The
+    // notifyPatient=false path still supersedes but sends nothing.
+    const dispatch = await recordDispatchEvent({
+      appointmentId: input.id,
+      patientId: existing.patientId,
+      startsAt: existing.startsAt,
+      type: 'CANCELLATION',
+      notify: Boolean(
+        input.notifyPatient && existing.patient?.whatsappReachable && existing.patient.phone,
+      ),
+    }).catch((err: unknown) => {
+      console.error('[appointments.cancel] dispatch record failed', err);
+      return { entryId: null, suppressed: null, confirmWasPending: false };
+    });
+    const confirmWasPending = dispatch.confirmWasPending;
     // §1-Item2.3: if the SERIES confirmation was pending on THIS occurrence,
     // retarget it to the next nearest upcoming occurrence (timer restarts;
     // removed entirely when none remain).
@@ -761,12 +752,13 @@ export const cancelAppointment = withAudit<
         select: { id: true, startsAt: true },
       });
       if (next) {
-        const delays = await getLifecycleDelays();
-        await scheduleLifecycleMessage({
+        // Through the funnel so MANUAL mode parks the retargeted
+        // confirmation in the outbox exactly like a fresh booking.
+        await recordDispatchEvent({
           appointmentId: next.id,
+          patientId: existing.patientId,
           startsAt: next.startsAt,
-          kind: 'confirmation',
-          delayMinutes: delays.confirmation,
+          type: 'BOOKING_CONFIRMATION',
         }).catch((err: unknown) => {
           console.error('[appointments.cancel] series confirmation retarget failed', err);
         });
@@ -780,33 +772,8 @@ export const cancelAppointment = withAudit<
       await notifyWaitlistForFreedSlot({ startsAt: existing.startsAt, therapistId });
     }
 
-    // Optional patient notification via the existing
-    // `appointment_cancellation` template seeded in Prompt 2. The
-    // template's three placeholders are date, time, and reason — we
-    // pass the localized category label as the reason. Best-effort
-    // fan-out: failures log + continue so cancel still succeeds.
-    if (input.notifyPatient && existing.patient?.whatsappReachable && existing.patient.phone) {
-      const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
-      const tz = await getClinicTimeZone();
-      const dateStr = clinicDateKey(existing.startsAt, tz);
-      const timeStr = clinicHm(existing.startsAt, tz);
-      void enqueueWhatsappOutbound({
-        kind: 'template',
-        templateName: 'appointment_cancelled_v2',
-        language: existing.patient.languagePref,
-        parameters: [
-          dateStr,
-          timeStr,
-          categoryLabelForLocale(input.cancellationCategory, existing.patient.languagePref),
-        ],
-        recipientPhone: existing.patient.phone,
-        recipientUserId: existing.patientId ?? undefined,
-        appointmentId: existing.id,
-        source: 'queue',
-      }).catch((err: unknown) => {
-        console.error('[appointments.cancel] notification enqueue failed', err);
-      });
-    }
+    // The cancellation message itself is handled by the dispatch funnel
+    // above (sendCancelled re-reads the row at fire time).
 
     return { appointmentId: input.id, flaggedShortNotice: shortNotice };
   },
@@ -917,8 +884,21 @@ export const cancelAppointmentSeries = withAudit<
     // Side effects after commit.
     await Promise.all(ids.map((id) => cancelAppointmentReminder(id)));
     await Promise.all(ids.map((id) => cancelAutoCompleteSession(id)));
-    // P53: remove every pending deferred confirmation/reschedule too.
-    await Promise.all(ids.map((id) => cancelLifecycleMessages(id)));
+    // P48: supersede every open dispatch entry + queued lifecycle job for
+    // the cancelled occurrences (last-state-wins across the whole batch);
+    // remember whether ANY unsent series confirmation was pending — the
+    // silent-close rule below hangs on it.
+    let seriesConfirmWasPending = false;
+    for (const id of ids) {
+      const r = await recordDispatchEvent({
+        appointmentId: id,
+        patientId: null,
+        startsAt: new Date(0),
+        type: 'CANCELLATION',
+        notify: false, // supersede-only; the ONE batch message is created below
+      }).catch(() => ({ entryId: null, suppressed: null, confirmWasPending: false }));
+      seriesConfirmWasPending = seriesConfirmWasPending || r.confirmWasPending;
+    }
 
     // Prompt 19 — every freed occurrence may match a waitlisted patient; a
     // multi-therapist occurrence frees the slot per assigned therapist (P20).
@@ -933,11 +913,12 @@ export const cancelAppointmentSeries = withAudit<
     }
 
     if (input.notifyPatient) {
-      // P53 (owner-signed, conscious change from the old N-messages
-      // behavior): cancelling a whole series sends ONE cancellation —
-      // about the nearest occurrence that was coming up — immediately (no
-      // delay exists for cancellations). Single-occurrence cancels keep
-      // their own normal message.
+      // P53 (owner-signed): cancelling a whole series sends ONE cancellation
+      // — about the nearest occurrence that was coming up. P48 routes it
+      // through the dispatch funnel (mode/delay/outbox/safety), with the
+      // series-wide silent-close rule: if the series' single confirmation
+      // never left AND no confirmation was ever sent for any occurrence,
+      // the patient never knew — nothing is sent.
       const enriched = await db.appointment.findMany({
         where: { id: { in: ids } },
         select: {
@@ -956,50 +937,37 @@ export const cancelAppointmentSeries = withAudit<
           (r) => r.startsAt.getTime() >= now && r.patient?.whatsappReachable && r.patient.phone,
         ) ?? enriched.find((r) => r.patient?.whatsappReachable && r.patient.phone);
       if (nearest?.patient?.phone) {
-        const { enqueueWhatsappOutbound } = await import('@/lib/queue/jobs/whatsappOutbound');
-        const tz = await getClinicTimeZone();
-        void enqueueWhatsappOutbound({
-          kind: 'template',
-          templateName: 'appointment_cancelled_v2',
-          language: nearest.patient.languagePref,
-          parameters: [
-            clinicDateKey(nearest.startsAt, tz),
-            clinicHm(nearest.startsAt, tz),
-            categoryLabelForLocale(input.cancellationCategory, nearest.patient.languagePref),
-          ],
-          recipientPhone: nearest.patient.phone,
-          recipientUserId: nearest.patientId ?? undefined,
-          appointmentId: nearest.id,
-          source: 'queue',
-        }).catch((err: unknown) => {
-          console.error('[appointments.cancelSeries] notification enqueue failed', err);
-        });
+        // Was a confirmation ever SENT for ANY occurrence of this series?
+        const { confirmationAlreadySent } =
+          await import('@/lib/whatsapp/templates/sendConfirmation');
+        let anyConfirmationSent = false;
+        for (const id of ids) {
+          if (await confirmationAlreadySent(id)) {
+            anyConfirmationSent = true;
+            break;
+          }
+        }
+        if (seriesConfirmWasPending && !anyConfirmationSent) {
+          console.warn(
+            `[dispatch] series ${input.id}: cancelled before its confirmation left — nothing sent (silent close)`,
+          );
+        } else {
+          await recordDispatchEvent({
+            appointmentId: nearest.id,
+            patientId: nearest.patientId,
+            startsAt: nearest.startsAt,
+            type: 'CANCELLATION',
+            confirmationSent: anyConfirmationSent,
+          }).catch((err: unknown) => {
+            console.error('[appointments.cancelSeries] dispatch record failed', err);
+          });
+        }
       }
     }
 
     return { appointmentIds: ids, skippedCount: 0, flaggedShortNotice };
   },
 );
-
-/**
- * Localized label for a cancellation category. Used in the WhatsApp
- * cancellation message; UI surfaces translate via the i18n bundle.
- */
-function categoryLabelForLocale(category: CancellationCategory, language: 'EN' | 'AR'): string {
-  const labels: Record<CancellationCategory, { en: string; ar: string }> = {
-    PATIENT_REQUEST: { en: 'patient request', ar: 'طلب المريض' },
-    PATIENT_NO_SHOW: { en: 'patient no-show', ar: 'عدم حضور المريض' },
-    PATIENT_ILLNESS: { en: 'patient illness', ar: 'مرض المريض' },
-    PATIENT_TRAVEL: { en: 'patient travel', ar: 'سفر المريض' },
-    CLINIC_RESCHEDULING: { en: 'clinic rescheduling', ar: 'إعادة جدولة العيادة' },
-    THERAPIST_UNAVAILABLE: { en: 'therapist unavailable', ar: 'المعالج غير متاح' },
-    WEATHER: { en: 'weather', ar: 'ظروف جوية' },
-    INSURANCE_ISSUE: { en: 'insurance issue', ar: 'مشكلة تأمين' },
-    OTHER: { en: 'other', ar: 'أخرى' },
-  };
-  const pair = labels[category];
-  return language === 'AR' ? pair.ar : pair.en;
-}
 
 export const updateAppointmentStatus = withAudit<
   [{ id: string; to: AppointmentStatus }],
@@ -1267,14 +1235,13 @@ export const createSeriesBatch = withAudit<
         earliestIdx = i;
       }
     }
-    const delays = await getLifecycleDelays();
-    await scheduleLifecycleMessage({
+    await recordDispatchEvent({
       appointmentId: appointmentIds[earliestIdx]!,
+      patientId: input.patientId,
       startsAt: input.rows[earliestIdx]!.startsAt,
-      kind: 'confirmation',
-      delayMinutes: delays.confirmation,
+      type: 'BOOKING_CONFIRMATION',
     }).catch((err: unknown) => {
-      console.error('[series.create] confirmation schedule failed', err);
+      console.error('[series.create] dispatch record failed', err);
     });
 
     return { seriesId, appointmentIds };

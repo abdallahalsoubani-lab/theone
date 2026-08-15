@@ -21,6 +21,12 @@ vi.mock('../conflicts', async (importOriginal) => {
     checkConflicts: vi.fn(async () => ({ ok: true })),
   };
 });
+const dispatchMock = vi.hoisted(() =>
+  vi.fn(async () => ({ entryId: 'd1', suppressed: null, confirmWasPending: false })),
+);
+vi.mock('@/lib/whatsapp/dispatch/service', () => ({
+  recordDispatchEvent: dispatchMock,
+}));
 vi.mock('@/lib/queue/jobs/appointmentReminder', () => ({
   enqueueAppointmentReminder: vi.fn(async () => {}),
   cancelAppointmentReminder: vi.fn(async () => {}),

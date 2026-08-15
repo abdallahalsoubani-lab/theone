@@ -19,18 +19,20 @@ export function reminderJobId(appointmentId: string): string {
 
 export interface AppointmentReminderJob {
   appointmentId: string;
-  /** P53 — deferred lifecycle messages ride the SAME queue + worker as
+  /** P53/P48 — deferred lifecycle messages ride the SAME queue + worker as
    *  reminders (no parallel mechanism). Absent/'reminder' = the P17
-   *  reminder; 'confirmation'/'reschedule' = a deferred lifecycle send. */
-  kind?: 'reminder' | 'confirmation' | 'reschedule';
+   *  reminder; the rest are dispatch-layer sends (P48). */
+  kind?: 'reminder' | 'confirmation' | 'reschedule' | 'cancellation';
 }
 
 // ─── P53: deferred, coalescing lifecycle messages ──────────────────────────
 
-export type LifecycleKind = 'confirmation' | 'reschedule';
+export type LifecycleKind = 'confirmation' | 'reschedule' | 'cancellation';
 
 export function lifecycleJobId(kind: LifecycleKind, appointmentId: string): string {
-  return kind === 'confirmation' ? `confirm-${appointmentId}` : `resched-${appointmentId}`;
+  if (kind === 'confirmation') return `confirm-${appointmentId}`;
+  if (kind === 'reschedule') return `resched-${appointmentId}`;
+  return `cancelmsg-${appointmentId}`; // P48 — cancellation joined the family
 }
 
 /** Send at start−15min at the latest — never after start. */
@@ -45,7 +47,13 @@ export function computeLifecycleDelayMs(args: {
   now: Date;
   startsAt: Date;
   delayMinutes: number;
+  /** P48 — a CANCELLATION message is ABOUT a slot, not ahead of it: the
+   *  "send before start" clamp and the past-start skip don't apply. */
+  kind?: LifecycleKind;
 }): number | null {
+  if (args.kind === 'cancellation') {
+    return Math.max(0, args.delayMinutes * 60 * 1000);
+  }
   if (args.startsAt.getTime() <= args.now.getTime()) return null;
   const byDelay = args.delayMinutes * 60 * 1000;
   const byClamp = args.startsAt.getTime() - LIFECYCLE_CLAMP_MS - args.now.getTime();
@@ -70,6 +78,7 @@ export async function scheduleLifecycleMessage(args: {
     now: new Date(),
     startsAt: args.startsAt,
     delayMinutes: args.delayMinutes,
+    kind: args.kind,
   });
   if (delay === null) {
     console.warn(
@@ -104,6 +113,7 @@ export async function cancelLifecycleMessages(
   );
   await reminderQueue.remove(confirmId).catch(() => undefined);
   await reminderQueue.remove(lifecycleJobId('reschedule', appointmentId)).catch(() => undefined);
+  await reminderQueue.remove(lifecycleJobId('cancellation', appointmentId)).catch(() => undefined);
   return { confirmWasPending };
 }
 

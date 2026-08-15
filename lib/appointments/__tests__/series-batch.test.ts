@@ -45,6 +45,12 @@ vi.mock('../conflicts', async (importOriginal) => {
   return { ...actual, checkConflicts: checkConflictsMock };
 });
 vi.mock('@/lib/patients/assignment', () => ({ addCareTeamMemberTx: careTeamMock }));
+const dispatchMock = vi.hoisted(() =>
+  vi.fn(async () => ({ entryId: 'd1', suppressed: null, confirmWasPending: false })),
+);
+vi.mock('@/lib/whatsapp/dispatch/service', () => ({
+  recordDispatchEvent: dispatchMock,
+}));
 vi.mock('@/lib/queue/jobs/appointmentReminder', () => ({
   enqueueAppointmentReminder: reminderMock,
   scheduleLifecycleMessage: lifecycleMock,
@@ -144,7 +150,7 @@ describe('createSeriesBatch — happy path', () => {
     // sessions are closed by a human (PT-B3 item 1).
     expect(reminderMock).toHaveBeenCalledTimes(3);
     expect(autoCompleteMock).not.toHaveBeenCalled();
-    expect(lifecycleMock).toHaveBeenCalledTimes(1);
+    expect(dispatchMock).toHaveBeenCalledTimes(1);
 
     // One audit row for the series create.
     expect(auditRows).toHaveLength(1);
@@ -169,7 +175,7 @@ describe('createSeriesBatch — conflicts abort atomically (FR-APP-8 replacement
     expect((err as AppointmentError).error.details?.rowIndex).toBe(1);
     // No side-effects fired; no audit row (we only audit committed state).
     expect(reminderMock).not.toHaveBeenCalled();
-    expect(lifecycleMock).not.toHaveBeenCalled();
+    expect(dispatchMock).not.toHaveBeenCalled();
     expect(auditRows).toHaveLength(0);
   });
 
@@ -206,12 +212,12 @@ describe('createSeriesBatch — WhatsApp policy (Amendment 46.1: confirm first o
       { startsAt: future(8, 4), durationMinutes: 60, therapistIds: ['t1'], roomId: 'r1' },
     ];
     const res = await createSeriesBatch({ patientId: 'p1', notes: null, rows });
-    expect(lifecycleMock).toHaveBeenCalledTimes(1);
-    expect(lifecycleMock).toHaveBeenCalledWith(
+    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    expect(dispatchMock).toHaveBeenCalledWith(
       expect.objectContaining({
         appointmentId: res.appointmentIds[1],
         startsAt: rows[1]!.startsAt,
-        kind: 'confirmation',
+        type: 'BOOKING_CONFIRMATION',
       }),
     );
   });
@@ -227,7 +233,7 @@ describe('createSeriesBatch — WhatsApp policy (Amendment 46.1: confirm first o
   });
 
   it('a confirmation scheduling failure never fails the committed batch', async () => {
-    lifecycleMock.mockRejectedValueOnce(new Error('redis down'));
+    dispatchMock.mockRejectedValueOnce(new Error('redis down'));
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const res = await createSeriesBatch({ patientId: 'p1', notes: null, rows: threeRows() });
     expect(res.appointmentIds).toHaveLength(3);
