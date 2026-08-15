@@ -57,3 +57,7 @@ minio_data/
 
 import-data/
 staff-credentials-*.txt
+
+# Playwright artifacts
+/test-results/
+/playwright-report/

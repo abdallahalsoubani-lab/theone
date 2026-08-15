@@ -16,19 +16,29 @@ import {
 import { Link, usePathname } from '@/i18n/navigation';
 import { cn } from '@/lib/utils';
 
+import { pickMobileLinks } from './mobile-nav-links';
 import type { NavLink } from './Sidebar';
 
 /**
- * Mobile drawer nav (Prompt 3 §4.5).
+ * Mobile drawer nav (Prompt 3 §4.5; fed real links in Prompt 46 item C —
+ * it had been receiving a hard-coded empty array since it shipped, which
+ * left every role with an empty drawer below the md breakpoint).
  *
  * Renders only below md. Sheet slides in from the inline-start corner so it
  * appears on the natural side under both LTR (left) and RTL (right).
- * Same `links` API as Sidebar — feature pages reuse the same array.
+ * Same NavLink shape as Sidebar — built from the same nav configs.
  */
-export function MobileNav({ links }: { links: ReadonlyArray<NavLink> }) {
+export function MobileNav({
+  staffLinks,
+  adminLinks = [],
+}: {
+  staffLinks: ReadonlyArray<NavLink>;
+  adminLinks?: ReadonlyArray<NavLink>;
+}) {
   const [open, setOpen] = useState(false);
   const t = useTranslations('navigation');
   const pathname = usePathname();
+  const links = pickMobileLinks(pathname, staffLinks, adminLinks);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>

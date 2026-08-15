@@ -4,13 +4,18 @@ import { auth } from '@/auth';
 import { Logo } from '@/components/brand/Logo';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { Link } from '@/i18n/navigation';
+import { getEffectiveSession } from '@/lib/impersonation/session';
 import {
   countUnreadNotificationsForCurrentUser,
   listNotificationsForCurrentUser,
 } from '@/lib/notifications/queries';
 
+import { adminNavEntries } from './admin-nav';
 import { LanguageToggle } from './LanguageToggle';
 import { MobileNav } from './MobileNav';
+import { NAV_ICONS } from './nav-icons';
+import type { NavLink } from './Sidebar';
+import { staffNavEntries } from './staff-nav';
 import { UserMenu } from './UserMenu';
 
 /**
@@ -44,12 +49,43 @@ export async function Header() {
       ])
     : [0, []];
 
+  // Mobile drawer links (Prompt 46 item C — the drawer used to get a
+  // hard-coded empty list). Built from the EFFECTIVE role so Act-As shows
+  // the impersonated role's nav, same rule as the desktop sidebars
+  // (Prompt 22 §3.2). Labels resolve through the same catalogs the
+  // layouts use; badges are a desktop-sidebar affordance and are skipped.
+  const effective = await getEffectiveSession();
+  const effectiveRole = effective?.user?.role;
+  const tNav = await getTranslations('navigation');
+  const tPatients = await getTranslations('patients');
+  const tAdminNav = await getTranslations('navigation.admin');
+  const staffLinks: NavLink[] = effectiveRole
+    ? staffNavEntries(effectiveRole).map((e) => {
+        const [ns, key] = e.labelKey.split(':') as ['navigation' | 'patients', string];
+        return {
+          label: ns === 'navigation' ? tNav(key) : tPatients(key),
+          href: e.href,
+          icon: NAV_ICONS[e.icon],
+        };
+      })
+    : [];
+  const adminLinks: NavLink[] =
+    effectiveRole === 'ADMIN'
+      ? adminNavEntries().map((e) => ({
+          label: tAdminNav(e.labelKey),
+          href: e.href,
+          icon: NAV_ICONS[e.icon],
+        }))
+      : [];
+
   return (
     <header
       className="header-glass sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-brand-border/70 px-4 sm:px-6"
       aria-label={t('shell.headerLandmark')}
     >
-      <MobileNav links={[]} />
+      {staffLinks.length > 0 || adminLinks.length > 0 ? (
+        <MobileNav staffLinks={staffLinks} adminLinks={adminLinks} />
+      ) : null}
 
       <Link
         href="/"

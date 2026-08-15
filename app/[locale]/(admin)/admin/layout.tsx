@@ -1,21 +1,10 @@
-import {
-  BarChart3,
-  BriefcaseMedical,
-  CalendarDays,
-  CalendarOff,
-  ClipboardList,
-  DoorOpen,
-  HeartPulse,
-  MessageSquare,
-  ScrollText,
-  Settings,
-  Users,
-} from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 
 import { auth } from '@/auth';
+import { adminNavEntries } from '@/components/shell/admin-nav';
+import { NAV_ICONS } from '@/components/shell/nav-icons';
 import { Sidebar, type NavLink } from '@/components/shell/Sidebar';
 
 /**
@@ -36,44 +25,13 @@ export default async function AdminLayout({
   if (session.user.role !== 'ADMIN') redirect(`/${locale}/`);
 
   const t = await getTranslations('navigation.admin');
-  const links: NavLink[] = [
-    { label: t('calendar'), href: '/admin/calendar', icon: <CalendarDays className="size-4" /> },
-    { label: t('users'), href: '/admin/users', icon: <Users className="size-4" /> },
-    // Aug 1 (owner request): patient add/edit from the admin shell — the
-    // permissions existed since Prompt 6; only the surface was missing.
-    { label: t('patients'), href: '/admin/patients', icon: <HeartPulse className="size-4" /> },
-    // Prompt 55 §1 — the leaves board existed but was reachable only via
-    // notification deep-links; it now has a proper sidebar entry.
-    { label: t('leaves'), href: '/admin/leaves', icon: <CalendarOff className="size-4" /> },
-    {
-      label: t('specialties'),
-      href: '/admin/specialties',
-      icon: <BriefcaseMedical className="size-4" />,
-    },
-    { label: t('rooms'), href: '/admin/rooms', icon: <DoorOpen className="size-4" /> },
-    {
-      label: t('customQuestions'),
-      href: '/admin/intake-questions',
-      icon: <ClipboardList className="size-4" />,
-    },
-    {
-      label: t('whatsappTemplates'),
-      href: '/admin/whatsapp/templates',
-      icon: <MessageSquare className="size-4" />,
-    },
-    {
-      label: t('whatsappMessages'),
-      href: '/admin/whatsapp/messages',
-      icon: <MessageSquare className="size-4" />,
-    },
-    {
-      label: t('reports'),
-      href: '/admin/reports/clinicians',
-      icon: <BarChart3 className="size-4" />,
-    },
-    { label: t('settings'), href: '/admin/settings', icon: <Settings className="size-4" /> },
-    { label: t('audit'), href: '/admin/audit', icon: <ScrollText className="size-4" /> },
-  ];
+  // Entries live in the pure admin-nav config (Prompt 46 item C) so the
+  // Header's mobile drawer renders exactly this same list.
+  const links: NavLink[] = adminNavEntries().map((e) => ({
+    label: t(e.labelKey),
+    href: e.href,
+    icon: NAV_ICONS[e.icon],
+  }));
 
   return (
     <div className="flex">
