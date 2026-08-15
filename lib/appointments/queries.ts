@@ -43,6 +43,9 @@ export interface CalendarAppointment {
   appointmentType: AppointmentType;
   notes: string | null;
   seriesId: string | null;
+  /** Primary session note id, if one exists (Prompt 46 row 5 — drives the
+   *  side panel's Add/Open session-report action). */
+  sessionNoteId: string | null;
 }
 
 /**
@@ -82,6 +85,8 @@ export async function listAppointmentsForCalendar(
         include: { therapist: { select: { id: true, fullNameEn: true, fullNameAr: true } } },
       },
       room: { select: { id: true, name: true } },
+      // Primary note only (parentNoteId null) — addenda never gate the action.
+      sessionNotes: { where: { parentNoteId: null }, select: { id: true }, take: 1 },
     },
   });
 
@@ -108,6 +113,7 @@ export async function listAppointmentsForCalendar(
     appointmentType: r.appointmentType,
     notes: r.notes,
     seriesId: r.seriesId,
+    sessionNoteId: r.sessionNotes?.[0]?.id ?? null,
   }));
 }
 

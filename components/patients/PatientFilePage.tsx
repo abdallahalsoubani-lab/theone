@@ -10,7 +10,10 @@ import { PatientIntakeTab } from '@/components/patients/PatientIntakeTab';
 import { PatientProfileTab } from '@/components/patients/PatientProfileTab';
 import { ResetPasswordButton } from '@/components/patients/PatientFileShell';
 import type { PatientPlanState } from '@/lib/clinical/plans/queries';
-import type { SessionNoteRow } from '@/lib/clinical/session-notes/queries';
+import type {
+  ReportableAppointmentRow,
+  SessionNoteRow,
+} from '@/lib/clinical/session-notes/queries';
 import type { TimelinePage } from '@/lib/clinical/timeline/types';
 import type { IntakeListRow } from '@/lib/intake/queries';
 import type { PatientFileData } from '@/lib/patients/queries';
@@ -26,6 +29,9 @@ interface Props {
   locale: 'en' | 'ar';
   planState?: PatientPlanState;
   notes?: SessionNoteRow[];
+  /** Prompt 46 row 5 — finished sessions still missing their report
+   *  (authoring pages pass it; the Notes tab renders the add-report rows). */
+  reportableAppointments?: ReportableAppointmentRow[];
   timeline?: TimelinePage;
   timelinePage?: number;
   timelinePageSize?: number;
@@ -62,6 +68,7 @@ export async function PatientFilePage({
   locale,
   planState,
   notes,
+  reportableAppointments,
   timeline,
   timelinePage = 1,
   timelinePageSize = 25,
@@ -123,6 +130,7 @@ export async function PatientFilePage({
               viewerRole={viewerRole ?? 'SECRETARY'}
               actorId={actorId ?? ''}
               locale={locale}
+              addable={reportableAppointments}
             />
           ) : undefined
         }

@@ -105,6 +105,11 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.TREATMENT_PLANS_COMPLETE]: true,
     [PERMISSIONS.TREATMENT_PLANS_DISCONTINUE]: true,
     [PERMISSIONS.SESSION_NOTES_READ_ASSIGNED]: 'assigned',
+    // Prompt 46 row 5 — the Doctor authors session reports (create + edit
+    // within the author/24h rules). Clinical authoring, not an appointment
+    // mutation: the Prompt 45 view-only calendar stays intact.
+    [PERMISSIONS.SESSION_NOTES_CREATE_OWN]: 'own',
+    [PERMISSIONS.SESSION_NOTES_UPDATE_OWN]: 'own',
     [PERMISSIONS.SESSION_NOTES_ADDENDUM]: true,
     [PERMISSIONS.PATIENT_TIMELINE_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.TIMELINE_READ_ASSIGNED]: 'assigned',

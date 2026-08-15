@@ -4,6 +4,8 @@ import {
   planEditHref,
   planHref,
   roleCalendarHref,
+  sessionNoteAddendumHref,
+  sessionNoteCreateHref,
   sessionNoteEditHref,
   weeklyReviewHref,
 } from '../role-links';
@@ -41,11 +43,25 @@ describe('planHref / planEditHref', () => {
   });
 });
 
-describe('sessionNoteEditHref / weeklyReviewHref', () => {
-  it('note editor is therapist-only; weekly review is doctor-only', () => {
+describe('session-report hrefs (Prompt 46 row 5 — doctor mirror routes)', () => {
+  it('therapist + admin use the /therapist routes; doctor gets its mirror; others none', () => {
     expect(sessionNoteEditHref('THERAPIST', 'n1')).toBe('/therapist/sessions/notes/n1/edit');
-    expect(sessionNoteEditHref('DOCTOR', 'n1')).toBeNull();
-    expect(sessionNoteEditHref('ADMIN', 'n1')).toBeNull();
+    expect(sessionNoteEditHref('ADMIN', 'n1')).toBe('/therapist/sessions/notes/n1/edit');
+    expect(sessionNoteEditHref('DOCTOR', 'n1')).toBe('/doctor/sessions/notes/n1/edit');
+    expect(sessionNoteEditHref('SECRETARY', 'n1')).toBeNull();
+    expect(sessionNoteEditHref('PATIENT', 'n1')).toBeNull();
+
+    expect(sessionNoteCreateHref('THERAPIST', 'a1')).toBe('/therapist/sessions/a1/note/new');
+    expect(sessionNoteCreateHref('DOCTOR', 'a1')).toBe('/doctor/sessions/a1/note/new');
+    expect(sessionNoteCreateHref('SECRETARY', 'a1')).toBeNull();
+
+    expect(sessionNoteAddendumHref('DOCTOR', 'n1')).toBe('/doctor/sessions/notes/n1/addendum');
+    expect(sessionNoteAddendumHref('THERAPIST', 'n1')).toBe(
+      '/therapist/sessions/notes/n1/addendum',
+    );
+  });
+
+  it('weekly review is doctor-only (unchanged)', () => {
     expect(weeklyReviewHref('DOCTOR')).toBe('/doctor/reports/weekly');
     expect(weeklyReviewHref('ADMIN')).toBeNull();
     expect(weeklyReviewHref('SECRETARY')).toBeNull();

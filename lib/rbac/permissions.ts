@@ -74,10 +74,10 @@ export const PERMISSIONS = {
   TREATMENT_PLANS_DISCONTINUE: 'treatment_plans.discontinue',
 
   // ── Session notes ─────────────────────────────────────────────────────
-  SESSION_NOTES_CREATE_OWN: 'session_notes.create.own', // therapist
+  SESSION_NOTES_CREATE_OWN: 'session_notes.create.own', // therapist + doctor (P46 row 5)
   SESSION_NOTES_READ: 'session_notes.read', // secretary + admin
   SESSION_NOTES_READ_ASSIGNED: 'session_notes.read.assigned', // doctor / therapist
-  SESSION_NOTES_UPDATE_OWN: 'session_notes.update.own', // therapist (within 24h)
+  SESSION_NOTES_UPDATE_OWN: 'session_notes.update.own', // author, within 24h (therapist + doctor)
   SESSION_NOTES_ADDENDUM: 'session_notes.addendum', // therapist + doctor + admin
 
   // ── Patient timeline ─────────────────────────────────────────────────
@@ -342,6 +342,12 @@ const DOCTOR_PERMS = new Set<PermissionCode>([
   PERMISSIONS.TREATMENT_PLANS_COMPLETE,
   PERMISSIONS.TREATMENT_PLANS_DISCONTINUE,
   PERMISSIONS.SESSION_NOTES_READ_ASSIGNED,
+  // Prompt 46 row 5 — the Doctor authors session reports too: the QA sheet
+  // found no visible path for either clinician to add the report after a
+  // session. Clinical authoring, NOT an appointment mutation — the Prompt 45
+  // view-only calendar reversal is untouched by this grant.
+  PERMISSIONS.SESSION_NOTES_CREATE_OWN,
+  PERMISSIONS.SESSION_NOTES_UPDATE_OWN,
   PERMISSIONS.SESSION_NOTES_ADDENDUM,
   PERMISSIONS.PATIENT_TIMELINE_READ_ASSIGNED,
   PERMISSIONS.TIMELINE_READ_ASSIGNED,

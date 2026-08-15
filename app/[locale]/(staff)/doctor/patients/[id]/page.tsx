@@ -9,7 +9,10 @@ import { PatientFilePage } from '@/components/patients/PatientFilePage';
 import { listDocuments } from '@/lib/patient-documents/queries';
 import { getPatientHomeProgramTabData } from '@/lib/clinical/home-program/patient-tab';
 import { getPatientPlanState } from '@/lib/clinical/plans/queries';
-import { listSessionNotesForPatient } from '@/lib/clinical/session-notes/queries';
+import {
+  listReportableAppointmentsForPatient,
+  listSessionNotesForPatient,
+} from '@/lib/clinical/session-notes/queries';
 import { getPatientTimeline } from '@/lib/clinical/timeline/query';
 import { PediatricAssessmentTab } from '@/components/pediatric-assessment/PediatricAssessmentTab';
 import { listIntakesForPatient } from '@/lib/intake/queries';
@@ -44,6 +47,7 @@ export default async function DoctorPatientFilePage({
     intakes,
     planState,
     notes,
+    reportableAppointments,
     timeline,
     homeProgramData,
     pedRows,
@@ -54,6 +58,7 @@ export default async function DoctorPatientFilePage({
     listIntakesForPatient(id),
     getPatientPlanState(id),
     listSessionNotesForPatient(id),
+    listReportableAppointmentsForPatient(id),
     getPatientTimeline(
       id,
       {
@@ -98,6 +103,7 @@ export default async function DoctorPatientFilePage({
       locale={locale === 'ar' ? 'ar' : 'en'}
       planState={planState}
       notes={notes}
+      reportableAppointments={reportableAppointments}
       timeline={timeline}
       timelinePage={timelinePage}
       timelinePageSize={TIMELINE_PAGE_SIZE}

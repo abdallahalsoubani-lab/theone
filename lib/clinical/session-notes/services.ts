@@ -62,6 +62,12 @@ const alreadyExists: LocalizedError = {
   message_en: 'A primary note already exists for this appointment. Add an addendum instead.',
   message_ar: 'توجد بالفعل ملاحظة أساسية لهذا الموعد. يرجى إضافة ملاحظة تكميلية بدلاً من ذلك.',
 };
+const notEligible: LocalizedError = {
+  code: 'SESSION_NOTE_APPOINTMENT_NOT_ELIGIBLE',
+  message_en:
+    'A session report can only be written for a session that is in progress or completed.',
+  message_ar: 'لا يمكن كتابة تقرير الجلسة إلا لجلسة قيد التنفيذ أو مكتملة.',
+};
 const immutable: LocalizedError = {
   code: 'SESSION_NOTE_IMMUTABLE',
   message_en:
@@ -98,14 +104,26 @@ export const createSessionNote = withAudit<
       },
     });
     if (!appt) throw new SessionNoteError(apptNotFound);
+    // Prompt 46 row 5 — eligible states only: IN_PROGRESS or COMPLETED.
+    // Cancelled, no-show, and not-yet-started appointments never take a
+    // report (the UI hides the entry point; this is the server authority).
+    if (
+      appt.status !== AppointmentStatus.IN_PROGRESS &&
+      appt.status !== AppointmentStatus.COMPLETED
+    ) {
+      throw new SessionNoteError(notEligible);
+    }
     // Any therapist assigned to the session may write its one shared note
-    // (Prompt 20). The note's author is recorded separately as ctx.therapistId.
+    // (Prompt 20); since Prompt 46 row 5 any DOCTOR may too (clinical
+    // authoring — the P45 calendar read-only reversal is unrelated). Admin
+    // keeps its override. The author is recorded as ctx.therapistId.
     const assignedTherapistIds = appt.therapists.map((t) => t.therapistId);
     if (!assignedTherapistIds.includes(ctx.therapistId)) {
-      // Admin override path still uses session.user.role check at the
-      // facade; the service-level binding stays narrow.
       const session = await auth();
-      if (session?.user?.role !== UserRole.ADMIN) throw new SessionNoteError(forbidden);
+      const role = session?.user?.role;
+      if (role !== UserRole.ADMIN && role !== UserRole.DOCTOR) {
+        throw new SessionNoteError(forbidden);
+      }
     }
 
     // Surface the duplicate-primary case as a localized error before
@@ -238,19 +256,11 @@ export function sessionNoteToLocalized(err: unknown): LocalizedError {
   return toLocalizedError(err);
 }
 
-export async function currentTherapistOrAdminId(): Promise<string> {
-  const session = await auth();
-  if (!session?.user) throw new SessionNoteError(unauthenticated);
-  if (session.user.role !== UserRole.THERAPIST && session.user.role !== UserRole.ADMIN) {
-    throw new SessionNoteError(forbidden);
-  }
-  return session.user.id;
-}
-
 export async function currentClinicianId(): Promise<string> {
   const session = await auth();
   if (!session?.user) throw new SessionNoteError(unauthenticated);
-  // THERAPIST + DOCTOR + ADMIN can add addenda.
+  // THERAPIST + DOCTOR + ADMIN author notes and addenda (doctor create/update
+  // added by Prompt 46 row 5; per-note authorization stays in the services).
   if (
     session.user.role !== UserRole.THERAPIST &&
     session.user.role !== UserRole.DOCTOR &&

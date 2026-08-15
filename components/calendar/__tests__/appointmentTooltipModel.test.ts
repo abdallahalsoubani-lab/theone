@@ -32,6 +32,7 @@ const base: CalendarAppointment = {
   appointmentType: 'SESSION',
   notes: 'Re-assessment before plan renewal',
   seriesId: null,
+  sessionNoteId: null,
 };
 
 describe('appointmentTooltipModel', () => {

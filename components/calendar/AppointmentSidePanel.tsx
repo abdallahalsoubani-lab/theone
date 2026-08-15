@@ -1,7 +1,7 @@
 'use client';
 
 import { AppointmentStatus, UserRole } from '@prisma/client';
-import { Check, CircleDot, ExternalLink, Pencil, UserCog, X } from 'lucide-react';
+import { Check, CircleDot, ExternalLink, FileText, Pencil, UserCog, X } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
@@ -19,6 +19,11 @@ import {
 import { Link } from '@/i18n/navigation';
 import { updateStatusAction } from '@/lib/appointments/actions';
 import { canStartSessionAt } from '@/lib/appointments/session-timing';
+import {
+  canAddSessionReport,
+  roleAuthorsSessionReports,
+} from '@/lib/clinical/session-notes/eligibility';
+import { sessionNoteCreateHref, sessionNoteEditHref } from '@/lib/clinical/role-links';
 import { formatDate, formatTime } from '@/lib/format/date';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { formatPhone } from '@/lib/format/phone';
@@ -40,6 +45,8 @@ export interface SidePanelAppointment {
   status: AppointmentStatus;
   notes: string | null;
   seriesId: string | null;
+  /** Primary session note id (null = no report yet) — Prompt 46 row 5. */
+  sessionNoteId?: string | null;
 }
 
 interface Props {
@@ -292,10 +299,40 @@ export function AppointmentSidePanel({
           ) : null}
         </div>
 
-        <p className="text-xs text-brand-textMuted">{tSide('linkedPlan')}</p>
-        {status === AppointmentStatus.COMPLETED ? (
-          <p className="text-xs text-brand-textMuted">{tSide('sessionNoteCta')}</p>
+        {/* Session report (Prompt 46 row 5) — this used to be a leftover
+            "coming in Prompt 9" placeholder STRING, which is exactly the QA
+            finding "no button to add the session report". Clinical authoring,
+            deliberately rendered even on the doctor's read-only panel (P45
+            revoked appointment MUTATIONS only). Server-side RBAC + the
+            IN_PROGRESS/COMPLETED guard remain the authority. */}
+        {roleAuthorsSessionReports(viewerRole) &&
+        appointment.patientId &&
+        canAddSessionReport(status) ? (
+          <div className="border-t border-brand-border pt-3">
+            {appointment.sessionNoteId ? (
+              <Link
+                href={
+                  (sessionNoteEditHref(viewerRole, appointment.sessionNoteId) ??
+                    '/') as `/${string}`
+                }
+                className="flex w-full items-center rounded-md border border-brand-border px-4 py-2 text-sm font-medium text-brand-navy transition-colors hover:bg-brand-bg"
+              >
+                <FileText className="me-2 size-4" />
+                {tActions('openSessionReport')}
+              </Link>
+            ) : (
+              <Link
+                href={(sessionNoteCreateHref(viewerRole, appointment.id) ?? '/') as `/${string}`}
+                className="flex w-full items-center rounded-md bg-brand-cyan px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-cyan/90"
+              >
+                <FileText className="me-2 size-4" />
+                {tActions('addSessionReport')}
+              </Link>
+            )}
+          </div>
         ) : null}
+
+        <p className="text-xs text-brand-textMuted">{tSide('linkedPlan')}</p>
       </SheetContent>
       <CancelAppointmentModal
         open={cancelOpen}

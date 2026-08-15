@@ -172,3 +172,42 @@ export async function listAppointmentsPendingNote(
     durationMinutes: r.durationMinutes,
   }));
 }
+
+/**
+ * Appointments on this patient's file that can take a session report but
+ * have none yet (Prompt 46 row 5): IN_PROGRESS or COMPLETED, patient
+ * SESSION rows only, no primary note. Feeds the patient-file Notes tab's
+ * "add report" list; the tab narrows a THERAPIST viewer to their own
+ * assigned rows (server RBAC re-checks on save regardless).
+ */
+export interface ReportableAppointmentRow {
+  id: string;
+  startsAt: Date;
+  status: 'IN_PROGRESS' | 'COMPLETED';
+  therapistIds: string[];
+}
+
+export async function listReportableAppointmentsForPatient(
+  patientId: string,
+): Promise<ReportableAppointmentRow[]> {
+  const rows = await db.appointment.findMany({
+    where: {
+      patientId,
+      status: { in: ['IN_PROGRESS', 'COMPLETED'] },
+      sessionNotes: { none: { parentNoteId: null } },
+    },
+    orderBy: { startsAt: 'desc' },
+    select: {
+      id: true,
+      startsAt: true,
+      status: true,
+      therapists: { select: { therapistId: true } },
+    },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    startsAt: r.startsAt,
+    status: r.status as 'IN_PROGRESS' | 'COMPLETED',
+    therapistIds: r.therapists.map((t) => t.therapistId),
+  }));
+}

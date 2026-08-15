@@ -9,8 +9,14 @@
 export function therapistAppointmentHref(args: {
   patientId: string;
   sessionNoteId?: string | null;
+  /** Prompt 46 row 5 — a COMPLETED session with no note deep-links straight
+   *  to the create form instead of the patient file, so the "note missing"
+   *  card is one tap from being fixed. */
+  appointmentIdForMissingNote?: string | null;
 }): string {
-  return args.sessionNoteId
-    ? `/therapist/sessions/notes/${args.sessionNoteId}/edit`
-    : `/therapist/patients/${args.patientId}`;
+  if (args.sessionNoteId) return `/therapist/sessions/notes/${args.sessionNoteId}/edit`;
+  if (args.appointmentIdForMissingNote) {
+    return `/therapist/sessions/${args.appointmentIdForMissingNote}/note/new`;
+  }
+  return `/therapist/patients/${args.patientId}`;
 }

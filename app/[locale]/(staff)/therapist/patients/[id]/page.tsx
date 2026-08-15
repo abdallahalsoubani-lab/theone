@@ -9,7 +9,10 @@ import { PatientFilePage } from '@/components/patients/PatientFilePage';
 import { listDocuments } from '@/lib/patient-documents/queries';
 import { getPatientHomeProgramTabData } from '@/lib/clinical/home-program/patient-tab';
 import { getPatientPlanState } from '@/lib/clinical/plans/queries';
-import { listSessionNotesForPatient } from '@/lib/clinical/session-notes/queries';
+import {
+  listReportableAppointmentsForPatient,
+  listSessionNotesForPatient,
+} from '@/lib/clinical/session-notes/queries';
 import { getPatientTimeline } from '@/lib/clinical/timeline/query';
 import { PediatricAssessmentTab } from '@/components/pediatric-assessment/PediatricAssessmentTab';
 import { listIntakesForPatient } from '@/lib/intake/queries';
@@ -37,25 +40,34 @@ export default async function TherapistPatientFilePage({
   const sp = await searchParams;
   const timelinePage = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
   const session = await auth();
-  const [patient, activity, intakes, planState, notes, timeline, homeProgramData] =
-    await Promise.all([
-      getPatientFile(id),
-      listPatientActivity(id),
-      listIntakesForPatient(id),
-      getPatientPlanState(id),
-      listSessionNotesForPatient(id),
-      getPatientTimeline(
-        id,
-        {
-          search: sp.q,
-          from: sp.from ? new Date(sp.from) : undefined,
-          to: sp.to ? new Date(sp.to) : undefined,
-        },
-        { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
-        'THERAPIST',
-      ),
-      getPatientHomeProgramTabData(id),
-    ]);
+  const [
+    patient,
+    activity,
+    intakes,
+    planState,
+    notes,
+    reportableAppointments,
+    timeline,
+    homeProgramData,
+  ] = await Promise.all([
+    getPatientFile(id),
+    listPatientActivity(id),
+    listIntakesForPatient(id),
+    getPatientPlanState(id),
+    listSessionNotesForPatient(id),
+    listReportableAppointmentsForPatient(id),
+    getPatientTimeline(
+      id,
+      {
+        search: sp.q,
+        from: sp.from ? new Date(sp.from) : undefined,
+        to: sp.to ? new Date(sp.to) : undefined,
+      },
+      { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
+      'THERAPIST',
+    ),
+    getPatientHomeProgramTabData(id),
+  ]);
   if (!patient) notFound();
   const fileAppointments = await listAppointmentsForPatientFile(id);
   const [pedRows, documents] = await Promise.all([
@@ -82,6 +94,7 @@ export default async function TherapistPatientFilePage({
       locale={locale === 'ar' ? 'ar' : 'en'}
       planState={planState}
       notes={notes}
+      reportableAppointments={reportableAppointments}
       timeline={timeline}
       timelinePage={timelinePage}
       timelinePageSize={TIMELINE_PAGE_SIZE}

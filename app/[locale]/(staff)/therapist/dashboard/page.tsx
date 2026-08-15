@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { getScheduleDensityForTherapist } from '@/lib/analytics/queries';
 import { therapistAppointmentHref } from '@/lib/appointments/links';
+import { isSessionReportMissing } from '@/lib/clinical/session-notes/eligibility';
 import { clinicDayRange } from '@/lib/arrivals/time';
 import { listAppointmentsPendingNote } from '@/lib/clinical/session-notes/queries';
 import { db } from '@/lib/db';
@@ -33,6 +34,7 @@ export default async function TherapistDashboard({
   const session = await getEffectiveSession();
   if (!session?.user) redirect(`/${locale}/login`);
   const t = await getTranslations('clinical.dashboard');
+  const tNotes = await getTranslations('clinical.notes');
   const therapistId = session.user.id;
   const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
 
@@ -97,12 +99,14 @@ export default async function TherapistDashboard({
             {todayAppts.map((a) => {
               const name =
                 locale === 'ar' ? (a.patient?.fullNameAr ?? '') : (a.patient?.fullNameEn ?? '');
-              // Deep-link to the session note if one exists, else the patient
-              // file (which reaches plan / session reports / home program and
-              // the new-note flow). No more dead-end cards.
+              // Deep-link to the session note if one exists; a COMPLETED
+              // session with NO note goes straight to the create form
+              // (Prompt 46 row 5); anything else opens the patient file.
+              const noteMissing = isSessionReportMissing(a.status, a.sessionNotes.length > 0);
               const href = therapistAppointmentHref({
                 patientId: a.patientId ?? '',
                 sessionNoteId: a.sessionNotes[0]?.id,
+                appointmentIdForMissingNote: noteMissing ? a.id : null,
               }) as `/${string}`;
               return (
                 <li key={a.id} className="min-w-[10rem]">
@@ -114,7 +118,11 @@ export default async function TherapistDashboard({
                       {formatTime(a.startsAt, intlLocale)}
                     </p>
                     <p className="line-clamp-1 text-sm font-medium text-brand-navy">{name}</p>
-                    {a.checkedInAt ? (
+                    {noteMissing ? (
+                      <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
+                        {tNotes('noteMissing')}
+                      </span>
+                    ) : a.checkedInAt ? (
                       <span className="mt-0.5 inline-flex items-center gap-1 rounded-full bg-brand-teal/15 px-2 py-0.5 text-xs font-medium text-brand-teal">
                         ● {t('arrived')}
                       </span>

@@ -140,6 +140,7 @@ export function SecretaryCalendarBoard({
       status: found.status,
       notes: found.notes,
       seriesId: found.seriesId,
+      sessionNoteId: found.sessionNoteId,
     });
     setPanelOpen(true);
   };

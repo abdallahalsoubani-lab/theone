@@ -48,9 +48,36 @@ export function planEditHref(role: Role, planId: string): string | null {
   return base ? `${base}/edit` : null;
 }
 
-/** Session-note editor — a therapist-only surface. */
+/** Base segment for the session-report pages per role (Prompt 46 row 5 —
+ *  the doctor got mirror routes; /therapist/* is THERAPIST+ADMIN gated). */
+function sessionsBase(role: Role): string | null {
+  switch (role) {
+    case 'THERAPIST':
+    case 'ADMIN':
+      return '/therapist/sessions';
+    case 'DOCTOR':
+      return '/doctor/sessions';
+    default:
+      return null;
+  }
+}
+
+/** Create the session report for an appointment (Prompt 46 row 5). */
+export function sessionNoteCreateHref(role: Role, appointmentId: string): string | null {
+  const base = sessionsBase(role);
+  return base ? `${base}/${appointmentId}/note/new` : null;
+}
+
+/** Session-note editor — therapist/admin + doctor since Prompt 46 row 5. */
 export function sessionNoteEditHref(role: Role, noteId: string): string | null {
-  return role === 'THERAPIST' ? `/therapist/sessions/notes/${noteId}/edit` : null;
+  const base = sessionsBase(role);
+  return base ? `${base}/notes/${noteId}/edit` : null;
+}
+
+/** Addendum form for a primary note. */
+export function sessionNoteAddendumHref(role: Role, noteId: string): string | null {
+  const base = sessionsBase(role);
+  return base ? `${base}/notes/${noteId}/addendum` : null;
 }
 
 /** Weekly doctor review — doctor-only surface. */

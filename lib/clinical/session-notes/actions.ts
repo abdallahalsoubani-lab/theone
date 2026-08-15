@@ -16,7 +16,6 @@ import {
   addSessionNoteAddendum,
   createSessionNote,
   currentClinicianId,
-  currentTherapistOrAdminId,
   sessionNoteToLocalized,
   updateSessionNote,
 } from './services';
@@ -37,7 +36,7 @@ export async function createSessionNoteAction(
     };
   }
   try {
-    const therapistId = await currentTherapistOrAdminId();
+    const therapistId = await currentClinicianId();
     const data = await createSessionNote(parsed.data, { therapistId });
     revalidatePath('/secretary/calendar');
     revalidatePath('/therapist/dashboard');
@@ -63,7 +62,7 @@ export async function updateSessionNoteAction(
     };
   }
   try {
-    const therapistId = await currentTherapistOrAdminId();
+    const therapistId = await currentClinicianId();
     const data = await updateSessionNote(parsed.data, { therapistId });
     return { ok: true, data };
   } catch (err) {
