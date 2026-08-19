@@ -204,7 +204,9 @@ enum WaDispatchStatus {
 enum WaDispatchReason {
   AUTO
   MANUAL
-  SAFETY_EXCEPTION // start < 24h away — sent immediately regardless of mode
+  // Historical only — the <24h auto-send exception was removed on the
+  // owner's order (19 Aug 2026); nothing writes this value any more.
+  SAFETY_EXCEPTION
 }
 
 enum InboxItemType {

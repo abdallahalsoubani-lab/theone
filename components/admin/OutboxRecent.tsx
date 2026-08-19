@@ -11,7 +11,8 @@ import type { OutboxRow } from '@/lib/whatsapp/dispatch/queries';
 
 /**
  * Collapsed last-24h activity (P48 §4.4) — confidence view: what left, what
- * failed, what got superseded/excluded, with SAFETY_EXCEPTION rows labeled.
+ * failed, what got superseded/excluded. (The SAFETY_EXCEPTION label is gone
+ * with the exception itself — owner order, 19 Aug 2026.)
  */
 export function OutboxRecent({ rows }: { rows: OutboxRow[] }) {
   const t = useTranslations('admin.outbox');
@@ -66,11 +67,6 @@ export function OutboxRecent({ rows }: { rows: OutboxRow[] }) {
                       >
                         {t(`statuses.${r.status}`)}
                       </Badge>
-                      {r.dispatchReason === 'SAFETY_EXCEPTION' ? (
-                        <Badge variant="amber" className="ms-1.5">
-                          {t('safetyException')}
-                        </Badge>
-                      ) : null}
                     </td>
                   </tr>
                 ))}

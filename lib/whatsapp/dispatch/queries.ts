@@ -76,7 +76,7 @@ function toRow(r: Raw): OutboxRow {
 export interface OutboxData {
   pending: Record<WaDispatchType, OutboxRow[]>;
   /** Everything that reached a terminal state in the last 24h — shown
-   *  collapsed for confidence, SAFETY_EXCEPTION rows labeled. */
+   *  collapsed for confidence. */
   recent: OutboxRow[];
 }
 

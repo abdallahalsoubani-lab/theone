@@ -344,7 +344,7 @@
       },
       "dispatch": {
         "heading": "WhatsApp appointment messages — dispatch",
-        "safetyNote": "Safety exception: when the appointment starts in less than 24 hours, the message is sent immediately regardless of the mode below.",
+        "manualNote": "Manual mode never sends on its own — messages stay in the outbox until you press Send, no matter how close the appointment is.",
         "booking": "New-booking confirmation",
         "reschedule": "Reschedule notice",
         "cancellation": "Cancellation notice",
@@ -489,8 +489,7 @@
       "colTherapist": "Clinician",
       "colCreatedAt": "Added",
       "recentHeading": "Last 24 hours ({count})",
-      "recentEmpty": "No recent activity.",
-      "safetyException": "Sent automatically — safety exception"
+      "recentEmpty": "No recent activity."
     }
   },
   "appointments": {

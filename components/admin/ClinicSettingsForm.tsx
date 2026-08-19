@@ -205,10 +205,12 @@ export function ClinicSettingsForm({ initial }: Props) {
             </Field>
             {/* P48 — per-type WhatsApp dispatch control (replaces the two
                 opaque delay inputs). AUTO sends after the delay; MANUAL
-                parks messages in the admin outbox until Send. */}
+                parks messages in the admin outbox until Send — with NO
+                auto-send fallback (the <24h safety exception was removed
+                on the owner's order, 19 Aug 2026). */}
             <div className="space-y-3 rounded-md border border-brand-border bg-brand-bg p-4 sm:col-span-2">
               <p className="text-sm font-semibold text-brand-navy">{t('dispatch.heading')}</p>
-              <p className="text-xs text-brand-textMuted">{t('dispatch.safetyNote')}</p>
+              <p className="text-xs text-brand-textMuted">{t('dispatch.manualNote')}</p>
               {(
                 [
                   {

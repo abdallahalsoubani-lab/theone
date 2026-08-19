@@ -3,7 +3,6 @@ import type { WaDispatchMode, WaDispatchStatus, WaDispatchType } from '@prisma/c
 
 import { withAudit } from '@/lib/audit/withAudit';
 import { db } from '@/lib/db';
-import { getEffectiveSession } from '@/lib/impersonation/session';
 import {
   cancelLifecycleMessages,
   scheduleLifecycleMessage,
@@ -30,18 +29,12 @@ import {
  *     viewpoint it is still their first notice) — the long-standing P53
  *     rule, now recorded in the ledger.
  *
- * Safety exception (owner choice أ): when the appointment starts in less
- * than 24 hours, the message goes out IMMEDIATELY regardless of mode and
- * the entry is labeled SAFETY_EXCEPTION — a forgotten Send must never
- * cost the patient a wasted trip.
+ * The <24h safety exception is REMOVED (owner order, 19 Aug 2026): MANUAL
+ * now means the message NEVER leaves without the admin pressing Send in
+ * the outbox, no matter how close the appointment is. The historical
+ * SAFETY_EXCEPTION enum member stays for old ledger rows; nothing writes
+ * it any more.
  */
-
-export const SAFETY_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-/** `< 24h` triggers; exactly 24h does NOT (spec boundary). */
-export function isSafetyException(startsAt: Date, now: Date = new Date()): boolean {
-  return startsAt.getTime() - now.getTime() < SAFETY_WINDOW_MS;
-}
 
 export const KIND_BY_TYPE: Record<WaDispatchType, LifecycleKind> = {
   BOOKING_CONFIRMATION: 'confirmation',
@@ -80,28 +73,6 @@ export async function getDispatchSettings(): Promise<Record<WaDispatchType, Disp
       delayMinutes: s?.cancellationMessageDelayMinutes ?? 0,
     },
   };
-}
-
-/** Best-effort audit row for a SAFETY_EXCEPTION auto-send (spec §5). The
- *  actor is whoever caused the triggering event (secretary/admin). */
-async function auditSafetySend(entryId: string, appointmentId: string): Promise<void> {
-  try {
-    const effective = await getEffectiveSession();
-    const actorId = effective?.isImpersonating ? effective.adminId : (effective?.user?.id ?? null);
-    if (!actorId) return;
-    await db.auditLog.create({
-      data: {
-        actorId,
-        impersonatedUserId: effective?.isImpersonating ? effective.user.id : null,
-        entityType: 'WhatsAppDispatch',
-        entityId: entryId,
-        action: 'CREATE',
-        after: { event: 'SAFETY_EXCEPTION_AUTO_SEND', appointmentId },
-      },
-    });
-  } catch (err) {
-    console.error('[dispatch] safety-exception audit write failed', err);
-  }
 }
 
 const OPEN: WaDispatchStatus[] = ['PENDING', 'SCHEDULED'];
@@ -181,27 +152,29 @@ export async function recordDispatchEvent(args: {
   const effectiveType: WaDispatchType =
     args.type === 'RESCHEDULE' && !confirmationSent ? 'BOOKING_CONFIRMATION' : args.type;
 
+  // The mode alone decides (safety exception removed, owner order 19 Aug):
+  // AUTO schedules the deferred job; MANUAL parks the entry for the outbox
+  // and NOTHING leaves until the admin presses Send.
   const settings = (await getDispatchSettings())[effectiveType];
-  const safety = isSafetyException(args.startsAt);
 
   const entry = await db.whatsAppDispatch.create({
     data: {
       type: effectiveType,
       appointmentId: args.appointmentId,
       patientId: args.patientId,
-      status: safety || settings.mode === 'AUTO' ? 'SCHEDULED' : 'PENDING',
-      dispatchReason: safety ? 'SAFETY_EXCEPTION' : settings.mode === 'AUTO' ? 'AUTO' : null,
+      status: settings.mode === 'AUTO' ? 'SCHEDULED' : 'PENDING',
+      dispatchReason: settings.mode === 'AUTO' ? 'AUTO' : null,
     },
     select: { id: true },
   });
   await closeOpen(entry.id);
 
-  if (safety || settings.mode === 'AUTO') {
+  if (settings.mode === 'AUTO') {
     const jobId = await scheduleLifecycleMessage({
       appointmentId: args.appointmentId,
       startsAt: args.startsAt,
       kind: KIND_BY_TYPE[effectiveType],
-      delayMinutes: safety ? 0 : settings.delayMinutes,
+      delayMinutes: settings.delayMinutes,
     });
     if (jobId === null) {
       // Past-start booking/reschedule — the lifecycle layer skipped it.
@@ -211,7 +184,6 @@ export async function recordDispatchEvent(args: {
       });
       return { entryId: entry.id, suppressed: null, confirmWasPending: openConfirmation };
     }
-    if (safety) await auditSafetySend(entry.id, args.appointmentId);
   }
 
   return { entryId: entry.id, suppressed: null, confirmWasPending: openConfirmation };

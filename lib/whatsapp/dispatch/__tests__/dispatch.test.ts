@@ -2,11 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * P48 — dispatch control core (§6):
- *   AUTO delay / MANUAL outbox / <24h safety exception (boundary: `< 24h`
- *   triggers, exactly 24h obeys the mode), last-state-wins with its two
- *   special cases, the manual batch send (per-type, idempotent), exclude,
- *   and the worker outcome flips. The P17 reminder pipeline is untouched —
- *   nothing here imports or calls it (regression: see assertion below).
+ *   AUTO delay / MANUAL outbox, last-state-wins with its two special cases,
+ *   the manual batch send (per-type, idempotent), exclude, and the worker
+ *   outcome flips. The P17 reminder pipeline is untouched — nothing here
+ *   imports or calls it (regression: see assertion below).
+ *
+ * The <24h safety exception was REMOVED on the owner's order (19 Aug 2026):
+ * MANUAL now means nothing ever leaves without the admin's Send, however
+ * close the appointment is. The old safety tests are UPDATED (not deleted)
+ * to assert the reversed behaviour.
  */
 
 vi.mock('@/lib/audit/withAudit', () => ({
@@ -133,13 +137,7 @@ vi.mock('@/lib/db', () => ({
   toLocalizedError: (e: unknown) => e,
 }));
 
-const {
-  recordDispatchEvent,
-  sendOutboxBatch,
-  excludeDispatchEntry,
-  isSafetyException,
-  SAFETY_WINDOW_MS,
-} = await import('../service');
+const { recordDispatchEvent, sendOutboxBatch, excludeDispatchEntry } = await import('../service');
 const { markDispatchOutcome } = await import('../outcome');
 
 const FUTURE_FAR = () => new Date(Date.now() + 3 * 24 * 60 * 60 * 1000); // +3d
@@ -171,15 +169,6 @@ beforeEach(() => {
   cancelJobsMock.mockResolvedValue({ confirmWasPending: false });
   confirmationSentMock.mockClear();
   confirmationSentMock.mockResolvedValue(false);
-});
-
-describe('isSafetyException — the <24h boundary', () => {
-  it('triggers strictly under 24h; exactly 24h obeys the mode', () => {
-    const now = new Date('2026-08-20T10:00:00Z');
-    expect(isSafetyException(new Date(now.getTime() + SAFETY_WINDOW_MS - 1), now)).toBe(true);
-    expect(isSafetyException(new Date(now.getTime() + SAFETY_WINDOW_MS), now)).toBe(false);
-    expect(isSafetyException(new Date(now.getTime() + SAFETY_WINDOW_MS + 1), now)).toBe(false);
-  });
 });
 
 describe('recordDispatchEvent — modes (§4.1)', () => {
@@ -220,7 +209,7 @@ describe('recordDispatchEvent — modes (§4.1)', () => {
     expect(state.rows[0]).toMatchObject({ status: 'PENDING', dispatchReason: null });
   });
 
-  it('safety exception: <24h start sends IMMEDIATELY even in MANUAL, labeled and audited', async () => {
+  it('<24h start STAYS PENDING in MANUAL — the safety exception is gone (owner order 19 Aug)', async () => {
     state.settings = { ...MANUAL_SETTINGS };
     await recordDispatchEvent({
       appointmentId: 'a1',
@@ -228,17 +217,27 @@ describe('recordDispatchEvent — modes (§4.1)', () => {
       startsAt: FUTURE_NEAR(),
       type: 'CANCELLATION',
     });
-    expect(scheduleMock).toHaveBeenCalledWith(
-      expect.objectContaining({ kind: 'cancellation', delayMinutes: 0 }),
-    );
-    expect(state.rows[0]).toMatchObject({
-      status: 'SCHEDULED',
-      dispatchReason: 'SAFETY_EXCEPTION',
-    });
-    expect(state.audits.some((a) => JSON.stringify(a).includes('SAFETY_EXCEPTION'))).toBe(true);
+    // Nothing leaves without the admin's Send, however close the start is.
+    expect(scheduleMock).not.toHaveBeenCalled();
+    expect(state.rows[0]).toMatchObject({ status: 'PENDING', dispatchReason: null });
+    expect(state.audits.some((a) => JSON.stringify(a).includes('SAFETY_EXCEPTION'))).toBe(false);
   });
 
-  it('start ≥ 24h away obeys MANUAL (no safety override)', async () => {
+  it('<24h start in AUTO still sends with the configured delay (mode decides alone)', async () => {
+    state.settings = { ...AUTO_SETTINGS };
+    await recordDispatchEvent({
+      appointmentId: 'a1',
+      patientId: 'p1',
+      startsAt: FUTURE_NEAR(),
+      type: 'BOOKING_CONFIRMATION',
+    });
+    expect(scheduleMock).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'confirmation', delayMinutes: 300 }),
+    );
+    expect(state.rows[0]).toMatchObject({ status: 'SCHEDULED', dispatchReason: 'AUTO' });
+  });
+
+  it('start ≥ 24h away obeys MANUAL (unchanged)', async () => {
     state.settings = { ...MANUAL_SETTINGS };
     await recordDispatchEvent({
       appointmentId: 'a1',
