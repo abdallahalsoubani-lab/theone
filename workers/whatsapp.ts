@@ -156,6 +156,37 @@ export function startWhatsappOutboundWorker(): Worker {
       const maxAttempts = job.opts?.attempts ?? 3;
       const isFinalAttempt = attemptsMade + 1 >= maxAttempts;
 
+      // 0. Referential guard (P50 revised, Phase C-3). The payload embeds the
+      // phone number and the rendered parameters, so a job can outlive the DB
+      // rows it was built from (hard delete, purge, import rollback). If the
+      // recipient user or the appointment it references no longer exists, the
+      // message must NOT go out — skip cleanly, complete the job. Ids only in
+      // the log, never the phone.
+      if (data.recipientUserId) {
+        const recipient = await db.user.findFirst({
+          where: { id: data.recipientUserId, deletedAt: null },
+          select: { id: true },
+        });
+        if (!recipient) {
+          console.warn(
+            `[whatsapp.outbound] job=${job.id ?? '?'} recipient user ${data.recipientUserId} no longer exists — skipping send`,
+          );
+          return { ok: false, skipped: 'RECIPIENT_MISSING' };
+        }
+      }
+      if (data.appointmentId) {
+        const appt = await db.appointment.findUnique({
+          where: { id: data.appointmentId },
+          select: { id: true },
+        });
+        if (!appt) {
+          console.warn(
+            `[whatsapp.outbound] job=${job.id ?? '?'} appointment ${data.appointmentId} no longer exists — skipping send`,
+          );
+          return { ok: false, skipped: 'APPOINTMENT_MISSING' };
+        }
+      }
+
       // 1. Rate limit.
       const decision = await rateLimiter.acquire(data.recipientPhone);
       if (!decision.allowed) {
@@ -195,7 +226,19 @@ export function startWhatsappOutboundWorker(): Worker {
                 recipientUserId: data.recipientUserId,
                 appointmentId: data.appointmentId,
               });
-        await persistAndFinalize({ job: data, template, result });
+        // P50 revised, Phase C-3: the provider call SUCCEEDED past this
+        // point. A persistence failure (e.g. an FK race against a row deleted
+        // mid-flight) must never rethrow — BullMQ would retry the whole job
+        // and the patient would receive the same message again (the observed
+        // triple-send hazard). Log loudly and complete instead.
+        try {
+          await persistAndFinalize({ job: data, template, result });
+        } catch (persistErr) {
+          console.error(
+            `[whatsapp.outbound] job=${job.id ?? '?'} SENT but persistence failed — completing without retry (a retry would re-send)`,
+            persistErr,
+          );
+        }
         return { ok: true, providerMessageId: result.providerMessageId };
       } catch (err) {
         const isWhatsAppErr = err instanceof WhatsAppError;
@@ -205,7 +248,14 @@ export function startWhatsappOutboundWorker(): Worker {
         // sense waiting two minutes to fail the same way. Same on the
         // final BullMQ attempt regardless of error class.
         if ((isWhatsAppErr && !err.retryable) || isFinalAttempt) {
-          await recordTerminalFailure({ job: data, template, reason });
+          // P50 C-3: a bookkeeping failure here (FK race on rows deleted
+          // mid-flight) must not mask the provider error or extend retries.
+          await recordTerminalFailure({ job: data, template, reason }).catch((recordErr) =>
+            console.error(
+              `[whatsapp.outbound] job=${job.id ?? '?'} terminal-failure bookkeeping failed`,
+              recordErr,
+            ),
+          );
           // Returning normally would let BullMQ retry; throwing with the
           // attempts already at max produces a single failure record. To
           // skip the retry on early terminals, fall through to throwing
