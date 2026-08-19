@@ -715,6 +715,7 @@
       "submit": "Save patient",
       "cancel": "Cancel",
       "phoneIsUsername": "Changing the phone will change the patient's login username.",
+      "sharedPhoneTitle": "Number already registered",
       "sectionAssignment": "Care team",
       "assignmentHelp": "Add any number of therapists and doctors responsible for this patient. You can also change this later from the patient’s edit page."
     },

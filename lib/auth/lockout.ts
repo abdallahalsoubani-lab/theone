@@ -70,14 +70,34 @@ export async function lookupStaffByEmail(email: string) {
 }
 
 /**
- * Look up a patient by phone for the OTP provider. Same null-collapse rule.
+ * Look up a patient by phone for the OTP provider.
+ *
+ * P50 (revised, §5.2): patient phones are no longer unique — families share
+ * one number. When more than one active patient matches, the login must be
+ * REFUSED rather than silently authenticating whichever row happens to sort
+ * first, so the result is a three-way outcome instead of user-or-null.
  */
-export async function lookupPatientByPhone(phone: string) {
-  return db.user.findFirst({
+export type PatientPhoneLookup =
+  | { outcome: 'NONE' }
+  | { outcome: 'AMBIGUOUS' }
+  | { outcome: 'ONE'; user: NonNullable<Awaited<ReturnType<typeof findPatientsByPhone>>[number]> };
+
+function findPatientsByPhone(phone: string) {
+  return db.user.findMany({
     where: {
       phone,
       deletedAt: null,
       role: UserRole.PATIENT,
     },
+    // Two rows are enough to prove ambiguity.
+    take: 2,
   });
+}
+
+export async function lookupPatientByPhone(phone: string): Promise<PatientPhoneLookup> {
+  const matches = await findPatientsByPhone(phone);
+  const [single] = matches;
+  if (!single) return { outcome: 'NONE' };
+  if (matches.length > 1) return { outcome: 'AMBIGUOUS' };
+  return { outcome: 'ONE', user: single };
 }

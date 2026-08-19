@@ -95,7 +95,10 @@ export async function verifyOtpAndSignIn(input: {
   if (!rl.allowed) return fail(AUTH_ERRORS.RATE_LIMITED);
 
   const pre = await lookupPatientByPhone(parsed.data.phone);
-  if (pre && evaluateLockout(pre).status === 'LOCKED') {
+  // P50 §5.2 — more than one active patient on this number: refuse with the
+  // "contact the clinic" error rather than authenticating an arbitrary one.
+  if (pre.outcome === 'AMBIGUOUS') return fail(AUTH_ERRORS.PHONE_AMBIGUOUS);
+  if (pre.outcome === 'ONE' && evaluateLockout(pre.user).status === 'LOCKED') {
     return fail(AUTH_ERRORS.ACCOUNT_LOCKED);
   }
 
@@ -108,7 +111,8 @@ export async function verifyOtpAndSignIn(input: {
   } catch (err) {
     if (err instanceof AuthError) {
       const post = await lookupPatientByPhone(parsed.data.phone);
-      if (post && evaluateLockout(post).status === 'LOCKED') {
+      if (post.outcome === 'AMBIGUOUS') return fail(AUTH_ERRORS.PHONE_AMBIGUOUS);
+      if (post.outcome === 'ONE' && evaluateLockout(post.user).status === 'LOCKED') {
         return fail(AUTH_ERRORS.ACCOUNT_LOCKED);
       }
       return fail(AUTH_ERRORS.INVALID_OTP);

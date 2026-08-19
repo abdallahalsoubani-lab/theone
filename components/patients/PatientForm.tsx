@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from 'next-intl';
 
 import { clinicDateKey } from '@/lib/time/clinic';
 import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import type { z } from 'zod';
 
 import { AppForm } from '@/components/forms/AppForm';
@@ -13,13 +14,23 @@ import { DateField } from '@/components/forms/DateField';
 import { CareTeamEditor } from '@/components/patients/CareTeamEditor';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+  ResponsiveModal,
+  ResponsiveModalContent,
+  ResponsiveModalDescription,
+  ResponsiveModalFooter,
+  ResponsiveModalHeader,
+  ResponsiveModalTitle,
+} from '@/components/ui/responsive-modal';
 import { Link } from '@/i18n/navigation';
+import type { Result } from '@/lib/auth/result';
 import { createPatientAction, updatePatientAction } from '@/lib/patients/actions';
 import type { ClinicianRef } from '@/lib/patients/assignment';
 import {
   patientCreateSchema,
   patientUpdateSchema,
   type PatientCreateInput,
+  type PatientUpdateInput,
 } from '@/lib/patients/schemas';
 
 interface CreateProps {
@@ -31,7 +42,9 @@ interface CreateProps {
 
 interface EditProps {
   mode: 'edit';
-  initial: PatientCreateInput & { id: string };
+  // P50 (revised): the update shape — gender may be null on imported/legacy
+  // records; the create schema keeps it required.
+  initial: PatientUpdateInput;
 }
 
 /** The viewer's patients segment (A-19: post-save redirects + cancel stay in
@@ -55,7 +68,7 @@ export function PatientForm(props: Props) {
   const toDateInputValue = (d: Date | string): Date =>
     clinicDateKey(d instanceof Date ? d : new Date(d)) as unknown as Date;
 
-  const defaults: PatientCreateInput = isEdit
+  const defaults: PatientCreateInput | PatientUpdateInput = isEdit
     ? { ...props.initial, dateOfBirth: toDateInputValue(props.initial.dateOfBirth) }
     : {
         fullNameEn: '',
@@ -75,19 +88,61 @@ export function PatientForm(props: Props) {
         currentMedications: null,
         therapistIds: [],
         doctorIds: [],
+        confirmSharedPhone: false,
       };
   const defaultValues = isEdit ? { id: props.initial.id, ...defaults } : defaults;
 
-  const action = (values: z.infer<typeof patientCreateSchema | typeof patientUpdateSchema>) =>
-    isEdit
-      ? updatePatientAction(values as z.infer<typeof patientUpdateSchema>)
-      : createPatientAction(values as z.infer<typeof patientCreateSchema>);
+  // P50 §5.3 — shared-phone confirm flow. The first create attempt against a
+  // number already registered to another patient fails with
+  // PATIENT_PHONE_SHARED_CONFIRM; we hold the submit promise open, ask, and on
+  // confirm resubmit with the flag. Cancel resolves with a client-side marker
+  // the onError hook below swallows (the dialog already communicated it).
+  type CreateResult = Awaited<ReturnType<typeof createPatientAction>>;
+  const [sharedPrompt, setSharedPrompt] = useState<{
+    message: string;
+    values: z.infer<typeof patientCreateSchema>;
+    resolve: (r: CreateResult) => void;
+  } | null>(null);
+
+  const action = async (
+    values: z.infer<typeof patientCreateSchema | typeof patientUpdateSchema>,
+  ) => {
+    if (isEdit) return updatePatientAction(values as z.infer<typeof patientUpdateSchema>);
+    const createValues = values as z.infer<typeof patientCreateSchema>;
+    const first = await createPatientAction(createValues);
+    if (!first.ok && first.error.code === 'PATIENT_PHONE_SHARED_CONFIRM') {
+      const message = locale === 'ar' ? first.error.message_ar : first.error.message_en;
+      return new Promise<CreateResult>((resolve) =>
+        setSharedPrompt({ message, values: createValues, resolve }),
+      );
+    }
+    return first;
+  };
+
+  const confirmSharedPhone = async () => {
+    const prompt = sharedPrompt;
+    if (!prompt) return;
+    setSharedPrompt(null);
+    prompt.resolve(await createPatientAction({ ...prompt.values, confirmSharedPhone: true }));
+  };
+
+  const cancelSharedPhone = () => {
+    const prompt = sharedPrompt;
+    if (!prompt) return;
+    setSharedPrompt(null);
+    const cancelled: CreateResult = {
+      ok: false,
+      error: { code: 'PATIENT_PHONE_SHARED_CANCELLED', message_en: '', message_ar: '' },
+    } as Result<never> as CreateResult;
+    prompt.resolve(cancelled);
+  };
 
   return (
     <AppForm
       schema={schema}
       defaultValues={defaultValues as never}
       action={action as never}
+      onError={(error) => error.code === 'PATIENT_PHONE_SHARED_CANCELLED'}
       successToast={isEdit ? tPatients('updated') : tPatients('created')}
       onSuccess={(data) => {
         if (isEdit) {
@@ -272,6 +327,29 @@ export function PatientForm(props: Props) {
                 {t('submit')}
               </Button>
             </div>
+
+            {/* P50 §5.3 — duplicate-phone warning: confirm, never block. */}
+            <ResponsiveModal
+              open={sharedPrompt !== null}
+              onOpenChange={(open) => {
+                if (!open) cancelSharedPhone();
+              }}
+            >
+              <ResponsiveModalContent>
+                <ResponsiveModalHeader>
+                  <ResponsiveModalTitle>{t('sharedPhoneTitle')}</ResponsiveModalTitle>
+                  <ResponsiveModalDescription>{sharedPrompt?.message}</ResponsiveModalDescription>
+                </ResponsiveModalHeader>
+                <ResponsiveModalFooter>
+                  <Button type="button" variant="outline" onClick={cancelSharedPhone}>
+                    {tCommon('cancel')}
+                  </Button>
+                  <Button type="button" onClick={confirmSharedPhone}>
+                    {tCommon('confirm')}
+                  </Button>
+                </ResponsiveModalFooter>
+              </ResponsiveModalContent>
+            </ResponsiveModal>
           </div>
         );
       }}

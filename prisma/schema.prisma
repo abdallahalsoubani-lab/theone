@@ -444,7 +444,10 @@ model PatientProfile {
   user   User   @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   dateOfBirth           DateTime
-  gender                Gender
+  // P50 roster import (owner decision 19 Aug): nullable — 309 of 415 imported
+  // records have no recorded gender. The CREATE form still requires it (Zod);
+  // null is for imported/legacy rows only, never a relaxation for new data.
+  gender                Gender?
   // TODO(Prompt 11 hardening): encrypt at rest via pgcrypto symmetric encryption.
   nationalId            String?
   address               String?

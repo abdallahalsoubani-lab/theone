@@ -66,7 +66,13 @@ export function PatientHeader({
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <Badge variant="muted">{ageYears === null ? '\u2014' : `${ageYears}y`}</Badge>
           <Badge variant="muted">
-            {patient.gender === 'FEMALE' ? tForm('genderFemale') : tForm('genderMale')}
+            {/* P50: null gender (imported records) renders an em-dash, never
+                a silent "Male" fallback. */}
+            {patient.gender
+              ? patient.gender === 'FEMALE'
+                ? tForm('genderFemale')
+                : tForm('genderMale')
+              : '—'}
           </Badge>
           {/* NI-5 soft flag (Prompt 41): calm chip until the first COMPLETED
               doctor visit; cancelled/no-show keep it on. */}

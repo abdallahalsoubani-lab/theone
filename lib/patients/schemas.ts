@@ -74,10 +74,23 @@ const patientBaseSchema = z.object({
   doctorIds: z.array(z.string()).optional(),
 });
 
-export const patientCreateSchema = patientBaseSchema;
+export const patientCreateSchema = patientBaseSchema.extend({
+  // P50 (revised) §5.3 — the duplicate-phone check is a WARNING, not a block:
+  // the first submit without this flag fails with PATIENT_PHONE_SHARED_CONFIRM
+  // and the name of the existing holder; the form confirms and resubmits with
+  // the flag set. Protects against double-entry while allowing family numbers.
+  confirmSharedPhone: z.boolean().optional().default(false),
+});
 
 export const patientUpdateSchema = patientBaseSchema.extend({
   id: z.string().min(1),
+  // P50 (revised) §4.2(a) — gender is nullable for imported/legacy records
+  // only: an edit may keep it empty, but the CREATE form still requires it
+  // (base schema, unchanged) so new registrations never degrade.
+  gender: z
+    .nativeEnum(Gender)
+    .nullish()
+    .transform((v) => v ?? null),
 });
 
 /**

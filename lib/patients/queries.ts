@@ -26,7 +26,8 @@ export interface PatientListRow {
   email: string | null;
   dateOfBirth: Date;
   ageYears: number | null;
-  gender: Gender;
+  /** Null on imported records with no recorded gender (P50). */
+  gender: Gender | null;
   languagePref: LanguagePref;
   archived: boolean;
   therapists: ClinicianRef[];
@@ -187,7 +188,8 @@ export interface PatientFileData {
   phone: string | null;
   email: string | null;
   dateOfBirth: Date;
-  gender: 'MALE' | 'FEMALE';
+  /** Null on imported records with no recorded gender (P50). */
+  gender: 'MALE' | 'FEMALE' | null;
   nationalId: string | null;
   address: string | null;
   occupation: string | null;

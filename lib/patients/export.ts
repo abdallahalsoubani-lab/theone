@@ -20,7 +20,8 @@ import { displayAgeYears, isUnknownDob } from './schemas';
 export interface PatientsRosterRow {
   fullNameAr: string;
   fullNameEn: string;
-  gender: Gender;
+  /** Null on imported records with no recorded gender (P50) — renders empty. */
+  gender: Gender | null;
   dateOfBirth: Date;
   phone: string | null;
   address: string | null;
@@ -117,7 +118,8 @@ export function buildPatientsRosterCsv(
     lines.push(
       [
         esc(patientDisplayName(r.fullNameEn, r.fullNameAr)),
-        esc(labels.gender[r.gender]),
+        // P50: unknown gender renders EMPTY, same convention as sentinel DOB.
+        esc(r.gender ? labels.gender[r.gender] : ''),
         unknownDob ? '' : r.dateOfBirth.toISOString().slice(0, 10),
         age === null ? '' : String(age),
         esc(r.phone ?? ''),

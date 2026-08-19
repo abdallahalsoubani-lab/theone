@@ -29,6 +29,16 @@ const notFound: LocalizedError = {
   message_ar: 'لم يتم العثور على المراجع.',
 };
 
+// P50 (revised) §5.3 — surfaced on the FIRST create attempt when the phone is
+// already registered to another patient; the form shows a confirm dialog and
+// resubmits with `confirmSharedPhone: true`. A warning, never a block: family
+// members legitimately share one number (13 shared numbers in the roster).
+const sharedPhoneConfirm = (name: string): LocalizedError => ({
+  code: 'PATIENT_PHONE_SHARED_CONFIRM',
+  message_en: `This number is already registered to ${name}. Save anyway?`,
+  message_ar: `هذا الرقم مسجّل مسبقاً باسم ${name}. هل تريد الحفظ رغم ذلك؟`,
+});
+
 interface CreatePatientResult {
   patientId: string;
   tempPassword: string;
@@ -55,6 +65,21 @@ export const createPatient = withAudit<[PatientCreateInput, string], CreatePatie
     // P50: phone uniqueness for patients is REMOVED (parents share one
     // number across children) and phone itself is optional. Only email
     // stays unique among non-deleted users.
+    //
+    // P50 (revised) §5.3 — but double-entry protection returns as a warning:
+    // an unconfirmed submit against an existing patient's number fails with
+    // the holder's name; the form confirms and retries with the flag.
+    if (input.phone && !input.confirmSharedPhone) {
+      const holder = await db.user.findFirst({
+        where: { deletedAt: null, phone: input.phone, role: UserRole.PATIENT },
+        select: { fullNameEn: true, fullNameAr: true },
+      });
+      if (holder) {
+        throw new PatientAdminError(
+          sharedPhoneConfirm(patientDisplayName(holder.fullNameEn, holder.fullNameAr)),
+        );
+      }
+    }
     if (input.email) {
       const conflict = await db.user.findFirst({
         where: { deletedAt: null, email: input.email },

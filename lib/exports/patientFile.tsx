@@ -269,7 +269,8 @@ function PatientFilePdf({ inputs }: { inputs: PdfInputs }) {
                 : formatShortDate(patient.dateOfBirth, locale, { timeZone: 'UTC' })
             }
           />
-          <Row d={d} label={ar ? 'الجنس' : 'Gender'} value={patient.gender} />
+          {/* P50: null gender (imported records) renders an em-dash. */}
+          <Row d={d} label={ar ? 'الجنس' : 'Gender'} value={patient.gender ?? '—'} />
           <Row d={d} label={ar ? 'العنوان' : 'Address'} value={patient.address ?? '—'} />
         </View>
 

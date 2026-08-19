@@ -53,6 +53,14 @@ export const AUTH_ERRORS = {
     message_en: 'Too many attempts. Please slow down.',
     message_ar: 'محاولات كثيرة جداً. يرجى التمهّل.',
   },
+  // P50 §5.2 — the phone is shared by more than one patient record, so an
+  // OTP login cannot know which account it authenticates. Refuse instead of
+  // picking one arbitrarily; the clinic resolves it by hand.
+  PHONE_AMBIGUOUS: {
+    code: 'PHONE_AMBIGUOUS',
+    message_en: 'This phone number cannot be used to sign in. Please contact the clinic.',
+    message_ar: 'لا يمكن تسجيل الدخول بهذا الرقم. يرجى التواصل مع العيادة.',
+  },
   WEAK_PASSWORD: {
     code: 'WEAK_PASSWORD',
     message_en: 'Password must be at least 8 characters with upper, lower, number, and symbol.',

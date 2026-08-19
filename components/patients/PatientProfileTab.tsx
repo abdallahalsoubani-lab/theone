@@ -59,10 +59,17 @@ export function PatientProfileTab({
               isUnknownDob(patient.dateOfBirth) ? '\u2014' : formatDate(patient.dateOfBirth, locale)
             }
           />
-          {/* Localized, not the raw enum — «أنثى/ذكر» on /ar (R-33 family). */}
+          {/* Localized, not the raw enum — «أنثى/ذكر» on /ar (R-33 family).
+              P50: null gender (imported records) renders an em-dash. */}
           <Field
             label={t('gender')}
-            value={patient.gender === 'FEMALE' ? t('genderFemale') : t('genderMale')}
+            value={
+              patient.gender
+                ? patient.gender === 'FEMALE'
+                  ? t('genderFemale')
+                  : t('genderMale')
+                : '—'
+            }
           />
           <Field label={t('nationalId')} value={patient.nationalId} />
           <Field label={t('languagePref')} value={patient.languagePref} />

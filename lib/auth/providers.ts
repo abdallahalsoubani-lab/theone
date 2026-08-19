@@ -72,8 +72,12 @@ const phoneOtp = Credentials({
     const parsed = phoneOtpSchema.safeParse(raw);
     if (!parsed.success) return null;
 
-    const user = await lookupPatientByPhone(parsed.data.phone);
-    if (!user) return null;
+    // P50 §5.2 — a shared phone (AMBIGUOUS) is refused the same way as an
+    // unknown one; the server action surfaces the specific localized error
+    // before signIn ever runs, so the provider only needs to fail closed.
+    const looked = await lookupPatientByPhone(parsed.data.phone);
+    if (looked.outcome !== 'ONE') return null;
+    const user = looked.user;
 
     if (evaluateLockout(user).status === 'LOCKED') return null;
 

@@ -47,7 +47,8 @@ export default async function PatientProfilePage({
           // Patient viewing their own profile always sees their phone.
           phone: patient.phone ?? '',
           dateOfBirth: patient.dateOfBirth,
-          gender: patient.gender,
+          // P50: null gender (imported records) renders an em-dash.
+          gender: patient.gender ?? '—',
         }}
       />
     </section>

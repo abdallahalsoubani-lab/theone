@@ -15,6 +15,7 @@ import type { ZodTypeAny, z } from 'zod';
 
 import { Form } from '@/components/ui/form';
 import type { Result } from '@/lib/auth/result';
+import type { LocalizedError } from '@/lib/db';
 import { cn } from '@/lib/utils';
 
 /**
@@ -35,6 +36,12 @@ export interface AppFormProps<TSchema extends ZodTypeAny, TResult> {
   action: (values: z.infer<TSchema>) => Promise<Result<TResult>>;
   successToast: string;
   onSuccess?: (data: TResult, form: UseFormReturn<z.infer<TSchema>>) => void;
+  /**
+   * Optional failure interceptor (P50 §5.3). Return `true` when the error was
+   * fully handled by the caller (e.g. it opened its own confirm dialog) to
+   * suppress the default toast + field-error mapping for that result.
+   */
+  onError?: (error: LocalizedError, form: UseFormReturn<z.infer<TSchema>>) => boolean | void;
   resetOnSuccess?: boolean;
   className?: string;
   children: (form: UseFormReturn<z.infer<TSchema>>) => ReactNode;
@@ -46,6 +53,7 @@ export function AppForm<TSchema extends ZodTypeAny, TResult>({
   action,
   successToast,
   onSuccess,
+  onError,
   resetOnSuccess = false,
   className,
   children,
@@ -60,6 +68,7 @@ export function AppForm<TSchema extends ZodTypeAny, TResult>({
   const onSubmit: SubmitHandler<z.infer<TSchema>> = async (values) => {
     const result = await action(values);
     if (!result.ok) {
+      if (onError?.(result.error, form) === true) return;
       const message = locale === 'ar' ? result.error.message_ar : result.error.message_en;
       toast.error(message);
       const details = result.error.details as Record<string, string> | undefined;
