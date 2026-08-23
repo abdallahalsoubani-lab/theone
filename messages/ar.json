@@ -1051,6 +1051,8 @@
       "colAppointment": "الموعد",
       "colTherapist": "المعالج",
       "colCreatedAt": "أُضيفت",
+      "urgent": "موعده قريب",
+      "urgentHint": "يبدأ هذا الموعد خلال 24 ساعة — يُستحسن إرسال هذه الدفعة أولاً. لا يُرسل شيء تلقائياً.",
       "recentHeading": "آخر 24 ساعة ({count})",
       "recentEmpty": "لا نشاط حديثاً."
     }

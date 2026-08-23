@@ -488,6 +488,8 @@
       "colAppointment": "Appointment",
       "colTherapist": "Clinician",
       "colCreatedAt": "Added",
+      "urgent": "Starts within 24h",
+      "urgentHint": "This appointment starts within 24 hours — consider sending this batch first. Nothing is sent automatically.",
       "recentHeading": "Last 24 hours ({count})",
       "recentEmpty": "No recent activity."
     }

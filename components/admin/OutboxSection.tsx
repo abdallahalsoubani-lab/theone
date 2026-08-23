@@ -1,7 +1,7 @@
 'use client';
 
 import type { WaDispatchType } from '@prisma/client';
-import { Send, X } from 'lucide-react';
+import { AlarmClock, Send, X } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
@@ -95,6 +95,14 @@ export function OutboxSection({ type, rows }: { type: WaDispatchType; rows: Outb
                     {r.appointmentStartsAt
                       ? formatDateTime(r.appointmentStartsAt, intlLocale)
                       : '—'}
+                    {r.urgent ? (
+                      // P50 — visual only: flags what to send first. Nothing
+                      // here (or anywhere) sends a MANUAL entry on its own.
+                      <Badge variant="amber" className="ms-2 gap-1" title={t('urgentHint')}>
+                        <AlarmClock className="size-3" aria-hidden />
+                        {t('urgent')}
+                      </Badge>
+                    ) : null}
                   </td>
                   <td className="p-2">
                     {(intlLocale === 'ar' ? r.therapistsAr : r.therapistsEn).join(

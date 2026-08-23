@@ -4,6 +4,8 @@ import type { WaDispatchReason, WaDispatchStatus, WaDispatchType } from '@prisma
 
 import { db } from '@/lib/db';
 
+import { isUrgentDispatch } from './urgency';
+
 /**
  * Admin outbox queries (P48). ADMIN-only surfaces — the page guard holds
  * `whatsapp_outbox.read`; phone is shown because ADMIN may see contact PII
@@ -26,6 +28,8 @@ export interface OutboxRow {
   patientPhone: string | null;
   therapistsEn: string[];
   therapistsAr: string[];
+  /** P50 — appointment starts within 24h. Visual only (see ./urgency.ts). */
+  urgent: boolean;
 }
 
 const ROW_INCLUDE = {
@@ -53,7 +57,7 @@ function findRows(where: object) {
   });
 }
 
-function toRow(r: Raw): OutboxRow {
+function toRow(r: Raw, now: Date): OutboxRow {
   return {
     id: r.id,
     type: r.type,
@@ -70,6 +74,7 @@ function toRow(r: Raw): OutboxRow {
     patientPhone: r.patient?.phone ?? null,
     therapistsEn: r.appointment?.therapists.map((t) => t.therapist.fullNameEn) ?? [],
     therapistsAr: r.appointment?.therapists.map((t) => t.therapist.fullNameAr) ?? [],
+    urgent: isUrgentDispatch(r.appointment?.startsAt ?? null, now),
   };
 }
 
@@ -93,8 +98,14 @@ export async function getOutbox(): Promise<OutboxData> {
     RESCHEDULE: [],
     CANCELLATION: [],
   };
-  for (const r of pendingRows) pending[r.type].push(toRow(r));
-  return { pending, recent: recentRows.map(toRow) };
+  const now = new Date();
+  for (const r of pendingRows) pending[r.type].push(toRow(r, now));
+  // Urgent entries float to the top of their section so the admin sees
+  // what to send first; within each group the newest stays first.
+  for (const type of Object.keys(pending) as WaDispatchType[]) {
+    pending[type].sort((a, b) => Number(b.urgent) - Number(a.urgent));
+  }
+  return { pending, recent: recentRows.map((r) => toRow(r, now)) };
 }
 
 /** Total PENDING across the three types — the admin sidebar badge. */
