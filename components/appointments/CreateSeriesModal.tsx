@@ -21,6 +21,7 @@ import { patientDisplayName } from '@/lib/format/patientName';
 import { rowInstant, validateBatchRows } from '@/lib/appointments/batch-validation';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
 import { MAX_BATCH_ROWS } from '@/lib/appointments/schemas';
+import { AppointmentType } from '@prisma/client';
 import { clinicDateKey, clinicHm } from '@/lib/time/clinic';
 
 import { BatchRowsEditor, type BatchRowUI } from './BatchRowsEditor';
@@ -48,7 +49,8 @@ interface Props {
 /**
  * Multi-appointment batch booking (July 31 item 4 — replaces the Prompt 7b
  * weekly-pattern series). The secretary builds the EXACT list of
- * appointments as rows — date · time · therapist(s) · room · duration —
+ * appointments as rows — date · time · type · therapist(s) · room · duration
+ * (Prompt 51: per-row SESSION/STRETCHING, every row bound to the one patient) —
  * and one save books them all (shared seriesId, atomic). No pattern, no
  * skip/shift/override: a conflicting row is highlighted with the named
  * cause and must be fixed or removed before saving.
@@ -86,6 +88,8 @@ export function CreateSeriesModal({
     key: `row-${Math.random().toString(36).slice(2)}`,
     date: defaultStartsAt ? clinicDateKey(defaultStartsAt) : '',
     time: defaultStartsAt ? clinicHm(defaultStartsAt) : '',
+    // Prompt 51 — per-row type; SESSION by default (today's behaviour).
+    appointmentType: AppointmentType.SESSION,
     therapistIds: defaultTherapistId ? [defaultTherapistId] : [],
     roomId: '',
     durationMinutes: defaultDurationMinutes,
@@ -155,6 +159,7 @@ export function CreateSeriesModal({
       rows: rows.map((r) => ({
         startsAt: rowInstant(r)!,
         durationMinutes: r.durationMinutes,
+        appointmentType: r.appointmentType,
         therapistIds: r.therapistIds,
         roomId: r.roomId,
       })),

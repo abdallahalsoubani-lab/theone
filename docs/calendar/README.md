@@ -169,6 +169,33 @@ Drag-reschedule on a series member moves ONLY that occurrence
 - **Bulk cancel** — ONE WhatsApp cancellation about the nearest
   upcoming occurrence (P53 volume decision), best-effort after
   commit, gated on `whatsappReachable`.
+- **Batch create** — ONE booking confirmation anchored to the earliest
+  row (Amendment 46.1 / Prompt 50), and one 24h reminder per clinic-local
+  day (same-day rows share the earliest — see `lib/queue/README.md`).
+
+### Batch rows — per-row booking type (Prompt 51)
+
+Each row of «حجز مواعيد متعددة» carries its own `appointmentType`, limited
+to **SESSION + STRETCHING** (`BATCH_ROW_TYPES` in `schemas.ts`). EVENT
+(patient-less) and GROUP (multi-patient) are single-modal only: the batch
+is anchored to ONE shared patient, so every row stays patient-bound.
+
+- **Rules are shared, not forked:** `batchRowSchema` applies the same
+  per-type `superRefine` as `appointmentCreateSchema` (SESSION ≥1
+  therapist → `therapistRequired`; STRETCHING zero therapists →
+  `stretchingNoTherapist`; room required for both). Each row runs
+  `checkConflicts` with its own type, so a STRETCHING row hits the
+  `ROOM_AT_CAPACITY` bed-count branch and a SESSION row the
+  therapist/leave/room rules. `validateBatchRows` mirrors the same
+  completeness rule client-side.
+- **UI:** `BatchRowTypeFields.tsx` is the per-row type-aware group (type ·
+  room · therapists, STRETCHING hides the picker and clears any picks).
+  The single modal keeps its own inline group — its field set is
+  entangled with EVENT/GROUP/session-kind state, so sharing one component
+  would have meant refactoring the single modal, which Prompt 51 left out
+  of scope. Rules live in Zod + the engine, which both modals share.
+- Care team: only SESSION rows' therapists are added (a STRETCHING row
+  contributes nobody). Messaging/reminders are type-agnostic.
 
 ## Permissions
 

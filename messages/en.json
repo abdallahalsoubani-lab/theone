@@ -1586,7 +1586,7 @@
     },
     "series": {
       "title": "Book multiple appointments",
-      "subtitle": "One row per appointment — pick the date, time, therapist(s), room, and duration. Every row must be conflict-free before saving.",
+      "subtitle": "One row per appointment — pick the date, time, booking type (session or stretching), therapist(s), room, and duration. Every row must be conflict-free before saving.",
       "batchToggle": "Multiple appointments",
       "colDate": "Date",
       "colTime": "Time",
@@ -1602,7 +1602,8 @@
       "fixRowsError": "Fix or remove the highlighted rows before saving.",
       "rowFailed": "Row #{index}: {message}",
       "rowIssue": {
-        "incomplete": "Complete this row — date, time, at least one therapist, a room, and a duration.",
+        "incomplete": "Complete this row — date, time, a room, a duration, and at least one therapist for a session.",
+        "stretchingNoTherapist": "A stretching row has no therapist — remove the selected therapist(s).",
         "durationTooShort": "Minimum duration is {min} minutes.",
         "pastDate": "This row starts in the past.",
         "closedDay": "The clinic is closed on this day.",
