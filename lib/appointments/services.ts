@@ -21,7 +21,7 @@ import {
   type Conflict,
   type ConflictResult,
 } from './conflicts';
-import { parseHhMm, type ReminderConfig } from './reminderWindow';
+import { parseHhMm, pickSeriesReminderTargets, type ReminderConfig } from './reminderWindow';
 import { getSessionGraceConfig } from './session-settings';
 import {
   canStartSessionAt,
@@ -183,6 +183,49 @@ async function getReminderConfig(): Promise<ReminderConfig> {
   };
 }
 
+/**
+ * P50 (series 45+) §3.2–3.3 — re-run the same-day reminder dedup for a
+ * series on the given clinic-local days. The earliest live upcoming
+ * occurrence of each day is (re-)enqueued (idempotent — the job is replaced,
+ * never duplicated); every other live occurrence of that day loses its job.
+ * Called after a series occurrence is cancelled or moved so the next
+ * sibling INHERITS the day's reminder; when the inherited lead time is
+ * already under the offset, computeReminderFireAt applies the P17
+ * late-booking rule (send now inside the window / next opening / skip).
+ * Best-effort: a queue failure never breaks the calling mutation.
+ */
+async function resyncSeriesDayReminders(args: {
+  seriesId: string;
+  instants: Date[];
+  config: ReminderConfig;
+}): Promise<void> {
+  const days = new Set(args.instants.map((d) => clinicDateKey(d, args.config.timeZone)));
+  const live = await db.appointment.findMany({
+    where: {
+      seriesId: args.seriesId,
+      status: { in: [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED] },
+      startsAt: { gt: new Date() },
+    },
+    select: { id: true, startsAt: true },
+  });
+  const onDays = live.filter((a) => days.has(clinicDateKey(a.startsAt, args.config.timeZone)));
+  const targets = pickSeriesReminderTargets(onDays, args.config.timeZone);
+  const targetIds = new Set(targets.map((t) => t.id));
+  for (const occ of onDays) {
+    if (targetIds.has(occ.id)) {
+      await enqueueAppointmentReminder({
+        appointmentId: occ.id,
+        startsAt: occ.startsAt,
+        config: args.config,
+      }).catch((err: unknown) => {
+        console.error('[series.reminders] resync enqueue failed', { id: occ.id, err });
+      });
+    } else {
+      await cancelAppointmentReminder(occ.id);
+    }
+  }
+}
+
 export const createAppointment = withAudit<
   [AppointmentCreateInput],
   { appointmentId: string; conflictsOverridden: boolean }
@@ -279,8 +322,8 @@ export const createAppointment = withAudit<
     }
 
     // P48 — the booking confirmation goes through the dispatch funnel:
-    // AUTO (the P53 deferred job with the admin delay), MANUAL (admin
-    // outbox), or an immediate safety-exception send for <24h starts.
+    // AUTO (the P53 deferred job with the admin delay) or MANUAL (admin
+    // outbox — never sends on its own; the <24h exception is gone).
     // GROUP/EVENT (no patientId) keep today's behavior: no confirmation.
     if (input.patientId) {
       await recordDispatchEvent({
@@ -337,6 +380,9 @@ export const rescheduleAppointment = withAudit<
         status: true,
         appointmentType: true,
         roomId: true,
+        // P50 — a series occurrence re-runs the same-day reminder dedup
+        // for its old + new day instead of blindly re-enqueueing itself.
+        seriesId: true,
         // Prompt 48: the reschedule message fires only on an ACTUAL start
         // change — compare against the stored start (owner ruling: resizes
         // and same-slot saves stay silent).
@@ -433,11 +479,21 @@ export const rescheduleAppointment = withAudit<
       existing.status === AppointmentStatus.CONFIRMED
     ) {
       const config = await getReminderConfig();
-      await enqueueAppointmentReminder({
-        appointmentId: input.id,
-        startsAt: input.startsAt,
-        config,
-      });
+      if (existing.seriesId) {
+        // P50 §3.2: same-day dedup holds across moves — the old day may
+        // need a new earliest, the new day may already have one.
+        await resyncSeriesDayReminders({
+          seriesId: existing.seriesId,
+          instants: [existing.startsAt, input.startsAt],
+          config,
+        });
+      } else {
+        await enqueueAppointmentReminder({
+          appointmentId: input.id,
+          startsAt: input.startsAt,
+          config,
+        });
+      }
     }
 
     // Prompt 48 — the reschedule message. Fires ONLY when the start actually
@@ -720,10 +776,20 @@ export const cancelAppointment = withAudit<
     });
     await cancelAppointmentReminder(input.id);
     await cancelAutoCompleteSession(input.id);
+    // P50 §3.3: if this was the reminded occurrence of a same-day pair, the
+    // next sibling of that clinic-local day inherits the reminder.
+    if (existing.seriesId) {
+      await resyncSeriesDayReminders({
+        seriesId: existing.seriesId,
+        instants: [existing.startsAt],
+        config: await getReminderConfig(),
+      });
+    }
     // P48 dispatch funnel: supersedes any pending confirmation/reschedule
-    // (last-state-wins), applies the silent booking+cancel close, honors
-    // the per-type mode/delay, and fires the <24h safety exception. The
-    // notifyPatient=false path still supersedes but sends nothing.
+    // (last-state-wins), applies the silent booking+cancel close, and
+    // honors the per-type mode/delay (MANUAL parks — never sends; the <24h
+    // exception is gone, owner order 19 Aug). The notifyPatient=false path
+    // still supersedes but sends nothing.
     const dispatch = await recordDispatchEvent({
       appointmentId: input.id,
       patientId: existing.patientId,
@@ -1206,16 +1272,27 @@ export const createSeriesBatch = withAudit<
 
     // Enqueue reminders best-effort after the transaction commits. If the
     // reminder queue is down the appointments are still booked.
+    // P50 (series 45+) §3: every clinic-local DAY of the series gets its own
+    // 24h reminder (multi-day = one per day), but several occurrences on
+    // the SAME day share ONE reminder — the earliest of that day (owner
+    // decision: no reminder spam for back-to-back / same-day repeats).
     const config = await getReminderConfig();
+    const reminderTargets = pickSeriesReminderTargets(
+      appointmentIds.map((id, i) => ({ id, startsAt: input.rows[i]!.startsAt })),
+      config.timeZone,
+    );
+    if (reminderTargets.length < appointmentIds.length) {
+      console.warn(
+        `[series.create] same-day reminder dedup: ${appointmentIds.length - reminderTargets.length} of ${appointmentIds.length} occurrences share an earlier sibling's reminder`,
+      );
+    }
     await Promise.all(
-      appointmentIds.map((id, i) =>
-        enqueueAppointmentReminder({
-          appointmentId: id,
-          startsAt: input.rows[i]!.startsAt,
-          config,
-        }).catch((err: unknown) => {
-          console.error('[series.create] reminder enqueue failed', { id, err });
-        }),
+      reminderTargets.map(({ id, startsAt }) =>
+        enqueueAppointmentReminder({ appointmentId: id, startsAt, config }).catch(
+          (err: unknown) => {
+            console.error('[series.create] reminder enqueue failed', { id, err });
+          },
+        ),
       ),
     );
 
@@ -1225,8 +1302,9 @@ export const createSeriesBatch = withAudit<
     // scheduler a single booking uses (same template/variables/queue/logging;
     // the admin-configurable P53 coalescing delay applies identically).
     // Every OTHER row deliberately sends NO confirmation — this is the
-    // policy, not an accident of control flow. Per-row reminders +
-    // auto-complete above are untouched. Rows are all future (past rejected
+    // policy, not an accident of control flow (same day or not, AUTO or
+    // MANUAL: one send / one outbox row). Per-day reminders (P50 dedup
+    // above) + auto-complete are untouched. Rows are all future (past rejected
     // up front), so "earliest" needs no now-guard; a scheduling failure must
     // never fail or roll back the already-committed batch.
     let earliestIdx = 0;

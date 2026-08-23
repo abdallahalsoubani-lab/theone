@@ -12,7 +12,7 @@
  * a DST transition, which Asia/Amman no longer has.
  */
 
-import { tzOffsetMs } from '@/lib/time/clinic';
+import { clinicDateKey, tzOffsetMs } from '@/lib/time/clinic';
 
 export interface ReminderConfig {
   offsetMinutes: number;
@@ -87,4 +87,40 @@ export function computeReminderFireAt(args: {
   // 3. Never after the appointment has started — if it can't fit, skip.
   if (fireAt.getTime() >= startsAt.getTime()) return null;
   return fireAt;
+}
+
+// ─── P50 (series 45+) §3.2 — same-day reminder dedup for a series ─────────
+
+export interface ReminderCandidate {
+  id: string;
+  startsAt: Date;
+}
+
+/**
+ * Same-day dedup (owner decision, P50 item 5): when a patient has several
+ * occurrences of ONE series on the same clinic-local day, only the EARLIEST
+ * of that day carries the 24h reminder; the rest of that day are skipped.
+ * Occurrences on different days each keep their own reminder (item 4).
+ *
+ * Pure: give it the live (SCHEDULED/CONFIRMED, upcoming) occurrences of a
+ * series — any number of days — and it returns exactly one target per
+ * clinic-local day, sorted by start. The caller enqueues those and makes
+ * sure no other occurrence of those days holds a reminder job. Used by
+ * series create, and re-run on cancel/reschedule of a series occurrence so
+ * the next sibling inherits the day's reminder (§3.3).
+ */
+export function pickSeriesReminderTargets(
+  occurrences: readonly ReminderCandidate[],
+  timeZone: string,
+): ReminderCandidate[] {
+  const sorted = [...occurrences].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  const seenDays = new Set<string>();
+  const targets: ReminderCandidate[] = [];
+  for (const occ of sorted) {
+    const day = clinicDateKey(occ.startsAt, timeZone);
+    if (seenDays.has(day)) continue;
+    seenDays.add(day);
+    targets.push(occ);
+  }
+  return targets;
 }

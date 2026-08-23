@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { computeReminderFireAt, parseHhMm, type ReminderConfig } from '../reminderWindow';
+import {
+  computeReminderFireAt,
+  parseHhMm,
+  pickSeriesReminderTargets,
+  type ReminderConfig,
+} from '../reminderWindow';
 
 /**
  * Prompt 17 — reminder fire-time math. Asia/Amman is a fixed UTC+3 (no DST
@@ -96,5 +101,68 @@ describe('settings-driven window', () => {
     expect(fire('2026-07-02T13:00:00Z', '2026-07-01T00:00:00Z', config)?.toISOString()).toBe(
       '2026-07-02T05:00:00.000Z',
     );
+  });
+});
+
+// ─── P50 (series 45+) §3.2 — same-day dedup (pure) ─────────────────────────
+
+describe('pickSeriesReminderTargets — one reminder per clinic-local day', () => {
+  const TZ = 'Asia/Amman';
+  const occ = (id: string, iso: string) => ({ id, startsAt: D(iso) });
+
+  it('a single occurrence → itself', () => {
+    const only = occ('a', '2030-03-10T07:00:00Z');
+    expect(pickSeriesReminderTargets([only], TZ)).toEqual([only]);
+  });
+
+  it('three same-day occurrences → the EARLIEST only (input order irrelevant)', () => {
+    const a = occ('a', '2030-03-10T11:00:00Z'); // 14:00 Amman
+    const b = occ('b', '2030-03-10T06:00:00Z'); // 09:00 Amman ← earliest
+    const c = occ('c', '2030-03-10T08:00:00Z'); // 11:00 Amman
+    expect(pickSeriesReminderTargets([a, b, c], TZ).map((t) => t.id)).toEqual(['b']);
+  });
+
+  it('two same-day + one next day → earliest of day 1 + the day-2 one', () => {
+    const d1a = occ('d1a', '2030-03-10T06:00:00Z');
+    const d1b = occ('d1b', '2030-03-10T07:00:00Z');
+    const d2 = occ('d2', '2030-03-11T06:00:00Z');
+    expect(pickSeriesReminderTargets([d2, d1b, d1a], TZ).map((t) => t.id)).toEqual(['d1a', 'd2']);
+  });
+
+  it('a multi-day series → one target per day, every day covered (item 4)', () => {
+    const rows = [
+      occ('m', '2030-03-10T06:00:00Z'),
+      occ('w', '2030-03-12T06:00:00Z'),
+      occ('f', '2030-03-14T06:00:00Z'),
+    ];
+    expect(pickSeriesReminderTargets(rows, TZ).map((t) => t.id)).toEqual(['m', 'w', 'f']);
+  });
+
+  it('"same day" is the CLINIC day, not UTC — 23:30Z and 00:30Z next UTC day are both one Amman day', () => {
+    // 2030-03-10T23:30Z = 11 Mar 02:30 Amman; 2030-03-11T00:30Z = 11 Mar 03:30 Amman.
+    const late = occ('late', '2030-03-10T23:30:00Z');
+    const early = occ('early', '2030-03-11T00:30:00Z');
+    expect(pickSeriesReminderTargets([early, late], TZ).map((t) => t.id)).toEqual(['late']);
+    // …whereas 20:30Z (23:30 Amman, 10 Mar) and 23:30Z (02:30 Amman, 11 Mar) are two days.
+    const prev = occ('prev', '2030-03-10T20:30:00Z');
+    expect(pickSeriesReminderTargets([late, prev], TZ).map((t) => t.id)).toEqual(['prev', 'late']);
+  });
+
+  it('cancelled sibling → the next one inherits (the caller feeds only live rows)', () => {
+    const first = occ('first', '2030-03-10T06:00:00Z');
+    const second = occ('second', '2030-03-10T07:00:00Z');
+    expect(pickSeriesReminderTargets([first, second], TZ).map((t) => t.id)).toEqual(['first']);
+    // After `first` is cancelled it is no longer a live occurrence:
+    expect(pickSeriesReminderTargets([second], TZ).map((t) => t.id)).toEqual(['second']);
+  });
+
+  it('does not mutate its input', () => {
+    const rows = [occ('b', '2030-03-10T07:00:00Z'), occ('a', '2030-03-10T06:00:00Z')];
+    pickSeriesReminderTargets(rows, TZ);
+    expect(rows.map((r) => r.id)).toEqual(['b', 'a']);
+  });
+
+  it('empty input → no targets', () => {
+    expect(pickSeriesReminderTargets([], TZ)).toEqual([]);
   });
 });

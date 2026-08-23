@@ -5,9 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * relies on:
  *   - a valid N-row batch creates exactly N appointments sharing ONE seriesId,
  *     with per-row therapists/room/duration and the standard side-effects
- *     (audit row, care-team add for every row's therapists, reminder +
- *     auto-complete jobs per appointment, ONE P53 confirmation for the
- *     nearest row);
+ *     (audit row, care-team add for every row's therapists, one reminder
+ *     job per clinic-local DAY — same-day rows share the earliest one, P50
+ *     §3.2 — no auto-complete, ONE P53 confirmation for the nearest row);
  *   - ANY conflicting row aborts the whole batch atomically (no partial
  *     commit, no override path) with the failing row index in the details —
  *     closed days ride this same path (engine hard-block);
@@ -146,9 +146,10 @@ describe('createSeriesBatch — happy path', () => {
     );
     expect(new Set(careTherapists)).toEqual(new Set(['t1', 't2', 't3']));
 
-    // Reminder per appointment; ONE P53 confirmation. No auto-complete job —
+    // Reminder per clinic DAY (rows 0+1 share day+7 → one job, P50 §3.2;
+    // row 2 is day+9); ONE P53 confirmation. No auto-complete job —
     // sessions are closed by a human (PT-B3 item 1).
-    expect(reminderMock).toHaveBeenCalledTimes(3);
+    expect(reminderMock).toHaveBeenCalledTimes(2);
     expect(autoCompleteMock).not.toHaveBeenCalled();
     expect(dispatchMock).toHaveBeenCalledTimes(1);
 
@@ -222,14 +223,62 @@ describe('createSeriesBatch — WhatsApp policy (Amendment 46.1: confirm first o
     );
   });
 
-  it('every row still gets ITS OWN reminder job (remind all), and none is auto-completed', async () => {
+  it('every DAY gets its own reminder job (remind all days), and none is auto-completed', async () => {
+    // threeRows(): day+7 08:00Z, day+7 13:00Z (same clinic day), day+9 08:00Z.
+    // P50 §3.2: the two same-day rows share ONE reminder — the earlier one.
     const res = await createSeriesBatch({ patientId: 'p1', notes: null, rows: threeRows() });
     const reminderIds = (reminderMock.mock.calls as unknown as Array<[{ appointmentId: string }]>)
       .map((c) => c[0].appointmentId)
       .sort();
-    expect(reminderIds).toEqual([...res.appointmentIds].sort());
+    expect(reminderIds).toEqual([res.appointmentIds[0], res.appointmentIds[2]].sort());
     // PT-B3 item 1 — nothing schedules a session to close itself.
     expect(autoCompleteMock).not.toHaveBeenCalled();
+  });
+
+  it('P50 §3: an 8-row mixed series → ONE confirmation (either mode) + one reminder PER DAY', async () => {
+    // 3 on day A (back-to-back), 2 on day B, 1 each on days C/D/E = 8 rows, 5 days.
+    const row = (h: number, d: number) => ({
+      startsAt: future(h, d),
+      durationMinutes: 60,
+      therapistIds: ['t1'],
+      roomId: 'r1',
+    });
+    const rows = [
+      row(12, 0),
+      row(9, 0),
+      row(10, 0), // day A — 9:00Z is the earliest
+      row(14, 1),
+      row(8, 1), //             day B — 8:00Z earliest
+      row(8, 3),
+      row(8, 5),
+      row(8, 6), //   days C/D/E
+    ];
+    const res = await createSeriesBatch({ patientId: 'p1', notes: null, rows });
+    expect(res.appointmentIds).toHaveLength(8);
+    // ONE confirmation, anchored to the earliest row (index 1) — the funnel
+    // decides AUTO (one send) vs MANUAL (one outbox row); either way ONE.
+    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    expect(dispatchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointmentId: res.appointmentIds[1],
+        type: 'BOOKING_CONFIRMATION',
+      }),
+    );
+    // Reminders: earliest of A (idx 1), earliest of B (idx 4), then C/D/E.
+    const reminderIds = (reminderMock.mock.calls as unknown as Array<[{ appointmentId: string }]>)
+      .map((c) => c[0].appointmentId)
+      .sort();
+    const expected = [1, 4, 5, 6, 7].map((i) => res.appointmentIds[i]!).sort();
+    expect(reminderIds).toEqual(expected);
+  });
+
+  it('a SINGLE-row batch is unchanged: one confirmation, one reminder', async () => {
+    const res = await createSeriesBatch({ patientId: 'p1', notes: null, rows: [threeRows()[0]!] });
+    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    expect(reminderMock).toHaveBeenCalledTimes(1);
+    expect(reminderMock).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: res.appointmentIds[0] }),
+    );
   });
 
   it('a confirmation scheduling failure never fails the committed batch', async () => {
