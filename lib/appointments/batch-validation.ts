@@ -1,7 +1,7 @@
 import { parseClinicDateTimeLocal } from '@/lib/time/clinic';
 
 import { DAY_KEYS, type DayKey } from './conflicts-time';
-import { RESIZE_MIN_MINUTES } from './schemas';
+import { RESIZE_MIN_MINUTES, type BatchRowType } from './schemas';
 
 /**
  * Client-side row validation for the multi-appointment batch modal
@@ -15,6 +15,8 @@ import { RESIZE_MIN_MINUTES } from './schemas';
 export interface BatchRowDraft {
   date: string; // YYYY-MM-DD (clinic-wall)
   time: string; // HH:mm (clinic-wall)
+  /** Prompt 51 — per-row booking type (SESSION | STRETCHING). */
+  appointmentType: BatchRowType;
   therapistIds: string[];
   roomId: string;
   durationMinutes: number;
@@ -22,6 +24,7 @@ export interface BatchRowDraft {
 
 export type BatchRowIssue =
   | 'incomplete'
+  | 'stretchingNoTherapist'
   | 'durationTooShort'
   | 'pastDate'
   | 'closedDay'
@@ -62,13 +65,21 @@ export function validateBatchRows(
   });
 
   rows.forEach((row, i) => {
+    // Prompt 51 — per-row type rule, same as the single modal: a SESSION
+    // needs ≥1 therapist; a STRETCHING row has none (room + beds).
+    const stretching = row.appointmentType === 'STRETCHING';
     const complete = Boolean(
-      row.date && row.time && row.roomId && row.therapistIds.length > 0 && row.durationMinutes,
+      row.date &&
+      row.time &&
+      row.roomId &&
+      (stretching || row.therapistIds.length > 0) &&
+      row.durationMinutes,
     );
     if (!complete) {
       issues[i]!.push('incomplete');
       return;
     }
+    if (stretching && row.therapistIds.length > 0) issues[i]!.push('stretchingNoTherapist');
     if (row.durationMinutes < RESIZE_MIN_MINUTES) issues[i]!.push('durationTooShort');
     const dayKey = dayKeyOfDate(row.date);
     if (dayKey && closed.has(dayKey)) issues[i]!.push('closedDay');

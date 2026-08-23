@@ -100,6 +100,9 @@ vi.mock('@/lib/db', () => {
 
 import { AppointmentError, createSeriesBatch, previewSeriesBatch } from '../services';
 
+const SESSION = 'SESSION' as const;
+const STRETCHING = 'STRETCHING' as const;
+
 const future = (h: number, extraDays = 0) => {
   const d = new Date();
   d.setUTCDate(d.getUTCDate() + 7 + extraDays);
@@ -108,9 +111,27 @@ const future = (h: number, extraDays = 0) => {
 };
 
 const threeRows = () => [
-  { startsAt: future(8), durationMinutes: 60, therapistIds: ['t1'], roomId: 'r1' },
-  { startsAt: future(13), durationMinutes: 45, therapistIds: ['t2', 't3'], roomId: 'r2' },
-  { startsAt: future(8, 2), durationMinutes: 30, therapistIds: ['t1'], roomId: 'r1' },
+  {
+    startsAt: future(8),
+    durationMinutes: 60,
+    therapistIds: ['t1'],
+    roomId: 'r1',
+    appointmentType: SESSION,
+  },
+  {
+    startsAt: future(13),
+    durationMinutes: 45,
+    therapistIds: ['t2', 't3'],
+    roomId: 'r2',
+    appointmentType: SESSION,
+  },
+  {
+    startsAt: future(8, 2),
+    durationMinutes: 30,
+    therapistIds: ['t1'],
+    roomId: 'r1',
+    appointmentType: SESSION,
+  },
 ];
 
 beforeEach(() => {
@@ -208,9 +229,27 @@ describe('createSeriesBatch — WhatsApp policy (Amendment 46.1: confirm first o
   it('rows entered OUT OF ORDER → the one confirmation targets the EARLIEST appointment', async () => {
     // Row 0 is the LATEST date; the earliest is row 1.
     const rows = [
-      { startsAt: future(8, 9), durationMinutes: 60, therapistIds: ['t1'], roomId: 'r1' },
-      { startsAt: future(8), durationMinutes: 60, therapistIds: ['t1'], roomId: 'r1' },
-      { startsAt: future(8, 4), durationMinutes: 60, therapistIds: ['t1'], roomId: 'r1' },
+      {
+        startsAt: future(8, 9),
+        durationMinutes: 60,
+        therapistIds: ['t1'],
+        roomId: 'r1',
+        appointmentType: SESSION,
+      },
+      {
+        startsAt: future(8),
+        durationMinutes: 60,
+        therapistIds: ['t1'],
+        roomId: 'r1',
+        appointmentType: SESSION,
+      },
+      {
+        startsAt: future(8, 4),
+        durationMinutes: 60,
+        therapistIds: ['t1'],
+        roomId: 'r1',
+        appointmentType: SESSION,
+      },
     ];
     const res = await createSeriesBatch({ patientId: 'p1', notes: null, rows });
     expect(dispatchMock).toHaveBeenCalledTimes(1);
@@ -242,6 +281,7 @@ describe('createSeriesBatch — WhatsApp policy (Amendment 46.1: confirm first o
       durationMinutes: 60,
       therapistIds: ['t1'],
       roomId: 'r1',
+      appointmentType: SESSION,
     });
     const rows = [
       row(12, 0),
@@ -288,6 +328,103 @@ describe('createSeriesBatch — WhatsApp policy (Amendment 46.1: confirm first o
     expect(res.appointmentIds).toHaveLength(3);
     expect(errSpy).toHaveBeenCalled();
     errSpy.mockRestore();
+  });
+});
+
+describe('createSeriesBatch — per-row booking type (Prompt 51)', () => {
+  const mixedRows = () => [
+    // Row A — SESSION with two therapists.
+    {
+      startsAt: future(8),
+      durationMinutes: 60,
+      therapistIds: ['t1', 't2'],
+      roomId: 'r1',
+      appointmentType: SESSION,
+    },
+    // Row B — STRETCHING: room only, zero therapists (next day).
+    {
+      startsAt: future(8, 1),
+      durationMinutes: 30,
+      therapistIds: [],
+      roomId: 'r2',
+      appointmentType: STRETCHING,
+    },
+    // Row C — SESSION again, same therapist as A (care-team dedup).
+    {
+      startsAt: future(8, 3),
+      durationMinutes: 60,
+      therapistIds: ['t1'],
+      roomId: 'r1',
+      appointmentType: SESSION,
+    },
+  ];
+
+  it('a mixed batch creates every row with ITS OWN appointmentType', async () => {
+    const res = await createSeriesBatch({ patientId: 'p1', notes: null, rows: mixedRows() });
+    expect(res.appointmentIds).toHaveLength(3);
+    expect(createdRows.map((r) => r.appointmentType)).toEqual([SESSION, STRETCHING, SESSION]);
+    // STRETCHING row: no therapist join rows; SESSION rows keep theirs.
+    const joins = createdRows.map(
+      (r) => (r.therapists as { create: { therapistId: string }[] }).create.length,
+    );
+    expect(joins).toEqual([2, 0, 1]);
+  });
+
+  it('each row is conflict-checked by ITS OWN type (STRETCHING → capacity branch input)', async () => {
+    await createSeriesBatch({ patientId: 'p1', notes: null, rows: mixedRows() });
+    const calls = checkConflictsMock.mock.calls as unknown as Array<
+      [{ appointmentType: string; therapistIds: string[]; roomId: string }]
+    >;
+    expect(calls.map((c) => c[0].appointmentType)).toEqual([SESSION, STRETCHING, SESSION]);
+    expect(calls[1]![0].therapistIds).toEqual([]);
+    expect(calls[1]![0].roomId).toBe('r2');
+  });
+
+  it('a STRETCHING row over bed capacity blocks the WHOLE batch (engine verdict honoured per row)', async () => {
+    checkConflictsMock.mockResolvedValueOnce({ ok: true }).mockResolvedValueOnce({
+      ok: false,
+      conflicts: [{ type: 'ROOM_CAPACITY_EXCEEDED', severity: 'HARD' }],
+    });
+    const err = await createSeriesBatch({ patientId: 'p1', notes: null, rows: mixedRows() }).catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(AppointmentError);
+    expect((err as AppointmentError).error.code).toBe('SERIES_ROW_CONFLICT');
+    expect((err as AppointmentError).error.details?.rowIndex).toBe(1);
+    expect(auditRows).toHaveLength(0);
+  });
+
+  it('a SESSION row clashing with a busy therapist blocks the batch too', async () => {
+    checkConflictsMock.mockResolvedValueOnce({
+      ok: false,
+      conflicts: [{ type: 'THERAPIST_OVERLAP', severity: 'HARD' }],
+    });
+    const err = await createSeriesBatch({ patientId: 'p1', notes: null, rows: mixedRows() }).catch(
+      (e: unknown) => e,
+    );
+    expect((err as AppointmentError).error.details?.rowIndex).toBe(0);
+  });
+
+  it('care team: SESSION therapists added once each; the STRETCHING row adds nobody', async () => {
+    await createSeriesBatch({ patientId: 'p1', notes: null, rows: mixedRows() });
+    const added = (careTeamMock.mock.calls as unknown as Array<[unknown, string, string]>)
+      .map((c) => c[2])
+      .sort();
+    expect(added).toEqual(['t1', 't2']); // t1 appears in two rows → once
+  });
+
+  it('Prompt 50 messaging holds for a mixed series: ONE confirmation (earliest row) + one reminder per day', async () => {
+    const res = await createSeriesBatch({ patientId: 'p1', notes: null, rows: mixedRows() });
+    expect(dispatchMock).toHaveBeenCalledTimes(1);
+    expect(dispatchMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointmentId: res.appointmentIds[0],
+        type: 'BOOKING_CONFIRMATION',
+      }),
+    );
+    // Three distinct days → three reminders, the STRETCHING row included
+    // (it is patient-bound like any other row).
+    expect(reminderMock).toHaveBeenCalledTimes(3);
   });
 });
 

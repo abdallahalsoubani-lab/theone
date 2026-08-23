@@ -14,6 +14,7 @@ const NOW = new Date('2026-08-02T09:00:00Z'); // Sunday 12:00 Amman
 const row = (over: Record<string, unknown> = {}) => ({
   date: '2026-08-09', // next Sunday
   time: '10:00',
+  appointmentType: 'SESSION' as const,
   therapistIds: ['t1'],
   roomId: 'r1',
   durationMinutes: 60,
@@ -144,5 +145,38 @@ describe('recurring-booking day rules (PT-B3 item 2)', () => {
       .map((r) => dayKeyOfDate(r.date));
     expect(bookableWeekdays).toEqual(['sun', 'mon', 'tue', 'wed', 'thu']);
     expect(bookableWeekdays).toHaveLength(5); // the clinic's 5 working days
+  });
+});
+
+describe('per-row booking type (Prompt 51) — same rules as the single modal', () => {
+  it('a STRETCHING row is complete WITHOUT therapists (room + beds)', () => {
+    const r = row({ appointmentType: 'STRETCHING', therapistIds: [] });
+    expect(validateBatchRows([r], opts)).toEqual([[]]);
+  });
+
+  it('a STRETCHING row still needs its room', () => {
+    const r = row({ appointmentType: 'STRETCHING', therapistIds: [], roomId: '' });
+    expect(validateBatchRows([r], opts)).toEqual([['incomplete']]);
+  });
+
+  it('a STRETCHING row WITH a therapist is flagged (stretchingNoTherapist)', () => {
+    const r = row({ appointmentType: 'STRETCHING', therapistIds: ['t1'] });
+    expect(validateBatchRows([r], opts)).toEqual([['stretchingNoTherapist']]);
+  });
+
+  it('a SESSION row with zero therapists is still incomplete', () => {
+    expect(validateBatchRows([row({ therapistIds: [] })], opts)).toEqual([['incomplete']]);
+  });
+
+  it('a mixed clean batch (session + stretching, different times) is clean', () => {
+    const a = row();
+    const b = row({ time: '12:00', appointmentType: 'STRETCHING', therapistIds: [], roomId: 'r2' });
+    expect(validateBatchRows([a, b], opts)).toEqual([[], []]);
+  });
+
+  it('two STRETCHING rows at the same instant + room are duplicates (type-agnostic key)', () => {
+    const a = row({ appointmentType: 'STRETCHING', therapistIds: [] });
+    const b = row({ appointmentType: 'STRETCHING', therapistIds: [] });
+    expect(validateBatchRows([a, b], opts)).toEqual([[], ['duplicateRow']]);
   });
 });

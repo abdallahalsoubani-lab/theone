@@ -1,9 +1,6 @@
 import { AppointmentStatus, AppointmentType, CancellationCategory } from '@prisma/client';
 import { z } from 'zod';
 
-/** At least one therapist per appointment (Prompt 20 — SESSION only). */
-const therapistIdsSchema = z.array(z.string().min(1)).min(1).max(10);
-
 export const appointmentCreateSchema = z
   .object({
     // Optional for EVENT (patient-less internal block — July #8 part 2).
@@ -197,20 +194,45 @@ export type CancelledAppointmentFilters = z.infer<typeof cancelledAppointmentFil
  */
 export const MAX_BATCH_ROWS = 30;
 
-/** One explicit appointment row: date+time (one instant), its own
- *  therapist set, room, and duration. What you see is what gets booked. */
-export const batchRowSchema = z.object({
-  startsAt: z.coerce.date(),
-  /** Floor = the calendar's 15-minute resize/step unit (Prompt 26). */
-  durationMinutes: z
-    .number()
-    .int()
-    .min(RESIZE_MIN_MINUTES)
-    .max(8 * 60),
-  therapistIds: therapistIdsSchema,
-  // Room required — consistent with single SESSION booking (QA retest #7/#13).
-  roomId: z.string().min(1),
-});
+/**
+ * Booking types a batch ROW may carry (Prompt 51, series 45+). Only the two
+ * patient-bound single-patient types: the batch is anchored to ONE shared
+ * patient, so the patient-less EVENT is nonsensical here and the
+ * multi-patient GROUP is a separate concern — both stay single-modal only.
+ */
+export const BATCH_ROW_TYPES = [AppointmentType.SESSION, AppointmentType.STRETCHING] as const;
+export type BatchRowType = (typeof BATCH_ROW_TYPES)[number];
+
+/** One explicit appointment row: date+time (one instant), its booking type,
+ *  its own therapist set, room, and duration. What you see is what gets
+ *  booked. Per-row type rules are the SAME as the single modal's
+ *  (appointmentCreateSchema): SESSION ≥1 therapist; STRETCHING zero
+ *  therapists (room + beds); room required for both. */
+export const batchRowSchema = z
+  .object({
+    startsAt: z.coerce.date(),
+    /** Floor = the calendar's 15-minute resize/step unit (Prompt 26). */
+    durationMinutes: z
+      .number()
+      .int()
+      .min(RESIZE_MIN_MINUTES)
+      .max(8 * 60),
+    appointmentType: z.enum(BATCH_ROW_TYPES).default(AppointmentType.SESSION),
+    therapistIds: z.array(z.string().min(1)).max(10).default([]),
+    // Room required — consistent with single SESSION/STRETCHING booking
+    // (QA retest #7/#13; STRETCHING is room-based).
+    roomId: z.string().min(1),
+  })
+  .superRefine((row, ctx) => {
+    const issue = (path: string, message: string) =>
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: [path], message });
+    if (row.appointmentType === AppointmentType.SESSION && row.therapistIds.length < 1) {
+      issue('therapistIds', 'therapistRequired');
+    }
+    if (row.appointmentType === AppointmentType.STRETCHING && row.therapistIds.length > 0) {
+      issue('therapistIds', 'stretchingNoTherapist');
+    }
+  });
 
 export type BatchRowInput = z.infer<typeof batchRowSchema>;
 

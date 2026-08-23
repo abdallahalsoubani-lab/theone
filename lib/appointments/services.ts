@@ -1155,7 +1155,9 @@ export async function previewSeriesBatch(
         therapistIds: row.therapistIds,
         startsAt: row.startsAt,
         durationMinutes: row.durationMinutes,
-        appointmentType: AppointmentType.SESSION,
+        // Prompt 51 — the row's own type: STRETCHING hits the bed-capacity
+        // branch, SESSION the therapist/leave/room rules (one engine).
+        appointmentType: row.appointmentType,
         roomId: row.roomId,
       }),
     })),
@@ -1212,7 +1214,7 @@ export const createSeriesBatch = withAudit<
             therapistIds: row.therapistIds,
             startsAt: row.startsAt,
             durationMinutes: row.durationMinutes,
-            appointmentType: AppointmentType.SESSION,
+            appointmentType: row.appointmentType, // Prompt 51 — per-row type
             roomId: row.roomId,
           });
           if (!conflicts.ok) {
@@ -1237,6 +1239,7 @@ export const createSeriesBatch = withAudit<
               roomId: row.roomId,
               startsAt: row.startsAt,
               durationMinutes: row.durationMinutes,
+              appointmentType: row.appointmentType, // Prompt 51 — per row
               status: AppointmentStatus.SCHEDULED,
               notes: input.notes ?? null,
               createdById: session.user!.id!,
@@ -1251,6 +1254,7 @@ export const createSeriesBatch = withAudit<
         }
         // Booking adds every therapist appearing in ANY row to the patient's
         // care team (deduped across rows) — same rule as a single booking.
+        // A STRETCHING row has no therapists, so it contributes nobody.
         const allTherapists = new Set(input.rows.flatMap((r) => r.therapistIds));
         for (const therapistId of allTherapists) {
           await addCareTeamMemberTx(tx, input.patientId, therapistId, session.user!.id!);

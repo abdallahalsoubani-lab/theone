@@ -109,3 +109,88 @@ describe('seriesBatchCreateSchema — duplicates + batch-internal overlap', () =
     ).toBe(true);
   });
 });
+
+describe('per-row booking type (Prompt 51) — SESSION + STRETCHING only, same rules as the single modal', () => {
+  const messages = (input: unknown) => {
+    const r = seriesBatchCreateSchema.safeParse(input);
+    return r.success ? [] : r.error.issues.map((i) => `${i.path.join('.')}:${i.message}`);
+  };
+
+  it("defaults a row without a type to SESSION (today's behaviour preserved)", () => {
+    const r = seriesBatchCreateSchema.safeParse(batch([row()]));
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.rows[0]!.appointmentType).toBe('SESSION');
+  });
+
+  it('accepts a STRETCHING row with a room and zero therapists', () => {
+    const r = seriesBatchCreateSchema.safeParse(
+      batch([row({ appointmentType: 'STRETCHING', therapistIds: [] })]),
+    );
+    expect(r.success).toBe(true);
+  });
+
+  it('rejects a STRETCHING row with a therapist — same message as the single modal', () => {
+    expect(messages(batch([row({ appointmentType: 'STRETCHING' })]))).toContain(
+      'rows.0.therapistIds:stretchingNoTherapist',
+    );
+  });
+
+  it('rejects a SESSION row with zero therapists — same message as the single modal', () => {
+    expect(messages(batch([row({ therapistIds: [] })]))).toContain(
+      'rows.0.therapistIds:therapistRequired',
+    );
+  });
+
+  it('a STRETCHING row still requires its room', () => {
+    expect(
+      seriesBatchCreateSchema.safeParse(
+        batch([row({ appointmentType: 'STRETCHING', therapistIds: [], roomId: '' })]),
+      ).success,
+    ).toBe(false);
+  });
+
+  it('EVENT and GROUP are NOT accepted row types from this modal (server-side)', () => {
+    expect(
+      seriesBatchCreateSchema.safeParse(batch([row({ appointmentType: 'EVENT' })])).success,
+    ).toBe(false);
+    expect(
+      seriesBatchCreateSchema.safeParse(
+        batch([row({ appointmentType: 'GROUP', therapistIds: ['t1'] })]),
+      ).success,
+    ).toBe(false);
+  });
+
+  it('accepts a mixed SESSION + STRETCHING batch (different times, one patient)', () => {
+    const a = row();
+    const b = row({
+      startsAt: new Date('2030-01-06T12:00:00Z'),
+      appointmentType: 'STRETCHING',
+      therapistIds: [],
+      roomId: 'r2',
+    });
+    expect(seriesBatchCreateSchema.safeParse(batch([a, b])).success).toBe(true);
+  });
+});
+
+describe('modal option sets (Prompt 51 — regression guards)', () => {
+  const read = async (rel: string) => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    return readFileSync(join(process.cwd(), rel), 'utf8');
+  };
+
+  it('the batch row type field offers exactly SESSION + STRETCHING (no EVENT / GROUP option)', async () => {
+    const src = await read('components/appointments/BatchRowTypeFields.tsx');
+    expect(src).toContain('BATCH_ROW_TYPES');
+    expect(src).not.toContain('AppointmentType.EVENT');
+    expect(src).not.toContain('AppointmentType.GROUP');
+    expect(src).not.toContain("'EVENT'");
+  });
+
+  it('the SINGLE booking modal still offers SESSION + STRETCHING + EVENT (EVENT not removed there)', async () => {
+    const src = await read('components/appointments/CreateAppointmentModal.tsx');
+    expect(src).toContain('<option value="SESSION:THERAPIST">');
+    expect(src).toContain('<option value={AppointmentType.STRETCHING}>');
+    expect(src).toContain('<option value={AppointmentType.EVENT}>');
+  });
+});
