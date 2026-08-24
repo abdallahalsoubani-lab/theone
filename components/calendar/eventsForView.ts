@@ -3,7 +3,7 @@ import type { View } from 'react-big-calendar';
 
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { patientDisplayName } from '@/lib/format/patientName';
-import { clinicHm, toClinicWall } from '@/lib/time/clinic';
+import { toClinicWall } from '@/lib/time/clinic';
 
 /**
  * Maps appointments to react-big-calendar events, VIEW-AWARE (Calendar overlap
@@ -110,22 +110,16 @@ export function eventsForView(
 }
 
 /**
- * What the in-grid card shows: the start time, then the chip title (patient
- * name / EVENT label / GROUP label), plus the booking note.
+ * What the in-grid card shows: the chip title ONLY (patient name / EVENT
+ * label / GROUP label), plus the booking note.
  *
- * The time is back by owner request (PT-B3 item 3, reversing Prompt 55 §2's
- * name-only card): reading the hour off the grid rows works when you are
- * looking at one column, but not when scanning a booked day. It stays OUT of
- * `title`, which is also the leave-overlay label and the tooltip/aria text —
- * the card composes the two so the time never leaks into a name.
- *
- * Clinic wall-clock via `clinicHm`, so the chip shows Amman time on any
- * machine and always in Latin digits. Pure so the card contract unit-tests
- * without React.
+ * NO time on the card — owner request (24 Aug 2026), reversing PT-B3 item 3
+ * and restoring Prompt 55 §2's name-only card: the grid rows already give
+ * the hour, and the name is what the secretary scans for. The exact time
+ * stays one hover (tooltip) or click (side panel) away.
+ * Pure so the card contract unit-tests without React.
  */
 export interface EventCardContent {
-  /** "HH:MM" clinic wall-clock, or null for a leave overlay with no booking. */
-  time: string | null;
   primary: string;
   note: string | null;
 }
@@ -137,7 +131,6 @@ export function eventCardContent(event: {
   const raw = event.appointment?.notes ?? null;
   const trimmed = raw?.trim() ?? '';
   return {
-    time: event.appointment ? clinicHm(event.appointment.startsAt) : null,
     primary: event.title,
     note: trimmed.length > 0 ? trimmed : null,
   };
