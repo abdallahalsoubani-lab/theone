@@ -360,6 +360,12 @@ async function handleConfirm(args: {
   // confirms AND idempotent re-confirms (polite either way). P49: skipped
   // when a human replied within the last hour (the human owns the thread).
   if (args.ackSuppressed) return;
+  // P51 — silent mode SUPPRESSES button acks entirely (an ack sent days
+  // later is meaningless — logged, never held).
+  if (await (await import('@/lib/whatsapp/silent-mode')).isSilentModeOn()) {
+    console.warn('[silent-mode] confirm ack suppressed');
+    return;
+  }
   const isAr = targets.language === 'AR';
   const name = patientDisplayName(targets.patientNameEn, targets.patientNameAr, isAr ? 'ar' : 'en');
   await enqueueWhatsappOutbound({
@@ -457,6 +463,11 @@ async function handleCancelRequest(args: {
   // Decline ack (48b §3.3) in the patient's language — P49: suppressed for
   // 1h after a manual reply (the inbox item + notification above still fire).
   if (args.ackSuppressed) return;
+  // P51 — silent mode suppresses this ack too (logged, never held).
+  if (await (await import('@/lib/whatsapp/silent-mode')).isSilentModeOn()) {
+    console.warn('[silent-mode] decline ack suppressed');
+    return;
+  }
   const isAr = targets.language === 'AR';
   await enqueueWhatsappOutbound({
     kind: 'text',

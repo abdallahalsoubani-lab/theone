@@ -5,6 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@/lib/notifications/actions', () => ({
   createNotification: vi.fn(async () => ({ id: 'n' })),
 }));
+// P51 — the silent-mode gate suppresses button acks entirely; default OFF
+// here so every pre-P51 test pins today's behaviour unchanged.
+const silentMock = vi.hoisted(() => vi.fn(async () => false));
+vi.mock('@/lib/whatsapp/silent-mode', () => ({
+  isSilentModeOn: silentMock,
+  holdForOutbox: vi.fn(async () => 'held-x'),
+  reparkScheduled: vi.fn(async () => undefined),
+}));
+
 vi.mock('@/lib/time/clinic-server', () => ({
   getClinicTimeZone: vi.fn(async () => 'Asia/Amman'),
 }));
@@ -1047,5 +1056,79 @@ describe('P49 — 1h ack suppression after a manual reply', () => {
     expect(state.inboxItems[0]).toMatchObject({ type: 'INBOUND_CANCEL_REQUEST' });
     expect(vi.mocked(createNotification)).toHaveBeenCalled();
     expect(state.enqueuedOutbound).toHaveLength(0);
+  });
+});
+
+// ─── P51 — silent mode suppresses button acks entirely ─────────────────────
+
+describe('P51 — silent mode suppresses reply-button acks (never held, only logged)', () => {
+  beforeEach(() => {
+    reset();
+    silentMock.mockResolvedValue(true);
+    state.users.push({
+      id: 'patient-1',
+      phone: '+962790000000',
+      deletedAt: null,
+      languagePref: 'AR',
+      fullNameAr: 'سارة خليل',
+      fullNameEn: 'Sara Khalil',
+    });
+    state.users.push({ id: 'sec-1', phone: '+962000', deletedAt: null, role: 'SECRETARY' });
+    state.appointments.push({
+      id: 'appt-1',
+      patientId: 'patient-1',
+      status: AppointmentStatus.SCHEDULED,
+      startsAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+  });
+
+  it('confirm still flips the status, but NO ack is enqueued; a log line fires instead', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'silent-btn-1',
+        fromPhone: '+962790000000',
+        body: 'تأكيد الحضور',
+        buttonPayload: 'confirm',
+        buttonText: 'تأكيد الحضور',
+        receivedAt: new Date(),
+      },
+    });
+    expect(state.appointments[0]!.status).toBe(AppointmentStatus.CONFIRMED);
+    expect(state.enqueuedOutbound).toHaveLength(0);
+    expect(warn.mock.calls.some((c) => String(c[0]).includes('[silent-mode]'))).toBe(true);
+    warn.mockRestore();
+  });
+
+  it('decline: inbox item + secretary notification still fire, the ack does not', async () => {
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'silent-btn-2',
+        fromPhone: '+962790000000',
+        body: 'إلغاء',
+        buttonPayload: 'decline',
+        buttonText: 'إلغاء',
+        receivedAt: new Date(),
+      },
+    });
+    expect(state.enqueuedOutbound).toHaveLength(0);
+  });
+
+  it('silent OFF → the ack sends again (gate is live, not sticky)', async () => {
+    silentMock.mockResolvedValue(false);
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'silent-btn-3',
+        fromPhone: '+962790000000',
+        body: 'تأكيد الحضور',
+        buttonPayload: 'confirm',
+        buttonText: 'تأكيد الحضور',
+        receivedAt: new Date(),
+      },
+    });
+    expect(state.enqueuedOutbound.length).toBeGreaterThan(0);
   });
 });

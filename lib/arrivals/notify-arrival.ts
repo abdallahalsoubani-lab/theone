@@ -1,3 +1,4 @@
+import { isSilentModeOn, holdForOutbox } from '@/lib/whatsapp/silent-mode';
 import { sendArrivalConfirmation } from '@/lib/whatsapp/templates/sendArrival';
 
 /**
@@ -17,6 +18,16 @@ import { sendArrivalConfirmation } from '@/lib/whatsapp/templates/sendArrival';
  */
 export async function notifyArrival(patientId: string, appointmentIds: string[]): Promise<void> {
   try {
+    // P51 — silent mode: hold the arrival confirmation in the outbox
+    // (anchored to the run's first appointment) instead of sending.
+    if (await isSilentModeOn()) {
+      await holdForOutbox({
+        type: 'ARRIVAL',
+        appointmentId: appointmentIds[0] ?? null,
+        patientId,
+      });
+      return;
+    }
     await sendArrivalConfirmation({ patientId, appointmentIds });
   } catch (err) {
     // Redacted: ids only, never a phone/name.

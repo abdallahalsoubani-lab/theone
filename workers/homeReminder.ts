@@ -70,6 +70,19 @@ export function startHomeReminderWorker(): Worker {
         );
         return;
       }
+      // P51 — silent mode holds the home-exercise reminder in the outbox
+      // instead of sending (fire-time check; admin-pressed sends pass).
+      if (!job.data.adminSend) {
+        const { isSilentModeOn, holdForOutbox } = await import('@/lib/whatsapp/silent-mode');
+        if (await isSilentModeOn()) {
+          await holdForOutbox({
+            type: 'HOME_PROGRAM',
+            patientId: item.patient.id,
+            homeProgramItemId: itemId,
+          });
+          return;
+        }
+      }
 
       // P50: patients may have no phone (real-clinic import) — skip cleanly,
       // never enqueue a job to nowhere.
@@ -101,6 +114,14 @@ export function startHomeReminderWorker(): Worker {
       console.warn(
         `[home-reminder] enqueued outbound for item=${itemId} patient=${item.patient.id}`,
       );
+      // P51 — an outbox Send of a held row reports its outcome (no-op for
+      // the normal automatic fire, which has no ledger row).
+      if (job.data.adminSend) {
+        await db.whatsAppDispatch.updateMany({
+          where: { homeProgramItemId: itemId, type: 'HOME_PROGRAM', status: 'SCHEDULED' },
+          data: { status: 'SENT', sentAt: new Date() },
+        });
+      }
     },
     { connection: queueRedis },
   );

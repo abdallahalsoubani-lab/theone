@@ -23,6 +23,14 @@ vi.mock('bullmq', () => ({
 
 vi.mock('@/lib/queue/client', () => ({ queueRedis: {} }));
 
+// P51 — these tests pin the silent-OFF behaviour; the gate itself is
+// covered in silent-mode-workers.test.ts.
+vi.mock('@/lib/whatsapp/silent-mode', () => ({
+  isSilentModeOn: vi.fn(async () => false),
+  holdForOutbox: vi.fn(async () => 'held-x'),
+  reparkScheduled: vi.fn(async () => undefined),
+}));
+
 const state = {
   appointment: null as Record<string, unknown> | null,
   enqueued: [] as Array<Record<string, unknown>>,

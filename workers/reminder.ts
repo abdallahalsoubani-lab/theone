@@ -56,6 +56,22 @@ export function startReminderWorker(): Worker {
         // P48 — every lifecycle send reports its outcome to the dispatch
         // ledger (SENT/FAILED); pre-P48 jobs without a ledger row no-op.
         const kind = job.data.kind;
+        // P51 — an AUTO job scheduled while silent mode was OFF may fire
+        // while it is ON: skip the send and re-park the entry for the
+        // outbox. Admin-pressed sends (adminSend) are human-initiated and
+        // pass through.
+        if (!job.data.adminSend) {
+          const { isSilentModeOn, reparkScheduled } = await import('@/lib/whatsapp/silent-mode');
+          if (await isSilentModeOn()) {
+            const TYPE = {
+              confirmation: 'BOOKING_CONFIRMATION',
+              reschedule: 'RESCHEDULE',
+              cancellation: 'CANCELLATION',
+            } as const;
+            await reparkScheduled({ appointmentId, type: TYPE[kind] });
+            return;
+          }
+        }
         const { markDispatchOutcome } = await import('@/lib/whatsapp/dispatch/outcome');
         try {
           if (kind === 'confirmation') {
@@ -82,6 +98,42 @@ export function startReminderWorker(): Worker {
         }
         await markDispatchOutcome({ appointmentId, kind, ok: true }).catch(() => undefined);
         console.warn(`[lifecycle] appointment=${appointmentId} ${kind} dispatched`);
+        return;
+      }
+      // P51 — outbox-sent arrival confirmation: re-derive via the same
+      // sender the kiosk path uses, then report the outcome to the ledger.
+      if (job.data.kind === 'arrival') {
+        const { markDispatchOutcome } = await import('@/lib/whatsapp/dispatch/outcome');
+        const row = await db.whatsAppDispatch.findFirst({
+          where: { appointmentId, type: 'ARRIVAL', status: 'SCHEDULED' },
+          orderBy: { createdAt: 'desc' },
+          select: { patientId: true },
+        });
+        if (!row?.patientId) {
+          console.warn(
+            `[silent-mode] arrival send for ${appointmentId}: no held row/patient — skipping`,
+          );
+          return;
+        }
+        try {
+          const { sendArrivalConfirmation } = await import('@/lib/whatsapp/templates/sendArrival');
+          await sendArrivalConfirmation({
+            patientId: row.patientId,
+            appointmentIds: [appointmentId],
+          });
+        } catch (err) {
+          await markDispatchOutcome({
+            appointmentId,
+            kind: 'arrival',
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          }).catch(() => undefined);
+          throw err;
+        }
+        await markDispatchOutcome({ appointmentId, kind: 'arrival', ok: true }).catch(
+          () => undefined,
+        );
+        console.warn(`[lifecycle] appointment=${appointmentId} arrival dispatched (outbox)`);
         return;
       }
       const patientSelect = {
@@ -116,6 +168,21 @@ export function startReminderWorker(): Worker {
         console.warn(`[reminder] appointment ${appointmentId} already past — skipping`);
         return;
       }
+      // P51 — silent mode holds the reminder in the outbox INSTEAD of
+      // sending (decision reversal §1.4: the owner's master switch gates
+      // the P17 reminder too). Fire-time check, so toggling OFF simply
+      // lets future fires send normally. Admin-pressed sends pass through.
+      if (!job.data.adminSend) {
+        const { isSilentModeOn, holdForOutbox } = await import('@/lib/whatsapp/silent-mode');
+        if (await isSilentModeOn()) {
+          await holdForOutbox({
+            type: 'REMINDER',
+            appointmentId: appt.id,
+            patientId: appt.patientId,
+          });
+          return;
+        }
+      }
       // Recipients: a GROUP reminds every member (#6); a single-patient
       // SESSION/STRETCHING reminds the one patient; a patient-less EVENT has
       // no one to remind (July #8) and is skipped.
@@ -134,49 +201,71 @@ export function startReminderWorker(): Worker {
       // one rather than listing all.
       const firstTherapist = appt.therapists[0]?.therapist;
 
-      for (const recipient of recipients) {
-        // P50: phone is optional now — skip cleanly and log (the pattern
-        // mirrors the P29 patient-less EVENT skip above).
-        if (!recipient.phone) {
+      try {
+        for (const recipient of recipients) {
+          // P50: phone is optional now — skip cleanly and log (the pattern
+          // mirrors the P29 patient-less EVENT skip above).
+          if (!recipient.phone) {
+            console.warn(
+              `[reminder] patient=${recipient.id} has no phone — skipping reminder for appointment=${appt.id}`,
+            );
+            continue;
+          }
+          const lang = recipient.languagePref;
+          const therapistName =
+            (lang === 'AR' ? firstTherapist?.fullNameAr : firstTherapist?.fullNameEn) ?? '';
+          // Prompt 48b: the parameter array is built from the template ROW's
+          // registered shape (legacy P45 3-var today; the v2 4-var
+          // [patient, dayName, date, time] after the Admin flips SID+shape —
+          // zero deploy at switch time).
+          const shape = await resolveTemplateShape('appointment_reminder_v2', lang);
+          if (!shape) {
+            console.error('[reminder] no variable shape for appointment_reminder_v2 — skipping');
+            continue;
+          }
+          const ctx = await appointmentVarContext({
+            startsAt: appt.startsAt,
+            patientName: patientDisplayName(
+              recipient.fullNameEn,
+              recipient.fullNameAr,
+              lang === 'AR' ? 'ar' : 'en',
+            ),
+            therapistName,
+            language: lang,
+          });
+          const id = await enqueueWhatsappOutbound({
+            kind: 'template',
+            templateName: 'appointment_reminder_v2',
+            language: lang,
+            parameters: buildParamsFromShape(shape, ctx),
+            recipientPhone: recipient.phone,
+            recipientUserId: recipient.id,
+            appointmentId: appt.id,
+            source: 'queue',
+          });
           console.warn(
-            `[reminder] patient=${recipient.id} has no phone — skipping reminder for appointment=${appt.id}`,
+            `[reminder] appointment=${appointmentId} patient=${recipient.id} enqueued outbound=${id ?? 'n/a'}`,
           );
-          continue;
         }
-        const lang = recipient.languagePref;
-        const therapistName =
-          (lang === 'AR' ? firstTherapist?.fullNameAr : firstTherapist?.fullNameEn) ?? '';
-        // Prompt 48b: the parameter array is built from the template ROW's
-        // registered shape (legacy P45 3-var today; the v2 4-var
-        // [patient, dayName, date, time] after the Admin flips SID+shape —
-        // zero deploy at switch time).
-        const shape = await resolveTemplateShape('appointment_reminder_v2', lang);
-        if (!shape) {
-          console.error('[reminder] no variable shape for appointment_reminder_v2 — skipping');
-          continue;
+      } catch (err) {
+        if (job.data.adminSend) {
+          const { markDispatchOutcome } = await import('@/lib/whatsapp/dispatch/outcome');
+          await markDispatchOutcome({
+            appointmentId,
+            kind: 'reminder',
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          }).catch(() => undefined);
         }
-        const ctx = await appointmentVarContext({
-          startsAt: appt.startsAt,
-          patientName: patientDisplayName(
-            recipient.fullNameEn,
-            recipient.fullNameAr,
-            lang === 'AR' ? 'ar' : 'en',
-          ),
-          therapistName,
-          language: lang,
-        });
-        const id = await enqueueWhatsappOutbound({
-          kind: 'template',
-          templateName: 'appointment_reminder_v2',
-          language: lang,
-          parameters: buildParamsFromShape(shape, ctx),
-          recipientPhone: recipient.phone,
-          recipientUserId: recipient.id,
-          appointmentId: appt.id,
-          source: 'queue',
-        });
-        console.warn(
-          `[reminder] appointment=${appointmentId} patient=${recipient.id} enqueued outbound=${id ?? 'n/a'}`,
+        throw err;
+      }
+      // P51 — when this fire was an outbox Send of a held reminder, report
+      // the outcome to the ledger (no-op when no SCHEDULED row exists —
+      // the normal silent-OFF automatic fire).
+      if (job.data.adminSend) {
+        const { markDispatchOutcome } = await import('@/lib/whatsapp/dispatch/outcome');
+        await markDispatchOutcome({ appointmentId, kind: 'reminder', ok: true }).catch(
+          () => undefined,
         );
       }
     },
