@@ -18,7 +18,6 @@ import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { CalendarAppointment } from '@/lib/appointments/queries';
-import { minutesOverdue } from '@/lib/appointments/session-timing';
 import { fromClinicWall, toClinicWall } from '@/lib/time/clinic';
 import { cn } from '@/lib/utils';
 
@@ -380,8 +379,6 @@ export function SecretaryCalendar({
 }
 
 function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
-  const tStatus = useTranslations('appointments.status');
-  const tForm = useTranslations('appointments.form');
   // react-big-calendar reuses `components.event` for backgroundEvents too,
   // which are leave overlays without an `appointment` field — render just
   // the title for those.
@@ -398,15 +395,6 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
   // time) stay in the click-open side panel and the hover tooltip.
   const { primary, note } = eventCardContent(event);
   const tint = therapistTint(event.resourceId);
-  // Overdue while IN_PROGRESS past scheduled end (Prompt 22 §4.4). No
-  // auto-transition — computed at render time (fresh on navigation/refresh);
-  // minutesOverdue is the single source for this math.
-  const overdueMinutes =
-    event.status === 'IN_PROGRESS'
-      ? // Instant-vs-instant: event.start is clinic-wall, so use the true
-        // startsAt carried on the appointment.
-        minutesOverdue(new Date(), event.appointment.startsAt, event.appointment.durationMinutes)
-      : 0;
   return (
     // Prompt 56 — rich hover tooltip (desktop/fine-pointer only). Wraps the
     // card content INSIDE .rbc-event, so drag/click handlers on the event
@@ -419,32 +407,17 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
             className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
             style={{ backgroundColor: tint.swatch }}
           />
-          {/* The name owns the whole line now (no time on the card) — it is
-              the one thing the secretary scans for, so it gets the room. */}
-          <span className="truncate text-[13px] font-semibold leading-tight">{primary}</span>
-          {event.appointment.appointmentType === 'STRETCHING' ? (
-            <span className="shrink-0 rounded-full bg-brand-teal/15 px-1.5 py-px text-[9px] font-semibold uppercase text-brand-teal ring-1 ring-inset ring-brand-teal/25">
-              {tForm('typeStretchingShort')}
-            </span>
-          ) : event.appointment.appointmentType === 'EVENT' ? (
-            <span className="shrink-0 rounded-full bg-brand-blue/15 px-1.5 py-px text-[9px] font-semibold uppercase text-brand-blue ring-1 ring-inset ring-brand-blue/25">
-              {tForm('typeEventShort')}
-            </span>
-          ) : event.appointment.appointmentType === 'GROUP' ? (
-            <span className="shrink-0 rounded-full bg-brand-cyan/15 px-1.5 py-px text-[9px] font-semibold uppercase text-brand-cyan ring-1 ring-inset ring-brand-cyan/25">
-              {tForm('typeGroupShort')}
-            </span>
-          ) : null}
+          {/* Name + note ONLY (owner ruling 24 Aug: «بس الاسم يطلع في المربع
+              والملاحظة») — the type badges and the Prompt 22 §4.4 overdue
+              badge left the card; both remain in the hover tooltip and the
+              side panel. The name WRAPS to two lines instead of truncating
+              («لو ع سطرين»); shorter chips clip via overflow-hidden. */}
+          <span className="line-clamp-2 min-w-0 flex-1 break-words text-[13px] font-semibold leading-tight">
+            {primary}
+          </span>
         </div>
         {note ? (
           <div className="truncate ps-3 text-[11px] leading-tight opacity-75">{note}</div>
-        ) : null}
-        {overdueMinutes > 0 ? (
-          <div className="ps-3">
-            <span className="inline-flex items-center rounded-full bg-amber-500/15 px-1.5 py-px text-[10px] font-medium tabular-nums text-amber-700 ring-1 ring-inset ring-amber-500/25">
-              {tStatus('overdue', { minutes: overdueMinutes })}
-            </span>
-          </div>
         ) : null}
       </div>
     </AppointmentTooltip>
