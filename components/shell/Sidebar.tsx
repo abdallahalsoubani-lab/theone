@@ -117,16 +117,17 @@ export function Sidebar({ links }: { links: ReadonlyArray<NavLink> }) {
       aria-label={t('primary')}
       className="hidden w-60 shrink-0 border-e border-brand-border/70 bg-brand-surface py-6 md:flex md:flex-col"
     >
-      <div className="mb-1 flex justify-end px-3">
+      {/* Labeled, full-width toggle (owner follow-up 24 Aug: the icon-only
+          button was easy to miss on a phone) — reads like a nav row. */}
+      <div className="mb-2 px-3">
         <button
           type="button"
           onClick={toggleCollapsed}
-          title={t('collapseMenu')}
-          aria-label={t('collapseMenu')}
           aria-expanded={true}
-          className="rounded-md p-1.5 text-brand-textMuted transition-colors hover:bg-brand-bg hover:text-brand-navy"
+          className="flex w-full items-center gap-3 rounded-lg border border-brand-border/70 px-3 py-2 text-sm font-medium text-brand-textMuted transition-colors hover:bg-brand-bg hover:text-brand-navy"
         >
-          <PanelRightClose className="size-5 rtl:-scale-x-100" aria-hidden />
+          <PanelRightClose className="size-5 shrink-0 rtl:-scale-x-100" aria-hidden />
+          <span className="truncate">{t('collapseMenu')}</span>
         </button>
       </div>
       {links.length === 0 ? (
