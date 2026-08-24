@@ -101,7 +101,11 @@ export function LobbyDisplay({ token, locale }: { token: string; locale: string 
         </div>
       </header>
 
-      <div className="grid flex-1 grid-cols-1 gap-6 overflow-hidden lg:grid-cols-3">
+      {/* ALWAYS three columns (owner request 24 Aug): the lobby TV's browser
+          reports a sub-lg viewport, and the responsive fallback stacked the
+          sections into rows. This is a dedicated landscape TV surface — no
+          small-screen mode exists for it, so the grid is unconditional. */}
+      <div className="grid flex-1 grid-cols-3 gap-6 overflow-hidden">
         <Section
           title={t('waitingNow')}
           accent="green"
