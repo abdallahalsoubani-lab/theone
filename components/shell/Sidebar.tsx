@@ -1,5 +1,6 @@
 'use client';
 
+import { PanelRightClose, PanelRightOpen } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useEffect, useState } from 'react';
 
@@ -27,16 +28,44 @@ export interface NavLink {
   badgeKey?: StaffNavBadge;
 }
 
+/** Collapse preference key — survives refreshes; per-browser convenience. */
+const COLLAPSE_KEY = 'theone-sidebar-collapsed';
+
 /**
  * Desktop sidebar (Prompt 3 §4.5).
  *
  * Hidden below md. Renders whatever links the caller passes; later prompts
  * (calendar, admin panel, patient portal) compose their own role-scoped lists.
  * Empty list renders an explanatory empty state — never silent emptiness.
+ *
+ * Collapsible (owner request 24 Aug 2026, phone-landscape photo): on a
+ * phone held sideways the md: breakpoint shows this sidebar and it eats
+ * half the calendar. A toggle collapses it to a slim rail (the reopen
+ * button stays visible) at EVERY size ≥ md; the choice persists in
+ * localStorage. The below-md drawer (MobileNav) is untouched.
  */
 export function Sidebar({ links }: { links: ReadonlyArray<NavLink> }) {
   const pathname = usePathname();
   const t = useTranslations('navigation');
+  const [collapsed, setCollapsed] = useState(false);
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(COLLAPSE_KEY) === '1') setCollapsed(true);
+    } catch {
+      /* storage unavailable — stay expanded */
+    }
+  }, []);
+  const toggleCollapsed = () => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(COLLAPSE_KEY, next ? '1' : '0');
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
   // PT-B4 item 3 — the counts arrive with the first server render of the
   // (staff) layout, which the App Router then reuses across sibling
   // navigations without re-running it. Left alone the badges freeze: three
@@ -63,11 +92,43 @@ export function Sidebar({ links }: { links: ReadonlyArray<NavLink> }) {
   const badgeOf = (link: NavLink): number | undefined =>
     link.badgeKey && counts ? counts[link.badgeKey] : link.badge;
 
+  if (collapsed) {
+    return (
+      <aside
+        aria-label={t('primary')}
+        className="hidden w-10 shrink-0 flex-col items-center border-e border-brand-border/70 bg-brand-surface py-4 md:flex"
+      >
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          title={t('expandMenu')}
+          aria-label={t('expandMenu')}
+          aria-expanded={false}
+          className="rounded-md p-1.5 text-brand-textMuted transition-colors hover:bg-brand-bg hover:text-brand-navy"
+        >
+          <PanelRightOpen className="size-5 rtl:-scale-x-100" aria-hidden />
+        </button>
+      </aside>
+    );
+  }
+
   return (
     <aside
       aria-label={t('primary')}
       className="hidden w-60 shrink-0 border-e border-brand-border/70 bg-brand-surface py-6 md:flex md:flex-col"
     >
+      <div className="mb-1 flex justify-end px-3">
+        <button
+          type="button"
+          onClick={toggleCollapsed}
+          title={t('collapseMenu')}
+          aria-label={t('collapseMenu')}
+          aria-expanded={true}
+          className="rounded-md p-1.5 text-brand-textMuted transition-colors hover:bg-brand-bg hover:text-brand-navy"
+        >
+          <PanelRightClose className="size-5 rtl:-scale-x-100" aria-hidden />
+        </button>
+      </div>
       {links.length === 0 ? (
         <p className="px-4 text-sm text-brand-textMuted">{t('empty')}</p>
       ) : (

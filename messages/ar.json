@@ -537,7 +537,9 @@
     "confirmations": "التأكيدات",
     "waInbox": "واتساب",
     "leaves": "الإجازات",
-    "myLeaves": "إجازاتي"
+    "myLeaves": "إجازاتي",
+    "collapseMenu": "إخفاء القائمة",
+    "expandMenu": "إظهار القائمة"
   },
   "publicIntake": {
     "clinicName": "المركز الأول للعلاج الطبيعي",

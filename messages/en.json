@@ -1021,7 +1021,9 @@
     "confirmations": "Confirmations",
     "waInbox": "WhatsApp",
     "leaves": "Leaves",
-    "myLeaves": "My leave"
+    "myLeaves": "My leave",
+    "collapseMenu": "Hide the menu",
+    "expandMenu": "Show the menu"
   },
   "publicIntake": {
     "clinicName": "The One for Physiotherapy",
