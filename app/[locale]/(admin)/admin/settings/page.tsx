@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 
 import { ArrivalsTokensCard } from '@/components/admin/ArrivalsTokensCard';
 import { ClinicSettingsForm } from '@/components/admin/ClinicSettingsForm';
+import { SilentModeCard } from '@/components/admin/SilentModeCard';
 import { db } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac/guards';
 
@@ -24,6 +25,9 @@ export default async function ClinicSettingsPage({
         <h1 className="text-2xl font-medium text-brand-navy">{t('title')}</h1>
         <p className="text-sm text-brand-textMuted">{t('subtitle')}</p>
       </header>
+      {/* P51 — the master hold-all switch, above the form so its state is
+          unmissable; the amber card doubles as the ON banner here. */}
+      <SilentModeCard enabled={settings.whatsappSilentMode} />
       <ClinicSettingsForm
         initial={{
           nameEn: settings.nameEn,

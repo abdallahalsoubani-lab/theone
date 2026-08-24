@@ -49,6 +49,10 @@ export function OutboxSection({ type, rows }: { type: WaDispatchType; rows: Outb
       router.refresh();
     });
 
+  // P51 — stale rows (outlived their moment) are visually flagged, never
+  // counted for Send, and skipped + marked by the batch send itself.
+  const sendable = rows.filter((r) => !r.stale).length;
+
   return (
     <section className="space-y-2 rounded-md border border-brand-border bg-brand-surface p-4">
       <header className="flex flex-wrap items-center justify-between gap-2">
@@ -56,9 +60,9 @@ export function OutboxSection({ type, rows }: { type: WaDispatchType; rows: Outb
           <h2 className="text-sm font-semibold text-brand-navy">{t(`types.${type}`)}</h2>
           <Badge variant={rows.length > 0 ? 'cyan' : 'muted'}>{rows.length}</Badge>
         </div>
-        <Button type="button" size="sm" disabled={pending || rows.length === 0} onClick={send}>
+        <Button type="button" size="sm" disabled={pending || sendable === 0} onClick={send}>
           <Send className="me-1.5 size-3.5" />
-          {t('sendN', { count: rows.length })}
+          {t('sendN', { count: sendable })}
         </Button>
       </header>
 
@@ -95,7 +99,12 @@ export function OutboxSection({ type, rows }: { type: WaDispatchType; rows: Outb
                     {r.appointmentStartsAt
                       ? formatDateTime(r.appointmentStartsAt, intlLocale)
                       : '—'}
-                    {r.urgent ? (
+                    {r.stale ? (
+                      <Badge variant="muted" className="ms-2" title={t('staleHint')}>
+                        {t('stale')}
+                      </Badge>
+                    ) : null}
+                    {r.urgent && !r.stale ? (
                       // P50 — visual only: flags what to send first. Nothing
                       // here (or anywhere) sends a MANUAL entry on its own.
                       <Badge variant="amber" className="ms-2 gap-1" title={t('urgentHint')}>

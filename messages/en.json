@@ -352,6 +352,15 @@
         "auto": "Automatic (after delay)",
         "manual": "Manual (outbox)",
         "delayMinutes": "Delay (minutes)"
+      },
+      "silentMode": {
+        "heading": "Silent mode (hold everything)",
+        "offNote": "Off — messages follow the per-type settings below. When on, NO patient message is ever sent automatically (login codes and account credentials excepted): everything waits in the outbox for your Send.",
+        "onBanner": "Silent mode is ON — no message is sent to patients automatically. Everything is held in the WhatsApp outbox until you press Send. (Login codes and account credentials still send.)",
+        "turnOn": "Enable silent mode",
+        "turnOff": "Disable silent mode",
+        "enabledToast": "Silent mode enabled — all patient messages will be held in the outbox.",
+        "disabledToast": "Silent mode disabled — per-type dispatch settings apply again."
       }
     },
     "audit": {
@@ -468,7 +477,10 @@
       "types": {
         "BOOKING_CONFIRMATION": "Bookings",
         "RESCHEDULE": "Reschedules",
-        "CANCELLATION": "Cancellations"
+        "CANCELLATION": "Cancellations",
+        "REMINDER": "Appointment reminders",
+        "HOME_PROGRAM": "Home-exercise reminders",
+        "ARRIVAL": "Arrival confirmations"
       },
       "statuses": {
         "PENDING": "Pending",
@@ -476,7 +488,8 @@
         "SENT": "Sent",
         "SUPERSEDED": "Superseded",
         "EXCLUDED": "Excluded",
-        "FAILED": "Failed"
+        "FAILED": "Failed",
+        "STALE": "Stale"
       },
       "sendN": "Send {count}",
       "nothingToSend": "Nothing pending — nothing was sent.",
@@ -491,7 +504,9 @@
       "urgent": "Starts within 24h",
       "urgentHint": "This appointment starts within 24 hours — consider sending this batch first. Nothing is sent automatically.",
       "recentHeading": "Last 24 hours ({count})",
-      "recentEmpty": "No recent activity."
+      "recentEmpty": "No recent activity.",
+      "stale": "Stale",
+      "staleHint": "This message outlived its moment (e.g. the appointment already started) — it will never be sent. Marked automatically."
     }
   },
   "appointments": {
