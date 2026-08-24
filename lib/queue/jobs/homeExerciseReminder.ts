@@ -76,6 +76,9 @@ export function computeReminderCron(args: ReminderCronArgs): ReminderCronResult 
 
 export interface HomeReminderJobData {
   itemId: string;
+  /** P51 — true when an admin pressed Send in the outbox: a human action,
+   *  so the worker's silent-mode gate lets it through. */
+  adminSend?: boolean;
 }
 
 /**

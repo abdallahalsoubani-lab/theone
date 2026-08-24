@@ -8,10 +8,13 @@ import type { LifecycleKind } from '@/lib/queue/jobs/appointmentReminder';
  * worker never drags the Next-request-scoped audit/session machinery into
  * its runtime. db-only.
  */
-const TYPE_BY_KIND: Record<LifecycleKind, WaDispatchType> = {
+const TYPE_BY_KIND: Record<LifecycleKind | 'reminder' | 'arrival', WaDispatchType> = {
   confirmation: 'BOOKING_CONFIRMATION',
   reschedule: 'RESCHEDULE',
   cancellation: 'CANCELLATION',
+  // P51 — outbox-sent holds report their outcome the same way.
+  reminder: 'REMINDER',
+  arrival: 'ARRIVAL',
 };
 
 /**
@@ -21,7 +24,7 @@ const TYPE_BY_KIND: Record<LifecycleKind, WaDispatchType> = {
  */
 export async function markDispatchOutcome(args: {
   appointmentId: string;
-  kind: LifecycleKind;
+  kind: LifecycleKind | 'reminder' | 'arrival';
   ok: boolean;
   error?: string;
 }): Promise<void> {

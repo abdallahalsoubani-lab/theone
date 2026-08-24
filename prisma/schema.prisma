@@ -190,14 +190,21 @@ enum WaDispatchType {
   BOOKING_CONFIRMATION
   RESCHEDULE
   CANCELLATION
+  // P51 silent mode — classes held in the outbox while the master switch
+  // is ON. Rows are references only; content is re-derived at send time
+  // (the C-3 lesson: payload-carrying queues were a live PII/staleness bug).
+  REMINDER // P17 24h appointment reminder
+  HOME_PROGRAM // home-exercise reminder (appointment-less; homeProgramItemId set)
+  ARRIVAL // kiosk / manual check-in arrival confirmation
 }
 
 enum WaDispatchStatus {
-  PENDING // MANUAL mode — waiting for the admin's Send
-  SCHEDULED // AUTO/safety/manual-send — a queue job exists (worker flips to SENT/FAILED)
+  PENDING // MANUAL mode / silent hold — waiting for the admin's Send
+  SCHEDULED // AUTO/manual-send — a queue job exists (worker flips to SENT/FAILED)
   SENT
   SUPERSEDED // replaced by a later event on the same appointment (last-state-wins)
   EXCLUDED // admin removed it from the batch
+  STALE // P51 — outlived its moment (reminder past start, …); never sends
   FAILED
 }
 
@@ -1108,8 +1115,13 @@ model WhatsAppDispatch {
   status         WaDispatchStatus  @default(PENDING)
   // Why it (was) sent — null while PENDING in MANUAL mode.
   dispatchReason WaDispatchReason?
-  appointmentId  String
-  appointment    Appointment       @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  // Nullable since P51: HOME_PROGRAM holds are patient-bound, not
+  // appointment-bound. Every other class still sets it.
+  appointmentId String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  // P51 — HOME_PROGRAM holds only: the item to re-validate + send. Loose id
+  // (no relation): a deleted item simply fails the re-read at send time.
+  homeProgramItemId String?
   patientId      String?
   patient        User?             @relation("WaDispatchPatient", fields: [patientId], references: [id], onDelete: SetNull)
   // Last-state-wins: the newer entry that replaced this one (null for the
@@ -1581,6 +1593,9 @@ model ClinicSettings {
   // AUTO everywhere, existing delays kept, cancellation delay 0 (its old
   // hardwired "immediate"). The <24h safety exception (lib/whatsapp/
   // dispatch) overrides everything.
+  // P51 — the master hold-all switch: ON = no patient-bound message is
+  // ever sent automatically (OTP/credentials + human-initiated sends exempt).
+  whatsappSilentMode              Boolean        @default(false)
   bookingDispatchMode             WaDispatchMode @default(AUTO)
   rescheduleDispatchMode          WaDispatchMode @default(AUTO)
   cancellationDispatchMode        WaDispatchMode @default(AUTO)

@@ -21,8 +21,12 @@ export interface AppointmentReminderJob {
   appointmentId: string;
   /** P53/P48 — deferred lifecycle messages ride the SAME queue + worker as
    *  reminders (no parallel mechanism). Absent/'reminder' = the P17
-   *  reminder; the rest are dispatch-layer sends (P48). */
-  kind?: 'reminder' | 'confirmation' | 'reschedule' | 'cancellation';
+   *  reminder; 'arrival' = a P51 outbox-sent arrival confirmation; the
+   *  rest are dispatch-layer sends (P48). */
+  kind?: 'reminder' | 'confirmation' | 'reschedule' | 'cancellation' | 'arrival';
+  /** P51 — true when an admin pressed Send in the outbox: a human action,
+   *  so the silent-mode gate does not re-hold it at fire time. */
+  adminSend?: boolean;
 }
 
 // ─── P53: deferred, coalescing lifecycle messages ──────────────────────────
@@ -72,6 +76,9 @@ export async function scheduleLifecycleMessage(args: {
   startsAt: Date;
   kind: LifecycleKind;
   delayMinutes: number;
+  /** P51 — set by the outbox Send button; rides into the job so the
+   *  worker's silent-mode gate lets the human-initiated send through. */
+  adminSend?: boolean;
 }): Promise<string | null> {
   await cancelLifecycleMessages(args.appointmentId);
   const delay = computeLifecycleDelayMs({
@@ -89,7 +96,11 @@ export async function scheduleLifecycleMessage(args: {
   const jobId = lifecycleJobId(args.kind, args.appointmentId);
   const job = await reminderQueue.add(
     'appointment',
-    { appointmentId: args.appointmentId, kind: args.kind } satisfies AppointmentReminderJob,
+    {
+      appointmentId: args.appointmentId,
+      kind: args.kind,
+      ...(args.adminSend ? { adminSend: true } : {}),
+    } satisfies AppointmentReminderJob,
     { delay, jobId },
   );
   return job.id ?? null;

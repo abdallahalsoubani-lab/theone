@@ -9,6 +9,9 @@ import {
   type LifecycleKind,
 } from '@/lib/queue/jobs/appointmentReminder';
 
+import { isStale } from './stale';
+import { isSilentModeOn } from '../silent-mode';
+
 /**
  * P48 — WhatsApp dispatch control.
  *
@@ -36,7 +39,11 @@ import {
  * it any more.
  */
 
-export const KIND_BY_TYPE: Record<WaDispatchType, LifecycleKind> = {
+/** The three P48 appointment-EVENT types (the P51 held classes —
+ *  REMINDER / HOME_PROGRAM / ARRIVAL — ride other queues on Send). */
+export type WaEventType = 'BOOKING_CONFIRMATION' | 'RESCHEDULE' | 'CANCELLATION';
+
+export const KIND_BY_TYPE: Record<WaEventType, LifecycleKind> = {
   BOOKING_CONFIRMATION: 'confirmation',
   RESCHEDULE: 'reschedule',
   CANCELLATION: 'cancellation',
@@ -47,7 +54,7 @@ export interface DispatchTypeSettings {
   delayMinutes: number;
 }
 
-export async function getDispatchSettings(): Promise<Record<WaDispatchType, DispatchTypeSettings>> {
+export async function getDispatchSettings(): Promise<Record<WaEventType, DispatchTypeSettings>> {
   const s = await db.clinicSettings.findUnique({
     where: { id: 'default' },
     select: {
@@ -155,25 +162,29 @@ export async function recordDispatchEvent(args: {
   // The mode alone decides (safety exception removed, owner order 19 Aug):
   // AUTO schedules the deferred job; MANUAL parks the entry for the outbox
   // and NOTHING leaves until the admin presses Send.
-  const settings = (await getDispatchSettings())[effectiveType];
+  // P51: the silent-mode master switch overrides the per-type mode — while
+  // ON, even an AUTO type parks (one gate, consulted live). Jobs already
+  // in flight are re-checked at fire time by the worker.
+  const settings = (await getDispatchSettings())[effectiveType as WaEventType];
+  const autoSend = settings.mode === 'AUTO' && !(await isSilentModeOn());
 
   const entry = await db.whatsAppDispatch.create({
     data: {
       type: effectiveType,
       appointmentId: args.appointmentId,
       patientId: args.patientId,
-      status: settings.mode === 'AUTO' ? 'SCHEDULED' : 'PENDING',
-      dispatchReason: settings.mode === 'AUTO' ? 'AUTO' : null,
+      status: autoSend ? 'SCHEDULED' : 'PENDING',
+      dispatchReason: autoSend ? 'AUTO' : null,
     },
     select: { id: true },
   });
   await closeOpen(entry.id);
 
-  if (settings.mode === 'AUTO') {
+  if (autoSend) {
     const jobId = await scheduleLifecycleMessage({
       appointmentId: args.appointmentId,
       startsAt: args.startsAt,
-      kind: KIND_BY_TYPE[effectiveType],
+      kind: KIND_BY_TYPE[effectiveType as WaEventType],
       delayMinutes: settings.delayMinutes,
     });
     if (jobId === null) {
@@ -198,7 +209,7 @@ export async function recordDispatchEvent(args: {
  */
 export const sendOutboxBatch = withAudit<
   [{ type: WaDispatchType; adminId: string }],
-  { count: number; entryIds: string[] }
+  { count: number; entryIds: string[]; staleIds: string[] }
 >(
   {
     entityType: 'WhatsAppDispatch',
@@ -208,33 +219,66 @@ export const sendOutboxBatch = withAudit<
       event: 'OUTBOX_BATCH_SENT',
       count: result.count,
       entryIds: result.entryIds,
+      // P51 — rows auto-marked STALE by this Send (audited here).
+      staleIds: result.staleIds,
     }),
   },
-  async function sendOutboxInner(args): Promise<{ count: number; entryIds: string[] }> {
+  async function sendOutboxInner(args): Promise<{
+    count: number;
+    entryIds: string[];
+    staleIds: string[];
+  }> {
     const pending = await db.whatsAppDispatch.findMany({
       where: { type: args.type, status: 'PENDING' },
-      select: { id: true, appointmentId: true },
+      select: { id: true, appointmentId: true, patientId: true, homeProgramItemId: true },
       orderBy: { createdAt: 'asc' },
     });
-    if (pending.length === 0) return { count: 0, entryIds: [] };
+    if (pending.length === 0) return { count: 0, entryIds: [], staleIds: [] };
 
+    const apptIds = pending.map((p) => p.appointmentId).filter((x): x is string => Boolean(x));
     const appts = await db.appointment.findMany({
-      where: { id: { in: pending.map((p) => p.appointmentId) } },
-      select: { id: true, startsAt: true },
+      where: { id: { in: apptIds } },
+      select: { id: true, startsAt: true, durationMinutes: true, status: true },
     });
-    const startsById = new Map(appts.map((a) => [a.id, a.startsAt]));
+    const apptById = new Map(appts.map((a) => [a.id, a]));
 
+    const now = new Date();
     const sentIds: string[] = [];
+    const staleIds: string[] = [];
     for (const entry of pending) {
+      const appt = entry.appointmentId ? apptById.get(entry.appointmentId) : undefined;
+      // P51 §4.5 — a held message must not outlive its moment: stale rows
+      // are marked (audited via this batch's audit row) and never send.
+      if (
+        isStale(
+          {
+            type: args.type,
+            status: 'PENDING',
+            appointmentStartsAt: appt?.startsAt ?? null,
+            appointmentDurationMinutes: appt?.durationMinutes ?? null,
+            appointmentStatus: appt?.status ?? null,
+          },
+          now,
+        )
+      ) {
+        await db.whatsAppDispatch.update({
+          where: { id: entry.id },
+          data: { status: 'STALE', failureReason: 'stale at send time' },
+        });
+        staleIds.push(entry.id);
+        continue;
+      }
       await db.whatsAppDispatch.update({
         where: { id: entry.id },
         data: { status: 'SCHEDULED', dispatchReason: 'MANUAL', sentById: args.adminId },
       });
-      const jobId = await scheduleLifecycleMessage({
+      // The admin pressed Send — a human action, so the job carries
+      // adminSend and bypasses the silent-mode gate at fire time.
+      const jobId = await scheduleOutboxSend({
+        type: args.type,
         appointmentId: entry.appointmentId,
-        startsAt: startsById.get(entry.appointmentId) ?? new Date(0),
-        kind: KIND_BY_TYPE[args.type],
-        delayMinutes: 0,
+        homeProgramItemId: entry.homeProgramItemId,
+        startsAt: appt?.startsAt ?? null,
       }).catch(() => null);
       if (jobId === null) {
         await db.whatsAppDispatch.update({
@@ -245,7 +289,83 @@ export const sendOutboxBatch = withAudit<
       }
       sentIds.push(entry.id);
     }
-    return { count: sentIds.length, entryIds: sentIds };
+    return { count: sentIds.length, entryIds: sentIds, staleIds };
+  },
+);
+
+/**
+ * P51 — route one admin-pressed Send onto the queue matching its class.
+ * Event types reuse the P48 lifecycle jobs; REMINDER/ARRIVAL ride the same
+ * reminders queue under their own deterministic outbox-send job ids;
+ * HOME_PROGRAM re-runs the home-reminder job (full re-validation).
+ * Content is always re-derived at fire time by the same sender the
+ * automatic path uses.
+ */
+async function scheduleOutboxSend(args: {
+  type: WaDispatchType;
+  appointmentId: string | null;
+  homeProgramItemId: string | null;
+  startsAt: Date | null;
+}): Promise<string | null> {
+  if (
+    args.type === 'BOOKING_CONFIRMATION' ||
+    args.type === 'RESCHEDULE' ||
+    args.type === 'CANCELLATION'
+  ) {
+    if (!args.appointmentId) return null;
+    return scheduleLifecycleMessage({
+      appointmentId: args.appointmentId,
+      startsAt: args.startsAt ?? new Date(0),
+      kind: KIND_BY_TYPE[args.type],
+      delayMinutes: 0,
+      adminSend: true,
+    });
+  }
+  if (args.type === 'REMINDER' || args.type === 'ARRIVAL') {
+    if (!args.appointmentId) return null;
+    const { reminderQueue } = await import('@/lib/queue/queues');
+    const kind = args.type === 'REMINDER' ? 'reminder' : 'arrival';
+    const jobId = `outbox-${kind}-${args.appointmentId}`;
+    await reminderQueue.remove(jobId).catch(() => undefined);
+    const job = await reminderQueue.add(
+      'appointment',
+      { appointmentId: args.appointmentId, kind, adminSend: true },
+      { jobId },
+    );
+    return job.id ?? null;
+  }
+  // HOME_PROGRAM
+  if (!args.homeProgramItemId) return null;
+  const { homeProgramQueue } = await import('@/lib/queue/queues');
+  const jobId = `outbox-homeprog-${args.homeProgramItemId}`;
+  await homeProgramQueue.remove(jobId).catch(() => undefined);
+  const job = await homeProgramQueue.add(
+    'homeExerciseReminder',
+    { itemId: args.homeProgramItemId, adminSend: true },
+    { jobId },
+  );
+  return job.id ?? null;
+}
+
+/**
+ * P51 — flip the master silent-mode switch (ADMIN, audited with a distinct
+ * event so the toggle history is separable from ordinary settings saves).
+ */
+export const setSilentMode = withAudit<[{ on: boolean; adminId: string }], { on: boolean }>(
+  {
+    entityType: 'ClinicSettings',
+    action: AuditAction.UPDATE,
+    extractEntityId: () => 'default',
+    extractAfter: (result) => ({
+      event: result.on ? 'SILENT_MODE_ENABLED' : 'SILENT_MODE_DISABLED',
+    }),
+  },
+  async function setSilentModeInner(args): Promise<{ on: boolean }> {
+    await db.clinicSettings.update({
+      where: { id: 'default' },
+      data: { whatsappSilentMode: args.on, updatedById: args.adminId },
+    });
+    return { on: args.on };
   },
 );
 

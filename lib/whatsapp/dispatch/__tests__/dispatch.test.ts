@@ -4,8 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * P48 — dispatch control core (§6):
  *   AUTO delay / MANUAL outbox, last-state-wins with its two special cases,
  *   the manual batch send (per-type, idempotent), exclude, and the worker
- *   outcome flips. The P17 reminder pipeline is untouched — nothing here
- *   imports or calls it (regression: see assertion below).
+ *   outcome flips. The dispatch SERVICE still never schedules/cancels P17
+ *   reminder jobs (regression below) — but since P51 the reminder WORKERS
+ *   deliberately consult the dispatch layer's silent-mode gate at fire
+ *   time (owner-approved reversal, P51 §1.4; see silent-mode tests).
  *
  * The <24h safety exception was REMOVED on the owner's order (19 Aug 2026):
  * MANUAL now means nothing ever leaves without the admin's Send, however
@@ -35,6 +37,19 @@ vi.mock('@/lib/whatsapp/templates/sendConfirmation', () => ({
   confirmationAlreadySent: confirmationSentMock,
 }));
 
+// P51 — the outbox Send for held REMINDER/ARRIVAL/HOME_PROGRAM rows rides
+// the queues directly (dynamic import in scheduleOutboxSend).
+const queueAddMock = vi.hoisted(() =>
+  vi.fn(async (_n: string, _d: unknown, o: { jobId: string }) => ({ id: o.jobId })),
+);
+const homeAddMock = vi.hoisted(() =>
+  vi.fn(async (_n: string, _d: unknown, o: { jobId: string }) => ({ id: o.jobId })),
+);
+vi.mock('@/lib/queue/queues', () => ({
+  reminderQueue: { add: queueAddMock, remove: vi.fn(async () => undefined) },
+  homeProgramQueue: { add: homeAddMock, remove: vi.fn(async () => undefined) },
+}));
+
 interface Row {
   id: string;
   type: string;
@@ -46,13 +61,14 @@ interface Row {
   sentById: string | null;
   sentAt: Date | null;
   failureReason: string | null;
+  homeProgramItemId?: string | null;
   createdAt: Date;
 }
 const state: {
   rows: Row[];
   settings: Record<string, unknown>;
   audits: Array<Record<string, unknown>>;
-  appointments: Array<{ id: string; startsAt: Date }>;
+  appointments: Array<{ id: string; startsAt: Date; durationMinutes?: number; status?: string }>;
 } = { rows: [], settings: {}, audits: [], appointments: [] };
 let seq = 0;
 
@@ -108,6 +124,7 @@ vi.mock('@/lib/db', () => ({
           status: data.status ?? 'PENDING',
           dispatchReason: data.dispatchReason ?? null,
           appointmentId: data.appointmentId!,
+          homeProgramItemId: data.homeProgramItemId ?? null,
           patientId: data.patientId ?? null,
           supersededById: null,
           sentById: null,
@@ -144,6 +161,7 @@ const FUTURE_FAR = () => new Date(Date.now() + 3 * 24 * 60 * 60 * 1000); // +3d
 const FUTURE_NEAR = () => new Date(Date.now() + 2 * 60 * 60 * 1000); // +2h
 
 const AUTO_SETTINGS = {
+  whatsappSilentMode: false,
   bookingDispatchMode: 'AUTO',
   rescheduleDispatchMode: 'AUTO',
   cancellationDispatchMode: 'AUTO',
@@ -437,8 +455,207 @@ describe('markDispatchOutcome (worker callback)', () => {
   });
 });
 
-describe('reminder pipeline untouched (regression)', () => {
-  it('the dispatch layer never imports or calls the P17 reminder scheduling', async () => {
+describe('P51 — silent mode (master hold-all switch)', () => {
+  it('silent ON: an AUTO-mode booking parks PENDING with NO job (mode overridden)', async () => {
+    state.settings = { ...AUTO_SETTINGS, whatsappSilentMode: true };
+    const r = await recordDispatchEvent({
+      appointmentId: 'a1',
+      patientId: 'p1',
+      startsAt: FUTURE_FAR(),
+      type: 'BOOKING_CONFIRMATION',
+    });
+    expect(scheduleMock).not.toHaveBeenCalled();
+    const row = state.rows.find((x) => x.id === r.entryId)!;
+    expect(row.status).toBe('PENDING');
+    expect(row.dispatchReason).toBeNull();
+  });
+
+  it('silent OFF: AUTO behaviour is byte-for-byte unchanged (regression)', async () => {
+    state.settings = { ...AUTO_SETTINGS };
+    await recordDispatchEvent({
+      appointmentId: 'a1',
+      patientId: 'p1',
+      startsAt: FUTURE_FAR(),
+      type: 'BOOKING_CONFIRMATION',
+    });
+    expect(scheduleMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('the setting is read LIVE — a toggle between two events changes only the later one', async () => {
+    state.settings = { ...AUTO_SETTINGS };
+    await recordDispatchEvent({
+      appointmentId: 'a1',
+      patientId: 'p1',
+      startsAt: FUTURE_FAR(),
+      type: 'BOOKING_CONFIRMATION',
+    });
+    state.settings = { ...AUTO_SETTINGS, whatsappSilentMode: true };
+    await recordDispatchEvent({
+      appointmentId: 'a2',
+      patientId: 'p1',
+      startsAt: FUTURE_FAR(),
+      type: 'BOOKING_CONFIRMATION',
+    });
+    expect(scheduleMock).toHaveBeenCalledTimes(1);
+    expect(state.rows.find((x) => x.appointmentId === 'a2')!.status).toBe('PENDING');
+  });
+
+  it('outbox Send of a held REMINDER rides the reminders queue with adminSend', async () => {
+    state.rows.push({
+      id: 'h1',
+      type: 'REMINDER',
+      status: 'PENDING',
+      dispatchReason: null,
+      appointmentId: 'a1',
+      patientId: 'p1',
+      supersededById: null,
+      sentById: null,
+      sentAt: null,
+      failureReason: null,
+      createdAt: new Date(),
+    });
+    state.appointments = [
+      { id: 'a1', startsAt: FUTURE_NEAR(), durationMinutes: 60, status: 'SCHEDULED' },
+    ];
+    const res = await sendOutboxBatch({ type: 'REMINDER', adminId: 'adm-1' });
+    expect(res.count).toBe(1);
+    expect(queueAddMock).toHaveBeenCalledWith(
+      'appointment',
+      { appointmentId: 'a1', kind: 'reminder', adminSend: true },
+      { jobId: 'outbox-reminder-a1' },
+    );
+    expect(state.rows[0]!.status).toBe('SCHEDULED');
+    expect(state.rows[0]!.dispatchReason).toBe('MANUAL');
+  });
+
+  it('outbox Send of a held HOME_PROGRAM re-runs the home-reminder job', async () => {
+    state.rows.push({
+      id: 'h2',
+      type: 'HOME_PROGRAM',
+      status: 'PENDING',
+      dispatchReason: null,
+      appointmentId: null as unknown as string,
+      patientId: 'p1',
+      homeProgramItemId: 'item-9',
+      supersededById: null,
+      sentById: null,
+      sentAt: null,
+      failureReason: null,
+      createdAt: new Date(),
+    });
+    const res = await sendOutboxBatch({ type: 'HOME_PROGRAM', adminId: 'adm-1' });
+    expect(res.count).toBe(1);
+    expect(homeAddMock).toHaveBeenCalledWith(
+      'homeExerciseReminder',
+      { itemId: 'item-9', adminSend: true },
+      { jobId: 'outbox-homeprog-item-9' },
+    );
+  });
+
+  it('§4.5 Send marks STALE rows, skips them, sends the rest, and audits the marking', async () => {
+    const past = new Date(Date.now() - 60 * 60 * 1000);
+    state.rows.push(
+      {
+        id: 's1',
+        type: 'REMINDER',
+        status: 'PENDING',
+        dispatchReason: null,
+        appointmentId: 'a-past',
+        patientId: 'p1',
+        supersededById: null,
+        sentById: null,
+        sentAt: null,
+        failureReason: null,
+        createdAt: new Date(),
+      },
+      {
+        id: 's2',
+        type: 'REMINDER',
+        status: 'PENDING',
+        dispatchReason: null,
+        appointmentId: 'a-future',
+        patientId: 'p1',
+        supersededById: null,
+        sentById: null,
+        sentAt: null,
+        failureReason: null,
+        createdAt: new Date(Date.now() + 1),
+      },
+    );
+    state.appointments = [
+      { id: 'a-past', startsAt: past, durationMinutes: 60, status: 'SCHEDULED' },
+      { id: 'a-future', startsAt: FUTURE_NEAR(), durationMinutes: 60, status: 'SCHEDULED' },
+    ];
+    const res = await sendOutboxBatch({ type: 'REMINDER', adminId: 'adm-1' });
+    expect(res.count).toBe(1);
+    expect(res.staleIds).toEqual(['s1']);
+    expect(state.rows.find((r) => r.id === 's1')!.status).toBe('STALE');
+    expect(state.rows.find((r) => r.id === 's2')!.status).toBe('SCHEDULED');
+    // withAudit is passthrough-mocked in this file; the audit payload is
+    // covered by asserting the result the extractAfter config reads
+    // (`staleIds` above) — the decorator itself is pinned in withAudit tests.
+  });
+
+  it('a held CANCELLATION for a long-past appointment is NOT stale — it still sends', async () => {
+    const past = new Date(Date.now() - 10 * 60 * 60 * 1000);
+    state.rows.push({
+      id: 'c1',
+      type: 'CANCELLATION',
+      status: 'PENDING',
+      dispatchReason: null,
+      appointmentId: 'a-past',
+      patientId: 'p1',
+      supersededById: null,
+      sentById: null,
+      sentAt: null,
+      failureReason: null,
+      createdAt: new Date(),
+    });
+    state.appointments = [
+      { id: 'a-past', startsAt: past, durationMinutes: 60, status: 'CANCELLED' },
+    ];
+    const res = await sendOutboxBatch({ type: 'CANCELLATION', adminId: 'adm-1' });
+    expect(res.count).toBe(1);
+    expect(res.staleIds).toEqual([]);
+    // adminSend rides the lifecycle job so the fire-time gate lets it pass.
+    expect(scheduleMock).toHaveBeenCalledWith(
+      expect.objectContaining({ appointmentId: 'a-past', kind: 'cancellation', adminSend: true }),
+    );
+  });
+
+  it('RBAC: the toggle + Send actions gate on whatsapp.dispatch (ADMIN-only in the matrix)', async () => {
+    // can.test.ts pins the matrix (non-ADMIN denied); here we pin that the
+    // actions actually call the guard with that permission.
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(process.cwd(), 'lib/whatsapp/dispatch/actions.ts'), 'utf8');
+    const silentAction = src.slice(src.indexOf('export async function setSilentModeAction'));
+    expect(silentAction).toContain("await requirePermission('whatsapp.dispatch')");
+    const sendAction = src.slice(src.indexOf('export async function sendOutboxAction'));
+    expect(sendAction).toContain("await requirePermission('whatsapp.dispatch')");
+  });
+
+  it('setSilentMode flips the setting and audits with the distinct event', async () => {
+    const updates: Array<Record<string, unknown>> = [];
+    const { db } = await import('@/lib/db');
+    (db.clinicSettings as unknown as { update: unknown }).update = vi.fn(
+      async ({ data }: { data: Record<string, unknown> }) => {
+        updates.push(data);
+        return {};
+      },
+    );
+    const { setSilentMode } = await import('../service');
+    await setSilentMode({ on: true, adminId: 'adm-1' });
+    expect(updates[0]).toMatchObject({ whatsappSilentMode: true, updatedById: 'adm-1' });
+  });
+});
+
+describe('reminder SCHEDULING stays out of the dispatch service (P51-updated regression)', () => {
+  // P51 §1.4 deliberately reversed the "dispatch never touches reminders"
+  // rule at FIRE time (workers consult the silent-mode gate). What must
+  // still hold: the dispatch service never schedules, replaces, or cancels
+  // P17 reminder JOBS — scheduling stays in lib/appointments.
+  it('the dispatch service never imports the P17 reminder scheduling', async () => {
     const { readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
     const src = readFileSync(join(process.cwd(), 'lib/whatsapp/dispatch/service.ts'), 'utf8');

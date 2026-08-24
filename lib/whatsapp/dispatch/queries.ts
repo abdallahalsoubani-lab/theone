@@ -4,6 +4,7 @@ import type { WaDispatchReason, WaDispatchStatus, WaDispatchType } from '@prisma
 
 import { db } from '@/lib/db';
 
+import { isStale } from './stale';
 import { isUrgentDispatch } from './urgency';
 
 /**
@@ -20,7 +21,7 @@ export interface OutboxRow {
   createdAt: Date;
   sentAt: Date | null;
   failureReason: string | null;
-  appointmentId: string;
+  appointmentId: string | null;
   appointmentStartsAt: Date | null;
   appointmentStatus: string | null;
   patientNameEn: string;
@@ -30,6 +31,9 @@ export interface OutboxRow {
   therapistsAr: string[];
   /** P50 — appointment starts within 24h. Visual only (see ./urgency.ts). */
   urgent: boolean;
+  /** P51 — outlived its moment (see ./stale.ts). Computed live for display;
+   *  persisted (status STALE) only when a Send skips the row. */
+  stale: boolean;
 }
 
 const ROW_INCLUDE = {
@@ -37,6 +41,7 @@ const ROW_INCLUDE = {
     select: {
       id: true,
       startsAt: true,
+      durationMinutes: true,
       status: true,
       therapists: {
         orderBy: { createdAt: 'asc' as const },
@@ -75,6 +80,16 @@ function toRow(r: Raw, now: Date): OutboxRow {
     therapistsEn: r.appointment?.therapists.map((t) => t.therapist.fullNameEn) ?? [],
     therapistsAr: r.appointment?.therapists.map((t) => t.therapist.fullNameAr) ?? [],
     urgent: isUrgentDispatch(r.appointment?.startsAt ?? null, now),
+    stale: isStale(
+      {
+        type: r.type,
+        status: r.status,
+        appointmentStartsAt: r.appointment?.startsAt ?? null,
+        appointmentDurationMinutes: r.appointment?.durationMinutes ?? null,
+        appointmentStatus: r.appointment?.status ?? null,
+      },
+      now,
+    ),
   };
 }
 
@@ -89,7 +104,7 @@ export async function getOutbox(): Promise<OutboxData> {
   const [pendingRows, recentRows] = await Promise.all([
     findRows({ status: 'PENDING' }),
     findRows({
-      status: { in: ['SENT', 'FAILED', 'SUPERSEDED', 'EXCLUDED', 'SCHEDULED'] },
+      status: { in: ['SENT', 'FAILED', 'SUPERSEDED', 'EXCLUDED', 'STALE', 'SCHEDULED'] },
       updatedAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
     }),
   ]);
@@ -97,6 +112,9 @@ export async function getOutbox(): Promise<OutboxData> {
     BOOKING_CONFIRMATION: [],
     RESCHEDULE: [],
     CANCELLATION: [],
+    REMINDER: [],
+    HOME_PROGRAM: [],
+    ARRIVAL: [],
   };
   const now = new Date();
   for (const r of pendingRows) pending[r.type].push(toRow(r, now));

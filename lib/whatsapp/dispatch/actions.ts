@@ -9,7 +9,7 @@ import { fail, ok, type Result } from '@/lib/auth/result';
 import { toLocalizedError } from '@/lib/db';
 import { requirePermission } from '@/lib/rbac/guards';
 
-import { excludeDispatchEntry, sendOutboxBatch } from './service';
+import { excludeDispatchEntry, sendOutboxBatch, setSilentMode } from './service';
 
 const typeSchema = z.nativeEnum(WaDispatchType);
 
@@ -69,6 +69,27 @@ export async function excludeOutboxAction(entryId: string): Promise<Result<{ ent
         message_ar: 'هذه الرسالة لم تعد قيد الانتظار.',
       });
     }
+    return fail(toLocalizedError(err));
+  }
+}
+
+/** P51 — flip the master silent-mode switch (ADMIN-only, audited). */
+export async function setSilentModeAction(on: boolean): Promise<Result<{ on: boolean }>> {
+  await requirePermission('whatsapp.dispatch');
+  const session = await auth();
+  if (!session?.user?.id) {
+    return fail({
+      code: 'UNAUTHENTICATED',
+      message_en: 'Sign-in required.',
+      message_ar: 'يلزم تسجيل الدخول.',
+    });
+  }
+  try {
+    const data = await setSilentMode({ on: Boolean(on), adminId: session.user.id });
+    revalidate();
+    revalidatePath('/[locale]/(admin)/admin/settings', 'page');
+    return ok(data);
+  } catch (err) {
     return fail(toLocalizedError(err));
   }
 }
