@@ -44,6 +44,8 @@ vi.mock('@/lib/db', () => {
       readAt: Date | null;
     }>,
     inboundMessagesCreated: [] as Array<Record<string, unknown>>,
+    attachmentsCreated: [] as Array<Record<string, unknown>>,
+    mediaFetchEnqueued: [] as Array<Record<string, unknown>>,
     appointments: [] as Array<{
       id: string;
       patientId: string;
@@ -88,6 +90,15 @@ vi.mock('@/lib/db', () => {
           async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
             state.userUpdates.push({ id: where.id, data });
             return { id: where.id };
+          },
+        ),
+      },
+      whatsAppAttachment: {
+        create: vi.fn(
+          async ({ data, select }: { data: Record<string, unknown>; select?: { id: boolean } }) => {
+            const id = `att-${state.attachmentsCreated.length + 1}`;
+            state.attachmentsCreated.push({ id, ...data });
+            return select?.id ? { id } : { id, ...data };
           },
         ),
       },
@@ -235,6 +246,16 @@ vi.mock('@/lib/queue/client', () => {
   };
 });
 
+// P56 — capture inbound media fetch enqueues.
+vi.mock('@/lib/queue/jobs/whatsappMedia', () => ({
+  enqueueInboundMediaFetch: vi.fn(async (job: Record<string, unknown>) => {
+    const dbModule = (await vi.importMock('@/lib/db')) as {
+      __state: { mediaFetchEnqueued: Array<Record<string, unknown>> };
+    };
+    dbModule.__state.mediaFetchEnqueued.push(job);
+  }),
+}));
+
 // Enqueue stub — record what would have been sent without touching Redis/BullMQ.
 vi.mock('@/lib/queue/jobs/whatsappOutbound', () => ({
   enqueueWhatsappOutbound: vi.fn(async (job: Record<string, unknown>) => {
@@ -274,6 +295,8 @@ type DbState = {
     readAt: Date | null;
   }>;
   inboundMessagesCreated: Array<Record<string, unknown>>;
+  attachmentsCreated: Array<Record<string, unknown>>;
+  mediaFetchEnqueued: Array<Record<string, unknown>>;
   appointments: Array<{
     id: string;
     patientId: string;
@@ -1130,5 +1153,81 @@ describe('P51 — silent mode suppresses reply-button acks (never held, only log
       },
     });
     expect(state.enqueuedOutbound.length).toBeGreaterThan(0);
+  });
+});
+
+// ─── P56 — inbound media capture ────────────────────────────────────────────
+
+describe('P56 — inbound media', () => {
+  beforeEach(() => {
+    reset();
+    state.attachmentsCreated.length = 0;
+    state.mediaFetchEnqueued.length = 0;
+    state.users.push({
+      id: 'patient-1',
+      phone: '+962790000000',
+      deletedAt: null,
+      languagePref: 'AR',
+      fullNameAr: 'سارة',
+      fullNameEn: 'Sara',
+    });
+  });
+
+  it('a media message (empty body) creates the message + a PENDING attachment + a fetch job', async () => {
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'MM_1',
+        fromPhone: '+962790000000',
+        body: '',
+        receivedAt: new Date(),
+        media: [{ url: 'https://api.twilio.com/m0', contentType: 'image/jpeg' }],
+      },
+    });
+    // The message row is still created (never lost) with an empty body.
+    expect(state.inboundMessagesCreated).toHaveLength(1);
+    expect(state.inboundMessagesCreated[0]!.body).toBe('');
+    // One PENDING attachment, linked, and a fetch job enqueued.
+    expect(state.attachmentsCreated).toHaveLength(1);
+    expect(state.attachmentsCreated[0]).toMatchObject({
+      contentType: 'image/jpeg',
+      status: 'PENDING',
+      mediaIndex: 0,
+    });
+    expect(state.mediaFetchEnqueued).toHaveLength(1);
+    expect(state.mediaFetchEnqueued[0]).toMatchObject({ mediaUrl: 'https://api.twilio.com/m0' });
+  });
+
+  it('NumMedia=2 → two attachments + two fetch jobs', async () => {
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'MM_2',
+        fromPhone: '+962790000000',
+        body: '',
+        receivedAt: new Date(),
+        media: [
+          { url: 'https://x/m0', contentType: 'image/png' },
+          { url: 'https://x/m1', contentType: 'video/mp4' },
+        ],
+      },
+    });
+    expect(state.attachmentsCreated).toHaveLength(2);
+    expect(state.mediaFetchEnqueued).toHaveLength(2);
+  });
+
+  it('a plain text message creates NO attachment (regression)', async () => {
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'SM_txt',
+        fromPhone: '+962790000000',
+        body: 'مرحبا',
+        receivedAt: new Date(),
+      },
+    });
+    expect(state.inboundMessagesCreated).toHaveLength(1);
+    expect(state.attachmentsCreated).toHaveLength(0);
+    expect(state.mediaFetchEnqueued).toHaveLength(0);
   });
 });

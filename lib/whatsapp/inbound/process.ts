@@ -2,6 +2,8 @@ import { AppointmentStatus, AuditAction } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 
 import { db } from '@/lib/db';
+import { enqueueInboundMediaFetch } from '@/lib/queue/jobs/whatsappMedia';
+import { baseContentType } from '@/lib/whatsapp/media/policy';
 import { queueRedis } from '@/lib/queue/client';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 
@@ -208,6 +210,7 @@ async function handleInbound(args: {
   receivedAt: Date;
   buttonPayload?: string;
   buttonText?: string;
+  media?: Array<{ url: string; contentType: string }>;
 }): Promise<void> {
   const intent = parseIntentWithButtons(args);
   const link = await resolveReplyTargets({ fromPhone: args.fromPhone });
@@ -252,6 +255,37 @@ async function handleInbound(args: {
     },
     select: { id: true },
   });
+
+  // P56 — inbound media: create a PENDING attachment row per item (so the
+  // message is never lost and the inbox shows a placeholder immediately),
+  // then enqueue an authenticated download job for each. The provider URL is
+  // used only by the job and never stored. A media-only message keeps its
+  // empty body (rendered as the attachment, not a blank bubble).
+  if (args.media && args.media.length > 0) {
+    for (let i = 0; i < args.media.length; i += 1) {
+      const item = args.media[i]!;
+      try {
+        const attachment = await db.whatsAppAttachment.create({
+          data: {
+            messageId: inserted.id,
+            mediaIndex: i,
+            contentType: baseContentType(item.contentType) || 'application/octet-stream',
+            status: 'PENDING',
+            receivedAt: args.receivedAt,
+          },
+          select: { id: true },
+        });
+        await enqueueInboundMediaFetch({ attachmentId: attachment.id, mediaUrl: item.url });
+      } catch (err) {
+        // Never let a media hiccup drop the text message or 500 the webhook.
+        console.error('[inbound-media] failed to queue attachment', {
+          messageId: inserted.id,
+          index: i,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+  }
 
   switch (intent) {
     case 'CONFIRM':

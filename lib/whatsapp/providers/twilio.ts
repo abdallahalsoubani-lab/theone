@@ -7,6 +7,7 @@ import { TemplateNotConfiguredError, WhatsAppError, describeWhatsAppError } from
 import type {
   DeliveryStatusEvent,
   InboundMessage,
+  InboundMediaDescriptor,
   SendResult,
   SendTemplateParams,
   SendTextParams,
@@ -385,6 +386,20 @@ export class TwilioWhatsAppProvider implements WhatsAppProvider {
     const from = params['From'] ?? params['WaId'];
     const body = params['Body'] ?? '';
     if (!from) return [];
+
+    // P56 — inbound media: Twilio posts NumMedia + MediaUrl{i}/
+    // MediaContentType{i}. The URLs are temporary + credentialed; capture
+    // the descriptors here and let the processor fetch them immediately.
+    const numMedia = Number.parseInt(params['NumMedia'] ?? '0', 10);
+    const media: InboundMediaDescriptor[] = [];
+    if (Number.isFinite(numMedia) && numMedia > 0) {
+      for (let i = 0; i < numMedia; i += 1) {
+        const url = params[`MediaUrl${i}`];
+        if (!url) continue;
+        media.push({ url, contentType: params[`MediaContentType${i}`] ?? '' });
+      }
+    }
+
     const inbound: InboundMessage = {
       providerMessageId: sid,
       fromPhone: fromWhatsAppAddress(from),
@@ -395,6 +410,7 @@ export class TwilioWhatsAppProvider implements WhatsAppProvider {
       // label too). Both normalized so the intent layer can trust the id.
       ...(params['ButtonPayload'] ? { buttonPayload: params['ButtonPayload'] } : {}),
       ...(params['ButtonText'] ? { buttonText: params['ButtonText'] } : {}),
+      ...(media.length > 0 ? { media } : {}),
     };
     return [{ kind: 'inbound', message: inbound }];
   }

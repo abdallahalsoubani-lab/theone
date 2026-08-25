@@ -60,6 +60,18 @@ export interface InboundMessage {
    *  plain text messages and on providers without button support. */
   buttonPayload?: string;
   buttonText?: string;
+  /** P56 — inbound media descriptors (Twilio NumMedia / MediaUrl{N}). The
+   *  URL is temporary + credentialed; it is fetched immediately server-side
+   *  and never persisted. Absent on text-only messages. */
+  media?: InboundMediaDescriptor[];
+}
+
+export interface InboundMediaDescriptor {
+  /** The provider's temporary media URL (requires auth; expires). */
+  url: string;
+  /** Provider-declared content type (validated at download, never trusted
+   *  alone for rendering). */
+  contentType: string;
 }
 
 /**

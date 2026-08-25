@@ -361,6 +361,35 @@ describe('TwilioWhatsAppProvider.parseWebhook', () => {
     });
   });
 
+  it('P56: captures inbound media (NumMedia + MediaUrl/MediaContentType)', () => {
+    const provider = new TwilioWhatsAppProvider({ client: fakeClient() });
+    const events = provider.parseWebhook(
+      'MessageSid=MM_media_1&From=whatsapp%3A%2B962790000000&Body=' +
+        '&NumMedia=2' +
+        '&MediaUrl0=https%3A%2F%2Fapi.twilio.com%2Fm0&MediaContentType0=image%2Fjpeg' +
+        '&MediaUrl1=https%3A%2F%2Fapi.twilio.com%2Fm1&MediaContentType1=video%2Fmp4',
+    );
+    expect(events).toHaveLength(1);
+    const ev = events[0]!;
+    expect(ev.kind).toBe('inbound');
+    if (ev.kind === 'inbound') {
+      expect(ev.message.body).toBe(''); // media-only → empty body, NOT dropped
+      expect(ev.message.media).toEqual([
+        { url: 'https://api.twilio.com/m0', contentType: 'image/jpeg' },
+        { url: 'https://api.twilio.com/m1', contentType: 'video/mp4' },
+      ]);
+    }
+  });
+
+  it('P56: a text-only message has no media field', () => {
+    const provider = new TwilioWhatsAppProvider({ client: fakeClient() });
+    const events = provider.parseWebhook(
+      'MessageSid=SM_txt&From=whatsapp%3A%2B962790000000&Body=hi&NumMedia=0',
+    );
+    const ev = events[0]!;
+    if (ev.kind === 'inbound') expect(ev.message.media).toBeUndefined();
+  });
+
   it('parses a delivered status callback', () => {
     const provider = new TwilioWhatsAppProvider({ client: fakeClient() });
     const events = provider.parseWebhook('MessageSid=SM_st_1&MessageStatus=delivered');

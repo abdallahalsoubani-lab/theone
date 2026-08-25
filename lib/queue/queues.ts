@@ -30,6 +30,11 @@ export const WHATSAPP_OUTBOUND_QUEUE = 'whatsappOutbound';
 // the legacy recurring sweep). Its own queue so the job is never consumed by
 // another worker (see the worker-race note above).
 export const SESSION_MAINTENANCE_QUEUE = 'sessionMaintenance';
+// P56 — inbound WhatsApp media: one job per attachment downloads the bytes
+// from the provider's temporary URL and stores them; plus a daily retention
+// sweep. Its own queue keeps the (slow, retryable) media fetch off the
+// webhook ACK path and out of the other workers.
+export const WHATSAPP_MEDIA_QUEUE = 'whatsappMedia';
 
 export const reminderQueue = new Queue(REMINDER_QUEUE, {
   connection: queueRedis,
@@ -65,6 +70,19 @@ export const sessionMaintenanceQueue = new Queue(SESSION_MAINTENANCE_QUEUE, {
   defaultJobOptions: {
     attempts: 1,
     removeOnComplete: { age: 60 * 60 * 24 * 7, count: 100 },
+    removeOnFail: { age: 60 * 60 * 24 * 30 },
+  },
+});
+
+export const whatsappMediaQueue = new Queue(WHATSAPP_MEDIA_QUEUE, {
+  connection: queueRedis,
+  defaultJobOptions: {
+    // A few attempts with backoff — the provider URL is valid for a while,
+    // so transient fetch failures are worth retrying; terminal ones
+    // (oversize / disallowed type) the worker marks FAILED and does not retry.
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 30_000 },
+    removeOnComplete: { age: 60 * 60 * 24 * 7, count: 500 },
     removeOnFail: { age: 60 * 60 * 24 * 30 },
   },
 });

@@ -1096,7 +1096,8 @@ model WhatsAppMessage {
   recipient   User?             @relation("WhatsAppRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
   appointment Appointment?      @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
-  inboxItems InboxItem[] @relation("InboxItemMessage")
+  inboxItems  InboxItem[]          @relation("InboxItemMessage")
+  attachments WhatsAppAttachment[]
 
   createdAt DateTime @default(now())
 
@@ -1104,6 +1105,42 @@ model WhatsAppMessage {
   @@index([status])
   @@index([providerMessageId])
   @@index([appointmentId])
+}
+
+enum WaAttachmentStatus {
+  PENDING // received, download job queued
+  STORED // downloaded from the provider + saved to object storage
+  FAILED // download/validation failed (oversize, disallowed type, fetch error)
+  EXPIRED // binary deleted by the retention worker; the row is kept as a marker
+}
+
+/// P56 — an inbound WhatsApp media item (image / video / document / audio).
+/// Twilio delivers media as temporary, credentialed URLs on the webhook; the
+/// bytes are fetched server-side and stored in object storage, and the raw
+/// URL is NEVER persisted (it expires + needs auth). Visible to SECRETARY +
+/// ADMIN only (whatsapp_attachments.read), served through an authenticated
+/// range-capable route. Retention: the binary is deleted after N days
+/// (ClinicSettings.whatsappMediaRetentionDays) but this row stays as a marker.
+model WhatsAppAttachment {
+  id            String             @id @default(cuid())
+  messageId     String
+  message       WhatsAppMessage    @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  /// Index within the message's NumMedia set (0-based) — preserves order.
+  mediaIndex    Int                @default(0)
+  contentType   String
+  status        WaAttachmentStatus @default(PENDING)
+  /// Object-storage key — null until the download job stores the bytes.
+  storageKey    String?
+  sizeBytes     Int?
+  filename      String?
+  failureReason String?
+  receivedAt    DateTime
+  /// Set by the retention worker when the binary is deleted (row kept).
+  deletedAt     DateTime?
+  createdAt     DateTime           @default(now())
+
+  @@index([messageId])
+  @@index([status, receivedAt])
 }
 
 // ── P48: pending/sent ledger for the appointment-message dispatch layer ──
@@ -1621,6 +1658,9 @@ model ClinicSettings {
   // P51 — the master hold-all switch: ON = no patient-bound message is
   // ever sent automatically (OTP/credentials + human-initiated sends exempt).
   whatsappSilentMode              Boolean        @default(false)
+  // P56 — inbound WhatsApp media retention in days; the binary is deleted
+  // after this window (the message row is kept as a marker). Seeded default.
+  whatsappMediaRetentionDays      Int            @default(90)
   bookingDispatchMode             WaDispatchMode @default(AUTO)
   rescheduleDispatchMode          WaDispatchMode @default(AUTO)
   cancellationDispatchMode        WaDispatchMode @default(AUTO)
