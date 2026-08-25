@@ -38,7 +38,7 @@ const patientNotFound: LocalizedError = {
  * values (not labels) under `valueOptions` so renaming a label later does
  * not orphan the answer. Everything else lands in `value` as a string.
  */
-async function buildAnswerRows(
+export async function buildAnswerRows(
   customAnswers: Record<string, unknown>,
   appliesTo: 'ADULT' | 'PEDIATRIC',
 ) {
