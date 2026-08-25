@@ -92,6 +92,8 @@
       "cancelButton": "تعديل الموعد"
     },
     "form": {
+      "patientExisting": "مريض حالي",
+      "patientNew": "مريض جديد",
       "type": "نوع الحجز",
       "typeSession": "جلسة (مع معالج)",
       "typeSessionDoctor": "جلسة (مع دكتور)",
@@ -189,8 +191,6 @@
       "phone": "الهاتف",
       "durationMinutes": "{minutes} دقيقة"
     },
-    "patientExisting": "مريض حالي",
-    "patientNew": "مريض جديد",
     "newPatient": {
       "fullNameEn": "الاسم الكامل (بالإنجليزية)",
       "fullNameEnPlaceholder": "مثال: Ahmad Ali",

@@ -581,6 +581,8 @@
       "cancelButton": "Adjust the slot"
     },
     "form": {
+      "patientExisting": "Existing patient",
+      "patientNew": "New patient",
       "type": "Booking type",
       "typeSession": "Session (with therapist)",
       "typeSessionDoctor": "Session (with doctor)",
@@ -678,8 +680,6 @@
       "phone": "Phone",
       "durationMinutes": "{minutes} min"
     },
-    "patientExisting": "Existing patient",
-    "patientNew": "New patient",
     "newPatient": {
       "fullNameEn": "Full name (English)",
       "fullNameEnPlaceholder": "e.g. Ahmad Ali",
