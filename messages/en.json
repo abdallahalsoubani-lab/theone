@@ -523,6 +523,7 @@
     "noEventsInRange": "No appointments in this range.",
     "showMore": "+{count} more",
     "otherLane": "Other",
+    "stretchingLane": "Stretching",
     "status": {
       "scheduled": "Scheduled",
       "confirmed": "Confirmed",

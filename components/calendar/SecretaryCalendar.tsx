@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils';
 
 import { AppointmentTooltip } from './AppointmentTooltip';
 import { CalendarToolbar } from './CalendarToolbar';
-import { OTHER_LANE_ID, eventCardContent, eventsForView } from './eventsForView';
+import { buildCalendarLanes, eventCardContent, eventsForView } from './eventsForView';
 import { leaveBackgroundEvents } from './leaveEvents';
 import { resourcesForView } from './resourcesForView';
 import { CALENDAR_SLOTS_PER_GROUP, CALENDAR_STEP_MINUTES } from './slotConfig';
@@ -187,19 +187,33 @@ export function SecretaryCalendar({
   // A synthetic "Other" lane holds therapist-less appointments (STRETCHING —
   // July #8) in day view, but only when at least one exists so it doesn't
   // clutter the resource view otherwise.
-  const hasOtherLane = useMemo(
-    () => appointments.some((a) => a.therapists.length === 0),
+  // P54 — the dedicated STRETCHING lane appears when any stretching booking
+  // exists; "Other" still holds the rest of the therapist-less bookings
+  // (patient-less EVENT, room-only). Order: [therapists] [استطالة] [أخرى].
+  const hasStretchingLane = useMemo(
+    () => appointments.some((a) => a.appointmentType === 'STRETCHING'),
     [appointments],
   );
-  const rbcResources = useMemo<CalendarResource[]>(() => {
-    const base = resources.map((r) => ({
-      resourceId: r.id,
-      resourceTitle: locale === 'ar' ? r.fullNameAr : r.fullNameEn,
-    }));
-    return hasOtherLane
-      ? [...base, { resourceId: OTHER_LANE_ID, resourceTitle: t('otherLane') }]
-      : base;
-  }, [resources, locale, hasOtherLane, t]);
+  const hasOtherLane = useMemo(
+    () => appointments.some((a) => a.appointmentType !== 'STRETCHING' && a.therapists.length === 0),
+    [appointments],
+  );
+  const rbcResources = useMemo<CalendarResource[]>(
+    () =>
+      buildCalendarLanes(
+        resources.map((r) => ({
+          resourceId: r.id,
+          resourceTitle: locale === 'ar' ? r.fullNameAr : r.fullNameEn,
+        })),
+        {
+          hasStretching: hasStretchingLane,
+          hasOther: hasOtherLane,
+          stretchingLabel: t('stretchingLane'),
+          otherLabel: t('otherLane'),
+        },
+      ),
+    [resources, locale, hasStretchingLane, hasOtherLane, t],
+  );
 
   const minTime = useMemo(() => {
     const d = new Date(date);

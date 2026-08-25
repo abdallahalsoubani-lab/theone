@@ -11,6 +11,7 @@ import {
   type SidePanelAppointment,
 } from '@/components/calendar/AppointmentSidePanel';
 import { SecretaryCalendar } from '@/components/calendar/SecretaryCalendar';
+import { resolveDrop, SYNTHETIC_LANE_IDS } from '@/components/calendar/eventsForView';
 import { ChangeTherapistModal } from '@/components/appointments/ChangeTherapistModal';
 import { CreateAppointmentModal } from '@/components/appointments/CreateAppointmentModal';
 import { RescheduleAppointmentModal } from '@/components/appointments/RescheduleAppointmentModal';
@@ -110,7 +111,11 @@ export function SecretaryCalendarBoard({
 
   const handleSlotSelect = (slot: { start: Date; end: Date; resourceId?: string }) => {
     if (readOnly) return; // Prompt 45 row 3 — empty-slot click books nothing
-    setCreateSlot({ start: slot.start, therapistId: slot.resourceId });
+    // P54 — the stretching/other lanes are synthetic: their id must never
+    // prefill as a therapist in the create modal.
+    const therapistId =
+      slot.resourceId && SYNTHETIC_LANE_IDS.has(slot.resourceId) ? undefined : slot.resourceId;
+    setCreateSlot({ start: slot.start, therapistId });
     setCreateOpen(true);
   };
 
@@ -175,11 +180,34 @@ export function SecretaryCalendarBoard({
   const handleEventDrop = (args: { appointmentId: string; start: Date; resourceId?: string }) => {
     const existing = appointments.find((a) => a.id === args.appointmentId);
     if (!existing) return;
+    // P54 — a drag never changes an appointment's TYPE (owner decision 4).
+    // The pure rule lives in resolveDrop; rejections revert the optimistic
+    // move via router.refresh().
+    const decision = resolveDrop(existing.appointmentType, args.resourceId);
+    if (decision.kind === 'reject-stretching-to-therapist') {
+      toast.error(
+        locale === 'ar'
+          ? 'لا يمكن نقل موعد استطالة إلى عمود معالج.'
+          : 'A stretching appointment cannot be moved to a therapist column.',
+      );
+      router.refresh();
+      return;
+    }
+    if (decision.kind === 'reject-into-stretching') {
+      toast.error(
+        locale === 'ar'
+          ? 'لا يمكن نقل هذا الموعد إلى عمود الاستطالة.'
+          : 'This appointment cannot be moved to the stretching column.',
+      );
+      router.refresh();
+      return;
+    }
     // Prompt 20 decision #2 — single → lane reassign, multi → time-only move
-    // (all therapists kept). The rule lives in lib/appointments/drag.ts.
+    // (all therapists kept). resolveDrop already stripped any synthetic lane
+    // id, so a stretching/other target never triggers a therapist reassign.
     const therapistIds = dragReassignTherapistIds(
       existing.therapists.map((t) => t.id),
-      args.resourceId,
+      decision.reassignLaneId,
     );
     // Prompt 45 rows 1+2 — dragging a series member moves ONLY that
     // occurrence; no scope dialog. Siblings are untouched.

@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 
-import { OTHER_LANE_ID, eventCardContent, eventsForView } from '../eventsForView';
+import {
+  OTHER_LANE_ID,
+  STRETCHING_LANE_ID,
+  eventCardContent,
+  eventsForView,
+} from '../eventsForView';
 
 const base: Omit<CalendarAppointment, 'therapists'> = {
   id: 'appt-1',
@@ -62,7 +67,7 @@ describe('eventsForView', () => {
     expect(en!.end.getTime() - en!.start.getTime()).toBe(30 * 60_000);
   });
 
-  it('therapist-less STRETCHING renders once in the synthetic Other lane (July #8)', () => {
+  it('P54: a STRETCHING appointment renders in its DEDICATED lane, NOT Other', () => {
     const stretch: CalendarAppointment = {
       ...base,
       appointmentType: 'STRETCHING',
@@ -72,12 +77,28 @@ describe('eventsForView', () => {
     };
     const day = eventsForView([stretch], 'day', 'en');
     expect(day).toHaveLength(1); // does NOT vanish
-    expect(day[0]!.resourceId).toBe(OTHER_LANE_ID);
+    expect(day[0]!.resourceId).toBe(STRETCHING_LANE_ID);
+    expect(day[0]!.resourceId).not.toBe(OTHER_LANE_ID);
     expect(day[0]!.id).toBe('appt-1');
-    // Non-day views: one chip, falls back to the Other lane id.
+    // Non-day views: one chip, tinted by the stretching lane id.
     const week = eventsForView([stretch], 'week', 'en');
     expect(week).toHaveLength(1);
-    expect(week[0]!.resourceId).toBe(OTHER_LANE_ID);
+    expect(week[0]!.resourceId).toBe(STRETCHING_LANE_ID);
+  });
+
+  it('P54: a patient-less EVENT with no therapist still lands in "Other" (unchanged)', () => {
+    const event: CalendarAppointment = {
+      ...base,
+      appointmentType: 'EVENT',
+      title: 'Staff meeting',
+      patientFullNameEn: '',
+      patientFullNameAr: '',
+      therapists: [],
+    };
+    const day = eventsForView([event], 'day', 'en');
+    expect(day).toHaveLength(1);
+    expect(day[0]!.resourceId).toBe(OTHER_LANE_ID);
+    expect(day[0]!.resourceId).not.toBe(STRETCHING_LANE_ID);
   });
 
   it('GROUP chip titles by workshop label + member count, renders per therapist (July #8 pt3)', () => {
@@ -242,6 +263,96 @@ describe('time-then-name cards (PT-B3 item 3 — owner request, reverses Prompt 
     expect(eventCardContent({ title: 'في إجازة' })).toEqual({
       primary: 'في إجازة',
       note: null,
+    });
+  });
+});
+
+// ─── P54 — dedicated stretching lane: ordering + cross-lane drop rule ────────
+
+import { buildCalendarLanes, resolveDrop, STRETCHING_LANE_ID as SLANE } from '../eventsForView';
+
+const therapistLanes = [
+  { resourceId: 't1', resourceTitle: 'Ahmad' },
+  { resourceId: 't2', resourceTitle: 'Layan' },
+];
+
+describe('buildCalendarLanes — order [therapists] [stretching] [other]', () => {
+  it('appends stretching then other, in that order, after the therapists', () => {
+    const lanes = buildCalendarLanes(therapistLanes, {
+      hasStretching: true,
+      hasOther: true,
+      stretchingLabel: 'Stretching',
+      otherLabel: 'Other',
+    });
+    expect(lanes.map((l) => l.resourceId)).toEqual(['t1', 't2', SLANE, OTHER_LANE_ID]);
+    // Stretching is the second-to-last; Other is always last.
+    expect(lanes[lanes.length - 1]!.resourceId).toBe(OTHER_LANE_ID);
+  });
+
+  it('omits each synthetic lane when its flag is false', () => {
+    expect(
+      buildCalendarLanes(therapistLanes, {
+        hasStretching: false,
+        hasOther: false,
+        stretchingLabel: 'Stretching',
+        otherLabel: 'Other',
+      }).map((l) => l.resourceId),
+    ).toEqual(['t1', 't2']);
+    // Stretching only.
+    expect(
+      buildCalendarLanes(therapistLanes, {
+        hasStretching: true,
+        hasOther: false,
+        stretchingLabel: 'Stretching',
+        otherLabel: 'Other',
+      }).map((l) => l.resourceId),
+    ).toEqual(['t1', 't2', SLANE]);
+    // Other only.
+    expect(
+      buildCalendarLanes(therapistLanes, {
+        hasStretching: false,
+        hasOther: true,
+        stretchingLabel: 'Stretching',
+        otherLabel: 'Other',
+      }).map((l) => l.resourceId),
+    ).toEqual(['t1', 't2', OTHER_LANE_ID]);
+  });
+
+  it('carries the localized labels through unchanged (RTL uses the same order)', () => {
+    const ar = buildCalendarLanes(therapistLanes, {
+      hasStretching: true,
+      hasOther: true,
+      stretchingLabel: 'استطالة',
+      otherLabel: 'أخرى',
+    });
+    expect(ar.find((l) => l.resourceId === SLANE)!.resourceTitle).toBe('استطالة');
+    // Logical order is identical to LTR; the RTL mirror is CSS, not data.
+    expect(ar.map((l) => l.resourceId)).toEqual(['t1', 't2', SLANE, OTHER_LANE_ID]);
+  });
+});
+
+describe('resolveDrop — a drag never changes an appointment type (decision 4)', () => {
+  it('a STRETCHING chip moved within its own lane → ok, no reassign', () => {
+    expect(resolveDrop('STRETCHING', SLANE)).toEqual({ kind: 'ok' });
+    expect(resolveDrop('STRETCHING', undefined)).toEqual({ kind: 'ok' });
+  });
+
+  it('a STRETCHING chip dropped in a therapist lane → rejected', () => {
+    expect(resolveDrop('STRETCHING', 't1')).toEqual({ kind: 'reject-stretching-to-therapist' });
+  });
+
+  it('a SESSION dropped INTO the stretching lane → rejected', () => {
+    expect(resolveDrop('SESSION', SLANE)).toEqual({ kind: 'reject-into-stretching' });
+  });
+
+  it('a SESSION dropped in a therapist lane → ok, reassigns to that therapist', () => {
+    expect(resolveDrop('SESSION', 't2')).toEqual({ kind: 'ok', reassignLaneId: 't2' });
+  });
+
+  it('a SESSION dropped into "Other" → ok, but the synthetic id is NOT a reassign target', () => {
+    expect(resolveDrop('SESSION', OTHER_LANE_ID)).toEqual({
+      kind: 'ok',
+      reassignLaneId: undefined,
     });
   });
 });

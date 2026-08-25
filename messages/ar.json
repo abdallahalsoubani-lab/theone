@@ -39,6 +39,7 @@
     "noEventsInRange": "لا توجد مواعيد في هذا النطاق.",
     "showMore": "+{count} المزيد",
     "otherLane": "أخرى",
+    "stretchingLane": "استطالة",
     "status": {
       "scheduled": "مجدول",
       "confirmed": "مؤكد",

@@ -26,6 +26,15 @@ import { toClinicWall } from '@/lib/time/clinic';
  *  in resourcesForView so the lane exists. */
 export const OTHER_LANE_ID = '__other__';
 
+/** P54 — the dedicated single lane for STRETCHING appointments (owner
+ *  request): all stretching sessions across all rooms share this one column,
+ *  positioned after the therapists and before "Other". */
+export const STRETCHING_LANE_ID = '__stretching__';
+
+/** The synthetic (non-therapist) lane ids — used to keep a lane id from ever
+ *  being mistaken for a therapist id (e.g. on a drag reassign). */
+export const SYNTHETIC_LANE_IDS: ReadonlySet<string> = new Set([OTHER_LANE_ID, STRETCHING_LANE_ID]);
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -70,8 +79,23 @@ export function eventsForView(
 
   if (view === 'day') {
     return appointments.flatMap((a) => {
-      // Therapist-less appointments (STRETCHING) have no therapist column —
-      // render them once in the synthetic "Other" lane so they don't vanish.
+      // P54 — STRETCHING gets its own dedicated lane (evaluated BEFORE the
+      // no-therapist fallback so it never lands in "Other" again).
+      if (a.appointmentType === 'STRETCHING') {
+        return [
+          {
+            id: a.id,
+            title: title(a),
+            start: start(a),
+            end: end(a),
+            resourceId: STRETCHING_LANE_ID,
+            status: a.status,
+            appointment: a,
+          },
+        ];
+      }
+      // Other therapist-less appointments (patient-less EVENT, room-only) —
+      // render once in the synthetic "Other" lane so they don't vanish.
       if (a.therapists.length === 0) {
         return [
           {
@@ -97,13 +121,17 @@ export function eventsForView(
     });
   }
 
-  // Non-day views: one chip per appointment (no resource lanes).
+  // Non-day views: one chip per appointment (no resource lanes — resourceId
+  // only feeds the chip tint).
   return appointments.map((a) => ({
     id: a.id,
     title: title(a),
     start: start(a),
     end: end(a),
-    resourceId: a.therapists[0]?.id ?? OTHER_LANE_ID,
+    resourceId:
+      a.appointmentType === 'STRETCHING'
+        ? STRETCHING_LANE_ID
+        : (a.therapists[0]?.id ?? OTHER_LANE_ID),
     status: a.status,
     appointment: a,
   }));
@@ -134,4 +162,67 @@ export function eventCardContent(event: {
     primary: event.title,
     note: trimmed.length > 0 ? trimmed : null,
   };
+}
+
+// ─── P54 — pure lane helpers (unit-tested; the calendar/board consume them) ──
+
+export interface CalendarLane {
+  resourceId: string;
+  resourceTitle: string;
+}
+
+/**
+ * Assemble the day-view resource lanes in the owner's order:
+ *   [therapists…] [استطالة] [أخرى]
+ * The stretching lane appears only when a stretching booking exists; "Other"
+ * only when a non-stretching therapist-less booking exists.
+ */
+export function buildCalendarLanes(
+  therapistLanes: CalendarLane[],
+  opts: {
+    hasStretching: boolean;
+    hasOther: boolean;
+    stretchingLabel: string;
+    otherLabel: string;
+  },
+): CalendarLane[] {
+  const lanes = [...therapistLanes];
+  if (opts.hasStretching) {
+    lanes.push({ resourceId: STRETCHING_LANE_ID, resourceTitle: opts.stretchingLabel });
+  }
+  if (opts.hasOther) {
+    lanes.push({ resourceId: OTHER_LANE_ID, resourceTitle: opts.otherLabel });
+  }
+  return lanes;
+}
+
+export type DropDecision =
+  | { kind: 'ok'; reassignLaneId?: string }
+  | { kind: 'reject-stretching-to-therapist' }
+  | { kind: 'reject-into-stretching' };
+
+/**
+ * The cross-lane drop rule (owner decision 4): a drag never changes an
+ * appointment's TYPE.
+ *   - a STRETCHING chip may only move within its own lane → any other target
+ *     is rejected; within-lane is a time-only move (no reassign);
+ *   - a non-stretching chip dropped INTO the stretching lane is rejected;
+ *   - a synthetic lane id (stretching/other) is never a therapist, so it is
+ *     never returned as a reassign target — only a real therapist id is.
+ */
+export function resolveDrop(
+  appointmentType: string,
+  targetLaneId: string | undefined,
+): DropDecision {
+  const isStretching = appointmentType === 'STRETCHING';
+  if (isStretching) {
+    if (targetLaneId && targetLaneId !== STRETCHING_LANE_ID) {
+      return { kind: 'reject-stretching-to-therapist' };
+    }
+    return { kind: 'ok' };
+  }
+  if (targetLaneId === STRETCHING_LANE_ID) return { kind: 'reject-into-stretching' };
+  const reassignLaneId =
+    targetLaneId && SYNTHETIC_LANE_IDS.has(targetLaneId) ? undefined : targetLaneId;
+  return { kind: 'ok', reassignLaneId };
 }
