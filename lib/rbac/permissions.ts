@@ -236,6 +236,8 @@ export const PERMISSIONS = {
   // Surfaces inbound reschedule/cancel requests and outbound delivery
   // failures. ADMIN inherits via the catch-all in can().
   INBOX_READ: 'inbox.read',
+  // P56 — view inbound WhatsApp media attachments (SECRETARY + ADMIN only).
+  WHATSAPP_ATTACHMENTS_READ: 'whatsapp_attachments.read',
   INBOX_RESOLVE: 'inbox.resolve',
 
   // ── System settings (admin only) ─────────────────────────────────────
@@ -314,6 +316,7 @@ const SECRETARY_PERMS = new Set<PermissionCode>([
   PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD,
   PERMISSIONS.PATIENT_DOCUMENTS_DELETE,
   PERMISSIONS.INBOX_READ,
+  PERMISSIONS.WHATSAPP_ATTACHMENTS_READ,
   PERMISSIONS.INBOX_RESOLVE,
   PERMISSIONS.NOTIFICATIONS_READ_OWN,
   PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN,
@@ -534,6 +537,7 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD,
   PERMISSIONS.PATIENT_DOCUMENTS_DELETE,
   PERMISSIONS.INBOX_READ,
+  PERMISSIONS.WHATSAPP_ATTACHMENTS_READ,
   PERMISSIONS.INBOX_RESOLVE,
   PERMISSIONS.WHATSAPP_MESSAGES_READ,
   PERMISSIONS.WHATSAPP_MESSAGES_RESEND,

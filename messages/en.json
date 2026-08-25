@@ -361,7 +361,9 @@
         "turnOff": "Disable silent mode",
         "enabledToast": "Silent mode enabled — all patient messages will be held in the outbox.",
         "disabledToast": "Silent mode disabled — per-type dispatch settings apply again."
-      }
+      },
+      "whatsappMediaRetentionDays": "WhatsApp media retention (days)",
+      "whatsappMediaRetentionHint": "Patient-sent images/videos are deleted after this many days; the message stays with an 'attachment expired' note."
     },
     "audit": {
       "title": "Audit log",
@@ -1981,6 +1983,19 @@
     "tpl_home_exercise_reminder_v2": "Home exercise reminder",
     "tpl_patient_account_credentials": "Account credentials",
     "templateFallbackBody": "Template: {name} — {params}",
-    "templateGeneric": "Template"
+    "templateGeneric": "Template",
+    "attachment": {
+      "kind": {
+        "image": "Image",
+        "video": "Video",
+        "audio": "Audio",
+        "document": "Document"
+      },
+      "viewImage": "View image",
+      "playVideo": "Play video",
+      "downloading": "Attachment downloading… ({meta})",
+      "failed": "Attachment could not be downloaded",
+      "expired": "Attachment deleted after retention period"
+    }
   }
 }

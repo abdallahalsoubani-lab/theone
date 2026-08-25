@@ -293,6 +293,18 @@ export function ClinicSettingsForm({ initial }: Props) {
                 }
               />
             </Field>
+            <Field label={t('whatsappMediaRetentionDays')}>
+              <Input
+                type="number"
+                min={7}
+                max={365}
+                value={state.whatsappMediaRetentionDays}
+                onChange={(e) =>
+                  setField('whatsappMediaRetentionDays', parseInt(e.target.value || '90', 10))
+                }
+              />
+              <p className="mt-1 text-xs text-brand-textMuted">{t('whatsappMediaRetentionHint')}</p>
+            </Field>
           </div>
         </TabsContent>
 

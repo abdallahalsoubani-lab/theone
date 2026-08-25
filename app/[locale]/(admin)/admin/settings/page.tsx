@@ -48,6 +48,7 @@ export default async function ClinicSettingsPage({
           currentDelayMinutes: settings.currentDelayMinutes,
           sessionStartGraceMinutes: settings.sessionStartGraceMinutes,
           sessionAutoCompleteGraceMinutes: settings.sessionAutoCompleteGraceMinutes,
+          whatsappMediaRetentionDays: settings.whatsappMediaRetentionDays,
           defaultLanguage: settings.defaultLanguage,
           hijriDefault: settings.hijriDefault,
           patientCanViewClinicalNotes: settings.patientCanViewClinicalNotes,

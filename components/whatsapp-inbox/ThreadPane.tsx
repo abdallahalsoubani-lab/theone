@@ -9,6 +9,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
+import { AttachmentBlock } from '@/components/whatsapp-inbox/AttachmentBlock';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -233,13 +234,14 @@ export function ThreadPane({
                     : 'max-w-[75%] rounded-lg rounded-se-none bg-brand-cyan/10 px-3 py-2'
                 }
               >
+                {m.attachments.length > 0 ? <AttachmentBlock attachments={m.attachments} /> : null}
                 {tap ? (
                   <p className="text-sm font-medium text-brand-navy">{tap}</p>
-                ) : (
+                ) : displayBody(m) ? (
                   <p className="whitespace-pre-wrap break-words text-sm text-brand-text" dir="auto">
                     {displayBody(m)}
                   </p>
-                )}
+                ) : null}
                 <span className="mt-1 flex items-center justify-end gap-1.5 text-[10px] text-brand-textMuted">
                   {m.isTemplate ? (
                     <Badge variant="outline" className="px-1 py-0 text-[9px] font-normal">

@@ -82,6 +82,8 @@ export const clinicSettingsUpdateSchema = z.object({
   // Fix Prompt 2: session lifecycle grace windows (minutes).
   sessionStartGraceMinutes: z.number().int().min(0).max(120),
   sessionAutoCompleteGraceMinutes: z.number().int().min(0).max(120),
+  // P56 — inbound WhatsApp media retention window (days). 7..365.
+  whatsappMediaRetentionDays: z.number().int().min(7).max(365),
   defaultLanguage: z.nativeEnum(LanguagePref),
   hijriDefault: z.boolean(),
   patientCanViewClinicalNotes: z.boolean(),

@@ -49,6 +49,7 @@ const updateInner = withAudit<[ClinicSettingsUpdateParsed], { id: string }>(
         currentDelayMinutes: input.currentDelayMinutes,
         sessionStartGraceMinutes: input.sessionStartGraceMinutes,
         sessionAutoCompleteGraceMinutes: input.sessionAutoCompleteGraceMinutes,
+        whatsappMediaRetentionDays: input.whatsappMediaRetentionDays,
         defaultLanguage: input.defaultLanguage,
         hijriDefault: input.hijriDefault,
         patientCanViewClinicalNotes: input.patientCanViewClinicalNotes,

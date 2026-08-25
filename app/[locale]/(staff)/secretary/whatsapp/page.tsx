@@ -44,7 +44,7 @@ export default async function WhatsAppInboxPage({
 
   const [conversations, thread, patients] = await Promise.all([
     listConversations(filter, search),
-    sp.c ? getThread(sp.c) : Promise.resolve(null),
+    sp.c ? getThread(sp.c, session.user.role) : Promise.resolve(null),
     listActivePatientsBrief(),
   ]);
 

@@ -956,7 +956,9 @@
         "turnOff": "إيقاف الوضع الصامت",
         "enabledToast": "فُعّل الوضع الصامت — سيُحتجز كل ما يخص المرضى في صندوق الصادر.",
         "disabledToast": "أُوقف الوضع الصامت — عادت إعدادات كل نوع للعمل."
-      }
+      },
+      "whatsappMediaRetentionDays": "مدة حفظ وسائط واتساب (أيام)",
+      "whatsappMediaRetentionHint": "تُحذف صور/فيديوهات المرضى بعد هذا العدد من الأيام؛ تبقى الرسالة مع إشارة «حُذف المرفق»."
     },
     "audit": {
       "title": "سجل التدقيق",
@@ -1981,6 +1983,19 @@
     "tpl_home_exercise_reminder_v2": "تذكير تمارين منزلية",
     "tpl_patient_account_credentials": "بيانات الدخول",
     "templateFallbackBody": "قالب: {name} — {params}",
-    "templateGeneric": "قالب"
+    "templateGeneric": "قالب",
+    "attachment": {
+      "kind": {
+        "image": "صورة",
+        "video": "فيديو",
+        "audio": "صوت",
+        "document": "مستند"
+      },
+      "viewImage": "عرض الصورة",
+      "playVideo": "تشغيل الفيديو",
+      "downloading": "جارٍ تنزيل المرفق… ({meta})",
+      "failed": "تعذّر تنزيل المرفق",
+      "expired": "حُذف المرفق بعد انتهاء مدة الحفظ"
+    }
   }
 }

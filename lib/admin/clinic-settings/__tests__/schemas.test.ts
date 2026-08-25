@@ -23,6 +23,7 @@ const base = {
   currentDelayMinutes: 10,
   sessionStartGraceMinutes: 15,
   sessionAutoCompleteGraceMinutes: 15,
+  whatsappMediaRetentionDays: 90,
   defaultLanguage: 'AR',
   hijriDefault: false,
   patientCanViewClinicalNotes: false,

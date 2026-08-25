@@ -34,6 +34,7 @@ import {
 import { startHomeReminderWorker } from './homeReminder';
 import { startReminderWorker } from './reminder';
 import { startWhatsappOutboundWorker } from './whatsapp';
+import { ensureWhatsappMediaRetentionScheduled, startWhatsappMediaWorker } from './whatsappMedia';
 
 import { sessionMaintenanceQueue } from '@/lib/queue/queues';
 
@@ -50,6 +51,12 @@ void ensureComplianceDailyCheckScheduled().catch((err: unknown) => {
 });
 const whatsappWorker = startWhatsappOutboundWorker();
 console.warn(`[workers] whatsapp outbound worker listening on queue=${whatsappWorker.name}`);
+const whatsappMediaWorker = startWhatsappMediaWorker();
+console.warn(`[workers] whatsapp media worker listening on queue=${whatsappMediaWorker.name}`);
+// Register the daily inbound-media retention sweep (idempotent via jobId).
+void ensureWhatsappMediaRetentionScheduled().catch((err: unknown) => {
+  console.error('[workers] whatsapp media retention registration failed', err);
+});
 // Session auto-complete is DISABLED (PT-B3 item 1, owner ruling): a session
 // may legitimately run past its slot, and closing it automatically records a
 // clinical event that never happened. Completion is a human action again —
@@ -79,6 +86,7 @@ async function shutdown(signal: string) {
     homeReminderWorker.close(),
     complianceWorker.close(),
     whatsappWorker.close(),
+    whatsappMediaWorker.close(),
   ]);
   console.warn('[workers] all workers closed; exiting');
   process.exit(0);

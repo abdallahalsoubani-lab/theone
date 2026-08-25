@@ -2,6 +2,7 @@ import type { UserRole, WaInboundIntent, WaMessageStatus } from '@prisma/client'
 
 import { db } from '@/lib/db';
 import { renderWaBody } from '@/lib/whatsapp/templates/render';
+import { mediaKind } from '@/lib/whatsapp/media/policy';
 
 /**
  * WhatsApp Inbox reads (Prompt 49). Threads DERIVE from WhatsAppMessage
@@ -17,6 +18,13 @@ export const HUMAN_REPLY_SUPPRESSION_MS = 60 * 60 * 1000;
 /** SECRETARY + ADMIN only (owner decision §1.1) — enforced at the DATA
  *  layer so no route/API can leak threads to other roles. */
 export function canAccessInbox(role: UserRole): boolean {
+  return role === 'SECRETARY' || role === 'ADMIN';
+}
+
+/** P56 — WhatsApp media attachments are SECRETARY + ADMIN only (owner
+ *  decision 2). Therapist/Doctor never see attachment metadata, and the
+ *  serving route enforces the same (P15 data-layer precedent). */
+export function canSeeWhatsappAttachments(role: UserRole): boolean {
   return role === 'SECRETARY' || role === 'ADMIN';
 }
 
@@ -146,6 +154,19 @@ export interface ThreadMessage {
   buttonPayload: string | null;
   intent: WaInboundIntent | null;
   sentByName: string | null;
+  /** P56 — inbound media (SECRETARY/ADMIN only; empty for others). */
+  attachments: ThreadAttachment[];
+}
+
+export interface ThreadAttachment {
+  id: string;
+  /** Coarse class for the UI: image / video / audio / document. */
+  kind: 'image' | 'video' | 'audio' | 'document';
+  contentType: string;
+  sizeBytes: number | null;
+  filename: string | null;
+  /** PENDING (downloading) | STORED (viewable) | FAILED | EXPIRED. */
+  status: 'PENDING' | 'STORED' | 'FAILED' | 'EXPIRED';
 }
 
 export interface ThreadPatient {
@@ -182,7 +203,10 @@ export function canSendFreeText(lastInboundAt: Date | null, now: Date = new Date
   return closes !== null && now.getTime() < closes.getTime();
 }
 
-export async function getThread(conversationId: string): Promise<ThreadView | null> {
+export async function getThread(
+  conversationId: string,
+  viewerRole?: UserRole,
+): Promise<ThreadView | null> {
   const c = await db.whatsAppConversation.findUnique({
     where: { id: conversationId },
     include: { patient: { select: { fullNameEn: true, fullNameAr: true } } },
@@ -212,8 +236,19 @@ export async function getThread(conversationId: string): Promise<ThreadView | nu
       intent: true,
       template: { select: { name: true, contentPreview: true } },
       sentBy: { select: { fullNameEn: true } },
+      attachments: {
+        orderBy: { mediaIndex: 'asc' },
+        select: {
+          id: true,
+          contentType: true,
+          sizeBytes: true,
+          filename: true,
+          status: true,
+        },
+      },
     },
   });
+  const showAttachments = viewerRole ? canSeeWhatsappAttachments(viewerRole) : false;
 
   let nextAppointment: ThreadView['nextAppointment'] = null;
   if (c.patientId) {
@@ -271,6 +306,16 @@ export async function getThread(conversationId: string): Promise<ThreadView | nu
           : null,
       intent: m.intent,
       sentByName: m.sentBy?.fullNameEn ?? null,
+      attachments: showAttachments
+        ? m.attachments.map((a) => ({
+            id: a.id,
+            kind: mediaKind(a.contentType),
+            contentType: a.contentType,
+            sizeBytes: a.sizeBytes,
+            filename: a.filename,
+            status: a.status,
+          }))
+        : [],
     })),
     nextAppointment,
   };
