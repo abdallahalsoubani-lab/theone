@@ -25,7 +25,8 @@ export type TemplateVarToken =
   | 'time'
   | 'dayName'
   | 'reason'
-  | 'intakeUrl';
+  | 'intakeUrl'
+  | 'reminderBody';
 
 export interface TemplateVarContext {
   patientName: string;
@@ -40,6 +41,9 @@ export interface TemplateVarContext {
   reason?: string;
   /** P52 — the personal intake link; only set for the new-patient template. */
   intakeUrl?: string;
+  /** P53 — the rendered {{1}} body for the v3 reminders (single time or the
+   *  multi-appointment day summary). Set by the reminder worker. */
+  reminderBody?: string;
 }
 
 /** Pre-48b hardcoded orders — the exact arrays the call sites used to build. */
@@ -55,6 +59,10 @@ export const LEGACY_SHAPES: Record<string, TemplateVarToken[]> = {
   // P52 combined new-patient confirmation: {{1}} patient, {{2}} date,
   // {{3}} time, {{4}} personal intake link.
   new_patient_confirmation: ['patientName', 'date', 'time', 'intakeUrl'],
+  // P53 — the one-per-patient-per-day reminders. Both carry a single {{1}}
+  // body: the single_v3 start time, or the multi day-summary.
+  appointment_reminder_single_v3: ['reminderBody'],
+  appointment_reminder_multi: ['reminderBody'],
 };
 
 function isTokenArray(v: unknown): v is TemplateVarToken[] {
@@ -63,9 +71,16 @@ function isTokenArray(v: unknown): v is TemplateVarToken[] {
     v.every(
       (t) =>
         typeof t === 'string' &&
-        ['patientName', 'therapistName', 'date', 'time', 'dayName', 'reason', 'intakeUrl'].includes(
-          t,
-        ),
+        [
+          'patientName',
+          'therapistName',
+          'date',
+          'time',
+          'dayName',
+          'reason',
+          'intakeUrl',
+          'reminderBody',
+        ].includes(t),
     )
   );
 }
