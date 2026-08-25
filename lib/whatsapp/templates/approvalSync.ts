@@ -1,5 +1,3 @@
-import 'server-only';
-
 import { AuditAction, type LanguagePref } from '@prisma/client';
 
 import { db } from '@/lib/db';

@@ -1,5 +1,3 @@
-import 'server-only';
-
 import type { IntakeType } from '@prisma/client';
 
 import { db } from '@/lib/db';
