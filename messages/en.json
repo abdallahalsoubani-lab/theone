@@ -671,6 +671,19 @@
     "tooltip": {
       "phone": "Phone",
       "durationMinutes": "{minutes} min"
+    },
+    "patientExisting": "Existing patient",
+    "patientNew": "New patient",
+    "newPatient": {
+      "fullNameEn": "Full name (English)",
+      "fullNameEnPlaceholder": "e.g. Ahmad Ali",
+      "phone": "Phone number",
+      "formType": "Intake form",
+      "formTypeAdult": "Adult",
+      "formTypeChild": "Child",
+      "formTypeHint": "The patient's personal link will open this form.",
+      "duplicateWarning": "A patient with this phone already exists: {name}.",
+      "useExisting": "Use this patient instead"
     }
   },
   "patients": {
@@ -733,7 +746,8 @@
       "phoneIsUsername": "Changing the phone will change the patient's login username.",
       "sharedPhoneTitle": "Number already registered",
       "sectionAssignment": "Care team",
-      "assignmentHelp": "Add any number of therapists and doctors responsible for this patient. You can also change this later from the patient’s edit page."
+      "assignmentHelp": "Add any number of therapists and doctors responsible for this patient. You can also change this later from the patient’s edit page.",
+      "incompleteData": "Incomplete data — the intake form has not been filled"
     },
     "created": {
       "title": "Patient created",
@@ -947,6 +961,17 @@
     "validation": {
       "otherConditionsRequired": "Please describe the other conditions.",
       "birthOrderTooHigh": "Birth order cannot exceed siblings + 1."
+    },
+    "link": {
+      "heading": "Personal intake link",
+      "copy": "Copy",
+      "copied": "Link copied.",
+      "copyFailed": "Could not copy the link.",
+      "regenerate": "New link",
+      "regenerated": "A new link was created.",
+      "usedAt": "Filled on {time}.",
+      "noneActive": "No active link — create a new one to re-send.",
+      "note": "Single-use: the link stops working once the patient submits the form."
     }
   },
   "patient": {
@@ -1050,7 +1075,11 @@
     "thankYouBody": "Your intake has been received. The clinic will review it and contact you to confirm your registration.",
     "submitAnother": "Submit another",
     "fullNameEn": "Full name (English)",
-    "languagePref": "Preferred language"
+    "languagePref": "Preferred language",
+    "personalSubtitle": "Please complete your personal intake form below.",
+    "linkInvalidTitle": "This link is no longer valid",
+    "linkInvalidBody": "Please contact the reception desk to get a new link.",
+    "lockedIdentityHint": "Your name and phone were entered by the clinic and cannot be changed here."
   },
   "intakeSubmissions": {
     "title": "Intake requests",

@@ -7,12 +7,15 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { formatDate } from '@/lib/format/date';
 import type { IntakeListRow } from '@/lib/intake/queries';
+import { IntakeLinkCard, type IntakeLinkCardData } from '@/components/patients/IntakeLinkCard';
 
 interface Props {
   patientId: string;
   rows: IntakeListRow[];
   basePath: string;
   canCreate: boolean;
+  /** P52 — the personal intake-link panel (only when the viewer can manage). */
+  intakeLink?: IntakeLinkCardData;
 }
 
 const STATUS_VARIANT: Record<string, 'teal' | 'cyan' | 'muted'> = {
@@ -28,13 +31,14 @@ const STATUS_VARIANT: Record<string, 'teal' | 'cyan' | 'muted'> = {
  * no Edit affordance is offered; a correction is captured by adding a new
  * assessment.)
  */
-export function PatientIntakeTab({ patientId, rows, basePath, canCreate }: Props) {
+export function PatientIntakeTab({ patientId, rows, basePath, canCreate, intakeLink }: Props) {
   const t = useTranslations('intake');
   const locale = useLocale();
   const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
 
   return (
     <div className="space-y-4">
+      {canCreate && intakeLink ? <IntakeLinkCard patientId={patientId} data={intakeLink} /> : null}
       {canCreate ? (
         <div className="flex justify-end">
           <Button asChild>

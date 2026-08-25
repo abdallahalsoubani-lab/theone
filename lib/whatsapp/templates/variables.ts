@@ -24,7 +24,8 @@ export type TemplateVarToken =
   | 'date'
   | 'time'
   | 'dayName'
-  | 'reason';
+  | 'reason'
+  | 'intakeUrl';
 
 export interface TemplateVarContext {
   patientName: string;
@@ -37,6 +38,8 @@ export interface TemplateVarContext {
   dayName: string;
   /** Cancellation reason — only meaningful for the cancelled template. */
   reason?: string;
+  /** P52 — the personal intake link; only set for the new-patient template. */
+  intakeUrl?: string;
 }
 
 /** Pre-48b hardcoded orders — the exact arrays the call sites used to build. */
@@ -49,6 +52,9 @@ export const LEGACY_SHAPES: Record<string, TemplateVarToken[]> = {
   appointment_cancelled_v2: ['date', 'time', 'reason'],
   // July 31 item 3: {{1}} = patient first name, nothing else.
   arrival_confirmation: ['patientName'],
+  // P52 combined new-patient confirmation: {{1}} patient, {{2}} date,
+  // {{3}} time, {{4}} personal intake link.
+  new_patient_confirmation: ['patientName', 'date', 'time', 'intakeUrl'],
 };
 
 function isTokenArray(v: unknown): v is TemplateVarToken[] {
@@ -57,7 +63,9 @@ function isTokenArray(v: unknown): v is TemplateVarToken[] {
     v.every(
       (t) =>
         typeof t === 'string' &&
-        ['patientName', 'therapistName', 'date', 'time', 'dayName', 'reason'].includes(t),
+        ['patientName', 'therapistName', 'date', 'time', 'dayName', 'reason', 'intakeUrl'].includes(
+          t,
+        ),
     )
   );
 }
@@ -99,6 +107,7 @@ export async function appointmentVarContext(args: {
   therapistName: string;
   language: 'AR' | 'EN';
   reason?: string;
+  intakeUrl?: string;
 }): Promise<TemplateVarContext> {
   const tz = await getClinicTimeZone();
   const locale = args.language === 'AR' ? 'ar' : 'en';
@@ -109,5 +118,6 @@ export async function appointmentVarContext(args: {
     time: clinicHm(args.startsAt, tz),
     dayName: clinicWeekdayName(args.startsAt, locale, tz),
     reason: args.reason,
+    intakeUrl: args.intakeUrl,
   };
 }

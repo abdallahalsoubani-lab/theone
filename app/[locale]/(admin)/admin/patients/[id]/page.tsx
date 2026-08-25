@@ -6,6 +6,7 @@ import { PatientHomeProgramTab } from '@/components/home-program/PatientHomeProg
 import { PatientAppointmentsTab } from '@/components/patients/PatientAppointmentsTab';
 import { PatientDocumentsTab } from '@/components/patients/PatientDocumentsTab';
 import { PatientFilePage } from '@/components/patients/PatientFilePage';
+import { activeIntakeLinkForPatient, latestIntakeLinkForPatient } from '@/lib/intake-links/queries';
 import { listAppointmentsForPatientFile } from '@/lib/appointments/queries';
 import { listDocuments } from '@/lib/patient-documents/queries';
 import { getPatientHomeProgramTabData } from '@/lib/clinical/home-program/patient-tab';
@@ -52,6 +53,8 @@ export default async function AdminPatientFilePage({
     patient,
     activity,
     intakes,
+    activeIntakeLink,
+    latestIntakeLink,
     planState,
     notes,
     reportableAppointments,
@@ -62,6 +65,8 @@ export default async function AdminPatientFilePage({
     getPatientFile(id),
     listPatientActivity(id),
     listIntakesForPatient(id),
+    activeIntakeLinkForPatient(id),
+    latestIntakeLinkForPatient(id),
     getPatientPlanState(id),
     listSessionNotesForPatient(id),
     listReportableAppointmentsForPatient(id),
@@ -98,6 +103,14 @@ export default async function AdminPatientFilePage({
       }
       activity={activity}
       intakes={intakes}
+      intakeLink={{
+        activeToken: activeIntakeLink?.token ?? null,
+        formType: (activeIntakeLink?.formType ?? latestIntakeLink?.formType ?? 'ADULT') as
+          | 'ADULT'
+          | 'PEDIATRIC',
+        createdAt: activeIntakeLink?.createdAt.toISOString() ?? null,
+        usedAt: latestIntakeLink?.usedAt?.toISOString() ?? null,
+      }}
       basePath="/admin/patients"
       canEdit
       canResetPassword

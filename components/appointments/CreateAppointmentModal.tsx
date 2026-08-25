@@ -17,7 +17,11 @@ import {
   ResponsiveModalHeader,
   ResponsiveModalTitle,
 } from '@/components/ui/responsive-modal';
-import { createAppointmentAction, previewConflictsAction } from '@/lib/appointments/actions';
+import {
+  createAppointmentAction,
+  createNewPatientBookingAction,
+  previewConflictsAction,
+} from '@/lib/appointments/actions';
 import {
   hasHardBlockedConflict,
   hasSamePatientOverlap,
@@ -30,6 +34,8 @@ import {
   type SessionKind,
 } from '@/lib/appointments/session-kind';
 import { SearchablePillGroup, SearchableSelect } from '@/components/ui/searchable-select';
+import { IntakeType } from '@prisma/client';
+import { NewPatientFields, type NewPatientDraft } from './NewPatientFields';
 import { formatClinicDateTimeLocal, parseClinicDateTimeLocal } from '@/lib/time/clinic';
 import { addWaitlistEntryAction, fulfillWaitlistEntryAction } from '@/lib/waitlist/actions';
 
@@ -129,6 +135,15 @@ export function CreateAppointmentModal({
   const [seriesOpen, setSeriesOpen] = useState(false);
 
   const [patientId, setPatientId] = useState(defaultPatientId ?? '');
+  // P52 — new-patient quick-add (SESSION/STRETCHING only). 'existing' is
+  // today's picker unchanged.
+  const [patientMode, setPatientMode] = useState<'existing' | 'new'>('existing');
+  const [newPatient, setNewPatient] = useState<NewPatientDraft>({
+    fullNameEn: '',
+    phone: '',
+    formType: IntakeType.ADULT,
+  });
+  const [dupWarning, setDupWarning] = useState<{ id: string; name: string } | null>(null);
   // July #8 — booking type. SESSION + STRETCHING + EVENT + GROUP are all
   // selectable. GROUP therapy / workshops (part 3) carry a SET of patients.
   const [appointmentType, setAppointmentType] = useState<AppointmentType>(AppointmentType.SESSION);
@@ -170,6 +185,9 @@ export function CreateAppointmentModal({
     );
     setStartsAt(defaultStartsAt ? toLocalInput(defaultStartsAt) : '');
     setDuration(defaultDurationMinutes);
+    setPatientMode('existing');
+    setNewPatient({ fullNameEn: '', phone: '', formType: IntakeType.ADULT });
+    setDupWarning(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, defaultStartsAt, defaultTherapistId, defaultDurationMinutes, defaultPatientId]);
 
@@ -249,13 +267,16 @@ export function CreateAppointmentModal({
   // STRETCHING: patient + room + 0 therapists. EVENT: a title + start (patient
   // forbidden; therapists + room optional). GROUP: ≥1 member + ≥1 therapist +
   // start (room optional; title is the optional workshop label).
+  const isNewPatient = patientMode === 'new' && !isEvent && !isGroup;
   const canSubmit = Boolean(
     startsAt &&
     (isEvent
       ? Boolean(title.trim())
       : isGroup
         ? patientIds.length > 0 && therapistIds.length > 0
-        : patientId &&
+        : (isNewPatient
+            ? newPatient.fullNameEn.trim().length >= 2 && newPatient.phone.trim().length >= 6
+            : Boolean(patientId)) &&
           roomId &&
           (isStretching ? therapistIds.length === 0 : therapistIds.length > 0)),
   );
@@ -268,6 +289,39 @@ export function CreateAppointmentModal({
 
   const submit = (override: boolean) =>
     startTransition(async () => {
+      // P52 — new-patient quick-add: one atomic call creates patient + link +
+      // booking. A duplicate phone surfaces the existing patient inline.
+      if (isNewPatient) {
+        const nr = await createNewPatientBookingAction({
+          fullNameEn: newPatient.fullNameEn.trim(),
+          phone: newPatient.phone.trim(),
+          formType: newPatient.formType,
+          appointmentType,
+          therapistIds,
+          roomId: roomId || '',
+          startsAt: parseClinicDateTimeLocal(startsAt) ?? new Date(NaN),
+          durationMinutes: duration,
+          notes: notes || null,
+          overrideConflicts: override,
+        });
+        if (!nr.ok) {
+          if (nr.error.code === 'PATIENT_PHONE_EXISTS') {
+            const d = nr.error.details as {
+              existingPatientId?: string;
+              existingPatientName?: string;
+            };
+            if (d?.existingPatientId && d?.existingPatientName) {
+              setDupWarning({ id: d.existingPatientId, name: d.existingPatientName });
+            }
+          }
+          toast.error(locale === 'ar' ? nr.error.message_ar : nr.error.message_en);
+          return;
+        }
+        toast.success(tToasts('created'));
+        onClose();
+        router.refresh();
+        return;
+      }
       const r = await createAppointmentAction({
         patientId: isEvent || isGroup ? null : patientId,
         patientIds: isGroup ? patientIds : [],
@@ -422,18 +476,52 @@ export function CreateAppointmentModal({
             ) : (
               <div className="space-y-1">
                 <Label htmlFor="appt-patient">{t('patient')}</Label>
-                {/* Prompt 47 — searchable picker. Both scripts searched via
-                    label+sublabel; phone appears (and thus matches) only when
-                    the viewer may see it (P15: it's null otherwise). */}
-                <SearchableSelect
-                  id="appt-patient"
-                  value={patientId}
-                  onChange={setPatientId}
-                  options={patients.map((p) => patientPickerOption(p, locale))}
-                />
-                {/* The P41 first-visit notice used to render here — removed
-                    by clinic request (Prompt 55 §3). The derived flag, the
-                    patients-list badge, and the book-doctor CTA all stay. */}
+                {/* P52 — existing / new-patient segment. New = English name +
+                    phone + adult/child only; it creates the patient + a
+                    single-use intake link + the booking atomically. */}
+                <div className="mb-2 inline-flex rounded-md border border-brand-border p-0.5">
+                  {(['existing', 'new'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => {
+                        setPatientMode(m);
+                        setDupWarning(null);
+                      }}
+                      className={`rounded px-3 py-1 text-sm font-medium transition ${
+                        patientMode === m
+                          ? 'bg-brand-cyan/15 text-brand-navy'
+                          : 'text-brand-textMuted hover:text-brand-navy'
+                      }`}
+                    >
+                      {t(m === 'existing' ? 'patientExisting' : 'patientNew')}
+                    </button>
+                  ))}
+                </div>
+                {patientMode === 'existing' ? (
+                  <SearchableSelect
+                    id="appt-patient"
+                    value={patientId}
+                    onChange={setPatientId}
+                    options={patients.map((p) => patientPickerOption(p, locale))}
+                  />
+                ) : (
+                  <NewPatientFields
+                    value={newPatient}
+                    onChange={(patch) => {
+                      setNewPatient((prev) => ({ ...prev, ...patch }));
+                      if ('phone' in patch) setDupWarning(null);
+                    }}
+                    dupWarning={dupWarning}
+                    onUseExisting={() => {
+                      if (dupWarning) {
+                        setPatientMode('existing');
+                        setPatientId(dupWarning.id);
+                        setDupWarning(null);
+                      }
+                    }}
+                  />
+                )}
               </div>
             )}
 

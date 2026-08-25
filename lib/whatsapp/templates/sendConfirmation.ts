@@ -1,10 +1,21 @@
 import { db } from '@/lib/db';
+import { env } from '@/lib/env';
 import { patientDisplayName } from '@/lib/format/patientName';
+import { unusedLinkForAppointment } from '@/lib/intake-links/queries';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 
 import { appointmentVarContext, buildParamsFromShape, resolveTemplateShape } from './variables';
 
 const TEMPLATE_NAME = 'appointment_confirmation_v2';
+/** P52 — the combined confirmation used ONLY for a new-patient booking that
+ *  still has an unused personal intake link (date + time + the link). */
+const NEW_PATIENT_TEMPLATE_NAME = 'new_patient_confirmation';
+
+/** Build the public tokenized intake URL for a patient's language. */
+function intakeLinkUrl(token: string, language: 'AR' | 'EN'): string {
+  const base = (env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+  return `${base}/${language === 'AR' ? 'ar' : 'en'}/intake/link/${token}`;
+}
 
 /**
  * Booking-confirmation sender (P53): extracted from the inline
@@ -62,9 +73,18 @@ export async function sendAppointmentConfirmation(args: { appointmentId: string 
     : isAr
       ? 'فريق العيادة'
       : 'the clinic team';
-  const shape = await resolveTemplateShape(TEMPLATE_NAME, p.languagePref);
+
+  // P52 — a new-patient booking carries an UNUSED personal intake link. When
+  // present, the patient's ONE message is the combined template (date + time
+  // + link) INSTEAD of the standard confirmation (owner decision 6). Every
+  // other booking is untouched. The dispatch/hold/silent path is identical —
+  // only the template name + one extra variable differ.
+  const link = await unusedLinkForAppointment(appt.id);
+  const templateName = link ? NEW_PATIENT_TEMPLATE_NAME : TEMPLATE_NAME;
+
+  const shape = await resolveTemplateShape(templateName, p.languagePref);
   if (!shape) {
-    console.error('[lifecycle] no variable shape for confirmation template — skipping');
+    console.error(`[lifecycle] no variable shape for ${templateName} — skipping`);
     return;
   }
   const ctx = await appointmentVarContext({
@@ -72,10 +92,11 @@ export async function sendAppointmentConfirmation(args: { appointmentId: string 
     patientName: patientDisplayName(p.fullNameEn, p.fullNameAr, isAr ? 'ar' : 'en'),
     therapistName,
     language: p.languagePref,
+    intakeUrl: link ? intakeLinkUrl(link.token, p.languagePref) : undefined,
   });
   await enqueueWhatsappOutbound({
     kind: 'template',
-    templateName: TEMPLATE_NAME,
+    templateName,
     language: p.languagePref,
     parameters: buildParamsFromShape(shape, ctx),
     recipientPhone: p.phone,

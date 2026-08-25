@@ -187,6 +187,19 @@
     "tooltip": {
       "phone": "الهاتف",
       "durationMinutes": "{minutes} دقيقة"
+    },
+    "patientExisting": "مريض حالي",
+    "patientNew": "مريض جديد",
+    "newPatient": {
+      "fullNameEn": "الاسم الكامل (بالإنجليزية)",
+      "fullNameEnPlaceholder": "مثال: Ahmad Ali",
+      "phone": "رقم الهاتف",
+      "formType": "نموذج البيانات",
+      "formTypeAdult": "بالغ",
+      "formTypeChild": "طفل",
+      "formTypeHint": "سيفتح رابط المريض الشخصي هذا النموذج.",
+      "duplicateWarning": "يوجد مريض مسجّل بهذا الرقم: {name}.",
+      "useExisting": "استخدم هذا المريض"
     }
   },
   "patients": {
@@ -249,7 +262,8 @@
       "phoneIsUsername": "تغيير الرقم سيغيّر اسم الدخول للمراجع.",
       "sharedPhoneTitle": "الرقم مسجّل مسبقاً",
       "sectionAssignment": "الفريق المعالج",
-      "assignmentHelp": "أضف أي عدد من المعالجين والأطباء المسؤولين عن هذا المراجع. يمكنك تعديل ذلك لاحقاً من صفحة تعديل المراجع."
+      "assignmentHelp": "أضف أي عدد من المعالجين والأطباء المسؤولين عن هذا المراجع. يمكنك تعديل ذلك لاحقاً من صفحة تعديل المراجع.",
+      "incompleteData": "بيانات ناقصة — لم تُعبّأ الاستمارة"
     },
     "created": {
       "title": "تم إنشاء المراجع",
@@ -463,6 +477,17 @@
     "validation": {
       "otherConditionsRequired": "يرجى ذكر تفاصيل الأمراض الأخرى.",
       "birthOrderTooHigh": "لا يمكن أن يتجاوز الترتيب عدد الإخوة + 1."
+    },
+    "link": {
+      "heading": "رابط البيانات الشخصي",
+      "copy": "نسخ",
+      "copied": "تم نسخ الرابط.",
+      "copyFailed": "تعذّر نسخ الرابط.",
+      "regenerate": "رابط جديد",
+      "regenerated": "تم إنشاء رابط جديد.",
+      "usedAt": "عُبّئ بتاريخ {time}.",
+      "noneActive": "لا يوجد رابط فعّال — أنشئ رابطاً جديداً لإعادة الإرسال.",
+      "note": "للاستخدام مرة واحدة: يتوقف الرابط عن العمل بمجرد تعبئة المريض للنموذج."
     }
   },
   "patient": {
@@ -566,7 +591,11 @@
     "thankYouBody": "تم استلام استمارتك. سيقوم المركز بمراجعتها والتواصل معك لتأكيد التسجيل.",
     "submitAnother": "إرسال استمارة أخرى",
     "fullNameEn": "الاسم الكامل (إنجليزي)",
-    "languagePref": "اللغة المفضلة"
+    "languagePref": "اللغة المفضلة",
+    "personalSubtitle": "يرجى تعبئة نموذج بياناتك الشخصي أدناه.",
+    "linkInvalidTitle": "هذا الرابط لم يعد صالحاً",
+    "linkInvalidBody": "يرجى مراجعة الاستقبال للحصول على رابط جديد.",
+    "lockedIdentityHint": "تم إدخال اسمك ورقمك من قبل العيادة ولا يمكن تغييرهما هنا."
   },
   "intakeSubmissions": {
     "title": "طلبات الاستقبال",

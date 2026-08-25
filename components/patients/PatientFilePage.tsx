@@ -16,6 +16,7 @@ import type {
 } from '@/lib/clinical/session-notes/queries';
 import type { TimelinePage } from '@/lib/clinical/timeline/types';
 import type { IntakeListRow } from '@/lib/intake/queries';
+import type { IntakeLinkCardData } from '@/components/patients/IntakeLinkCard';
 import type { PatientFileData } from '@/lib/patients/queries';
 import type { PatientActivityRow } from '@/lib/patients/queries-audit';
 
@@ -48,6 +49,8 @@ interface Props {
   documents?: ReactNode;
   viewerRole?: 'DOCTOR' | 'THERAPIST' | 'SECRETARY' | 'ADMIN' | 'PATIENT';
   actorId?: string;
+  /** P52 — the personal intake-link panel data (SECRETARY/ADMIN pages only). */
+  intakeLink?: IntakeLinkCardData;
   /** NI-5 (Prompt 41): derived pending-first-visit flag + optional CTA href. */
   pendingFirstVisit?: boolean;
   bookDoctorHref?: string | null;
@@ -77,6 +80,7 @@ export async function PatientFilePage({
   pediatric,
   documents,
   viewerRole,
+  intakeLink,
   actorId,
   pendingFirstVisit = false,
   bookDoctorHref = null,
@@ -112,6 +116,7 @@ export async function PatientFilePage({
             rows={intakes}
             basePath={basePath}
             canCreate={canEdit}
+            intakeLink={canEdit ? intakeLink : undefined}
           />
         }
         plan={

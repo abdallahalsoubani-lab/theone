@@ -7,9 +7,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * the skip rules, mirroring the sendRescheduled test harness.
  */
 
-const { enqueueMock } = vi.hoisted(() => ({ enqueueMock: vi.fn(async () => 'job-1') }));
+const { enqueueMock, linkMock } = vi.hoisted(() => ({
+  enqueueMock: vi.fn(async () => 'job-1'),
+  // P52 — the unused-intake-link lookup that flips the template.
+  linkMock: vi.fn(async () => null as { token: string } | null),
+}));
 const calls = () => enqueueMock.mock.calls as unknown as Array<[Record<string, unknown>]>;
 vi.mock('@/lib/queue/jobs/whatsappOutbound', () => ({ enqueueWhatsappOutbound: enqueueMock }));
+vi.mock('@/lib/intake-links/queries', () => ({ unusedLinkForAppointment: linkMock }));
 vi.mock('@/lib/time/clinic-server', () => ({
   getClinicTimeZone: vi.fn(async () => 'Asia/Amman'),
 }));
@@ -54,6 +59,8 @@ function appt(patientOver: Record<string, unknown> = {}): Record<string, unknown
 
 beforeEach(() => {
   enqueueMock.mockClear();
+  linkMock.mockClear();
+  linkMock.mockResolvedValue(null);
   __state.appt = null;
 });
 
@@ -86,5 +93,25 @@ describe('sendAppointmentConfirmation', () => {
     await sendAppointmentConfirmation({ appointmentId: 'appt-1' });
     warnSpy.mockRestore();
     expect(enqueueMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('P52 — combined new-patient confirmation template selection', () => {
+  it('with an UNUSED intake link → the new_patient_confirmation template + the intake URL var', async () => {
+    __state.appt = appt();
+    linkMock.mockResolvedValue({ token: 'tok_abcdefghijklmnopqrstuvwxyz' });
+    await sendAppointmentConfirmation({ appointmentId: 'appt-1' });
+    const [job] = calls()[0]!;
+    expect(job.templateName).toBe('new_patient_confirmation');
+    // The 4th param (intakeUrl) is a URL that carries the token.
+    const params = job.parameters as string[];
+    expect(params[params.length - 1]).toContain('/intake/link/tok_abcdefghijklmnopqrstuvwxyz');
+  });
+
+  it('with NO link → the standard appointment_confirmation_v2 (regression)', async () => {
+    __state.appt = appt();
+    linkMock.mockResolvedValue(null);
+    await sendAppointmentConfirmation({ appointmentId: 'appt-1' });
+    expect(calls()[0]![0].templateName).toBe('appointment_confirmation_v2');
   });
 });

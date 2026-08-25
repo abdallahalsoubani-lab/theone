@@ -6,6 +6,7 @@ import { PatientHomeProgramTab } from '@/components/home-program/PatientHomeProg
 import { PatientDocumentsTab } from '@/components/patients/PatientDocumentsTab';
 import { PatientAppointmentsTab } from '@/components/patients/PatientAppointmentsTab';
 import { PatientFilePage } from '@/components/patients/PatientFilePage';
+import { activeIntakeLinkForPatient, latestIntakeLinkForPatient } from '@/lib/intake-links/queries';
 import { listDocuments } from '@/lib/patient-documents/queries';
 import { getPatientHomeProgramTabData } from '@/lib/clinical/home-program/patient-tab';
 import { getPatientPlanState } from '@/lib/clinical/plans/queries';
@@ -36,26 +37,38 @@ export default async function SecretaryPatientFilePage({
   const sp = await searchParams;
   const timelinePage = Math.max(1, Number.parseInt(sp.page ?? '1', 10) || 1);
   const session = await auth();
-  const [patient, activity, intakes, planState, notes, timeline, homeProgramData, documents] =
-    await Promise.all([
-      getPatientFile(id),
-      listPatientActivity(id),
-      listIntakesForPatient(id),
-      getPatientPlanState(id),
-      listSessionNotesForPatient(id),
-      getPatientTimeline(
-        id,
-        {
-          search: sp.q,
-          from: sp.from ? new Date(sp.from) : undefined,
-          to: sp.to ? new Date(sp.to) : undefined,
-        },
-        { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
-        'SECRETARY',
-      ),
-      getPatientHomeProgramTabData(id),
-      listDocuments(id),
-    ]);
+  const [
+    patient,
+    activity,
+    intakes,
+    activeIntakeLink,
+    latestIntakeLink,
+    planState,
+    notes,
+    timeline,
+    homeProgramData,
+    documents,
+  ] = await Promise.all([
+    getPatientFile(id),
+    listPatientActivity(id),
+    listIntakesForPatient(id),
+    activeIntakeLinkForPatient(id),
+    latestIntakeLinkForPatient(id),
+    getPatientPlanState(id),
+    listSessionNotesForPatient(id),
+    getPatientTimeline(
+      id,
+      {
+        search: sp.q,
+        from: sp.from ? new Date(sp.from) : undefined,
+        to: sp.to ? new Date(sp.to) : undefined,
+      },
+      { page: timelinePage, pageSize: TIMELINE_PAGE_SIZE },
+      'SECRETARY',
+    ),
+    getPatientHomeProgramTabData(id),
+    listDocuments(id),
+  ]);
   if (!patient) notFound();
   const fileAppointments = await listAppointmentsForPatientFile(id);
   // NI-5 (Prompt 41, soft): derived flag + the "Book doctor visit" CTA
@@ -76,6 +89,14 @@ export default async function SecretaryPatientFilePage({
       }
       activity={activity}
       intakes={intakes}
+      intakeLink={{
+        activeToken: activeIntakeLink?.token ?? null,
+        formType: (activeIntakeLink?.formType ?? latestIntakeLink?.formType ?? 'ADULT') as
+          | 'ADULT'
+          | 'PEDIATRIC',
+        createdAt: activeIntakeLink?.createdAt.toISOString() ?? null,
+        usedAt: latestIntakeLink?.usedAt?.toISOString() ?? null,
+      }}
       basePath="/secretary/patients"
       canEdit
       canResetPassword

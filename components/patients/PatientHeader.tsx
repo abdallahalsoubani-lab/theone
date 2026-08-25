@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { formatPhone } from '@/lib/format/phone';
+import { hasPlaceholderDob } from '@/lib/patients/placeholder-dob';
 import type { PatientFileData } from '@/lib/patients/queries';
 import { displayAgeYears } from '@/lib/patients/schemas';
 
@@ -52,8 +53,10 @@ export function PatientHeader({
     .slice(0, 2)
     .join('')
     .toUpperCase();
-  // P52: sentinel DOB (unknown, year <= 1900) renders as an em-dash.
   const ageYears = displayAgeYears(patient.dateOfBirth);
+  // P52 — while the DOB is still the placeholder, the patient was quick-added
+  // and has not filled their intake yet: flag the file as incomplete.
+  const incompleteData = hasPlaceholderDob(patient.dateOfBirth);
 
   return (
     <div className="flex flex-wrap items-center gap-4 rounded-md border border-brand-border bg-brand-surface p-4">
@@ -79,6 +82,12 @@ export function PatientHeader({
           {pendingFirstVisit ? (
             <Badge variant="outline" className="border-amber-400/60 bg-amber-50 text-amber-800">
               {tFirstVisit('awaitingBadge')}
+            </Badge>
+          ) : null}
+          {/* P52 — quick-added patient whose intake form is still unfilled. */}
+          {incompleteData ? (
+            <Badge variant="outline" className="border-amber-400/60 bg-amber-50 text-amber-800">
+              {tForm('incompleteData')}
             </Badge>
           ) : null}
           {/* Phone is null for Doctor/Therapist viewers (Prompt 15 §1) — omit it. */}

@@ -28,11 +28,25 @@ import {
   publicAdultSubmissionSchema,
   publicPediatricSubmissionSchema,
 } from '@/lib/intake-submissions/schemas';
+import { submitIntakeViaLinkAction } from '@/lib/intake-links/publicActions';
+
+/**
+ * P52 — the tokenized personal-link mode: the secretary already chose the
+ * form type and entered name + phone, so we skip the chooser, prefill and
+ * LOCK identity, and submit straight to the patient file via the token.
+ */
+export interface IntakeLinkMode {
+  token: string;
+  forcedType: 'ADULT' | 'PEDIATRIC';
+  lockedProfile: { fullNameEn: string; phone: string };
+}
 
 interface Props {
   locale: 'en' | 'ar';
   adultQuestions: CustomQuestionRow[];
   pediatricQuestions: CustomQuestionRow[];
+  /** When set, the flow runs in single-use personal-link mode. */
+  linkMode?: IntakeLinkMode;
 }
 
 type Step = 'choose' | 'adult' | 'pediatric' | 'done';
@@ -64,23 +78,29 @@ const PEDIATRIC_ANSWER_DEFAULTS = {
   customAnswers: {},
 };
 
-export function PublicIntakeFlow({ locale, adultQuestions, pediatricQuestions }: Props) {
+export function PublicIntakeFlow({ locale, adultQuestions, pediatricQuestions, linkMode }: Props) {
   const t = useTranslations('publicIntake');
   const tCommon = useTranslations('common');
-  const [step, setStep] = useState<Step>('choose');
+  const [step, setStep] = useState<Step>(
+    linkMode ? (linkMode.forcedType === 'ADULT' ? 'adult' : 'pediatric') : 'choose',
+  );
 
   // Built inside the component because the preferred-language radio (QA 5.3)
   // defaults to the locale the form is being filled in. Two name fields
   // (QA 5.2): AR required, EN optional.
   const emptyProfile = {
-    fullNameEn: '',
-    phone: '',
+    fullNameEn: linkMode?.lockedProfile.fullNameEn ?? '',
+    phone: linkMode?.lockedProfile.phone ?? '',
     dateOfBirth: '',
     gender: Gender.MALE,
     languagePref: locale === 'ar' ? LanguagePref.AR : LanguagePref.EN,
     address: '',
     email: '',
   };
+
+  // Personal-link submit: merge the token, ignore identity server-side.
+  const submitViaLink = (type: 'ADULT' | 'PEDIATRIC') => (values: FieldValues) =>
+    submitIntakeViaLinkAction({ ...values, type, token: linkMode!.token });
 
   if (step === 'done') {
     return (
@@ -89,9 +109,11 @@ export function PublicIntakeFlow({ locale, adultQuestions, pediatricQuestions }:
           <CheckCircle2 className="size-12 text-brand-teal" />
           <h2 className="text-xl font-semibold text-brand-navy">{t('thankYouTitle')}</h2>
           <p className="max-w-md text-sm text-brand-textMuted">{t('thankYouBody')}</p>
-          <Button type="button" variant="outline" onClick={() => setStep('choose')}>
-            {t('submitAnother')}
-          </Button>
+          {linkMode ? null : (
+            <Button type="button" variant="outline" onClick={() => setStep('choose')}>
+              {t('submitAnother')}
+            </Button>
+          )}
         </CardContent>
       </Card>
     );
@@ -123,9 +145,11 @@ export function PublicIntakeFlow({ locale, adultQuestions, pediatricQuestions }:
 
   return (
     <div className="space-y-4">
-      <Button type="button" variant="ghost" size="sm" onClick={() => setStep('choose')}>
-        ← {t('back')}
-      </Button>
+      {linkMode ? null : (
+        <Button type="button" variant="ghost" size="sm" onClick={() => setStep('choose')}>
+          ← {t('back')}
+        </Button>
+      )}
       {isAdult ? (
         <AppForm
           schema={publicAdultSubmissionSchema}
@@ -138,14 +162,17 @@ export function PublicIntakeFlow({ locale, adultQuestions, pediatricQuestions }:
               answers: ADULT_ANSWER_DEFAULTS,
             } as never
           }
-          action={(values) => submitPublicIntakeAction(values)}
+          action={linkMode ? submitViaLink('ADULT') : (values) => submitPublicIntakeAction(values)}
           successToast={t('thankYouTitle')}
           onSuccess={() => setStep('done')}
         >
           {(form) => (
             <div className="space-y-6">
               <Honeypot form={form as unknown as UseFormReturn<FieldValues>} />
-              <PublicProfileFields form={form as unknown as UseFormReturn<FieldValues>} />
+              <PublicProfileFields
+                form={form as unknown as UseFormReturn<FieldValues>}
+                lockIdentity={Boolean(linkMode)}
+              />
               <AdultIntakeFields
                 form={form as unknown as UseFormReturn<FieldValues>}
                 customQuestions={adultQuestions}
@@ -168,14 +195,19 @@ export function PublicIntakeFlow({ locale, adultQuestions, pediatricQuestions }:
               answers: PEDIATRIC_ANSWER_DEFAULTS,
             } as never
           }
-          action={(values) => submitPublicIntakeAction(values)}
+          action={
+            linkMode ? submitViaLink('PEDIATRIC') : (values) => submitPublicIntakeAction(values)
+          }
           successToast={t('thankYouTitle')}
           onSuccess={() => setStep('done')}
         >
           {(form) => (
             <div className="space-y-6">
               <Honeypot form={form as unknown as UseFormReturn<FieldValues>} />
-              <PublicProfileFields form={form as unknown as UseFormReturn<FieldValues>} />
+              <PublicProfileFields
+                form={form as unknown as UseFormReturn<FieldValues>}
+                lockIdentity={Boolean(linkMode)}
+              />
               <PediatricIntakeFields
                 form={form as unknown as UseFormReturn<FieldValues>}
                 customQuestions={pediatricQuestions}

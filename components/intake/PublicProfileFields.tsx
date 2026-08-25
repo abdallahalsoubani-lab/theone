@@ -15,6 +15,9 @@ interface Props {
   form: UseFormReturn<FieldValues>;
   /** Always 'profile.' for the public form. */
   namePrefix?: string;
+  /** P52 — the tokenized personal link prefills name + phone and locks them
+   *  (identity is fixed at booking time; the server ignores these fields). */
+  lockIdentity?: boolean;
 }
 
 /**
@@ -35,7 +38,11 @@ const LANGUAGE_OPTIONS = [
  * The preferred-language radio (QA 5.3) is the patient's explicit choice for
  * WhatsApp + portal language; the host form defaults it to the form locale.
  */
-export function PublicProfileFields({ form, namePrefix = 'profile.' }: Props) {
+export function PublicProfileFields({
+  form,
+  namePrefix = 'profile.',
+  lockIdentity = false,
+}: Props) {
   const t = useTranslations('publicIntake');
   const n = (s: string) => `${namePrefix}${s}` as never;
 
@@ -49,6 +56,7 @@ export function PublicProfileFields({ form, namePrefix = 'profile.' }: Props) {
             name={n('fullNameEn')}
             label={t('fullNameEn')}
             autoComplete="name"
+            disabled={lockIdentity}
           />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -59,8 +67,9 @@ export function PublicProfileFields({ form, namePrefix = 'profile.' }: Props) {
             type="tel"
             inputMode="tel"
             placeholder="07XXXXXXXX"
-            description={t('phoneHint')}
+            description={lockIdentity ? t('lockedIdentityHint') : t('phoneHint')}
             autoComplete="tel"
+            disabled={lockIdentity}
           />
           <DateField form={form} name={n('dateOfBirth')} label={t('dateOfBirth')} />
         </div>
