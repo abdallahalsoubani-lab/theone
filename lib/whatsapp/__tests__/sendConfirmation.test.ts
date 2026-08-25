@@ -7,14 +7,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * the skip rules, mirroring the sendRescheduled test harness.
  */
 
-const { enqueueMock, linkMock } = vi.hoisted(() => ({
+const { enqueueMock, linkMock, approvedMock } = vi.hoisted(() => ({
   enqueueMock: vi.fn(async () => 'job-1'),
   // P52 — the unused-intake-link lookup that flips the template.
   linkMock: vi.fn(async () => null as { token: string } | null),
+  approvedMock: vi.fn(async () => true),
 }));
 const calls = () => enqueueMock.mock.calls as unknown as Array<[Record<string, unknown>]>;
 vi.mock('@/lib/queue/jobs/whatsappOutbound', () => ({ enqueueWhatsappOutbound: enqueueMock }));
 vi.mock('@/lib/intake-links/queries', () => ({ unusedLinkForAppointment: linkMock }));
+vi.mock('@/lib/whatsapp/templates/approval', () => ({ isTemplateApproved: approvedMock }));
 vi.mock('@/lib/time/clinic-server', () => ({
   getClinicTimeZone: vi.fn(async () => 'Asia/Amman'),
 }));
@@ -61,6 +63,8 @@ beforeEach(() => {
   enqueueMock.mockClear();
   linkMock.mockClear();
   linkMock.mockResolvedValue(null);
+  approvedMock.mockClear();
+  approvedMock.mockResolvedValue(true);
   __state.appt = null;
 });
 
@@ -113,5 +117,18 @@ describe('P52 — combined new-patient confirmation template selection', () => {
     linkMock.mockResolvedValue(null);
     await sendAppointmentConfirmation({ appointmentId: 'appt-1' });
     expect(calls()[0]![0].templateName).toBe('appointment_confirmation_v2');
+  });
+});
+
+describe('P52 deploy — new-patient confirmation approval fallback', () => {
+  it('link present but combined template PENDING → standard confirmation, no link var', async () => {
+    __state.appt = appt();
+    linkMock.mockResolvedValue({ token: 'tok_pendingfallbackxxxxxxxxxx' });
+    approvedMock.mockResolvedValue(false); // new_patient_confirmation not approved yet
+    await sendAppointmentConfirmation({ appointmentId: 'appt-1' });
+    const [job] = calls()[0]!;
+    expect(job.templateName).toBe('appointment_confirmation_v2');
+    // No intake URL leaks into the standard template params.
+    expect((job.parameters as string[]).some((p) => p.includes('/intake/link/'))).toBe(false);
   });
 });

@@ -45,6 +45,12 @@ import {
   reminderTime,
   type ReminderAppointment,
 } from '@/lib/whatsapp/templates/reminderAppointments';
+import { reminderV3Approved } from '@/lib/whatsapp/templates/approval';
+
+/** Same-day appointment carrying its first therapist (for the v2 fallback). */
+interface SameDayAppt extends ReminderAppointment {
+  therapists: Array<{ therapist: { fullNameEn: string; fullNameAr: string } }>;
+}
 
 export function startReminderWorker(): Worker {
   const worker = new Worker<AppointmentReminderJob>(
@@ -212,7 +218,7 @@ export function startReminderWorker(): Worker {
       // single_v3 template (one time each) — its own appointment only.
       const clinicTz = await getClinicTimeZone();
       const isGroupReminder = appt.appointmentType === 'GROUP';
-      const sameDayByPatient = new Map<string, ReminderAppointment[]>();
+      const sameDayByPatient = new Map<string, SameDayAppt[]>();
       if (!isGroupReminder && appt.patient) {
         const dayKey = clinicDateKey(appt.startsAt, clinicTz);
         const dayStartUtc = new Date(appt.startsAt.getTime() - 24 * 60 * 60 * 1000);
@@ -224,7 +230,16 @@ export function startReminderWorker(): Worker {
             status: { in: ['SCHEDULED', 'CONFIRMED'] },
             startsAt: { gte: dayStartUtc, lte: dayEndUtc },
           },
-          select: { id: true, startsAt: true, durationMinutes: true },
+          select: {
+            id: true,
+            startsAt: true,
+            durationMinutes: true,
+            therapists: {
+              orderBy: { createdAt: 'asc' },
+              take: 1,
+              include: { therapist: { select: { fullNameEn: true, fullNameAr: true } } },
+            },
+          },
         });
         sameDayByPatient.set(
           appt.patient.id,
@@ -244,14 +259,62 @@ export function startReminderWorker(): Worker {
           }
           const lang = recipient.languagePref;
           const rLocale = lang === 'AR' ? 'ar' : 'en';
-
+          const anchorAsSameDay: SameDayAppt = {
+            id: appt.id,
+            startsAt: appt.startsAt,
+            durationMinutes: appt.durationMinutes,
+            therapists: appt.therapists,
+          };
           // The day's appointments for THIS recipient (group members render
           // only their group appointment).
-          const dayAppts = isGroupReminder
-            ? [{ id: appt.id, startsAt: appt.startsAt, durationMinutes: appt.durationMinutes }]
-            : (sameDayByPatient.get(recipient.id) ?? [
-                { id: appt.id, startsAt: appt.startsAt, durationMinutes: appt.durationMinutes },
-              ]);
+          const dayAppts: SameDayAppt[] = isGroupReminder
+            ? [anchorAsSameDay]
+            : (sameDayByPatient.get(recipient.id) ?? [anchorAsSameDay]);
+
+          // P52/P53 deploy — the v3 one-per-day templates only work once
+          // WhatsApp APPROVES them (a pending template fails to send). Until
+          // then fall back to EXACTLY today's behaviour: one legacy
+          // `appointment_reminder_v2` message PER appointment (no regression
+          // in coverage). The daily approval-sync flips this automatically.
+          const useV3 = await reminderV3Approved(lang);
+
+          if (!useV3) {
+            for (const da of dayAppts) {
+              const th = da.therapists[0]?.therapist ?? null;
+              const therapistName = (lang === 'AR' ? th?.fullNameAr : th?.fullNameEn) ?? '';
+              const shapeV2 = await resolveTemplateShape('appointment_reminder_v2', lang);
+              if (!shapeV2) {
+                console.error(
+                  '[reminder] no variable shape for appointment_reminder_v2 — skipping',
+                );
+                continue;
+              }
+              const ctxV2 = await appointmentVarContext({
+                startsAt: da.startsAt,
+                patientName: patientDisplayName(
+                  recipient.fullNameEn,
+                  recipient.fullNameAr,
+                  rLocale,
+                ),
+                therapistName,
+                language: lang,
+              });
+              const idV2 = await enqueueWhatsappOutbound({
+                kind: 'template',
+                templateName: 'appointment_reminder_v2',
+                language: lang,
+                parameters: buildParamsFromShape(shapeV2, ctxV2),
+                recipientPhone: recipient.phone,
+                recipientUserId: recipient.id,
+                appointmentId: da.id,
+                source: 'queue',
+              });
+              console.warn(
+                `[reminder] appointment=${da.id} patient=${recipient.id} template=appointment_reminder_v2 (v3 pending) enqueued outbound=${idV2 ?? 'n/a'}`,
+              );
+            }
+            continue;
+          }
 
           const isSingle = dayAppts.length <= 1;
           const templateName = isSingle

@@ -17,6 +17,7 @@
  */
 
 import { db } from '@/lib/db';
+import { APPROVAL_TRACKED, syncTemplateApproval } from '@/lib/whatsapp/templates/approvalSync';
 import {
   NEW_PATIENT_TEMPLATE_NAME,
   NEW_PATIENT_TEMPLATES,
@@ -94,6 +95,13 @@ async function main(): Promise<void> {
         `    ${r.created ? 'CREATED' : r.changed ? 'UPDATED' : 'already registered — no-op'}`,
       );
     }
+  }
+  if (apply) {
+    const names = new Set(['new_patient_confirmation']);
+    const r = await syncTemplateApproval(APPROVAL_TRACKED.filter((t) => names.has(t.name)));
+    console.log(
+      `approval sync: approved=${r.approved}/${r.checked} flipped=${r.flipped.join(',') || 'none'}`,
+    );
   }
   console.log(apply ? '\nDone — new-patient templates registered.' : '\nDry run complete.');
 }

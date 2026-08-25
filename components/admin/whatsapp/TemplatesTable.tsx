@@ -1,6 +1,8 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
+
+import { formatDateTime } from '@/lib/format/date';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -26,6 +28,7 @@ interface Props {
 export function TemplatesTable({ rows }: Props) {
   const t = useTranslations('admin.whatsapp');
   const locale = useLocale();
+  const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
@@ -184,6 +187,26 @@ export function TemplatesTable({ rows }: Props) {
                         {' · '}
                         {row.variablesShape ? row.variablesShape.join(',') : 'legacy shape'}
                       </div>
+                      {/* P52/P53 deploy — live WhatsApp approval + last sync. */}
+                      {row.twilioContentSid ? (
+                        <div className="text-[10px]" dir="ltr">
+                          <span
+                            className={
+                              row.twilioApproved ? 'font-medium text-brand-teal' : 'text-amber-700'
+                            }
+                          >
+                            {row.twilioApproved ? t('twilioApproved') : t('twilioPending')}
+                          </span>
+                          {row.twilioApprovalCheckedAt ? (
+                            <span className="text-brand-textMuted">
+                              {' · '}
+                              {t('twilioSyncedAt', {
+                                time: formatDateTime(row.twilioApprovalCheckedAt, intlLocale),
+                              })}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
                       <ApprovalBadge status={row.metaApprovalStatus} />
                     </div>
                   )}

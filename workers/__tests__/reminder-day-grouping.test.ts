@@ -29,8 +29,9 @@ vi.mock('@/lib/time/clinic-server', () => ({ getClinicTimeZone: vi.fn(async () =
 
 const state = {
   appt: null as Record<string, unknown> | null,
-  sameDay: [] as Array<{ id: string; startsAt: Date; durationMinutes: number }>,
+  sameDay: [] as Array<Record<string, unknown>>,
   enqueued: [] as Array<Record<string, unknown>>,
+  v3Approved: true,
 };
 
 vi.mock('@/lib/db', () => ({
@@ -41,7 +42,14 @@ vi.mock('@/lib/db', () => ({
     },
     // resolveTemplateShape reads the row's shape; null → LEGACY_SHAPES
     // (which now carries the v3 reminder shapes).
-    whatsAppTemplate: { findUnique: vi.fn(async () => null) },
+    whatsAppTemplate: {
+      findUnique: vi.fn(async () => null),
+      // P52/P53 — v3 approval gate; approved so the v3 path runs.
+      findMany: vi.fn(async () => [
+        { name: 'appointment_reminder_single_v3', twilioApproved: state.v3Approved },
+        { name: 'appointment_reminder_multi', twilioApproved: state.v3Approved },
+      ]),
+    },
   },
 }));
 vi.mock('@/lib/queue/jobs/whatsappOutbound', () => ({
@@ -82,6 +90,7 @@ beforeEach(() => {
   state.appt = null;
   state.sameDay = [];
   state.enqueued = [];
+  state.v3Approved = true;
   startReminderWorker();
 });
 
@@ -98,8 +107,8 @@ describe('reminder worker — day grouping + template selection', () => {
   it('two same-day appointments → ONE message, multi template', async () => {
     state.appt = appt();
     state.sameDay = [
-      { id: 'a1', startsAt: D('2030-05-10T08:00:00Z'), durationMinutes: 60 },
-      { id: 'a2', startsAt: D('2030-05-10T10:00:00Z'), durationMinutes: 60 },
+      { id: 'a1', startsAt: D('2030-05-10T08:00:00Z'), durationMinutes: 60, therapists: [] },
+      { id: 'a2', startsAt: D('2030-05-10T10:00:00Z'), durationMinutes: 60, therapists: [] },
     ];
     await processor!({ data: { appointmentId: 'a1' } });
     expect(state.enqueued).toHaveLength(1);
@@ -113,8 +122,8 @@ describe('reminder worker — day grouping + template selection', () => {
   it('two ADJACENT same-day appointments → multi template rendered as one range', async () => {
     state.appt = appt();
     state.sameDay = [
-      { id: 'a1', startsAt: D('2030-05-10T08:00:00Z'), durationMinutes: 60 }, // 11–12
-      { id: 'a2', startsAt: D('2030-05-10T09:00:00Z'), durationMinutes: 60 }, // 12–1
+      { id: 'a1', startsAt: D('2030-05-10T08:00:00Z'), durationMinutes: 60, therapists: [] }, // 11–12
+      { id: 'a2', startsAt: D('2030-05-10T09:00:00Z'), durationMinutes: 60, therapists: [] }, // 12–1
     ];
     await processor!({ data: { appointmentId: 'a1' } });
     expect(state.enqueued).toHaveLength(1);
@@ -136,5 +145,34 @@ describe('reminder worker — day grouping + template selection', () => {
       expect(e.templateName).toBe('appointment_reminder_single_v3');
     }
     // The worker never queried same-day for a group (its own appt only).
+  });
+});
+
+describe('P52/P53 deploy — v3 pending → v2 per appointment (no regression)', () => {
+  it('two same-day appointments, v3 PENDING → TWO v2 messages (one per appointment)', async () => {
+    state.v3Approved = false;
+    state.appt = appt();
+    state.sameDay = [
+      { id: 'a1', startsAt: D('2030-05-10T08:00:00Z'), durationMinutes: 60, therapists: [] },
+      { id: 'a2', startsAt: D('2030-05-10T10:00:00Z'), durationMinutes: 60, therapists: [] },
+    ];
+    await processor!({ data: { appointmentId: 'a1' } });
+    // Old behaviour exactly: one legacy reminder per appointment.
+    expect(state.enqueued).toHaveLength(2);
+    for (const e of state.enqueued) {
+      expect(e.templateName).toBe('appointment_reminder_v2');
+    }
+    expect(state.enqueued.map((e) => e.appointmentId).sort()).toEqual(['a1', 'a2']);
+  });
+
+  it('one appointment, v3 PENDING → one v2 message', async () => {
+    state.v3Approved = false;
+    state.appt = appt();
+    state.sameDay = [
+      { id: 'a1', startsAt: D('2030-05-10T08:00:00Z'), durationMinutes: 60, therapists: [] },
+    ];
+    await processor!({ data: { appointmentId: 'a1' } });
+    expect(state.enqueued).toHaveLength(1);
+    expect(state.enqueued[0]!.templateName).toBe('appointment_reminder_v2');
   });
 });

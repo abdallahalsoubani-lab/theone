@@ -14,6 +14,7 @@
  */
 
 import { db } from '@/lib/db';
+import { APPROVAL_TRACKED, syncTemplateApproval } from '@/lib/whatsapp/templates/approvalSync';
 import {
   REMINDER_V3_TEMPLATES,
   applyReminderV3Template,
@@ -87,6 +88,13 @@ async function main(): Promise<void> {
         `    ${r.created ? 'CREATED' : r.changed ? 'UPDATED' : 'already registered — no-op'}`,
       );
     }
+  }
+  if (apply) {
+    const names = new Set(['appointment_reminder_single_v3', 'appointment_reminder_multi']);
+    const r = await syncTemplateApproval(APPROVAL_TRACKED.filter((t) => names.has(t.name)));
+    console.log(
+      `approval sync: approved=${r.approved}/${r.checked} flipped=${r.flipped.join(',') || 'none'}`,
+    );
   }
   console.log(apply ? '\nDone — reminder v3 templates registered.' : '\nDry run complete.');
 }

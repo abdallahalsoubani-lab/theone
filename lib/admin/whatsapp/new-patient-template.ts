@@ -76,7 +76,7 @@ export async function applyNewPatientTemplate(
       where: { id: row.id },
       data: {
         twilioContentSid: entry.expectedSid,
-        twilioApproved: true,
+        twilioApproved: false, // P52/P53: approval comes ONLY from the live sync
         variablesShape: [...NEW_PATIENT_SHAPE],
         contentPreview: entry.contentPreview,
         metaTemplateName: entry.consoleName,
@@ -112,7 +112,7 @@ export async function applyNewPatientTemplate(
       metaTemplateName: entry.consoleName,
       metaApprovalStatus: 'NOT_SUBMITTED',
       twilioContentSid: entry.expectedSid,
-      twilioApproved: true,
+      twilioApproved: false, // P52/P53: approval comes ONLY from the live sync
     },
   });
   await prisma.auditLog.create({

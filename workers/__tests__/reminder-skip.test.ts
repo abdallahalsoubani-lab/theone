@@ -58,6 +58,10 @@ vi.mock('@/lib/db', () => ({
 vi.mock('@/lib/time/clinic-server', () => ({
   getClinicTimeZone: vi.fn(async () => 'Asia/Amman'),
 }));
+vi.mock('@/lib/whatsapp/templates/approval', () => ({
+  reminderV3Approved: vi.fn(async () => true),
+  isTemplateApproved: vi.fn(async () => true),
+}));
 
 vi.mock('@/lib/queue/jobs/whatsappOutbound', () => ({
   enqueueWhatsappOutbound: vi.fn(async (job: Record<string, unknown>) => {

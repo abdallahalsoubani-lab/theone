@@ -2,6 +2,7 @@ import { db } from '@/lib/db';
 import { env } from '@/lib/env';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { unusedLinkForAppointment } from '@/lib/intake-links/queries';
+import { isTemplateApproved } from './approval';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 
 import { appointmentVarContext, buildParamsFromShape, resolveTemplateShape } from './variables';
@@ -79,8 +80,17 @@ export async function sendAppointmentConfirmation(args: { appointmentId: string 
   // + link) INSTEAD of the standard confirmation (owner decision 6). Every
   // other booking is untouched. The dispatch/hold/silent path is identical —
   // only the template name + one extra variable differ.
+  //
+  // P52 deploy — the combined template can only be used once WhatsApp
+  // APPROVES it (a pending template fails to send). Until then, a new-patient
+  // booking falls back to the standard approved confirmation (no inline
+  // link; the link still lives on the patient file for the secretary to
+  // send). The daily approval-sync flips this automatically.
   const link = await unusedLinkForAppointment(appt.id);
-  const templateName = link ? NEW_PATIENT_TEMPLATE_NAME : TEMPLATE_NAME;
+  const useCombined = link
+    ? await isTemplateApproved(NEW_PATIENT_TEMPLATE_NAME, p.languagePref)
+    : false;
+  const templateName = useCombined ? NEW_PATIENT_TEMPLATE_NAME : TEMPLATE_NAME;
 
   const shape = await resolveTemplateShape(templateName, p.languagePref);
   if (!shape) {
@@ -92,7 +102,7 @@ export async function sendAppointmentConfirmation(args: { appointmentId: string 
     patientName: patientDisplayName(p.fullNameEn, p.fullNameAr, isAr ? 'ar' : 'en'),
     therapistName,
     language: p.languagePref,
-    intakeUrl: link ? intakeLinkUrl(link.token, p.languagePref) : undefined,
+    intakeUrl: useCombined && link ? intakeLinkUrl(link.token, p.languagePref) : undefined,
   });
   await enqueueWhatsappOutbound({
     kind: 'template',

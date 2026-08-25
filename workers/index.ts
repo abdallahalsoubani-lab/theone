@@ -34,7 +34,11 @@ import {
 import { startHomeReminderWorker } from './homeReminder';
 import { startReminderWorker } from './reminder';
 import { startWhatsappOutboundWorker } from './whatsapp';
-import { ensureWhatsappMediaRetentionScheduled, startWhatsappMediaWorker } from './whatsappMedia';
+import {
+  ensureTemplateApprovalSyncScheduled,
+  ensureWhatsappMediaRetentionScheduled,
+  startWhatsappMediaWorker,
+} from './whatsappMedia';
 
 import { sessionMaintenanceQueue } from '@/lib/queue/queues';
 
@@ -56,6 +60,9 @@ console.warn(`[workers] whatsapp media worker listening on queue=${whatsappMedia
 // Register the daily inbound-media retention sweep (idempotent via jobId).
 void ensureWhatsappMediaRetentionScheduled().catch((err: unknown) => {
   console.error('[workers] whatsapp media retention registration failed', err);
+});
+void ensureTemplateApprovalSyncScheduled().catch((err: unknown) => {
+  console.error('[workers] template approval sync registration failed', err);
 });
 // Session auto-complete is DISABLED (PT-B3 item 1, owner ruling): a session
 // may legitimately run past its slot, and closing it automatically records a

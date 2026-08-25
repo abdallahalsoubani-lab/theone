@@ -30,6 +30,10 @@ vi.mock('bullmq', () => ({
 vi.mock('@/lib/queue/client', () => ({ queueRedis: {} }));
 vi.mock('@/lib/env', () => ({ env: { NEXT_PUBLIC_APP_URL: 'https://x.test' } }));
 vi.mock('@/lib/time/clinic-server', () => ({ getClinicTimeZone: vi.fn(async () => 'Asia/Amman') }));
+vi.mock('@/lib/whatsapp/templates/approval', () => ({
+  reminderV3Approved: vi.fn(async () => true),
+  isTemplateApproved: vi.fn(async () => true),
+}));
 
 interface HeldRow {
   id: string;

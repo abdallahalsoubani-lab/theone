@@ -15,6 +15,9 @@ export interface TemplateListRow {
   metaApprovedAt: Date | null;
   /** Prompt 48b — Twilio Content SID + registry variable shape (editable). */
   twilioContentSid: string | null;
+  /** P52/P53 deploy — live WhatsApp approval (synced) + last sync time. */
+  twilioApproved: boolean;
+  twilioApprovalCheckedAt: Date | null;
   variablesShape: string[] | null;
   updatedAt: Date;
 }
@@ -34,6 +37,8 @@ export async function listTemplates(): Promise<TemplateListRow[]> {
     metaApprovalStatus: r.metaApprovalStatus,
     metaApprovedAt: r.metaApprovedAt,
     twilioContentSid: r.twilioContentSid,
+    twilioApproved: r.twilioApproved,
+    twilioApprovalCheckedAt: r.twilioApprovalCheckedAt,
     variablesShape: Array.isArray(r.variablesShape) ? (r.variablesShape as string[]) : null,
     updatedAt: r.updatedAt,
   }));

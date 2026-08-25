@@ -471,7 +471,10 @@
         "131000": "Meta could not deliver the message (generic delivery error).",
         "132001": "The template language/translation is not approved in Meta.",
         "131008": "A required template parameter was missing."
-      }
+      },
+      "twilioApproved": "Twilio: approved",
+      "twilioPending": "Twilio: pending",
+      "twilioSyncedAt": "synced {time}"
     },
     "outbox": {
       "title": "WhatsApp outbox",

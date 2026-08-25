@@ -1021,6 +1021,11 @@ model WhatsAppTemplate {
   // opaque; we record them here and use them at send-time.
   twilioContentSid String?
   twilioApproved   Boolean @default(false)
+  // P52/P53 deploy — when the live WhatsApp approval status was last synced
+  // for this row (the daily approval-sync job / the apply scripts). Surfaced
+  // in the Admin templates page so staff can see approved-vs-pending without
+  // opening the console.
+  twilioApprovalCheckedAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
