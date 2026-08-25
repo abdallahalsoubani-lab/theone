@@ -38,6 +38,13 @@ import type { AppointmentReminderJob } from '@/lib/queue/jobs/appointmentReminde
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 import { REMINDER_QUEUE } from '@/lib/queue/queues';
 import { patientDisplayName } from '@/lib/format/patientName';
+import { clinicDateKey } from '@/lib/time/clinic';
+import { getClinicTimeZone } from '@/lib/time/clinic-server';
+import {
+  formatReminderAppointments,
+  reminderTime,
+  type ReminderAppointment,
+} from '@/lib/whatsapp/templates/reminderAppointments';
 
 export function startReminderWorker(): Worker {
   const worker = new Worker<AppointmentReminderJob>(
@@ -197,9 +204,33 @@ export function startReminderWorker(): Worker {
         return;
       }
 
-      // The template already names a therapist; keep naming the first-assigned
-      // one rather than listing all.
-      const firstTherapist = appt.therapists[0]?.therapist;
+      // P53 — one reminder per patient per clinic-day. For a single-patient
+      // SESSION/STRETCHING (the only type routed through the per-patient-per-
+      // day resync), gather ALL of this patient's live same-day appointments
+      // and render them into ONE message: single_v3 (start time) for one,
+      // multi (day summary) for two+. A GROUP fans out per member with the
+      // single_v3 template (one time each) — its own appointment only.
+      const clinicTz = await getClinicTimeZone();
+      const isGroupReminder = appt.appointmentType === 'GROUP';
+      const sameDayByPatient = new Map<string, ReminderAppointment[]>();
+      if (!isGroupReminder && appt.patient) {
+        const dayKey = clinicDateKey(appt.startsAt, clinicTz);
+        const dayStartUtc = new Date(appt.startsAt.getTime() - 24 * 60 * 60 * 1000);
+        const dayEndUtc = new Date(appt.startsAt.getTime() + 24 * 60 * 60 * 1000);
+        const sameDay = await db.appointment.findMany({
+          where: {
+            patientId: appt.patient.id,
+            appointmentType: { in: ['SESSION', 'STRETCHING'] },
+            status: { in: ['SCHEDULED', 'CONFIRMED'] },
+            startsAt: { gte: dayStartUtc, lte: dayEndUtc },
+          },
+          select: { id: true, startsAt: true, durationMinutes: true },
+        });
+        sameDayByPatient.set(
+          appt.patient.id,
+          sameDay.filter((a) => clinicDateKey(a.startsAt, clinicTz) === dayKey),
+        );
+      }
 
       try {
         for (const recipient of recipients) {
@@ -212,30 +243,41 @@ export function startReminderWorker(): Worker {
             continue;
           }
           const lang = recipient.languagePref;
-          const therapistName =
-            (lang === 'AR' ? firstTherapist?.fullNameAr : firstTherapist?.fullNameEn) ?? '';
-          // Prompt 48b: the parameter array is built from the template ROW's
-          // registered shape (legacy P45 3-var today; the v2 4-var
-          // [patient, dayName, date, time] after the Admin flips SID+shape —
-          // zero deploy at switch time).
-          const shape = await resolveTemplateShape('appointment_reminder_v2', lang);
+          const rLocale = lang === 'AR' ? 'ar' : 'en';
+
+          // The day's appointments for THIS recipient (group members render
+          // only their group appointment).
+          const dayAppts = isGroupReminder
+            ? [{ id: appt.id, startsAt: appt.startsAt, durationMinutes: appt.durationMinutes }]
+            : (sameDayByPatient.get(recipient.id) ?? [
+                { id: appt.id, startsAt: appt.startsAt, durationMinutes: appt.durationMinutes },
+              ]);
+
+          const isSingle = dayAppts.length <= 1;
+          const templateName = isSingle
+            ? 'appointment_reminder_single_v3'
+            : 'appointment_reminder_multi';
+          const reminderBody = isSingle
+            ? reminderTime(dayAppts[0]!.startsAt, rLocale)
+            : formatReminderAppointments(dayAppts, rLocale);
+
+          const shape = await resolveTemplateShape(templateName, lang);
           if (!shape) {
-            console.error('[reminder] no variable shape for appointment_reminder_v2 — skipping');
+            console.error(`[reminder] no variable shape for ${templateName} — skipping`);
             continue;
           }
-          const ctx = await appointmentVarContext({
-            startsAt: appt.startsAt,
-            patientName: patientDisplayName(
-              recipient.fullNameEn,
-              recipient.fullNameAr,
-              lang === 'AR' ? 'ar' : 'en',
-            ),
-            therapistName,
-            language: lang,
-          });
+          const ctx = {
+            ...(await appointmentVarContext({
+              startsAt: appt.startsAt,
+              patientName: patientDisplayName(recipient.fullNameEn, recipient.fullNameAr, rLocale),
+              therapistName: '',
+              language: lang,
+            })),
+            reminderBody,
+          };
           const id = await enqueueWhatsappOutbound({
             kind: 'template',
-            templateName: 'appointment_reminder_v2',
+            templateName,
             language: lang,
             parameters: buildParamsFromShape(shape, ctx),
             recipientPhone: recipient.phone,
@@ -244,7 +286,7 @@ export function startReminderWorker(): Worker {
             source: 'queue',
           });
           console.warn(
-            `[reminder] appointment=${appointmentId} patient=${recipient.id} enqueued outbound=${id ?? 'n/a'}`,
+            `[reminder] appointment=${appointmentId} patient=${recipient.id} template=${templateName} count=${dayAppts.length} enqueued outbound=${id ?? 'n/a'}`,
           );
         }
       } catch (err) {

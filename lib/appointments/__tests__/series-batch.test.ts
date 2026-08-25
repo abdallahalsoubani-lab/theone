@@ -24,6 +24,7 @@ const {
   autoCompleteMock,
   lifecycleMock,
   auditRows,
+  createdAppts,
 } = vi.hoisted(() => ({
   checkConflictsMock: vi.fn(async () => ({ ok: true }) as unknown),
   createdRows: [] as Array<Record<string, unknown>>,
@@ -32,6 +33,7 @@ const {
   autoCompleteMock: vi.fn(async () => undefined),
   lifecycleMock: vi.fn(async () => undefined),
   auditRows: [] as Array<Record<string, unknown>>,
+  createdAppts: [] as Array<{ id: string; startsAt: Date; durationMinutes: number }>,
 }));
 
 vi.mock('@/auth', () => ({
@@ -69,14 +71,20 @@ vi.mock('@/lib/db', () => {
   const tx = {
     appointment: {
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
+        const id = `appt-${++idSeq}`;
         createdRows.push(data);
-        return { id: `appt-${++idSeq}` };
+        createdAppts.push({ id, startsAt: data.startsAt as Date, durationMinutes: 60 });
+        return { id };
       }),
     },
   };
   return {
     db: {
       $transaction: vi.fn(async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx)),
+      // P53 — resyncPatientDayReminders queries the patient's live appts.
+      appointment: {
+        findMany: vi.fn(async () => createdAppts),
+      },
       clinicSettings: {
         findUnique: vi.fn(async () => ({
           defaultReminderOffsetMinutes: 1440,
@@ -138,6 +146,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   checkConflictsMock.mockResolvedValue({ ok: true });
   createdRows.length = 0;
+  createdAppts.length = 0;
   auditRows.length = 0;
 });
 

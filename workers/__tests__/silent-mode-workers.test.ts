@@ -29,6 +29,7 @@ vi.mock('bullmq', () => ({
 }));
 vi.mock('@/lib/queue/client', () => ({ queueRedis: {} }));
 vi.mock('@/lib/env', () => ({ env: { NEXT_PUBLIC_APP_URL: 'https://x.test' } }));
+vi.mock('@/lib/time/clinic-server', () => ({ getClinicTimeZone: vi.fn(async () => 'Asia/Amman') }));
 
 interface HeldRow {
   id: string;
@@ -55,7 +56,20 @@ vi.mock('@/lib/db', () => ({
     clinicSettings: {
       findUnique: vi.fn(async () => ({ whatsappSilentMode: state.silent })),
     },
-    appointment: { findUnique: vi.fn(async () => state.appointment) },
+    appointment: {
+      findUnique: vi.fn(async () => state.appointment),
+      findMany: vi.fn(async () =>
+        state.appointment
+          ? [
+              {
+                id: (state.appointment as Record<string, unknown>).id,
+                startsAt: (state.appointment as Record<string, unknown>).startsAt,
+                durationMinutes: 60,
+              },
+            ]
+          : [],
+      ),
+    },
     homeProgramItem: { findUnique: vi.fn(async () => state.homeItem) },
     whatsAppDispatch: {
       findFirst: vi.fn(async ({ where }: { where: Record<string, unknown> }) => {

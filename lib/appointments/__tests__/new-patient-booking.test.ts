@@ -40,10 +40,15 @@ vi.mock('../services', () => ({
     windowEndMinutes: 1080,
     timeZone: 'Asia/Amman',
   })),
+  // P53 — the booking routes reminders through the per-patient-per-day
+  // resync; stand it in for the direct enqueue so the "one reminder" and
+  // rollback assertions keep their meaning.
+  resyncPatientDayReminders: (...a: unknown[]) => resyncMock(...(a as [])),
 }));
-const { checkConflictsMock, reminderMock, dispatchMock } = vi.hoisted(() => ({
+const { checkConflictsMock, reminderMock, resyncMock, dispatchMock } = vi.hoisted(() => ({
   checkConflictsMock: vi.fn(async () => ({ ok: true }) as { ok: boolean; conflicts?: unknown[] }),
   reminderMock: vi.fn(async () => 'job'),
+  resyncMock: vi.fn(async () => undefined),
   dispatchMock: vi.fn(async () => ({ entryId: 'd1', suppressed: null, confirmWasPending: false })),
 }));
 vi.mock('../conflicts', () => ({
@@ -137,7 +142,7 @@ describe('createNewPatientBooking — atomic happy path', () => {
     expect(dispatchMock).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'BOOKING_CONFIRMATION', patientId: r.patientId }),
     );
-    expect(reminderMock).toHaveBeenCalledTimes(1);
+    expect(resyncMock).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -182,7 +187,7 @@ describe('createNewPatientBooking — atomicity (no orphan)', () => {
     await expect(createNewPatientBooking(input())).rejects.toBeTruthy();
     expect(state.created.links).toHaveLength(0);
     // No reminder / confirmation fired (they run only after a committed tx).
-    expect(reminderMock).not.toHaveBeenCalled();
+    expect(resyncMock).not.toHaveBeenCalled();
     expect(dispatchMock).not.toHaveBeenCalled();
   });
 });

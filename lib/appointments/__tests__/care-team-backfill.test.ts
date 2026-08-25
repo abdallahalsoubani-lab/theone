@@ -129,6 +129,14 @@ vi.mock('@/lib/db', () => {
           groupPatients: [],
         };
       }),
+      // P53 — resyncPatientDayReminders queries the patient's live appts.
+      findMany: vi.fn(async () =>
+        state.appointments.map((a) => ({
+          id: a.id as string,
+          startsAt: a.startsAt as Date,
+          durationMinutes: 60,
+        })),
+      ),
     },
     appointmentTherapist: {
       findMany: vi.fn(async ({ where }: { where: { appointmentId: string } }) =>
@@ -184,7 +192,12 @@ vi.mock('@/lib/db', () => {
       ),
     },
     clinicSettings: {
-      findUnique: vi.fn(async () => ({ defaultReminderOffsetMinutes: 30 })),
+      findUnique: vi.fn(async () => ({
+        defaultReminderOffsetMinutes: 30,
+        reminderWindowStart: '08:00',
+        reminderWindowEnd: '18:00',
+        timezone: 'Asia/Amman',
+      })),
     },
     auditLog: {
       create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {

@@ -10,13 +10,12 @@ import { db } from '@/lib/db';
 import { normalizeJordanPhone } from '@/lib/format/phone';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { addCareTeamMemberTx } from '@/lib/patients/assignment';
-import { enqueueAppointmentReminder } from '@/lib/queue/jobs/appointmentReminder';
 import { recordDispatchEvent } from '@/lib/whatsapp/dispatch/service';
 
 import { checkConflicts, hasHardBlockedConflict, type Conflict } from './conflicts';
 import { generateIntakeToken } from '@/lib/intake-links/tokens';
 import type { NewPatientBookingInput } from './schemas';
-import { getReminderConfig } from './services';
+import { getReminderConfig, resyncPatientDayReminders } from './services';
 import { isStartInPast } from './session-timing';
 import { PLACEHOLDER_DOB } from '@/lib/patients/placeholder-dob';
 
@@ -209,12 +208,14 @@ export const createNewPatientBooking = withAudit<[NewPatientBookingInput], NewPa
     // sends the combined new-patient template instead of the standard one;
     // its P48/P51 hold + silent-mode behavior is inherited unchanged.
     const config = await getReminderConfig();
-    await enqueueAppointmentReminder({
-      appointmentId: result.appointmentId,
-      startsAt: input.startsAt,
+    // P53 — one reminder per patient per clinic-day (the new patient may have
+    // no other same-day booking, but route through the same path uniformly).
+    await resyncPatientDayReminders({
+      patientId: result.patientId,
+      instants: [input.startsAt],
       config,
     }).catch((err: unknown) => {
-      console.error('[new-patient-booking] reminder enqueue failed', err);
+      console.error('[new-patient-booking] reminder resync failed', err);
     });
     await recordDispatchEvent({
       appointmentId: result.appointmentId,

@@ -194,15 +194,31 @@ export async function getReminderConfig(): Promise<ReminderConfig> {
  * late-booking rule (send now inside the window / next opening / skip).
  * Best-effort: a queue failure never breaks the calling mutation.
  */
-async function resyncSeriesDayReminders(args: {
-  seriesId: string;
+/**
+ * P53 — recompute a PATIENT's one-reminder-per-clinic-day for the given
+ * days. Generalizes the P50 series dedup from (seriesId, day) to
+ * (patientId, day): across the patient's live upcoming single-patient
+ * appointments (SESSION/STRETCHING — GROUP has no scalar patient, EVENT no
+ * patient) the EARLIEST of each affected day keeps/gets the reminder job
+ * (fireAt off its start, the unchanged window/late-booking math); every
+ * other same-day appointment loses its job. The worker then renders ALL of
+ * that day's appointments into ONE message (single_v3 or multi).
+ *
+ * Called on every booking / cancel / reschedule / status-terminal so a
+ * second same-day booking never spawns a second reminder, and a cancelled
+ * earliest hands the day off to the next sibling. Best-effort: a queue
+ * failure never breaks the calling mutation.
+ */
+export async function resyncPatientDayReminders(args: {
+  patientId: string;
   instants: Date[];
   config: ReminderConfig;
 }): Promise<void> {
   const days = new Set(args.instants.map((d) => clinicDateKey(d, args.config.timeZone)));
   const live = await db.appointment.findMany({
     where: {
-      seriesId: args.seriesId,
+      patientId: args.patientId,
+      appointmentType: { in: [AppointmentType.SESSION, AppointmentType.STRETCHING] },
       status: { in: [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED] },
       startsAt: { gt: new Date() },
     },
@@ -218,7 +234,7 @@ async function resyncSeriesDayReminders(args: {
         startsAt: occ.startsAt,
         config: args.config,
       }).catch((err: unknown) => {
-        console.error('[series.reminders] resync enqueue failed', { id: occ.id, err });
+        console.error('[patient.reminders] resync enqueue failed', { id: occ.id, err });
       });
     } else {
       await cancelAppointmentReminder(occ.id);
@@ -309,16 +325,26 @@ export const createAppointment = withAudit<
       return appt;
     });
 
-    // A patient-less EVENT gets no reminder (no one to remind) and no
-    // confirmation message. It still auto-completes at its scheduled end. A
-    // GROUP enqueues one reminder job; the worker fans it out per member (#6).
+    // A patient-less EVENT gets no reminder (no one to remind). A single-
+    // patient SESSION/STRETCHING routes through the P53 per-patient-per-day
+    // resync (so a second same-day booking never spawns a second reminder).
+    // A GROUP keeps its own per-appointment job — the worker fans it out per
+    // member (#6); a group member's scalar day-reminder is separate.
     if (carePatientIds.length > 0) {
       const config = await getReminderConfig();
-      await enqueueAppointmentReminder({
-        appointmentId: appointment.id,
-        startsAt: appointment.startsAt,
-        config,
-      });
+      if (isGroup) {
+        await enqueueAppointmentReminder({
+          appointmentId: appointment.id,
+          startsAt: appointment.startsAt,
+          config,
+        });
+      } else if (input.patientId) {
+        await resyncPatientDayReminders({
+          patientId: input.patientId,
+          instants: [appointment.startsAt],
+          config,
+        });
+      }
     }
 
     // P48 — the booking confirmation goes through the dispatch funnel:
@@ -479,11 +505,12 @@ export const rescheduleAppointment = withAudit<
       existing.status === AppointmentStatus.CONFIRMED
     ) {
       const config = await getReminderConfig();
-      if (existing.seriesId) {
-        // P50 §3.2: same-day dedup holds across moves — the old day may
-        // need a new earliest, the new day may already have one.
-        await resyncSeriesDayReminders({
-          seriesId: existing.seriesId,
+      // P53 — recompute BOTH the old and new clinic-day for this patient
+      // (the move may free one day and crowd another). Covers series and
+      // singles alike. GROUP/EVENT have no scalar patient → skipped.
+      if (existing.patientId) {
+        await resyncPatientDayReminders({
+          patientId: existing.patientId,
           instants: [existing.startsAt, input.startsAt],
           config,
         });
@@ -776,11 +803,12 @@ export const cancelAppointment = withAudit<
     });
     await cancelAppointmentReminder(input.id);
     await cancelAutoCompleteSession(input.id);
-    // P50 §3.3: if this was the reminded occurrence of a same-day pair, the
-    // next sibling of that clinic-local day inherits the reminder.
-    if (existing.seriesId) {
-      await resyncSeriesDayReminders({
-        seriesId: existing.seriesId,
+    // P53 §3.3: if this was the reminded (earliest) appointment of the
+    // patient's day, the next same-day sibling inherits the reminder — for
+    // ANY same-day pair now, not only within a series. GROUP/EVENT skipped.
+    if (existing.patientId) {
+      await resyncPatientDayReminders({
+        patientId: existing.patientId,
         instants: [existing.startsAt],
         config: await getReminderConfig(),
       });
@@ -950,6 +978,21 @@ export const cancelAppointmentSeries = withAudit<
     // Side effects after commit.
     await Promise.all(ids.map((id) => cancelAppointmentReminder(id)));
     await Promise.all(ids.map((id) => cancelAutoCompleteSession(id)));
+    // P53 — recompute the patient's day reminders for every affected day:
+    // any surviving non-cancelled same-day appointment inherits the day's
+    // reminder. `occurrences` all share one patient (a series).
+    {
+      const patientId = occurrences[0]?.patientId;
+      if (patientId) {
+        await resyncPatientDayReminders({
+          patientId,
+          instants: occurrences.map((o) => o.startsAt),
+          config: await getReminderConfig(),
+        }).catch((err: unknown) => {
+          console.error('[series.cancel] reminder resync failed', err);
+        });
+      }
+    }
     // P48: supersede every open dispatch entry + queued lifecycle job for
     // the cancelled occurrences (last-state-wins across the whole batch);
     // remember whether ANY unsent series confirmation was pending — the
@@ -1055,6 +1098,7 @@ export const updateAppointmentStatus = withAudit<
         id: true,
         status: true,
         startsAt: true,
+        patientId: true,
         therapists: { select: { therapistId: true } },
       },
     });
@@ -1099,9 +1143,19 @@ export const updateAppointmentStatus = withAudit<
     });
 
     // Cancel the reminder if the appointment is no longer eligible (in-progress,
-    // completed, or any terminal state).
+    // completed, or any terminal state). P53: if it was the patient's day
+    // reminder anchor, recompute so the next same-day sibling inherits it.
     if (to !== AppointmentStatus.SCHEDULED && to !== AppointmentStatus.CONFIRMED) {
       await cancelAppointmentReminder(id);
+      if (existing.patientId) {
+        await resyncPatientDayReminders({
+          patientId: existing.patientId,
+          instants: [existing.startsAt],
+          config: await getReminderConfig(),
+        }).catch((err: unknown) => {
+          console.error('[status.change] reminder resync failed', err);
+        });
+      }
     }
     // Drop the pending auto-complete once the session reaches a terminal state
     // (manual complete via the arrivals fallback, cancel, or no-show). On
@@ -1276,29 +1330,17 @@ export const createSeriesBatch = withAudit<
 
     // Enqueue reminders best-effort after the transaction commits. If the
     // reminder queue is down the appointments are still booked.
-    // P50 (series 45+) §3: every clinic-local DAY of the series gets its own
-    // 24h reminder (multi-day = one per day), but several occurrences on
-    // the SAME day share ONE reminder — the earliest of that day (owner
-    // decision: no reminder spam for back-to-back / same-day repeats).
+    // P53 §3: one reminder per patient per clinic-day — the batch's rows plus
+    // any pre-existing same-day appointment for this patient are deduped to
+    // the earliest of each day (the worker renders them all into one message).
     const config = await getReminderConfig();
-    const reminderTargets = pickSeriesReminderTargets(
-      appointmentIds.map((id, i) => ({ id, startsAt: input.rows[i]!.startsAt })),
-      config.timeZone,
-    );
-    if (reminderTargets.length < appointmentIds.length) {
-      console.warn(
-        `[series.create] same-day reminder dedup: ${appointmentIds.length - reminderTargets.length} of ${appointmentIds.length} occurrences share an earlier sibling's reminder`,
-      );
-    }
-    await Promise.all(
-      reminderTargets.map(({ id, startsAt }) =>
-        enqueueAppointmentReminder({ appointmentId: id, startsAt, config }).catch(
-          (err: unknown) => {
-            console.error('[series.create] reminder enqueue failed', { id, err });
-          },
-        ),
-      ),
-    );
+    await resyncPatientDayReminders({
+      patientId: input.patientId,
+      instants: input.rows.map((r) => r.startsAt),
+      config,
+    }).catch((err: unknown) => {
+      console.error('[series.create] reminder resync failed', err);
+    });
 
     // Amendment 46.1 — WhatsApp POLICY for a batch (owner decision, verbatim):
     // confirm FIRST only, remind ALL. Exactly ONE booking confirmation is

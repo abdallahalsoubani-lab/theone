@@ -1,18 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * P50 (series 45+) §3.2–3.3 — same-day reminder dedup across a series'
+ * P53 §3.3 — one reminder per PATIENT per clinic-day, across a booking's
  * lifecycle (the pure picker is tested in reminderWindow.test.ts; this file
- * pins the WIRING in services.ts):
- *   - cancelling the reminded (earliest) same-day occurrence → the next
- *     sibling of that clinic day INHERITS the reminder (re-enqueued);
+ * pins the WIRING in services.ts, generalized from P50's series scope to
+ * ALL same-day single-patient appointments):
+ *   - cancelling the reminded (earliest) same-day appointment → the next
+ *     same-day sibling INHERITS the reminder (re-enqueued);
  *   - cancelling a non-reminded sibling → the earliest keeps its job, the
- *     cancelled one's job is removed, nothing else changes;
- *   - a non-series cancel never touches siblings (no series query at all);
- *   - rescheduling a series occurrence re-runs the dedup for the old and
- *     the new day (a sibling moved onto a day that already has an earlier
- *     occurrence gets NO reminder of its own);
- *   - a non-series reschedule keeps the plain re-enqueue;
+ *     cancelled one's job is removed;
+ *   - the resync queries by PATIENT (+ single-patient types), not series —
+ *     so two independent (non-series) same-day bookings are deduped too;
+ *   - rescheduling re-runs the dedup for the old AND new day;
  *   - dispatch-control settings (AUTO/MANUAL) never enter any of this.
  */
 
@@ -155,14 +154,14 @@ describe('cancel — the next same-day sibling inherits the reminder (§3.3)', (
     expect(cancelledIds()).not.toContain('b-d2');
   });
 
-  it('the resync only considers LIVE upcoming occurrences of THAT series', async () => {
+  it('the resync queries LIVE upcoming single-patient appointments (by patientId, not series)', async () => {
     findUniqueMock.mockResolvedValue(apptRow('a-early', D1_EARLY));
     findManyMock.mockResolvedValue([]);
     await cancelAppointment(cancelInput('a-early'));
     expect(findManyMock).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          seriesId: 'ser_1',
+          patientId: 'p1',
           status: { in: ['SCHEDULED', 'CONFIRMED'] },
           startsAt: { gt: expect.any(Date) },
         }),
@@ -182,12 +181,16 @@ describe('cancel — the next same-day sibling inherits the reminder (§3.3)', (
     expect(cancelledIds()).toEqual(expect.arrayContaining(['a-mid', 'a-late']));
   });
 
-  it('a non-series cancel never looks at siblings', async () => {
+  it('P53: a NON-series cancel now resyncs the patient day too (generalization)', async () => {
+    // Two independent same-day bookings (no series): cancel the earlier →
+    // the later inherits the reminder. This is the new P53 behaviour.
     findUniqueMock.mockResolvedValue(apptRow('solo', D1_EARLY, null));
+    findManyMock.mockResolvedValue([{ id: 'solo2', startsAt: D1_MID }]);
     await cancelAppointment(cancelInput('solo'));
-    expect(findManyMock).not.toHaveBeenCalled();
-    expect(enqueueMock).not.toHaveBeenCalled();
-    expect(cancelledIds()).toEqual(['solo']);
+    expect(findManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ patientId: 'p1' }) }),
+    );
+    expect(enqueuedIds()).toEqual(['solo2']);
   });
 });
 
@@ -224,10 +227,13 @@ describe('reschedule — dedup re-run for the old AND new day (§3.2)', () => {
     expect(enqueuedIds().sort()).toEqual(['a-early', 'a-mid']);
   });
 
-  it('a non-series reschedule keeps the plain per-appointment re-enqueue', async () => {
+  it('P53: a NON-series reschedule resyncs the patient day (old + new)', async () => {
     findUniqueMock.mockResolvedValue(apptRow('solo', D1_EARLY, null));
+    findManyMock.mockResolvedValue([{ id: 'solo', startsAt: D2 }]);
     await resched('solo', D2);
-    expect(findManyMock).not.toHaveBeenCalled();
+    expect(findManyMock).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ patientId: 'p1' }) }),
+    );
     expect(enqueuedIds()).toEqual(['solo']);
   });
 });

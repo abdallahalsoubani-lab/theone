@@ -40,8 +40,23 @@ vi.mock('@/lib/db', () => ({
   db: {
     appointment: {
       findUnique: vi.fn(async () => state.appointment),
+      // P53 — the worker gathers the patient's same-day appointments.
+      findMany: vi.fn(async () =>
+        state.appointment
+          ? [
+              {
+                id: state.appointment.id,
+                startsAt: state.appointment.startsAt,
+                durationMinutes: 60,
+              },
+            ]
+          : [],
+      ),
     },
   },
+}));
+vi.mock('@/lib/time/clinic-server', () => ({
+  getClinicTimeZone: vi.fn(async () => 'Asia/Amman'),
 }));
 
 vi.mock('@/lib/queue/jobs/whatsappOutbound', () => ({

@@ -28,8 +28,8 @@ vi.mock('@/lib/whatsapp/dispatch/service', () => ({
   recordDispatchEvent: dispatchMock,
 }));
 vi.mock('@/lib/queue/jobs/appointmentReminder', () => ({
-  enqueueAppointmentReminder: vi.fn(),
-  cancelAppointmentReminder: vi.fn(),
+  enqueueAppointmentReminder: vi.fn(async () => 'job'),
+  cancelAppointmentReminder: vi.fn(async () => undefined),
   scheduleLifecycleMessage: vi.fn(async () => null),
   cancelLifecycleMessages: vi.fn(async () => ({ confirmWasPending: false })),
 }));
@@ -87,6 +87,8 @@ vi.mock('@/lib/db', () => {
           // Prompt 48: the reschedule-message guard compares old vs new start.
           startsAt: new Date('2030-01-07T08:00:00Z'),
         })),
+        // P53 — resyncPatientDayReminders queries the patient's live appts.
+        findMany: vi.fn(async () => [{ id: 'a1', startsAt: new Date('2030-01-07T08:00:00Z') }]),
       },
       appointmentTherapist: {
         findMany: vi.fn(async () => [{ therapistId: 't1' }, { therapistId: 't2' }]),
