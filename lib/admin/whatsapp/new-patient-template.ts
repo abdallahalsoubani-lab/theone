@@ -34,14 +34,14 @@ export interface NewPatientTemplateEntry {
 export const NEW_PATIENT_TEMPLATES: readonly NewPatientTemplateEntry[] = [
   {
     language: 'EN',
-    consoleName: 'new_patient_confirmation_en',
+    consoleName: 'appointment_confirmation_new_patient_en',
     expectedSid: 'HXb81dd59693d686f66737764c28b74667',
     contentPreview:
       'Hello {{1}}, your appointment is booked for {{2}} at {{3}}. Please complete your intake form here: {{4}}',
   },
   {
     language: 'AR',
-    consoleName: 'new_patient_confirmation_ar',
+    consoleName: 'appointment_confirmation_new_patient_ar',
     expectedSid: 'HX456b7ce60ba1ae2ac8ce3af434bbcd28',
     contentPreview:
       'مرحباً {{1}}، تم حجز موعدك يوم {{2}} الساعة {{3}}. يرجى تعبئة نموذج بياناتك من هنا: {{4}}',
