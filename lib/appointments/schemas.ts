@@ -1,4 +1,9 @@
-import { AppointmentStatus, AppointmentType, CancellationCategory } from '@prisma/client';
+import {
+  AppointmentStatus,
+  AppointmentType,
+  CancellationCategory,
+  IntakeType,
+} from '@prisma/client';
 import { z } from 'zod';
 
 export const appointmentCreateSchema = z
@@ -279,6 +284,57 @@ export const seriesBatchCreateSchema = z
   });
 
 export type SeriesBatchCreateInput = z.infer<typeof seriesBatchCreateSchema>;
+
+// ─── P52 — new-patient quick-add booking (create patient + intake link +
+//     appointment, atomically) ─────────────────────────────────────────────
+
+/**
+ * The new-patient branch of the booking modal. Identity is name + phone ONLY
+ * (owner decision 1); the secretary picks adult/child (decision 2) so the
+ * personal link opens the right form. DOB + gender are deliberately absent —
+ * the patient fills them through the intake link (a 1900-01-01 sentinel +
+ * null gender are stored until then, matching the P50 import convention).
+ * Only patient-bound single types are bookable this way.
+ */
+export const newPatientBookingSchema = z.object({
+  fullNameEn: z.string().trim().min(2).max(120),
+  phone: z.string().trim().min(6).max(25),
+  formType: z.nativeEnum(IntakeType),
+  appointmentType: z
+    .enum([AppointmentType.SESSION, AppointmentType.STRETCHING])
+    .default(AppointmentType.SESSION),
+  therapistIds: z.array(z.string().min(1)).max(10).default([]),
+  roomId: z.string().min(1),
+  startsAt: z.coerce.date(),
+  durationMinutes: z
+    .number()
+    .int()
+    .positive()
+    .max(8 * 60),
+  notes: z.string().max(2000).optional().nullable(),
+  overrideConflicts: z.boolean().default(false),
+});
+
+export const newPatientBookingSchemaRefined = newPatientBookingSchema.superRefine((data, ctx) => {
+  // Same per-type therapist rule as the single modal: SESSION needs ≥1
+  // therapist; STRETCHING has none (room + beds).
+  if (data.appointmentType === AppointmentType.SESSION && data.therapistIds.length < 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['therapistIds'],
+      message: 'therapistRequired',
+    });
+  }
+  if (data.appointmentType === AppointmentType.STRETCHING && data.therapistIds.length > 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['therapistIds'],
+      message: 'stretchingNoTherapist',
+    });
+  }
+});
+
+export type NewPatientBookingInput = z.infer<typeof newPatientBookingSchema>;
 
 export const appointmentListFiltersSchema = z.object({
   /** Inclusive UTC range. Defaults to today through 14 days out at the call site. */

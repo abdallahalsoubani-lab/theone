@@ -165,7 +165,7 @@ async function setAppointmentTherapistsTx(
 }
 
 /** P53 — the two admin-configurable lifecycle delays (minutes, default 0). */
-async function getReminderConfig(): Promise<ReminderConfig> {
+export async function getReminderConfig(): Promise<ReminderConfig> {
   const settings = await db.clinicSettings.findUnique({
     where: { id: 'default' },
     select: {

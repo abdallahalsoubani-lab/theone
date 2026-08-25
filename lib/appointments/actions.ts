@@ -22,6 +22,12 @@ import {
   type SeriesBatchCreateInput,
 } from './schemas';
 import {
+  createNewPatientBooking,
+  NewPatientBookingError,
+  type NewPatientBookingResult,
+} from './new-patient-booking';
+import { newPatientBookingSchemaRefined } from './schemas';
+import {
   appointmentToLocalized,
   cancelAppointment,
   cancelAppointmentSeries,
@@ -85,6 +91,33 @@ export async function createAppointmentAction(
     revalidate();
     return ok(data);
   } catch (err) {
+    return fail(appointmentToLocalized(err));
+  }
+}
+
+/**
+ * P52 — create a new patient + their single-use intake link + the appointment
+ * in one atomic call. Gates on BOTH patients.create and appointments.create
+ * (the two permissions the flow exercises). Duplicate phone is surfaced as a
+ * localized error whose details carry the existing patient so the modal can
+ * offer "use this patient".
+ */
+export async function createNewPatientBookingAction(
+  input: unknown,
+): Promise<Result<NewPatientBookingResult>> {
+  await requirePermission('patients.create');
+  await requirePermission('appointments.create');
+  const parsed = newPatientBookingSchemaRefined.safeParse(input);
+  if (!parsed.success) return fail(appointmentToLocalized(parsed.error));
+  if (parsed.data.overrideConflicts) {
+    await requirePermission('appointments.override_conflict');
+  }
+  try {
+    const data = await createNewPatientBooking(parsed.data);
+    revalidate();
+    return ok(data);
+  } catch (err) {
+    if (err instanceof NewPatientBookingError) return fail(err.error);
     return fail(appointmentToLocalized(err));
   }
 }

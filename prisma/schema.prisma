@@ -415,6 +415,8 @@ model User {
   auditLogsAsImpersonated  AuditLog[]             @relation("AuditImpersonated")
   intakesAsPatient         IntakeAssessment[]     @relation("IntakePatient")
   intakesAsAssessor        IntakeAssessment[]     @relation("IntakeAssessor")
+  intakeLinksAsPatient     PatientIntakeLink[]    @relation("IntakeLinkPatient")
+  intakeLinksCreated       PatientIntakeLink[]    @relation("IntakeLinkCreatedBy")
   intakesAsReviewer        IntakeAssessment[]     @relation("IntakeReviewer")
   customQuestionsCreated   IntakeCustomQuestion[] @relation("CustomQuestionCreatedBy")
   clinicSettingsUpdates    ClinicSettings[]       @relation("ClinicSettingsUpdatedBy")
@@ -617,6 +619,7 @@ model Appointment {
 
   whatsappMessages WhatsAppMessage[]
   inboxItems       InboxItem[]
+  intakeLinks      PatientIntakeLink[]
   // Prompt 19 — the booking-waitlist entry (if any) this appointment fulfilled.
   // Optional 1:1; set when a waitlisted patient was placed into a freed slot.
   waitlistFulfillment WaitlistEntry? @relation("WaitlistFulfilledAppointment")
@@ -1361,6 +1364,28 @@ model PediatricIntakeData {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// P52 — a single-use, secret token that opens ONE patient's personal intake
+/// form (adult/child chosen by the secretary at booking time). Created by the
+/// new-patient booking flow (or regenerated on the patient file); dies the
+/// moment usedAt is set. A patient may hold several over time — only unused
+/// ones are valid.
+model PatientIntakeLink {
+  id            String    @id @default(cuid())
+  patientId     String
+  token         String    @unique
+  formType      IntakeType
+  createdById   String
+  appointmentId String?
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  patient     User         @relation("IntakeLinkPatient", fields: [patientId], references: [id], onDelete: Cascade)
+  createdBy   User         @relation("IntakeLinkCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  appointment Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([patientId, createdAt(sort: Desc)])
 }
 
 model IntakeCustomQuestion {
