@@ -313,6 +313,10 @@ export const newPatientBookingSchema = z.object({
     .max(8 * 60),
   notes: z.string().max(2000).optional().nullable(),
   overrideConflicts: z.boolean().default(false),
+  // P57 — mirrors patientCreateSchema: the first submit against a number
+  // other active patients hold fails with PATIENT_PHONE_SHARED_CONFIRM; the
+  // modal confirms and resubmits with this flag. Never a block.
+  confirmSharedPhone: z.boolean().default(false),
 });
 
 export const newPatientBookingSchemaRefined = newPatientBookingSchema.superRefine((data, ctx) => {

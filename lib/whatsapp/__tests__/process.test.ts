@@ -1231,3 +1231,82 @@ describe('P56 — inbound media', () => {
     expect(state.mediaFetchEnqueued).toHaveLength(0);
   });
 });
+
+describe('P57 — shared number: ONE rule routes recipientId, InboxItem, conversation and P56 media', () => {
+  const FAMILY_PHONE = '+962790000000';
+
+  beforeEach(() => {
+    reset();
+    state.users.push(
+      { id: 'child-a', phone: FAMILY_PHONE, deletedAt: null, languagePref: 'AR' },
+      { id: 'child-b', phone: FAMILY_PHONE, deletedAt: null, languagePref: 'AR' },
+    );
+  });
+
+  it('an inbound photo lands on the patient with the NEAREST active appointment — never the sibling', async () => {
+    const base = Date.now();
+    state.appointments.push(
+      {
+        id: 'appt-a',
+        patientId: 'child-a',
+        status: AppointmentStatus.SCHEDULED,
+        startsAt: new Date(base + 26 * 60 * 60 * 1000),
+      },
+      {
+        id: 'appt-b',
+        patientId: 'child-b',
+        status: AppointmentStatus.CONFIRMED,
+        startsAt: new Date(base + 3 * 60 * 60 * 1000),
+      },
+    );
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'p57-media-1',
+        fromPhone: FAMILY_PHONE,
+        body: '',
+        receivedAt: new Date(),
+        media: [{ url: 'https://api.twilio.com/media/1', contentType: 'image/jpeg' }],
+      },
+    });
+    const inbound = state.inboundMessagesCreated;
+    expect(inbound).toHaveLength(1);
+    expect(inbound[0]!.recipientId).toBe('child-b');
+    // The attachment hangs off THAT message and nothing references child-a.
+    expect(state.attachmentsCreated).toHaveLength(1);
+    expect(state.attachmentsCreated[0]!.messageId).toBe(inbound[0]!.id);
+    expect(JSON.stringify([...inbound, ...state.attachmentsCreated])).not.toContain('child-a');
+  });
+
+  it('no active appointment on the number → the most recently active sibling, and the inbox item follows', async () => {
+    const base = Date.now();
+    state.appointments.push(
+      {
+        id: 'old-a',
+        patientId: 'child-a',
+        status: AppointmentStatus.COMPLETED,
+        startsAt: new Date(base - 2 * 24 * 60 * 60 * 1000),
+      },
+      {
+        id: 'old-b',
+        patientId: 'child-b',
+        status: AppointmentStatus.COMPLETED,
+        startsAt: new Date(base - 30 * 24 * 60 * 60 * 1000),
+      },
+    );
+    await processWebhookEvent({
+      kind: 'inbound',
+      message: {
+        providerMessageId: 'p57-recent-1',
+        fromPhone: FAMILY_PHONE,
+        body: 'مرحبا عندي سؤال',
+        receivedAt: new Date(),
+      },
+    });
+    expect(state.inboundMessagesCreated[0]!.recipientId).toBe('child-a');
+    expect(state.inboxItems.at(-1)).toMatchObject({
+      type: 'INBOUND_UNKNOWN',
+      patientId: 'child-a',
+    });
+  });
+});

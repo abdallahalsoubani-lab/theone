@@ -4,11 +4,11 @@ import type { Gender, IntakeType } from '@prisma/client';
 import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
 import { hashPassword } from '@/lib/auth/password';
-import { lookupPatientByPhone } from '@/lib/auth/lockout';
 import { generateTempPassword } from '@/lib/admin/temp-password';
 import { db } from '@/lib/db';
 import { normalizeJordanPhone } from '@/lib/format/phone';
 import { patientDisplayName } from '@/lib/format/patientName';
+import { findSharedPhoneHolders, sharedPhoneHolderNames } from '@/lib/patients/shared-phone';
 import { addCareTeamMemberTx } from '@/lib/patients/assignment';
 import { recordDispatchEvent } from '@/lib/whatsapp/dispatch/service';
 
@@ -48,10 +48,14 @@ export interface NewPatientBookingResult {
  * reminder, the P48/P51 confirmation dispatch) applies unchanged; only the
  * patient + link creation is added, inside the same transaction.
  *
- * Duplicate phone is a HARD BLOCK (owner decision 5 — the clinic has a known
- * duplicates problem): a normalized-phone match throws with the existing
- * patient so the UI can offer "use this patient" instead of ever creating a
- * second record. There is no override.
+ * Duplicate phone — P57 (clinic-approved REVERSAL of P52 owner decision 5):
+ * the hard block (PATIENT_PHONE_EXISTS / PATIENT_PHONE_AMBIGUOUS) is gone.
+ * A parent legitimately books several children on one number. The P50 §5.3
+ * pattern applies instead: an unconfirmed submit against a number other
+ * active patients hold fails with PATIENT_PHONE_SHARED_CONFIRM naming them
+ * (details carry the holders so the modal can still offer "use this
+ * patient"); resubmitting with `confirmSharedPhone` creates the record.
+ * One extra click, never a block.
  *
  * No portal credentials are sent here (unlike the full patient-create): the
  * new patient receives exactly ONE message — the combined confirmation +
@@ -95,28 +99,24 @@ export const createNewPatientBooking = withAudit<[NewPatientBookingInput], NewPa
     // normalizer — the same the auth/kiosk paths use.
     const normalizedPhone = normalizeJordanPhone(input.phone) ?? input.phone.trim();
 
-    // Duplicate check FIRST — never create a second record for a known phone.
-    const existing = await lookupPatientByPhone(normalizedPhone);
-    if (existing.outcome === 'ONE') {
-      throw new NewPatientBookingError({
-        code: 'PATIENT_PHONE_EXISTS',
-        message_en: 'A patient with this phone already exists.',
-        message_ar: 'يوجد مريض مسجّل بهذا الرقم مسبقاً.',
-        details: {
-          existingPatientId: existing.user.id,
-          existingPatientName: patientDisplayName(
-            existing.user.fullNameEn,
-            existing.user.fullNameAr,
-          ),
-        },
-      });
-    }
-    if (existing.outcome === 'AMBIGUOUS') {
-      throw new NewPatientBookingError({
-        code: 'PATIENT_PHONE_AMBIGUOUS',
-        message_en: 'This phone is shared by several patients — pick the patient from the list.',
-        message_ar: 'هذا الرقم مشترك بين عدة مرضى — اختر المريض من القائمة.',
-      });
+    // Shared-number confirm FIRST (P57) — the secretary sees who already
+    // holds the number before anything is created; confirmed → proceed.
+    if (!input.confirmSharedPhone) {
+      const holders = await findSharedPhoneHolders(normalizedPhone);
+      if (holders.length > 0) {
+        const names = sharedPhoneHolderNames(holders);
+        throw new NewPatientBookingError({
+          code: 'PATIENT_PHONE_SHARED_CONFIRM',
+          message_en: `This number is already registered to ${names}. Save anyway?`,
+          message_ar: `هذا الرقم مسجّل مسبقاً باسم ${names}. هل تريد الحفظ رغم ذلك؟`,
+          details: {
+            holders: holders.map((h) => ({
+              id: h.id,
+              name: patientDisplayName(h.fullNameEn, h.fullNameAr),
+            })),
+          },
+        });
+      }
     }
 
     // Conflict engine BEFORE the transaction (same order as createAppointment).

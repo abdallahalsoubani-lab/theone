@@ -8,6 +8,9 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { SearchableSelect } from '@/components/ui/searchable-select';
+import { patientDisplayName } from '@/lib/format/patientName';
+import { patientPickerOption } from '@/lib/patients/picker';
 import {
   approveSubmissionLinkAction,
   approveSubmissionNewAction,
@@ -16,14 +19,17 @@ import {
 
 interface Duplicate {
   patientId: string;
-  name: string;
+  fullNameEn: string;
+  fullNameAr: string;
   phone: string | null;
 }
 
 interface Props {
   submissionId: string;
   locale: 'en' | 'ar';
-  duplicate: Duplicate | null;
+  /** P57 — EVERY active patient on the submitted phone (family numbers);
+   *  with more than one the reviewer must choose which to link. */
+  duplicates: Duplicate[];
 }
 
 /**
@@ -32,12 +38,18 @@ interface Props {
  * "link to existing" to avoid a duplicate; "create new anyway" stays available
  * for the genuine same-phone-different-person case.
  */
-export function SubmissionReviewActions({ submissionId, locale, duplicate }: Props) {
+export function SubmissionReviewActions({ submissionId, locale, duplicates }: Props) {
   const t = useTranslations('intakeSubmissions');
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [reason, setReason] = useState('');
   const [showReject, setShowReject] = useState(false);
+  // P57 — a single holder is pre-selected (today's behaviour); several
+  // holders require an explicit pick before "link" enables.
+  const [linkTargetId, setLinkTargetId] = useState<string>(
+    duplicates.length === 1 ? duplicates[0]!.patientId : '',
+  );
+  const duplicate = duplicates.find((d) => d.patientId === linkTargetId) ?? null;
 
   // Role-correct patient-file landing (NI-5, Prompt 41) — the action builds
   // the href from the effective viewer role so Admin reviewers stay in /admin.
@@ -86,19 +98,44 @@ export function SubmissionReviewActions({ submissionId, locale, duplicate }: Pro
   return (
     <Card>
       <CardContent className="space-y-4 p-6">
-        {duplicate ? (
+        {duplicates.length === 1 && duplicate ? (
           <div className="rounded-md border border-brand-cyan/40 bg-brand-cyan/5 p-3 text-sm">
             <p className="font-medium text-brand-navy">{t('duplicateFound')}</p>
             <p className="text-brand-textMuted">
-              <bdi>{duplicate.name}</bdi> · <bdi>{duplicate.phone}</bdi>
+              <bdi>{patientDisplayName(duplicate.fullNameEn, duplicate.fullNameAr, locale)}</bdi> ·{' '}
+              <bdi>{duplicate.phone}</bdi>
             </p>
+          </div>
+        ) : null}
+        {duplicates.length > 1 ? (
+          <div className="space-y-2 rounded-md border border-brand-cyan/40 bg-brand-cyan/5 p-3 text-sm">
+            <p className="font-medium text-brand-navy">
+              {t('duplicatesFound', { count: duplicates.length })}
+            </p>
+            <p className="text-brand-textMuted">{t('chooseLinkTarget')}</p>
+            <SearchableSelect
+              id="link-target"
+              value={linkTargetId}
+              onChange={setLinkTargetId}
+              options={duplicates.map((d) =>
+                patientPickerOption(
+                  {
+                    id: d.patientId,
+                    fullNameEn: d.fullNameEn,
+                    fullNameAr: d.fullNameAr,
+                    phone: d.phone,
+                  },
+                  locale,
+                ),
+              )}
+            />
           </div>
         ) : null}
 
         <div className="flex flex-wrap gap-2">
-          {duplicate ? (
+          {duplicates.length > 0 ? (
             <>
-              <Button type="button" onClick={approveLink} disabled={pending}>
+              <Button type="button" onClick={approveLink} disabled={pending || !duplicate}>
                 <Link2 className="me-2 size-4" />
                 {t('linkExisting')}
               </Button>

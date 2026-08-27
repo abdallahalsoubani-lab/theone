@@ -1,7 +1,10 @@
+import { UserRole } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import type { User } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { z } from 'zod';
+
+import { db } from '@/lib/db';
 
 import {
   evaluateLockout,
@@ -11,6 +14,7 @@ import {
   recordSuccessfulAttempt,
 } from './lockout';
 import { verifyOtp } from './otp';
+import { consumeProfilePickToken } from './profile-pick';
 
 /**
  * Provider definitions for Auth.js.
@@ -31,7 +35,17 @@ const credentialsSchema = z.object({
 const phoneOtpSchema = z.object({
   // Jordan E.164 mobile — country code 962 + 9-digit subscriber starting with 7.
   phone: z.string().regex(/^\+9627\d{8}$/),
-  otp: z.string().regex(/^\d{6}$/),
+  otp: z
+    .string()
+    .regex(/^\d{6}$/)
+    .optional(),
+  // P57 — shared family number: the OTP was already verified by the server
+  // action; this pair opens the CHOSEN profile (see lib/auth/profile-pick.ts).
+  pickToken: z
+    .string()
+    .regex(/^[0-9a-f]{64}$/)
+    .optional(),
+  patientId: z.string().min(1).optional(),
 });
 
 const staffCredentials = Credentials({
@@ -67,14 +81,38 @@ const phoneOtp = Credentials({
   credentials: {
     phone: { label: 'Phone', type: 'tel' },
     otp: { label: 'OTP', type: 'text' },
+    pickToken: { label: 'Pick token', type: 'text' },
+    patientId: { label: 'Patient', type: 'text' },
   },
   async authorize(raw): Promise<User | null> {
     const parsed = phoneOtpSchema.safeParse(raw);
     if (!parsed.success) return null;
 
-    // P50 §5.2 — a shared phone (AMBIGUOUS) is refused the same way as an
-    // unknown one; the server action surfaces the specific localized error
-    // before signIn ever runs, so the provider only needs to fail closed.
+    // P57 — profile-picker branch (shared family number). The single-use
+    // token proves the OTP for this phone verified moments ago; the chosen
+    // patient must be ACTIVE and hold that exact phone. Fail closed on any
+    // mismatch — nothing here can open a profile on another number.
+    if (parsed.data.pickToken && parsed.data.patientId) {
+      const phone = await consumeProfilePickToken(parsed.data.pickToken);
+      if (!phone || phone !== parsed.data.phone) return null;
+      const picked = await db.user.findFirst({
+        where: {
+          id: parsed.data.patientId,
+          phone,
+          role: UserRole.PATIENT,
+          deletedAt: null,
+        },
+      });
+      if (!picked) return null;
+      if (evaluateLockout(picked).status === 'LOCKED') return null;
+      await recordSuccessfulAttempt(picked.id);
+      return toAuthUser(picked);
+    }
+    if (!parsed.data.otp) return null;
+
+    // Single-patient path — unchanged. A shared phone (AMBIGUOUS) never
+    // reaches this branch: the server action routes it to the picker; if it
+    // does arrive here (stale client), fail closed.
     const looked = await lookupPatientByPhone(parsed.data.phone);
     if (looked.outcome !== 'ONE') return null;
     const user = looked.user;

@@ -9,6 +9,8 @@ import { useState } from 'react';
 import type { z } from 'zod';
 
 import { AppForm } from '@/components/forms/AppForm';
+import { useSharedPhoneHolders } from '@/components/patients/useSharedPhoneHolders';
+import { sharedPhoneHolderNames } from '@/lib/patients/shared-phone';
 import { SelectField, SwitchField, TextField, TextareaField } from '@/components/forms/FormFields';
 import { DateField } from '@/components/forms/DateField';
 import { CareTeamEditor } from '@/components/patients/CareTeamEditor';
@@ -217,6 +219,12 @@ export function PatientForm(props: Props) {
                     placeholder="+9627XXXXXXXX"
                     description={isEdit ? t('phoneIsUsername') : undefined}
                   />
+                  {/* P57 — shared family number hint (Secretary/Admin only;
+                      the action returns [] for everyone else). */}
+                  <SharedPhoneHint
+                    phone={form.watch('phone' as never) as unknown as string | null}
+                    excludeId={props.mode === 'edit' ? props.initial.id : null}
+                  />
                   <TextField
                     form={form}
                     name={'email' as never}
@@ -354,5 +362,17 @@ export function PatientForm(props: Props) {
         );
       }}
     </AppForm>
+  );
+}
+
+function SharedPhoneHint({ phone, excludeId }: { phone: string | null; excludeId: string | null }) {
+  const t = useTranslations('patients.form');
+  const locale = useLocale();
+  const holders = useSharedPhoneHolders(phone, excludeId);
+  if (holders.length === 0) return null;
+  return (
+    <p className="text-xs text-brand-textMuted sm:col-span-2" data-testid="shared-phone-hint">
+      {t('sharedWith', { names: sharedPhoneHolderNames(holders, locale) })}
+    </p>
   );
 }

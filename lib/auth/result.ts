@@ -61,6 +61,13 @@ export const AUTH_ERRORS = {
     message_en: 'This phone number cannot be used to sign in. Please contact the clinic.',
     message_ar: 'لا يمكن تسجيل الدخول بهذا الرقم. يرجى التواصل مع العيادة.',
   },
+  // P57 — the post-OTP profile picker token is missing, expired, already
+  // used, or names a patient not on that phone. Start over from the phone.
+  PICK_INVALID: {
+    code: 'PICK_INVALID',
+    message_en: 'This sign-in step has expired. Please request a new code.',
+    message_ar: 'انتهت صلاحية خطوة تسجيل الدخول. يرجى طلب رمز جديد.',
+  },
   WEAK_PASSWORD: {
     code: 'WEAK_PASSWORD',
     message_en: 'Password must be at least 8 characters with upper, lower, number, and symbol.',

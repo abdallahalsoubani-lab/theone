@@ -144,6 +144,11 @@ export function CreateAppointmentModal({
     formType: IntakeType.ADULT,
   });
   const [dupWarning, setDupWarning] = useState<{ id: string; name: string } | null>(null);
+  // P57 — inline shared-number confirm (PATIENT_PHONE_SHARED_CONFIRM); keeps
+  // the override flag of the attempt it interrupted.
+  const [sharedConfirm, setSharedConfirm] = useState<{ names: string; override: boolean } | null>(
+    null,
+  );
   // July #8 — booking type. SESSION + STRETCHING + EVENT + GROUP are all
   // selectable. GROUP therapy / workshops (part 3) carry a SET of patients.
   const [appointmentType, setAppointmentType] = useState<AppointmentType>(AppointmentType.SESSION);
@@ -287,10 +292,12 @@ export function CreateAppointmentModal({
   const togglePatient = (id: string) =>
     setPatientIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
-  const submit = (override: boolean) =>
+  const submit = (override: boolean, confirmShared = false) =>
     startTransition(async () => {
       // P52 — new-patient quick-add: one atomic call creates patient + link +
-      // booking. A duplicate phone surfaces the existing patient inline.
+      // booking. P57: a number other patients hold is a CONFIRM, not a block
+      // — the inline panel resubmits with `confirmSharedPhone` or switches
+      // to the existing patient.
       if (isNewPatient) {
         const nr = await createNewPatientBookingAction({
           fullNameEn: newPatient.fullNameEn.trim(),
@@ -303,16 +310,19 @@ export function CreateAppointmentModal({
           durationMinutes: duration,
           notes: notes || null,
           overrideConflicts: override,
+          confirmSharedPhone: confirmShared,
         });
         if (!nr.ok) {
-          if (nr.error.code === 'PATIENT_PHONE_EXISTS') {
-            const d = nr.error.details as {
-              existingPatientId?: string;
-              existingPatientName?: string;
-            };
-            if (d?.existingPatientId && d?.existingPatientName) {
-              setDupWarning({ id: d.existingPatientId, name: d.existingPatientName });
-            }
+          if (nr.error.code === 'PATIENT_PHONE_SHARED_CONFIRM') {
+            const d = nr.error.details as { holders?: Array<{ id: string; name: string }> };
+            const holders = d?.holders ?? [];
+            setSharedConfirm({
+              names: holders.map((h) => h.name).join(locale === 'ar' ? '، ' : ', '),
+              override,
+            });
+            // "Use this patient" is only unambiguous with a single holder.
+            setDupWarning(holders.length === 1 ? holders[0]! : null);
+            return;
           }
           toast.error(locale === 'ar' ? nr.error.message_ar : nr.error.message_en);
           return;
@@ -510,7 +520,10 @@ export function CreateAppointmentModal({
                     value={newPatient}
                     onChange={(patch) => {
                       setNewPatient((prev) => ({ ...prev, ...patch }));
-                      if ('phone' in patch) setDupWarning(null);
+                      if ('phone' in patch) {
+                        setDupWarning(null);
+                        setSharedConfirm(null);
+                      }
                     }}
                     dupWarning={dupWarning}
                     onUseExisting={() => {
@@ -518,7 +531,15 @@ export function CreateAppointmentModal({
                         setPatientMode('existing');
                         setPatientId(dupWarning.id);
                         setDupWarning(null);
+                        setSharedConfirm(null);
                       }
+                    }}
+                    sharedConfirm={sharedConfirm}
+                    onConfirmShared={() => {
+                      const override = sharedConfirm?.override ?? false;
+                      setSharedConfirm(null);
+                      setDupWarning(null);
+                      submit(override, true);
                     }}
                   />
                 )}

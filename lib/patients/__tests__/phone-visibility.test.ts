@@ -318,3 +318,57 @@ describe('getPatientFile contact visibility (session-aware)', () => {
     expect(file?.email).toBe('p1@example.com');
   });
 });
+
+describe('P57 — shared family number badge follows the phone-privacy gate', () => {
+  it('listPatients: Secretary/Admin rows carry the OTHER holders; single numbers are empty', async () => {
+    seedPatient('child-a', '+962790000000');
+    seedPatient('child-b', '+962790000000');
+    seedPatient('solo', '+962791112222');
+    const { rows } = await listPatients({ scope: { kind: 'all' }, filters: FILTERS });
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    expect(byId.get('child-a')?.sharedWith?.map((h) => h.id)).toEqual(['child-b']);
+    expect(byId.get('child-b')?.sharedWith?.map((h) => h.id)).toEqual(['child-a']);
+    expect(byId.get('solo')?.sharedWith).toEqual([]);
+  });
+
+  it('listPatients: search by the shared phone digits returns BOTH patients', async () => {
+    seedPatient('child-a', '+962790000000');
+    seedPatient('child-b', '+962790000000');
+    seedPatient('other', '+962791112222');
+    const { rows } = await listPatients({
+      scope: { kind: 'all' },
+      filters: { ...FILTERS, search: '790000000' },
+    });
+    expect(rows.map((r) => r.id).sort()).toEqual(['child-a', 'child-b']);
+  });
+
+  it('listPatients: Doctor/Therapist rows get null — no badge, no phone', async () => {
+    seedPatient('child-a', '+962790000000', ['therapist-1']);
+    seedPatient('child-b', '+962790000000', ['therapist-1']);
+    const { rows } = await listPatients({
+      scope: { kind: 'assigned', clinicianId: 'therapist-1' },
+      filters: FILTERS,
+    });
+    expect(rows).toHaveLength(2);
+    for (const r of rows) {
+      expect(r.phone).toBeNull();
+      expect(r.sharedWith).toBeNull();
+    }
+  });
+
+  it('getPatientFile: Secretary sees the sibling; Therapist/Doctor get null', async () => {
+    seedPatient('child-a', '+962790000000');
+    seedPatient('child-b', '+962790000000');
+    sessionRef.current = { user: { id: 's', role: 'SECRETARY' } };
+    const sec = await getPatientFile('child-a');
+    expect(sec?.sharedWith?.map((h) => h.id)).toEqual(['child-b']);
+
+    sessionRef.current = { user: { id: 't', role: 'THERAPIST' } };
+    const th = await getPatientFile('child-a');
+    expect(th?.phone).toBeNull();
+    expect(th?.sharedWith).toBeNull();
+
+    sessionRef.current = { user: { id: 'd', role: 'DOCTOR' } };
+    expect((await getPatientFile('child-a'))?.sharedWith).toBeNull();
+  });
+});

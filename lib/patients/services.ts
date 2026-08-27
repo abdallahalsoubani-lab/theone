@@ -8,7 +8,9 @@ import { patientDisplayName } from '@/lib/format/patientName';
 import { sendPatientCredentials } from '@/lib/whatsapp/templates/sendCredentials';
 
 import { addCareTeamMemberTx, PatientAssignmentError } from './assignment';
+import { findSharedPhoneHolders, sharedPhoneHolderNames } from './shared-phone';
 import type { PatientCreateInput, PatientSelfEditInput, PatientUpdateInput } from './schemas';
+import type { SharedPhoneHolder } from './shared-phone';
 
 export class PatientAdminError extends Error {
   constructor(public readonly error: LocalizedError) {
@@ -33,10 +35,16 @@ const notFound: LocalizedError = {
 // already registered to another patient; the form shows a confirm dialog and
 // resubmits with `confirmSharedPhone: true`. A warning, never a block: family
 // members legitimately share one number (13 shared numbers in the roster).
-const sharedPhoneConfirm = (name: string): LocalizedError => ({
+const sharedPhoneConfirm = (names: string, holders: SharedPhoneHolder[]): LocalizedError => ({
   code: 'PATIENT_PHONE_SHARED_CONFIRM',
-  message_en: `This number is already registered to ${name}. Save anyway?`,
-  message_ar: `هذا الرقم مسجّل مسبقاً باسم ${name}. هل تريد الحفظ رغم ذلك؟`,
+  message_en: `This number is already registered to ${names}. Save anyway?`,
+  message_ar: `هذا الرقم مسجّل مسبقاً باسم ${names}. هل تريد الحفظ رغم ذلك؟`,
+  details: {
+    holders: holders.map((h) => ({
+      id: h.id,
+      name: patientDisplayName(h.fullNameEn, h.fullNameAr),
+    })),
+  },
 });
 
 interface CreatePatientResult {
@@ -69,15 +77,13 @@ export const createPatient = withAudit<[PatientCreateInput, string], CreatePatie
     // P50 (revised) §5.3 — but double-entry protection returns as a warning:
     // an unconfirmed submit against an existing patient's number fails with
     // the holder's name; the form confirms and retries with the flag.
+    // P57: the lookup lists EVERY active holder (a number may already be
+    // shared by two siblings) — one helper for the form hint, the quick-add
+    // and this guard.
     if (input.phone && !input.confirmSharedPhone) {
-      const holder = await db.user.findFirst({
-        where: { deletedAt: null, phone: input.phone, role: UserRole.PATIENT },
-        select: { fullNameEn: true, fullNameAr: true },
-      });
-      if (holder) {
-        throw new PatientAdminError(
-          sharedPhoneConfirm(patientDisplayName(holder.fullNameEn, holder.fullNameAr)),
-        );
+      const holders = await findSharedPhoneHolders(input.phone);
+      if (holders.length > 0) {
+        throw new PatientAdminError(sharedPhoneConfirm(sharedPhoneHolderNames(holders), holders));
       }
     }
     if (input.email) {

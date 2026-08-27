@@ -22,6 +22,12 @@ export function errorMessageKey(code: string): string {
       return 'weakPassword';
     case 'TOKEN_INVALID':
       return 'tokenInvalid';
+    // P57 — a shared family number never renders as "invalid credentials":
+    // the normal path is the profile picker; these are the explicit states.
+    case 'PHONE_AMBIGUOUS':
+      return 'phoneAmbiguous';
+    case 'PICK_INVALID':
+      return 'pickExpired';
     default:
       return 'invalidCredentials';
   }

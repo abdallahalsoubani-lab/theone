@@ -301,18 +301,19 @@ Quick mapping:
 
 ## Where things live (quick reference)
 
-| Question                                    | Answer                                                                                     |
-| ------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Why is this slot unbookable?                | `lib/appointments/conflicts.ts`                                                            |
-| How does the recurring builder fan out?     | `lib/appointments/recurrence.ts` + `services.ts`                                           |
-| What permissions does role X have?          | `lib/rbac/permissions.ts` → `ROLE_PERMISSIONS`                                             |
-| How is a patient's file structured?         | `components/patients/PatientFilePage.tsx`                                                  |
-| Why didn't this WhatsApp message send?      | `lib/whatsapp/providers/` + `InboxItem.OUTBOUND_DELIVERY_FAILED`                           |
-| How does the dashboard compute utilization? | `lib/analytics/queries.ts → getUtilization`                                                |
-| Where do I add a clinic-wide setting?       | `prisma/schema.prisma` (ClinicSettings) + `lib/admin/clinic-settings/`                     |
-| How does PDF export decide what to redact?  | `lib/exports/redaction.ts → resolveRedaction`                                              |
-| Where is the audit decorator?               | `lib/audit/withAudit.ts`                                                                   |
-| Where does the bulk series cancel live?     | `lib/appointments/services.ts → cancelAppointmentSeries` (edits never fan out — Prompt 45) |
+| Question                                                             | Answer                                                                                      |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| Why is this slot unbookable?                                         | `lib/appointments/conflicts.ts`                                                             |
+| How does the recurring builder fan out?                              | `lib/appointments/recurrence.ts` + `services.ts`                                            |
+| What permissions does role X have?                                   | `lib/rbac/permissions.ts` → `ROLE_PERMISSIONS`                                              |
+| How is a patient's file structured?                                  | `components/patients/PatientFilePage.tsx`                                                   |
+| Why didn't this WhatsApp message send?                               | `lib/whatsapp/providers/` + `InboxItem.OUTBOUND_DELIVERY_FAILED`                            |
+| How does the dashboard compute utilization?                          | `lib/analytics/queries.ts → getUtilization`                                                 |
+| Where do I add a clinic-wide setting?                                | `prisma/schema.prisma` (ClinicSettings) + `lib/admin/clinic-settings/`                      |
+| How does PDF export decide what to redact?                           | `lib/exports/redaction.ts → resolveRedaction`                                               |
+| Where is the audit decorator?                                        | `lib/audit/withAudit.ts`                                                                    |
+| Where does the bulk series cancel live?                              | `lib/appointments/services.ts → cancelAppointmentSeries` (edits never fan out — Prompt 45)  |
+| Which patient does a WhatsApp from a shared family number belong to? | `lib/whatsapp/inbound/resolve-patient.ts → resolvePatientForInbound` (one rule — Prompt 57) |
 
 ---
 

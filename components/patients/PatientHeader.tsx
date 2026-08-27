@@ -14,6 +14,7 @@ import { formatPhone } from '@/lib/format/phone';
 import { hasPlaceholderDob } from '@/lib/patients/placeholder-dob';
 import type { PatientFileData } from '@/lib/patients/queries';
 import { displayAgeYears } from '@/lib/patients/schemas';
+import { sharedPhoneHolderNames } from '@/lib/patients/shared-phone';
 
 /**
  * Patient header card — sits above the file tabs. Shows the avatar, both
@@ -95,6 +96,17 @@ export function PatientHeader({
             <span className="font-mono text-brand-textMuted" dir="ltr">
               {formatPhone(patient.phone)}
             </span>
+          ) : null}
+          {/* P57 — shared family number. Null (never rendered) for
+              Doctor/Therapist viewers, same gate as the phone. */}
+          {patient.sharedWith && patient.sharedWith.length > 0 ? (
+            <Badge
+              variant="outline"
+              className="border-brand-cyan/50 bg-brand-cyan/10 text-brand-navy"
+              data-testid="shared-phone-badge"
+            >
+              {tForm('sharedWith', { names: sharedPhoneHolderNames(patient.sharedWith, locale) })}
+            </Badge>
           ) : null}
         </div>
       </div>

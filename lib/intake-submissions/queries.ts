@@ -80,14 +80,16 @@ export interface PhoneMatch {
 }
 
 /**
- * Duplicate-by-phone lookup for the review screen. Returns an existing,
+ * Duplicate-by-phone lookup for the review screen. Returns EVERY existing,
  * non-deleted PATIENT whose phone matches the (already normalised) submitted
- * phone, or null. Drives the "link to existing patient" path.
+ * phone — P57: a family number may already be shared by several patients,
+ * and the reviewer must pick which one to link (never the first match).
+ * Oldest record first.
  */
-export async function findPatientByPhone(phone: string): Promise<PhoneMatch | null> {
-  const r = await db.user.findFirst({
+export async function findPatientsByPhone(phone: string): Promise<PhoneMatch[]> {
+  return db.user.findMany({
     where: { phone, role: 'PATIENT', deletedAt: null },
     select: { id: true, fullNameEn: true, fullNameAr: true, phone: true },
+    orderBy: { createdAt: 'asc' },
   });
-  return r;
 }

@@ -42,6 +42,14 @@ vi.mock('@/lib/db', () => {
   };
 });
 
+// P57 — the guard now lists EVERY holder through the shared helper.
+vi.mock('../shared-phone', () => ({
+  findSharedPhoneHolders: vi.fn(async () =>
+    state.holder ? [{ id: 'holder-1', ...state.holder }] : [],
+  ),
+  sharedPhoneHolderNames: (h: Array<{ fullNameEn: string }>) =>
+    h.map((x) => x.fullNameEn).join(', '),
+}));
 vi.mock('@/lib/auth/password', () => ({ hashPassword: vi.fn(async () => 'hashed') }));
 vi.mock('@/lib/admin/temp-password', () => ({ generateTempPassword: () => 'Temp@1234' }));
 vi.mock('@/lib/whatsapp/templates/sendCredentials', () => ({
@@ -84,6 +92,8 @@ describe('createPatient — shared-phone warning (P50 §5.3)', () => {
       // The warning names the current holder so the Secretary can decide.
       expect(e.error.message_en).toContain('Rana Khalil');
       expect(e.error.message_ar).toContain('Rana Khalil');
+      // P57 — details carry the holders for the UI hint.
+      expect(e.error.details).toEqual({ holders: [{ id: 'holder-1', name: 'Rana Khalil' }] });
       return true;
     });
     expect(state.created).toHaveLength(0);

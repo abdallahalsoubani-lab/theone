@@ -11,6 +11,7 @@ import { db } from '@/lib/db';
 import { type CareTeam, type ClinicianRef } from './assignment';
 import { pendingFirstVisitIds } from './first-visit';
 import { displayAgeYears, isPediatric, type PatientListFilters } from './schemas';
+import { findSharedPhoneHolders, type SharedPhoneHolder } from './shared-phone';
 
 // Re-export so the patient-file gate and can() resource check keep importing
 // the assignment check from one place (`@/lib/patients/queries`) even though
@@ -34,6 +35,10 @@ export interface PatientListRow {
   doctors: ClinicianRef[];
   intakeCount: number;
   hasCompletedIntake: boolean;
+  /** P57 — other ACTIVE patients registered on the same phone (family
+   *  numbers). Null for Doctor/Therapist viewers (phone privacy, Prompt 15);
+   *  empty when the number is not shared. */
+  sharedWith: SharedPhoneHolder[] | null;
   /** NI-5 soft flag (Prompt 41): no COMPLETED doctor visit yet — derived per
    *  page in one batch query, never stored. */
   pendingFirstVisit: boolean;
@@ -120,6 +125,11 @@ export async function listPatients({
   // NI-5 (Prompt 41): pending-first-visit for the whole page in ONE batch
   // query — the list badge must not introduce a per-row N+1.
   const pendingSet = await pendingFirstVisitIds(users.map((u) => u.id));
+  // P57: shared-number badge for the whole page in ONE batch query (no
+  // per-row N+1). Secretary/Admin only — the phone is hidden otherwise.
+  const sharedMap = canSeeContact
+    ? await sharedHoldersByPhone(users.map((u) => u.phone).filter((p): p is string => !!p))
+    : null;
 
   let rows = users
     .filter((u) => u.patientProfile !== null)
@@ -143,6 +153,12 @@ export async function listPatients({
         doctors: careTeam.doctors,
         intakeCount: u.intakesAsPatient.length,
         hasCompletedIntake: hasCompleted,
+        sharedWith:
+          sharedMap && u.phone
+            ? (sharedMap.get(u.phone) ?? []).filter((h) => h.id !== u.id)
+            : sharedMap
+              ? []
+              : null,
         pendingFirstVisit: pendingSet.has(u.id),
       };
     });
@@ -207,6 +223,9 @@ export interface PatientFileData {
   whatsappLastFailureAt: Date | null;
   whatsappLastFailureReason: string | null;
   whatsappLastDeliveryAt: Date | null;
+  /** P57 — other ACTIVE patients on the same phone; null when the viewer
+   *  may not see the phone (Prompt 15), empty when not shared. */
+  sharedWith: SharedPhoneHolder[] | null;
 }
 
 export async function getPatientFile(id: string): Promise<PatientFileData | null> {
@@ -223,6 +242,12 @@ export async function getPatientFile(id: string): Promise<PatientFileData | null
   // Look up the most recent successful outbound delivery so the profile
   // section can show "Last delivery on …". Cheap because the
   // (recipientPhone, sentAt DESC) index covers it.
+  const sharedWith =
+    canSeeContact && u.phone
+      ? await findSharedPhoneHolders(u.phone, u.id)
+      : canSeeContact
+        ? []
+        : null;
   const lastDelivered = await db.whatsAppMessage.findFirst({
     where: {
       recipientId: u.id,
@@ -257,5 +282,26 @@ export async function getPatientFile(id: string): Promise<PatientFileData | null
     whatsappLastFailureAt: u.whatsappLastFailureAt,
     whatsappLastFailureReason: u.whatsappLastFailureReason,
     whatsappLastDeliveryAt: lastDelivered?.deliveredAt ?? lastDelivered?.sentAt ?? null,
+    sharedWith,
   };
+}
+
+/** P57 — one query: every active patient on any of `phones`, grouped by
+ *  phone (callers drop the row's own id). */
+async function sharedHoldersByPhone(phones: string[]): Promise<Map<string, SharedPhoneHolder[]>> {
+  const map = new Map<string, SharedPhoneHolder[]>();
+  const unique = [...new Set(phones)];
+  if (unique.length === 0) return map;
+  const rows = await db.user.findMany({
+    where: { phone: { in: unique }, deletedAt: null, role: UserRole.PATIENT },
+    select: { id: true, phone: true, fullNameEn: true, fullNameAr: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  for (const r of rows) {
+    if (!r.phone) continue;
+    const list = map.get(r.phone) ?? [];
+    list.push({ id: r.id, fullNameEn: r.fullNameEn, fullNameAr: r.fullNameAr });
+    map.set(r.phone, list);
+  }
+  return map;
 }

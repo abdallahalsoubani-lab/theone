@@ -14,6 +14,7 @@ import { clinicHm, clinicWeekdayName } from '@/lib/time/clinic';
 import { getClinicTimeZone } from '@/lib/time/clinic-server';
 
 import { parseIntentWithButtons } from './parser';
+import { resolvePatientForInbound } from './resolve-patient';
 import type { WebhookEvent } from '../provider';
 import { patientDisplayName } from '@/lib/format/patientName';
 
@@ -68,39 +69,38 @@ interface ReplyTargets {
 }
 
 /**
- * Resolve which appointment(s) an inbound reply concerns (48b §2.3):
- *   1. patient by phone;
- *   2. their upcoming still-actionable appointments (SCHEDULED/CONFIRMED,
- *      scheduled end not passed);
+ * Resolve which patient + appointment(s) an inbound reply concerns:
+ *   1. patient by phone — P57: ONE rule (`resolvePatientForInbound`) picks
+ *      the patient on a shared family number (nearest active appointment,
+ *      else most recently active); its id becomes `recipientId` and flows
+ *      unchanged to the InboxItem, the conversation link, and the P56
+ *      attachments hanging off the message;
+ *   2. THAT patient's upcoming still-actionable appointments
+ *      (SCHEDULED/CONFIRMED, scheduled end not passed) — 48b §2.3;
  *   3. prefer the nearest one that actually HAD a reminder sent (an
  *      outbound row linked to it); fall back to the nearest upcoming, then
  *      to the legacy recent-outbound link for edge cases;
- *   4. expand to the back-to-back run (zero-gap) containing the target.
+ *   4. expand to the back-to-back run (zero-gap) containing the target —
+ *      same-patient only: a sibling's adjacent booking is a separate
+ *      confirmation, never swept up by this one.
  */
 async function resolveReplyTargets(args: { fromPhone: string }): Promise<ReplyTargets> {
-  // P50: a phone may belong to SEVERAL patients (a parent's number shared
-  // across children), so the reply resolves across ALL of them — the target
-  // is the nearest upcoming appointment that actually had a reminder sent,
-  // searched over every patient on the number.
-  const users = await db.user.findMany({
-    where: { phone: args.fromPhone, deletedAt: null },
-    select: { id: true, languagePref: true, fullNameEn: true, fullNameAr: true },
-  });
-  const first = users[0];
+  const now = new Date();
+  const resolved = await resolvePatientForInbound(args.fromPhone, now);
+  const owner = resolved.patient;
   const base: ReplyTargets = {
-    recipientId: users.length === 1 ? first!.id : null,
-    language: first?.languagePref === 'AR' ? 'AR' : 'EN',
-    patientNameEn: first?.fullNameEn ?? '',
-    patientNameAr: first?.fullNameAr ?? '',
+    recipientId: owner?.id ?? null,
+    language: owner?.languagePref === 'AR' ? 'AR' : 'EN',
+    patientNameEn: owner?.fullNameEn ?? '',
+    patientNameAr: owner?.fullNameAr ?? '',
     appointmentId: null,
     runAppointmentIds: [],
   };
-  if (users.length === 0) return base;
+  if (!owner) return base;
 
-  const now = new Date();
   const upcoming = await db.appointment.findMany({
     where: {
-      patientId: { in: users.map((u) => u.id) },
+      patientId: owner.id,
       status: { in: [AppointmentStatus.SCHEDULED, AppointmentStatus.CONFIRMED] },
       startsAt: { gte: new Date(now.getTime() - 12 * 60 * 60 * 1000) },
     },
@@ -127,9 +127,9 @@ async function resolveReplyTargets(args: { fromPhone: string }): Promise<ReplyTa
     return { ...base, appointmentId: recentOutbound?.appointmentId ?? null };
   }
 
-  // Prefer the nearest appointment that had a reminder actually sent —
-  // across the whole family; the 48b reminder→appointmentId linkage is what
-  // disambiguates WHICH child the reply concerns.
+  // Prefer the nearest appointment that had a reminder actually sent — the
+  // 48b reminder→appointmentId linkage is what disambiguates WHICH booking
+  // the reply concerns.
   const reminded = await db.whatsAppMessage.findMany({
     where: {
       direction: 'OUTBOUND',
@@ -140,20 +140,13 @@ async function resolveReplyTargets(args: { fromPhone: string }): Promise<ReplyTa
   });
   const remindedIds = new Set(reminded.map((m) => m.appointmentId));
   const target = actionable.find((a) => remindedIds.has(a.id)) ?? actionable[0]!;
-  const owner = users.find((u) => u.id === target.patientId) ?? first!;
 
-  // The reply covers the whole zero-gap run around the target (P27 mirror)
-  // — scoped to the SAME patient: a sibling's adjacent booking is a separate
-  // confirmation, never swept up by this one (48b same-patient semantics).
-  const ownAppointments = actionable.filter((a) => a.patientId === target.patientId);
-  const runs = groupAdjacentAppointments(ownAppointments);
+  // The reply covers the whole zero-gap run around the target (P27 mirror).
+  const runs = groupAdjacentAppointments(actionable);
   const run = runs.find((r) => r.some((a) => a.id === target.id)) ?? [target];
 
   return {
-    recipientId: owner.id,
-    language: owner.languagePref === 'AR' ? 'AR' : 'EN',
-    patientNameEn: owner.fullNameEn,
-    patientNameAr: owner.fullNameAr,
+    ...base,
     appointmentId: target.id,
     runAppointmentIds: run.map((a) => a.id),
   };

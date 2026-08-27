@@ -19,6 +19,7 @@ import { Link } from '@/i18n/navigation';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { formatPhone } from '@/lib/format/phone';
 import type { PatientListRow } from '@/lib/patients/queries';
+import { sharedPhoneHolderNames } from '@/lib/patients/shared-phone';
 
 interface Props {
   rows: PatientListRow[];
@@ -49,6 +50,7 @@ export function PatientsTable({
   showFirstVisitBadge = false,
 }: Props) {
   const t = useTranslations('patients.list');
+  const tForm = useTranslations('patients.form');
   const tFirstVisit = useTranslations('patients.firstVisit');
   const tCommon = useTranslations('common');
   const router = useRouter();
@@ -133,8 +135,22 @@ export function PatientsTable({
           header: t('columnPhone'),
           cell: ({ row }) =>
             row.original.phone ? (
-              <span className="font-mono text-xs" dir="ltr">
-                {formatPhone(row.original.phone)}
+              <span className="inline-flex flex-wrap items-center gap-1">
+                <span className="font-mono text-xs" dir="ltr">
+                  {formatPhone(row.original.phone)}
+                </span>
+                {/* P57 — shared family number (Secretary/Admin rows only). */}
+                {row.original.sharedWith && row.original.sharedWith.length > 0 ? (
+                  <Badge
+                    variant="outline"
+                    className="border-brand-cyan/50 bg-brand-cyan/10 text-[10px] text-brand-navy"
+                    title={tForm('sharedWith', {
+                      names: sharedPhoneHolderNames(row.original.sharedWith, locale),
+                    })}
+                  >
+                    {t('sharedPhone')}
+                  </Badge>
+                ) : null}
               </span>
             ) : (
               // Null for Doctor/Therapist viewers (Prompt 15 §1).

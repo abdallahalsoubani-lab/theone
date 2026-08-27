@@ -6,7 +6,9 @@ import { auth } from '@/auth';
 import { AUTH_ERRORS, fail, ok, type Result } from '@/lib/auth/result';
 import { requirePermission } from '@/lib/rbac/guards';
 
+import { viewerCanSeePatientContact } from './access';
 import { addCareTeamMember, removeCareTeamMember } from './assignment';
+import { findSharedPhoneHolders, type SharedPhoneHolder } from './shared-phone';
 import {
   createPatient,
   patientToLocalized,
@@ -130,4 +132,21 @@ export async function updateOwnProfileAction(
   } catch (err) {
     return fail(patientToLocalized(err));
   }
+}
+
+/**
+ * P57 — live "shared number with: …" hint under a phone field. Returns the
+ * other ACTIVE patients on the number; informational only. Gated exactly
+ * like the phone itself (Prompt 15): Secretary/Admin get names, everyone
+ * else gets an empty list — the phone is hidden from them anyway.
+ */
+export async function sharedPhoneHoldersAction(input: {
+  phone: string;
+  excludeId?: string | null;
+}): Promise<Result<SharedPhoneHolder[]>> {
+  await requirePermission('patients.read');
+  if (!(await viewerCanSeePatientContact())) return ok([]);
+  const phone = typeof input?.phone === 'string' ? input.phone.trim() : '';
+  if (!/^\+9627\d{8}$/.test(phone)) return ok([]);
+  return ok(await findSharedPhoneHolders(phone, input.excludeId ?? null));
 }

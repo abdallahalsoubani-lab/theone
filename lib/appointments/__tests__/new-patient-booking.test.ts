@@ -3,14 +3,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 /**
  * P52 — the atomic new-patient booking: create patient + intake link +
  * appointment in one transaction (no orphan patient, no half-booking),
- * duplicate-phone hard block, conflict block.
+ * conflict block. P57: the duplicate-phone HARD BLOCK is gone (clinic-
+ * approved reversal of P52 owner decision 5) — a held number is a confirm.
  */
 
 const state = {
-  lookup: { outcome: 'NONE' } as
-    | { outcome: 'NONE' }
-    | { outcome: 'AMBIGUOUS' }
-    | { outcome: 'ONE'; user: { id: string; fullNameEn: string; fullNameAr: string } },
+  // P57 — every ACTIVE patient already holding the number.
+  holders: [] as Array<{ id: string; fullNameEn: string; fullNameAr: string }>,
   conflicts: { ok: true } as { ok: boolean; conflicts?: unknown[] },
   created: {
     users: [] as Array<Record<string, unknown>>,
@@ -25,7 +24,11 @@ vi.mock('@/auth', () => ({ auth: vi.fn(async () => ({ user: { id: 'sec-1' } })) 
 vi.mock('@/lib/audit/withAudit', () => ({ withAudit: (_cfg: unknown, fn: unknown) => fn }));
 vi.mock('@/lib/auth/password', () => ({ hashPassword: vi.fn(async () => 'hash') }));
 vi.mock('@/lib/admin/temp-password', () => ({ generateTempPassword: vi.fn(() => 'Temp@123') }));
-vi.mock('@/lib/auth/lockout', () => ({ lookupPatientByPhone: vi.fn(async () => state.lookup) }));
+vi.mock('@/lib/patients/shared-phone', () => ({
+  findSharedPhoneHolders: vi.fn(async () => state.holders),
+  sharedPhoneHolderNames: (h: Array<{ fullNameEn: string }>) =>
+    h.map((x) => x.fullNameEn).join(', '),
+}));
 vi.mock('@/lib/format/phone', () => ({ normalizeJordanPhone: (p: string) => `+962${p}` }));
 vi.mock('@/lib/format/patientName', () => ({
   patientDisplayName: (en: string) => en,
@@ -109,11 +112,12 @@ const input = (over: Record<string, unknown> = {}) => ({
   durationMinutes: 60,
   notes: null,
   overrideConflicts: false,
+  confirmSharedPhone: false,
   ...over,
 });
 
 beforeEach(() => {
-  state.lookup = { outcome: 'NONE' };
+  state.holders = [];
   state.conflicts = { ok: true };
   state.created = { users: [], profiles: [], appts: [], links: [] };
   state.txThrows = false;
@@ -146,25 +150,39 @@ describe('createNewPatientBooking — atomic happy path', () => {
   });
 });
 
-describe('createNewPatientBooking — duplicate phone hard block', () => {
-  it('a matching phone throws PATIENT_PHONE_EXISTS with the existing patient — nothing created', async () => {
-    state.lookup = {
-      outcome: 'ONE',
-      user: { id: 'pat-existing', fullNameEn: 'Sara', fullNameAr: 'سارة' },
-    };
+describe('createNewPatientBooking — shared phone is a CONFIRM, never a block (P57)', () => {
+  it('an unconfirmed submit against a held number fails with PATIENT_PHONE_SHARED_CONFIRM naming the holder — nothing created', async () => {
+    state.holders = [{ id: 'pat-existing', fullNameEn: 'Sara', fullNameAr: 'سارة' }];
     const err = await createNewPatientBooking(input()).catch((e) => e);
     expect(err).toBeInstanceOf(NewPatientBookingError);
-    expect(err.error.code).toBe('PATIENT_PHONE_EXISTS');
-    expect(err.error.details.existingPatientId).toBe('pat-existing');
+    expect(err.error.code).toBe('PATIENT_PHONE_SHARED_CONFIRM');
+    expect(err.error.message_en).toContain('Sara');
+    expect(err.error.details.holders).toEqual([{ id: 'pat-existing', name: 'Sara' }]);
     expect(state.created.users).toHaveLength(0);
     expect(state.created.appts).toHaveLength(0);
   });
 
-  it('an ambiguous phone is blocked too', async () => {
-    state.lookup = { outcome: 'AMBIGUOUS' };
+  it('a number already shared by TWO siblings is also just a confirm (was PATIENT_PHONE_AMBIGUOUS)', async () => {
+    state.holders = [
+      { id: 'child-a', fullNameEn: 'Ahmad', fullNameAr: '' },
+      { id: 'child-b', fullNameEn: 'Sara', fullNameAr: '' },
+    ];
     const err = await createNewPatientBooking(input()).catch((e) => e);
-    expect(err.error.code).toBe('PATIENT_PHONE_AMBIGUOUS');
+    expect(err.error.code).toBe('PATIENT_PHONE_SHARED_CONFIRM');
+    expect(err.error.details.holders).toHaveLength(2);
     expect(state.created.users).toHaveLength(0);
+  });
+
+  it('confirmed → creates the second (and third) patient on the same number', async () => {
+    state.holders = [
+      { id: 'child-a', fullNameEn: 'Ahmad', fullNameAr: '' },
+      { id: 'child-b', fullNameEn: 'Sara', fullNameAr: '' },
+    ];
+    const result = await createNewPatientBooking(input({ confirmSharedPhone: true }));
+    expect(result.patientId).toBeTruthy();
+    expect(state.created.users).toHaveLength(1);
+    expect(state.created.appts).toHaveLength(1);
+    expect(state.created.links).toHaveLength(1);
   });
 });
 

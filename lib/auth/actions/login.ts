@@ -7,6 +7,13 @@ import { z } from 'zod';
 import { signIn } from '@/auth';
 import { db } from '@/lib/db';
 import { evaluateLockout, lookupPatientByPhone, lookupStaffByEmail } from '@/lib/auth/lockout';
+import { verifyOtp } from '@/lib/auth/otp';
+import {
+  listPickableProfiles,
+  mintProfilePickToken,
+  peekProfilePickToken,
+  type PickableProfile,
+} from '@/lib/auth/profile-pick';
 import { rateLimit } from '@/lib/auth/rate-limit';
 import { AUTH_ERRORS, fail, ok, type Result } from '@/lib/auth/result';
 import { ROLE_HOME } from '@/lib/auth/routes';
@@ -22,7 +29,11 @@ const phoneOtpInputSchema = z.object({
 });
 
 interface LoginSuccess {
-  redirectTo: string;
+  /** Where to go after sign-in. Null ONLY when `pick` is set (P57). */
+  redirectTo: string | null;
+  /** P57 — the OTP verified on a SHARED family number: no session yet; the
+   *  form shows these profiles and finishes with `signInAsPickedPatient`. */
+  pick?: { token: string; patients: PickableProfile[] };
 }
 
 /**
@@ -82,6 +93,17 @@ export async function loginWithCredentials(input: {
 
 /**
  * Patient login — step 2 of the OTP flow (step 1 = `requestOtpAction`).
+ *
+ * Single active patient on the phone: unchanged since Prompt 4 — the
+ * provider verifies the OTP and signs them in.
+ *
+ * P57 — several active patients share the phone (a family number): the OTP
+ * is verified HERE (consumed once, same attempt cap), no session is created,
+ * and the caller receives a 2-minute single-use pick token + the profiles;
+ * `signInAsPickedPatient` completes the login as the chosen patient. The
+ * per-user lockout counters are not touched on this branch (there is no
+ * single user to attribute a miss to); the OTP's own 3-attempt cap and the
+ * per-IP rate limit still apply.
  */
 export async function verifyOtpAndSignIn(input: {
   phone: string;
@@ -95,9 +117,23 @@ export async function verifyOtpAndSignIn(input: {
   if (!rl.allowed) return fail(AUTH_ERRORS.RATE_LIMITED);
 
   const pre = await lookupPatientByPhone(parsed.data.phone);
-  // P50 §5.2 — more than one active patient on this number: refuse with the
-  // "contact the clinic" error rather than authenticating an arbitrary one.
-  if (pre.outcome === 'AMBIGUOUS') return fail(AUTH_ERRORS.PHONE_AMBIGUOUS);
+  if (pre.outcome === 'AMBIGUOUS') {
+    const verified = await verifyOtp(parsed.data.phone, parsed.data.otp);
+    if (!verified.ok) {
+      return fail(
+        verified.reason === 'OTP_EXPIRED'
+          ? AUTH_ERRORS.OTP_EXPIRED
+          : verified.reason === 'OTP_LOCKED'
+            ? AUTH_ERRORS.OTP_LOCKED
+            : AUTH_ERRORS.INVALID_OTP,
+      );
+    }
+    const [token, patients] = await Promise.all([
+      mintProfilePickToken(parsed.data.phone),
+      listPickableProfiles(parsed.data.phone),
+    ]);
+    return ok({ redirectTo: null, pick: { token, patients } });
+  }
   if (pre.outcome === 'ONE' && evaluateLockout(pre.user).status === 'LOCKED') {
     return fail(AUTH_ERRORS.ACCOUNT_LOCKED);
   }
@@ -125,6 +161,53 @@ export async function verifyOtpAndSignIn(input: {
     select: { mustChangePassword: true },
   });
   const redirectTo = user?.mustChangePassword ? '/change-password' : ROLE_HOME.PATIENT;
+  return ok({ redirectTo });
+}
+
+const pickInputSchema = z.object({
+  token: z.string().regex(/^[0-9a-f]{64}$/),
+  patientId: z.string().min(1),
+});
+
+/**
+ * P57 — step 3 for shared numbers: open the chosen profile. The token is
+ * peeked here for friendly errors and CONSUMED by the provider, which
+ * re-checks that the patient is active and holds that phone.
+ */
+export async function signInAsPickedPatient(input: {
+  token: string;
+  patientId: string;
+}): Promise<Result<LoginSuccess>> {
+  const parsed = pickInputSchema.safeParse(input);
+  if (!parsed.success) return fail(AUTH_ERRORS.PICK_INVALID);
+
+  const ip = await getClientIp();
+  const rl = await rateLimit(`ratelimit:login:${ip}`, 5, 60);
+  if (!rl.allowed) return fail(AUTH_ERRORS.RATE_LIMITED);
+
+  const phone = await peekProfilePickToken(parsed.data.token);
+  if (!phone) return fail(AUTH_ERRORS.PICK_INVALID);
+
+  const target = await db.user.findFirst({
+    where: { id: parsed.data.patientId, phone, role: 'PATIENT', deletedAt: null },
+    select: { id: true, lockedUntil: true, failedLoginAttempts: true, mustChangePassword: true },
+  });
+  if (!target) return fail(AUTH_ERRORS.PICK_INVALID);
+  if (evaluateLockout(target).status === 'LOCKED') return fail(AUTH_ERRORS.ACCOUNT_LOCKED);
+
+  try {
+    await signIn('phone-otp', {
+      phone,
+      pickToken: parsed.data.token,
+      patientId: parsed.data.patientId,
+      redirect: false,
+    });
+  } catch (err) {
+    if (err instanceof AuthError) return fail(AUTH_ERRORS.PICK_INVALID);
+    throw err;
+  }
+
+  const redirectTo = target.mustChangePassword ? '/change-password' : ROLE_HOME.PATIENT;
   return ok({ redirectTo });
 }
 

@@ -55,6 +55,20 @@ threshold is hit (lockout existence is no longer a secret at that point).
 | Verify   | `lib/auth/otp.ts`            | `bcrypt.compare`; success deletes key; 3 misses → `OTP_LOCKED`                                                  |
 | Send     | `lib/auth/senders/*`         | env-selected: `console` in dev (writes `[DEV OTP] phone=... otp=...` to stderr) or `whatsapp` (stub — Prompt 8) |
 
+**Shared family numbers (Prompt 57).** Patient phones are not unique (P50):
+a parent registers several children on one number. `verifyOtpAndSignIn`
+looks the phone up first — exactly one active patient → the provider
+verifies the OTP and signs them in (unchanged since Prompt 4); several →
+the action verifies the OTP itself (consumed once, same 3-attempt cap),
+mints a 2-minute single-use **pick token** (`lib/auth/profile-pick.ts`,
+Redis `otp:pick:{token}` → phone) and returns the active profiles; the
+form shows "مين بدك تفتح؟" and `signInAsPickedPatient` hands
+`{phone, pickToken, patientId}` to the same `phone-otp` provider, which
+consumes the token and re-checks that the chosen patient is active on that
+phone. One OTP, then choose. Archived patients never appear. No login audit
+row is written on either path (none exists today — flagged as a possible
+enhancement). Staff (email + password) login is untouched.
+
 The request endpoint always returns `ok:true` past the cooldown check — so
 the _request_ phase never reveals whether the phone is registered. Only
 the eventual verify call returns `OTP_EXPIRED` for unregistered numbers

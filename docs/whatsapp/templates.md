@@ -32,6 +32,40 @@ Parameter order is locked in code (`lib/whatsapp/templates/sendCredentials.ts`,
 **requires** a coordinated update on the code side; reordering `{{1}}` and
 `{{2}}` silently produces a wrong-looking message.
 
+## Shared family numbers — inbound routing + patient-name audit (Prompt 57)
+
+One phone may belong to several active patients. Inbound messages (and the
+P56 attachments hanging off them) are attributed by ONE rule,
+`lib/whatsapp/inbound/resolve-patient.ts → resolvePatientForInbound`:
+nearest active appointment (SCHEDULED/CONFIRMED/IN_PROGRESS, end not
+passed; tie → reminded first, then older record), else the most recently
+active patient (latest non-cancelled appointment, then `updatedAt`, then
+id). `resolveReplyTargets` delegates to it, so `WhatsAppMessage.recipientId`,
+`InboxItem.patientId`, `WhatsAppConversation.patientId` and the attachment
+rows always agree. There is no manual "move this message to the sibling"
+tool yet — natural follow-up if the clinic ever reports a mis-route.
+
+Outbound is per patient (jobs read the phone from the patient's own row), so
+a mother with two children booked the same day receives two messages.
+Which business-initiated templates name the patient today:
+
+| Template                                      | Names the patient?                 |
+| --------------------------------------------- | ---------------------------------- |
+| `appointment_confirmation_v2`                 | ✓ `{{1}}`                          |
+| `new_patient_confirmation`                    | ✓ `{{1}}`                          |
+| `appointment_rescheduled` (v2 shape)          | ✓ `{{1}}`                          |
+| `appointment_reminder_v2` (fallback only)     | ✓ `{{1}}`                          |
+| `arrival_confirmation`                        | ✓ first name                       |
+| confirm ack (free text)                       | ✓                                  |
+| `appointment_reminder_single_v3` / `_multi`   | ✗ — two children = two look-alikes |
+| `appointment_cancelled_v2` (date/time/reason) | ✗                                  |
+| `home_exercise_reminder_v2`                   | ✗                                  |
+| decline ack (free text)                       | ✗                                  |
+
+Adding the name to the v3 reminders / cancelled / home-exercise wording is a
+Twilio Console template edit + re-approval (owner task); the code passes
+variables as-is.
+
 ## Workflow per provider
 
 ### Twilio Sandbox

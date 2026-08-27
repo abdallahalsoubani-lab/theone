@@ -13,7 +13,7 @@ import {
   languagePrefLabel,
   resolveCustomAnswerValue,
 } from '@/lib/intake/display';
-import { findPatientByPhone, getSubmissionById } from '@/lib/intake-submissions/queries';
+import { findPatientsByPhone, getSubmissionById } from '@/lib/intake-submissions/queries';
 import { requirePermission } from '@/lib/rbac/guards';
 
 const ADULT_FIELD_KEYS = [
@@ -57,7 +57,7 @@ export default async function IntakeSubmissionDetailPage({
   const submission = await getSubmissionById(id);
   if (!submission) notFound();
 
-  const [t, tProfile, tFields, customQuestions, duplicate] = await Promise.all([
+  const [t, tProfile, tFields, customQuestions, duplicates] = await Promise.all([
     getTranslations('intakeSubmissions'),
     getTranslations('publicIntake'),
     getTranslations(submission.type === IntakeType.ADULT ? 'intake.adult' : 'intake.pediatric'),
@@ -67,7 +67,7 @@ export default async function IntakeSubmissionDetailPage({
           ? CustomQuestionAppliesTo.ADULT
           : CustomQuestionAppliesTo.PEDIATRIC,
     }),
-    findPatientByPhone(submission.submittedPhone),
+    findPatientsByPhone(submission.submittedPhone),
   ]);
 
   const profile = submission.profile;
@@ -137,15 +137,12 @@ export default async function IntakeSubmissionDetailPage({
         <SubmissionReviewActions
           submissionId={submission.id}
           locale={intlLocale}
-          duplicate={
-            duplicate
-              ? {
-                  patientId: duplicate.id,
-                  name: intlLocale === 'ar' ? duplicate.fullNameAr : duplicate.fullNameEn,
-                  phone: duplicate.phone,
-                }
-              : null
-          }
+          duplicates={duplicates.map((d) => ({
+            patientId: d.id,
+            fullNameEn: d.fullNameEn,
+            fullNameAr: d.fullNameAr,
+            phone: d.phone,
+          }))}
         />
       )}
 
