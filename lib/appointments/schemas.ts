@@ -6,6 +6,8 @@ import {
 } from '@prisma/client';
 import { z } from 'zod';
 
+import { normalizePhoneForStorage } from '@/lib/format/phone';
+
 export const appointmentCreateSchema = z
   .object({
     // Optional for EVENT (patient-less internal block — July #8 part 2).
@@ -298,7 +300,22 @@ export type SeriesBatchCreateInput = z.infer<typeof seriesBatchCreateSchema>;
  */
 export const newPatientBookingSchema = z.object({
   fullNameEn: z.string().trim().min(2).max(120),
-  phone: z.string().trim().min(6).max(25),
+  // P58 item 3 — normalised AT the schema: Jordanian shapes canonicalise
+  // (07… → +9627…), anything else must clean to international E.164
+  // (separators tolerated). The raw typed text is never stored again.
+  phone: z
+    .string()
+    .trim()
+    .min(6)
+    .max(25)
+    .transform((v, ctx) => {
+      const normalized = normalizePhoneForStorage(v);
+      if (!normalized) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'phoneE164' });
+        return z.NEVER;
+      }
+      return normalized;
+    }),
   formType: z.nativeEnum(IntakeType),
   appointmentType: z
     .enum([AppointmentType.SESSION, AppointmentType.STRETCHING])

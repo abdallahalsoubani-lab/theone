@@ -47,6 +47,36 @@ export function normalizeJordanPhone(input: string): string | null {
   return `+962${national}`;
 }
 
+/**
+ * P58 item 3 — normalise a NON-Jordanian number to canonical E.164.
+ *
+ * Tolerates the separators people paste (spaces, dashes, dots, parentheses)
+ * and the `00` international prefix, then validates strict E.164. Returns
+ * the canonical `+<digits>` string, or `null` when the input is not a valid
+ * international number (letters, missing country code, wrong length).
+ *
+ * The root cause this closes: the quick-add booking path stored a pasted
+ * `+972 52-505-4631` verbatim, and Twilio rejected `whatsapp:+972 52-…`
+ * with error 21211 — the only international send failures in production
+ * history all traced to that one stored string.
+ */
+export function normalizeInternationalPhone(input: string): string | null {
+  let s = input.trim().replace(/[\s\-().]/g, '');
+  if (s.startsWith('00')) s = `+${s.slice(2)}`;
+  return /^\+[1-9]\d{7,14}$/.test(s) ? s : null;
+}
+
+/**
+ * THE storage normaliser (P58 item 3): the one chain every phone-accepting
+ * entry point runs before writing `User.phone`. Jordanian convenience shapes
+ * first (`07…`, `7…`, `962…`, `00962…` → `+9627XXXXXXXX` — unchanged UX),
+ * then general international E.164 with separator tolerance. `null` = not
+ * storable; the caller rejects with the `phoneE164` message.
+ */
+export function normalizePhoneForStorage(input: string): string | null {
+  return normalizeJordanPhone(input) ?? normalizeInternationalPhone(input);
+}
+
 export function formatPhone(input: string | null | undefined): string {
   // P50: patient phone is optional — every display surface renders the
   // shared em-dash placeholder rather than crashing or showing blank.

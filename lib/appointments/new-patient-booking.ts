@@ -6,7 +6,7 @@ import { withAudit } from '@/lib/audit/withAudit';
 import { hashPassword } from '@/lib/auth/password';
 import { generateTempPassword } from '@/lib/admin/temp-password';
 import { db } from '@/lib/db';
-import { normalizeJordanPhone } from '@/lib/format/phone';
+import { normalizePhoneForStorage } from '@/lib/format/phone';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { findSharedPhoneHolders, sharedPhoneHolderNames } from '@/lib/patients/shared-phone';
 import { addCareTeamMemberTx } from '@/lib/patients/assignment';
@@ -94,10 +94,19 @@ export const createNewPatientBooking = withAudit<[NewPatientBookingInput], NewPa
       });
     }
 
-    // Normalize the phone (Jordan mobile canonical; fall back to the trimmed
-    // input for a non-Jordan number the general E.164 create allows). One
-    // normalizer — the same the auth/kiosk paths use.
-    const normalizedPhone = normalizeJordanPhone(input.phone) ?? input.phone.trim();
+    // Normalize the phone (P58 item 3 — the root-cause line): Jordanian
+    // convenience shapes canonicalise as before; anything else must resolve
+    // to clean international E.164 (separators stripped) or the booking is
+    // refused. The old fallback stored the raw typed text verbatim, which
+    // is how `+972 52-505-4631` reached Twilio and failed with 21211.
+    const normalizedPhone = normalizePhoneForStorage(input.phone);
+    if (!normalizedPhone) {
+      throw new NewPatientBookingError({
+        code: 'INVALID_PHONE',
+        message_en: 'Enter a valid phone number in international format (e.g. +9627XXXXXXXX).',
+        message_ar: 'أدخل رقم هاتف صحيحاً بالصيغة الدولية (مثل ‎+9627XXXXXXXX).',
+      });
+    }
 
     // Shared-number confirm FIRST (P57) — the secretary sees who already
     // holds the number before anything is created; confirmed → proceed.

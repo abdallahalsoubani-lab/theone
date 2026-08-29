@@ -29,7 +29,10 @@ vi.mock('@/lib/patients/shared-phone', () => ({
   sharedPhoneHolderNames: (h: Array<{ fullNameEn: string }>) =>
     h.map((x) => x.fullNameEn).join(', '),
 }));
-vi.mock('@/lib/format/phone', () => ({ normalizeJordanPhone: (p: string) => `+962${p}` }));
+// P58 item 3 — the REAL normaliser chain: the phone tests below assert the
+// exact stored values (07… → +9627…, separator-stripped international,
+// garbage refused), so a fake here would test nothing.
+vi.mock('@/lib/format/phone', async (importOriginal) => importOriginal());
 vi.mock('@/lib/format/patientName', () => ({
   patientDisplayName: (en: string) => en,
 }));
@@ -206,6 +209,31 @@ describe('createNewPatientBooking — atomicity (no orphan)', () => {
     expect(state.created.links).toHaveLength(0);
     // No reminder / confirmation fired (they run only after a committed tx).
     expect(resyncMock).not.toHaveBeenCalled();
+    expect(dispatchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('createNewPatientBooking — phone normalisation (P58 item 3)', () => {
+  it('Jordanian 07x input stores the +9627x canonical form (UX unchanged)', async () => {
+    await createNewPatientBooking(input({ phone: '0790000000' }));
+    expect(state.created.users[0]!.phone).toBe('+962790000000');
+  });
+
+  it('an international number pasted with separators stores clean E.164 — the Saed case', async () => {
+    await createNewPatientBooking(input({ phone: '+972 52-505-4631' }));
+    expect(state.created.users[0]!.phone).toBe('+972525054631');
+  });
+
+  it('a clean international number is stored intact', async () => {
+    await createNewPatientBooking(input({ phone: '+97433991799' }));
+    expect(state.created.users[0]!.phone).toBe('+97433991799');
+  });
+
+  it('a number that resolves to no valid phone is refused — nothing created, raw text never stored', async () => {
+    const err = await createNewPatientBooking(input({ phone: '052-505-4631' })).catch((e) => e);
+    expect(err).toBeInstanceOf(NewPatientBookingError);
+    expect(err.error.code).toBe('INVALID_PHONE');
+    expect(state.created.users).toHaveLength(0);
     expect(dispatchMock).not.toHaveBeenCalled();
   });
 });

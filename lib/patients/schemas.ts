@@ -1,6 +1,8 @@
 import { Gender, LanguagePref } from '@prisma/client';
 import { z } from 'zod';
 
+import { normalizePhoneForStorage } from '@/lib/format/phone';
+
 /**
  * Patient registration schema (Prompt 6 §4.1).
  *
@@ -27,13 +29,23 @@ const patientBaseSchema = z.object({
   // P52 follow-up (owner ruling): general E.164, not Jordan-only — 13
   // imported patients carry valid international numbers and WhatsApp
   // sends internationally.
+  // P58 item 3 — separator-tolerant: input is normalised (07… → +9627…,
+  // pasted `+972 52-…` → +97252…) before the E.164 rule; entry gets easier,
+  // stored values stay strictly canonical.
   phone: z
     .string()
-    .regex(/^\+[1-9]\d{7,14}$/, 'phoneE164')
     .optional()
-    .or(z.literal(''))
-    .transform((v) => v || null)
-    .nullable(),
+    .nullable()
+    .transform((v, ctx) => {
+      const raw = (v ?? '').trim();
+      if (raw === '') return null;
+      const normalized = normalizePhoneForStorage(raw);
+      if (!normalized) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'phoneE164' });
+        return z.NEVER;
+      }
+      return normalized;
+    }),
   email: z
     .string()
     .email()

@@ -117,6 +117,23 @@ describe('TwilioWhatsAppProvider.sendTemplate', () => {
     expect(call.statusCallback).toBe('https://example.com/api/v1/whatsapp/webhook/twilio');
   });
 
+  it('a non-Jordanian recipient produces a correctly-formed whatsapp:+974… address (P58 item 3)', async () => {
+    const client = fakeClient();
+    const provider = new TwilioWhatsAppProvider({ client });
+    const res = await provider.sendTemplate({
+      name: 'appointment_reminder_30min',
+      language: LanguagePref.EN,
+      recipientPhone: '+97433991799',
+      parameters: [],
+    });
+    expect(res.providerMessageId).toBe('SM_test_123');
+    const createMock = client.messages.create as ReturnType<typeof vi.fn>;
+    const call = createMock.mock.calls[0]![0];
+    // No +962 assumption anywhere in the send path: the provider only
+    // prefixes the channel scheme, whatever the country code.
+    expect(call.to).toBe('whatsapp:+97433991799');
+  });
+
   it('throws TemplateNotConfiguredError when the template row is missing', async () => {
     setTemplate(null);
     const provider = new TwilioWhatsAppProvider({ client: fakeClient() });

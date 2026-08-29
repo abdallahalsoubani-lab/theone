@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatPhone, normalizeJordanPhone } from '../phone';
+import {
+  formatPhone,
+  normalizeInternationalPhone,
+  normalizeJordanPhone,
+  normalizePhoneForStorage,
+} from '../phone';
 
 const LRM = '‎';
 
@@ -65,5 +70,49 @@ describe('normalizeJordanPhone', () => {
     expect(normalizeJordanPhone('079012345')).toBeNull(); // too short
     expect(normalizeJordanPhone('07901234567')).toBeNull(); // too long
     expect(normalizeJordanPhone('')).toBeNull();
+  });
+});
+
+describe('normalizeInternationalPhone (P58 item 3)', () => {
+  it('clean international E.164 survives intact', () => {
+    expect(normalizeInternationalPhone('+97433991799')).toBe('+97433991799');
+    expect(normalizeInternationalPhone('+966501234567')).toBe('+966501234567');
+    expect(normalizeInternationalPhone('+15551234567')).toBe('+15551234567');
+  });
+
+  it('strips the separators people paste — the Saed case', () => {
+    expect(normalizeInternationalPhone('+972 52-505-4631')).toBe('+972525054631');
+    expect(normalizeInternationalPhone('+966 (50) 123.4567')).toBe('+966501234567');
+  });
+
+  it('converts the 00 international prefix', () => {
+    expect(normalizeInternationalPhone('0097433991799')).toBe('+97433991799');
+  });
+
+  it('rejects garbage as null — never stored, never guessed', () => {
+    expect(normalizeInternationalPhone('not a phone')).toBeNull();
+    expect(normalizeInternationalPhone('052-505-4631')).toBeNull(); // national format, no country code
+    expect(normalizeInternationalPhone('+972abc123')).toBeNull();
+    expect(normalizeInternationalPhone('+12345')).toBeNull(); // too short
+    expect(normalizeInternationalPhone('+1234567890123456')).toBeNull(); // too long
+    expect(normalizeInternationalPhone('')).toBeNull();
+  });
+});
+
+describe('normalizePhoneForStorage (P58 item 3 — THE storage chain)', () => {
+  it('Jordanian convenience shapes still canonicalise first (UX unchanged)', () => {
+    expect(normalizePhoneForStorage('0790123456')).toBe('+962790123456');
+    expect(normalizePhoneForStorage('790123456')).toBe('+962790123456');
+    expect(normalizePhoneForStorage('00962790123456')).toBe('+962790123456');
+  });
+
+  it('non-Jordanian numbers fall through to international normalisation', () => {
+    expect(normalizePhoneForStorage('+97433991799')).toBe('+97433991799');
+    expect(normalizePhoneForStorage('+972 52-505-4631')).toBe('+972525054631');
+  });
+
+  it('unresolvable input is null', () => {
+    expect(normalizePhoneForStorage('052-505-4631')).toBeNull();
+    expect(normalizePhoneForStorage('hello')).toBeNull();
   });
 });

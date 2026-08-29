@@ -58,7 +58,20 @@ describe('patientCreateSchema — English-only name (P47 row 8) + optional addre
     if (qatar.success) expect(qatar.data.phone).toBe('+97433991799');
     expect(patientCreateSchema.safeParse({ ...base, phone: '+962791234567' }).success).toBe(true);
     expect(patientCreateSchema.safeParse({ ...base, phone: '+0123' }).success).toBe(false);
-    expect(patientCreateSchema.safeParse({ ...base, phone: '0791234567' }).success).toBe(false);
+  });
+
+  it('phone input is normalised before validation (P58 item 3 — separator-tolerant, JO shapes)', () => {
+    // 07x now canonicalises on the full form too (was rejected pre-P58) —
+    // same chain as the quick-add path, one behaviour everywhere.
+    const local = patientCreateSchema.safeParse({ ...base, phone: '0791234567' });
+    expect(local.success).toBe(true);
+    if (local.success) expect(local.data.phone).toBe('+962791234567');
+    // Pasted separators are stripped — the exact stored-corruption case.
+    const pasted = patientCreateSchema.safeParse({ ...base, phone: '+972 52-505-4631' });
+    expect(pasted.success).toBe(true);
+    if (pasted.success) expect(pasted.data.phone).toBe('+972525054631');
+    // National format without a country code is still refused, never guessed.
+    expect(patientCreateSchema.safeParse({ ...base, phone: '052-505-4631' }).success).toBe(false);
   });
 
   it('dateOfBirth accepts a date-only string and rejects the future (existing rule)', () => {
