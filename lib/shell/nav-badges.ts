@@ -8,6 +8,7 @@ import { countPendingApprovals } from '@/lib/clinical/home-program/approval';
 import { countUnresolvedInbox } from '@/lib/inbox/queries';
 import { countPendingSubmissions } from '@/lib/intake-submissions/queries';
 import { countActiveWaitlist } from '@/lib/waitlist/queries';
+import { pendingOutboxCount } from '@/lib/whatsapp/dispatch/queries';
 import { countUnreadConversations } from '@/lib/whatsapp/inbox/queries';
 
 /**
@@ -33,6 +34,7 @@ const EMPTY: NavBadgeCounts = {
   homeProgramApprovals: 0,
   unconfirmed: 0,
   waInbox: 0,
+  waOutbox: 0,
 };
 
 /**
@@ -42,7 +44,7 @@ const EMPTY: NavBadgeCounts = {
  */
 export async function getNavBadgeCounts(role: UserRole, userId: string): Promise<NavBadgeCounts> {
   const needed = new Set(staffNavEntries(role).map((e) => e.badge));
-  const [inbox, waitlist, intakeSubmissions, homeProgramApprovals, unconfirmed, waInbox] =
+  const [inbox, waitlist, intakeSubmissions, homeProgramApprovals, unconfirmed, waInbox, waOutbox] =
     await Promise.all([
       needed.has('inbox') ? countUnresolvedInbox() : Promise.resolve(0),
       needed.has('waitlist') ? countActiveWaitlist() : Promise.resolve(0),
@@ -52,6 +54,7 @@ export async function getNavBadgeCounts(role: UserRole, userId: string): Promise
         : Promise.resolve(0),
       needed.has('unconfirmed') ? countUnconfirmedReminders() : Promise.resolve(0),
       needed.has('waInbox') ? countUnreadConversations() : Promise.resolve(0),
+      needed.has('waOutbox') ? pendingOutboxCount() : Promise.resolve(0),
     ]);
   return {
     ...EMPTY,
@@ -61,5 +64,6 @@ export async function getNavBadgeCounts(role: UserRole, userId: string): Promise
     homeProgramApprovals,
     unconfirmed,
     waInbox,
+    waOutbox,
   };
 }

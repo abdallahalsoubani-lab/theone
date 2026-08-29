@@ -200,7 +200,86 @@ export async function recordDispatchEvent(args: {
   return { entryId: entry.id, suppressed: null, confirmWasPending: openConfirmation };
 }
 
-// ─── Manual outbox operations (ADMIN — P48 §4.3) ───────────────────────────
+// ─── Manual outbox operations (ADMIN + SECRETARY — P48 §4.3, P58) ──────────
+
+interface PendingEntry {
+  id: string;
+  type: WaDispatchType;
+  appointmentId: string | null;
+  homeProgramItemId: string | null;
+}
+
+interface ReleaseResult {
+  count: number;
+  entryIds: string[];
+  staleIds: string[];
+}
+
+/**
+ * THE release core (P58 item 1.2) — both the section-level "Send N" and the
+ * per-row single send run through this one function: same stale guard, same
+ * status flips, same adminSend job scheduling. Callers differ only in how
+ * they select the entries and in their audit event.
+ */
+async function releaseEntries(entries: PendingEntry[], actorId: string): Promise<ReleaseResult> {
+  if (entries.length === 0) return { count: 0, entryIds: [], staleIds: [] };
+
+  const apptIds = entries.map((p) => p.appointmentId).filter((x): x is string => Boolean(x));
+  const appts = await db.appointment.findMany({
+    where: { id: { in: apptIds } },
+    select: { id: true, startsAt: true, durationMinutes: true, status: true },
+  });
+  const apptById = new Map(appts.map((a) => [a.id, a]));
+
+  const now = new Date();
+  const sentIds: string[] = [];
+  const staleIds: string[] = [];
+  for (const entry of entries) {
+    const appt = entry.appointmentId ? apptById.get(entry.appointmentId) : undefined;
+    // P51 §4.5 — a held message must not outlive its moment: stale rows
+    // are marked (audited via the caller's audit row) and never send.
+    if (
+      isStale(
+        {
+          type: entry.type,
+          status: 'PENDING',
+          appointmentStartsAt: appt?.startsAt ?? null,
+          appointmentDurationMinutes: appt?.durationMinutes ?? null,
+          appointmentStatus: appt?.status ?? null,
+        },
+        now,
+      )
+    ) {
+      await db.whatsAppDispatch.update({
+        where: { id: entry.id },
+        data: { status: 'STALE', failureReason: 'stale at send time' },
+      });
+      staleIds.push(entry.id);
+      continue;
+    }
+    await db.whatsAppDispatch.update({
+      where: { id: entry.id },
+      data: { status: 'SCHEDULED', dispatchReason: 'MANUAL', sentById: actorId },
+    });
+    // A human pressed Send — the job carries adminSend and bypasses the
+    // silent-mode gate at fire time (P51 exemption; single send included).
+    const jobId = await scheduleOutboxSend({
+      type: entry.type,
+      appointmentId: entry.appointmentId,
+      homeProgramItemId: entry.homeProgramItemId,
+      startsAt: appt?.startsAt ?? null,
+    }).catch(() => null);
+    if (jobId === null) {
+      await db.whatsAppDispatch.update({
+        where: { id: entry.id },
+        data: { status: 'FAILED', failureReason: 'appointment already started' },
+      });
+      continue;
+    }
+    sentIds.push(entry.id);
+  }
+  return { count: sentIds.length, entryIds: sentIds, staleIds };
+}
 
 /**
  * Send every PENDING entry of one type. Idempotent — with nothing pending
@@ -223,73 +302,70 @@ export const sendOutboxBatch = withAudit<
       staleIds: result.staleIds,
     }),
   },
-  async function sendOutboxInner(args): Promise<{
-    count: number;
-    entryIds: string[];
-    staleIds: string[];
-  }> {
+  async function sendOutboxInner(args): Promise<ReleaseResult> {
     const pending = await db.whatsAppDispatch.findMany({
       where: { type: args.type, status: 'PENDING' },
-      select: { id: true, appointmentId: true, patientId: true, homeProgramItemId: true },
+      select: {
+        id: true,
+        type: true,
+        appointmentId: true,
+        patientId: true,
+        homeProgramItemId: true,
+      },
       orderBy: { createdAt: 'asc' },
     });
-    if (pending.length === 0) return { count: 0, entryIds: [], staleIds: [] };
+    return releaseEntries(pending, args.adminId);
+  },
+);
 
-    const apptIds = pending.map((p) => p.appointmentId).filter((x): x is string => Boolean(x));
-    const appts = await db.appointment.findMany({
-      where: { id: { in: apptIds } },
-      select: { id: true, startsAt: true, durationMinutes: true, status: true },
+/**
+ * P58 item 1 — send exactly ONE held message, leaving the rest of the queue
+ * untouched. Same core as the batch (stale guard, status flips, adminSend
+ * job) scoped to one id; its own audit event so the log distinguishes a
+ * targeted send from a batch release. A stale row is marked STALE (as the
+ * batch would) and reported back — the action layer refuses with the
+ * localized stale error.
+ */
+export const sendOutboxSingle = withAudit<
+  [{ entryId: string; adminId: string }],
+  { entryId: string; sent: boolean; stale: boolean }
+>(
+  {
+    entityType: 'WhatsAppDispatch',
+    action: AuditAction.UPDATE,
+    extractEntityId: (args) => args[0].entryId,
+    extractAfter: (result) => ({
+      event: 'OUTBOX_SEND_SINGLE',
+      sent: result.sent,
+      stale: result.stale,
+    }),
+  },
+  async function sendSingleInner(
+    args,
+  ): Promise<{ entryId: string; sent: boolean; stale: boolean }> {
+    const entry = await db.whatsAppDispatch.findUnique({
+      where: { id: args.entryId },
+      select: { id: true, type: true, status: true, appointmentId: true, homeProgramItemId: true },
     });
-    const apptById = new Map(appts.map((a) => [a.id, a]));
-
-    const now = new Date();
-    const sentIds: string[] = [];
-    const staleIds: string[] = [];
-    for (const entry of pending) {
-      const appt = entry.appointmentId ? apptById.get(entry.appointmentId) : undefined;
-      // P51 §4.5 — a held message must not outlive its moment: stale rows
-      // are marked (audited via this batch's audit row) and never send.
-      if (
-        isStale(
-          {
-            type: args.type,
-            status: 'PENDING',
-            appointmentStartsAt: appt?.startsAt ?? null,
-            appointmentDurationMinutes: appt?.durationMinutes ?? null,
-            appointmentStatus: appt?.status ?? null,
-          },
-          now,
-        )
-      ) {
-        await db.whatsAppDispatch.update({
-          where: { id: entry.id },
-          data: { status: 'STALE', failureReason: 'stale at send time' },
-        });
-        staleIds.push(entry.id);
-        continue;
-      }
-      await db.whatsAppDispatch.update({
-        where: { id: entry.id },
-        data: { status: 'SCHEDULED', dispatchReason: 'MANUAL', sentById: args.adminId },
-      });
-      // The admin pressed Send — a human action, so the job carries
-      // adminSend and bypasses the silent-mode gate at fire time.
-      const jobId = await scheduleOutboxSend({
-        type: args.type,
-        appointmentId: entry.appointmentId,
-        homeProgramItemId: entry.homeProgramItemId,
-        startsAt: appt?.startsAt ?? null,
-      }).catch(() => null);
-      if (jobId === null) {
-        await db.whatsAppDispatch.update({
-          where: { id: entry.id },
-          data: { status: 'FAILED', failureReason: 'appointment already started' },
-        });
-        continue;
-      }
-      sentIds.push(entry.id);
+    if (!entry || entry.status !== 'PENDING') {
+      throw new Error('DISPATCH_ENTRY_NOT_PENDING');
     }
-    return { count: sentIds.length, entryIds: sentIds, staleIds };
+    const result = await releaseEntries(
+      [
+        {
+          id: entry.id,
+          type: entry.type,
+          appointmentId: entry.appointmentId,
+          homeProgramItemId: entry.homeProgramItemId,
+        },
+      ],
+      args.adminId,
+    );
+    return {
+      entryId: entry.id,
+      sent: result.entryIds.includes(entry.id),
+      stale: result.staleIds.includes(entry.id),
+    };
   },
 );
 

@@ -78,6 +78,11 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.INBOX_READ]: true,
     [PERMISSIONS.WHATSAPP_ATTACHMENTS_READ]: true,
     [PERMISSIONS.INBOX_RESOLVE]: true,
+    // P58 — the secretary runs the outbox (view / send / exclude); the
+    // silent-mode master switch stays ADMIN-only.
+    [PERMISSIONS.WHATSAPP_DISPATCH]: true,
+    [PERMISSIONS.WHATSAPP_OUTBOX_READ]: true,
+    [PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE]: true,
     [PERMISSIONS.NOTIFICATIONS_READ_OWN]: 'own',
     [PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN]: 'own',
   },
@@ -222,10 +227,12 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.WHATSAPP_TEMPLATES_READ]: true,
     [PERMISSIONS.WHATSAPP_TEMPLATES_UPDATE]: true,
     [PERMISSIONS.WHATSAPP_TEMPLATES_DELETE]: true,
-    // P48 — dispatch control is ADMIN-only (owner decision).
+    // P48 dispatch control, P58: shared with SECRETARY; the silent-mode
+    // switch stays ADMIN-only under its own code.
     [PERMISSIONS.WHATSAPP_DISPATCH]: true,
     [PERMISSIONS.WHATSAPP_OUTBOX_READ]: true,
     [PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE]: true,
+    [PERMISSIONS.WHATSAPP_SILENT_MODE]: true,
     [PERMISSIONS.SYSTEM_SETTINGS_CREATE]: true,
     [PERMISSIONS.SYSTEM_SETTINGS_READ]: true,
     [PERMISSIONS.SYSTEM_SETTINGS_UPDATE]: true,
@@ -649,16 +656,26 @@ describe('reports.clinician_summary (Prompt 40 §1.1 — admin + doctor only)', 
   });
 });
 
-describe('P48 — WhatsApp dispatch control is ADMIN-only', () => {
-  it('every non-admin role is denied dispatch / outbox read / exclude', () => {
-    for (const role of ['SECRETARY', 'DOCTOR', 'THERAPIST', 'PATIENT'] as const) {
+describe('P48/P58 — WhatsApp dispatch control', () => {
+  it('ADMIN and SECRETARY hold dispatch / outbox read / exclude; clinicians and patients are denied', () => {
+    for (const role of ['ADMIN', 'SECRETARY'] as const) {
+      const user = u(role);
+      expect(can(user, PERMISSIONS.WHATSAPP_DISPATCH)).toBe(true);
+      expect(can(user, PERMISSIONS.WHATSAPP_OUTBOX_READ)).toBe(true);
+      expect(can(user, PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE)).toBe(true);
+    }
+    for (const role of ['DOCTOR', 'THERAPIST', 'PATIENT'] as const) {
       const user = u(role);
       expect(can(user, PERMISSIONS.WHATSAPP_DISPATCH)).toBe(false);
       expect(can(user, PERMISSIONS.WHATSAPP_OUTBOX_READ)).toBe(false);
       expect(can(user, PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE)).toBe(false);
     }
-    expect(can(u('ADMIN'), PERMISSIONS.WHATSAPP_DISPATCH)).toBe(true);
-    expect(can(u('ADMIN'), PERMISSIONS.WHATSAPP_OUTBOX_READ)).toBe(true);
-    expect(can(u('ADMIN'), PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE)).toBe(true);
+  });
+
+  it('the silent-mode master switch stays ADMIN-only (P58 item 2.4)', () => {
+    expect(can(u('ADMIN'), PERMISSIONS.WHATSAPP_SILENT_MODE)).toBe(true);
+    for (const role of ['SECRETARY', 'DOCTOR', 'THERAPIST', 'PATIENT'] as const) {
+      expect(can(u(role), PERMISSIONS.WHATSAPP_SILENT_MODE)).toBe(false);
+    }
   });
 });

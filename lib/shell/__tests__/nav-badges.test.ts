@@ -18,6 +18,7 @@ const counts = vi.hoisted(() => ({
   approvals: 0,
   unconfirmed: 0,
   waInbox: 0,
+  waOutbox: 0,
   calls: [] as string[],
 }));
 
@@ -57,6 +58,14 @@ vi.mock('@/lib/whatsapp/inbox/queries', () => ({
     return counts.waInbox;
   }),
 }));
+// P58 — the outbox badge (PENDING dispatch entries) joined the secretary
+// sidebar; the same query already feeds the admin sidebar's badge.
+vi.mock('@/lib/whatsapp/dispatch/queries', () => ({
+  pendingOutboxCount: vi.fn(async () => {
+    counts.calls.push('waOutbox');
+    return counts.waOutbox;
+  }),
+}));
 
 import { getNavBadgeCounts } from '../nav-badges';
 
@@ -68,6 +77,7 @@ beforeEach(() => {
   counts.approvals = 0;
   counts.unconfirmed = 0;
   counts.waInbox = 0;
+  counts.waOutbox = 0;
 });
 
 describe('getNavBadgeCounts', () => {
@@ -95,6 +105,13 @@ describe('getNavBadgeCounts', () => {
     expect(counts.calls).not.toContain('submissions');
   });
 
+  it('the secretary pays for the outbox badge and it counts PENDING entries (P58)', async () => {
+    counts.waOutbox = 7;
+    const r = await getNavBadgeCounts('SECRETARY', 'sec-1');
+    expect(r.waOutbox).toBe(7);
+    expect(counts.calls).toContain('waOutbox');
+  });
+
   it('an admin shares the secretary’s desk counters', async () => {
     // staffNavEntries gives ADMIN the secretary's sidebar, so the admin pays
     // for the desk counters and not the doctor's approvals badge.
@@ -112,6 +129,7 @@ describe('getNavBadgeCounts', () => {
       homeProgramApprovals: 0,
       unconfirmed: 0,
       waInbox: 0,
+      waOutbox: 0,
     });
   });
 });

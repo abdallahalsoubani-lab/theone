@@ -11,7 +11,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatDateTime } from '@/lib/format/date';
 import { patientDisplayName } from '@/lib/format/patientName';
-import { excludeOutboxAction, sendOutboxAction } from '@/lib/whatsapp/dispatch/actions';
+import {
+  excludeOutboxAction,
+  sendOutboxAction,
+  sendOutboxSingleAction,
+} from '@/lib/whatsapp/dispatch/actions';
 import type { OutboxRow } from '@/lib/whatsapp/dispatch/queries';
 
 /**
@@ -46,6 +50,21 @@ export function OutboxSection({ type, rows }: { type: WaDispatchType; rows: Outb
         return;
       }
       toast.success(t('excludedToast'));
+      router.refresh();
+    });
+
+  // P58 item 1 — send exactly this one message; everything else stays held.
+  // No confirm dialog, consistent with Exclude; the server re-runs the stale
+  // guard, so a row gone stale since page load is refused, never sent.
+  const sendOne = (entryId: string) =>
+    startTransition(async () => {
+      const r = await sendOutboxSingleAction(entryId);
+      if (!r.ok) {
+        toast.error(locale === 'ar' ? r.error.message_ar : r.error.message_en);
+        router.refresh();
+        return;
+      }
+      toast.success(t('sentOneToast'));
       router.refresh();
     });
 
@@ -122,16 +141,28 @@ export function OutboxSection({ type, rows }: { type: WaDispatchType; rows: Outb
                     {formatDateTime(r.createdAt, intlLocale)}
                   </td>
                   <td className="p-2 text-end">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      disabled={pending}
-                      onClick={() => exclude(r.id)}
-                    >
-                      <X className="me-1 size-3.5" />
-                      {t('exclude')}
-                    </Button>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending || r.stale}
+                        onClick={() => sendOne(r.id)}
+                      >
+                        <Send className="me-1 size-3.5" />
+                        {t('sendOne')}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={pending}
+                        onClick={() => exclude(r.id)}
+                      >
+                        <X className="me-1 size-3.5" />
+                        {t('exclude')}
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}

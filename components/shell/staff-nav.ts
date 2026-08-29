@@ -25,7 +25,8 @@ export interface StaffNavEntry {
     | 'clipboardList'
     | 'clipboardCheck'
     | 'dumbbell'
-    | 'messageCircle';
+    | 'messageCircle'
+    | 'send';
   badge?: StaffNavBadge;
 }
 
@@ -37,7 +38,8 @@ export type StaffNavBadge =
   | 'intakeSubmissions'
   | 'homeProgramApprovals'
   | 'unconfirmed'
-  | 'waInbox';
+  | 'waInbox'
+  | 'waOutbox';
 
 export function staffNavEntries(role: UserRole): StaffNavEntry[] {
   if (role === 'SECRETARY' || role === 'ADMIN') {
@@ -82,6 +84,15 @@ export function staffNavEntries(role: UserRole): StaffNavEntry[] {
         href: '/secretary/whatsapp',
         icon: 'messageCircle',
         badge: 'waInbox',
+      },
+      // P58 — the held-message outbox (P48/P51): with silent mode ON this is
+      // the secretary's daily send queue. Badge counts every PENDING entry,
+      // exactly like the admin sidebar's.
+      {
+        labelKey: 'navigation:whatsappOutbox',
+        href: '/secretary/whatsapp/outbox',
+        icon: 'send',
+        badge: 'waOutbox',
       },
     ];
   }

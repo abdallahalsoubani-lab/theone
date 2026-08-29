@@ -15,8 +15,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * to assert the reversed behaviour.
  */
 
+// Pass-through, but capture each decorator config so tests can pin the audit
+// events without loading the real withAudit (it pulls @/auth → next-auth).
+const auditConfigs = vi.hoisted(
+  () => [] as Array<{ extractAfter?: (r: never) => Record<string, unknown> }>,
+);
 vi.mock('@/lib/audit/withAudit', () => ({
-  withAudit: (_cfg: unknown, fn: unknown) => fn,
+  withAudit: (cfg: (typeof auditConfigs)[number], fn: unknown) => {
+    auditConfigs.push(cfg);
+    return fn;
+  },
 }));
 vi.mock('@/lib/impersonation/session', () => ({
   getEffectiveSession: vi.fn(async () => ({
@@ -154,7 +162,8 @@ vi.mock('@/lib/db', () => ({
   toLocalizedError: (e: unknown) => e,
 }));
 
-const { recordDispatchEvent, sendOutboxBatch, excludeDispatchEntry } = await import('../service');
+const { recordDispatchEvent, sendOutboxBatch, sendOutboxSingle, excludeDispatchEntry } =
+  await import('../service');
 const { markDispatchOutcome } = await import('../outcome');
 
 const FUTURE_FAR = () => new Date(Date.now() + 3 * 24 * 60 * 60 * 1000); // +3d
@@ -424,6 +433,129 @@ describe('sendOutboxBatch (§4.3)', () => {
   });
 });
 
+describe('sendOutboxSingle (P58 item 1)', () => {
+  // Two held bookings + one held cancellation; single-send the first booking.
+  async function seedThreeHeld() {
+    state.settings = { ...MANUAL_SETTINGS };
+    await recordDispatchEvent({
+      appointmentId: 'a1',
+      patientId: 'p1',
+      startsAt: FUTURE_FAR(),
+      type: 'BOOKING_CONFIRMATION',
+    });
+    await recordDispatchEvent({
+      appointmentId: 'a2',
+      patientId: 'p2',
+      startsAt: FUTURE_FAR(),
+      type: 'BOOKING_CONFIRMATION',
+    });
+    confirmationSentMock.mockResolvedValue(true);
+    await recordDispatchEvent({
+      appointmentId: 'a3',
+      patientId: 'p3',
+      startsAt: FUTURE_FAR(),
+      type: 'CANCELLATION',
+    });
+    state.appointments = [
+      { id: 'a1', startsAt: FUTURE_FAR() },
+      { id: 'a2', startsAt: FUTURE_FAR() },
+      { id: 'a3', startsAt: FUTURE_FAR() },
+    ];
+    scheduleMock.mockClear();
+  }
+
+  it('sends exactly the one entry; every other held row stays PENDING', async () => {
+    await seedThreeHeld();
+    const pendingBefore = state.rows.filter((r) => r.status === 'PENDING').length;
+    expect(pendingBefore).toBe(3);
+
+    const target = state.rows.find((r) => r.appointmentId === 'a1')!;
+    const r = await sendOutboxSingle({ entryId: target.id, adminId: 'sec-1' });
+
+    expect(r).toEqual({ entryId: target.id, sent: true, stale: false });
+    expect(scheduleMock).toHaveBeenCalledTimes(1);
+    expect(scheduleMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appointmentId: 'a1',
+        kind: 'confirmation',
+        delayMinutes: 0,
+        adminSend: true,
+      }),
+    );
+    expect(target).toMatchObject({
+      status: 'SCHEDULED',
+      dispatchReason: 'MANUAL',
+      sentById: 'sec-1',
+    });
+    // The rest of the queue is untouched — same-type and other-type alike.
+    expect(state.rows.filter((r2) => r2.status === 'PENDING')).toHaveLength(pendingBefore - 1);
+    expect(state.rows.find((r2) => r2.appointmentId === 'a2')!.status).toBe('PENDING');
+    expect(state.rows.find((r2) => r2.appointmentId === 'a3')!.status).toBe('PENDING');
+  });
+
+  it('goes out even while silent mode is ON — human-initiated, adminSend on the job', async () => {
+    await seedThreeHeld();
+    state.settings = { ...MANUAL_SETTINGS, whatsappSilentMode: true };
+
+    const target = state.rows.find((r) => r.appointmentId === 'a1')!;
+    const r = await sendOutboxSingle({ entryId: target.id, adminId: 'adm-1' });
+
+    expect(r.sent).toBe(true);
+    expect(scheduleMock).toHaveBeenCalledTimes(1);
+    expect(scheduleMock).toHaveBeenCalledWith(expect.objectContaining({ adminSend: true }));
+    // One message out; the master switch itself was never written.
+    expect(state.settings.whatsappSilentMode).toBe(true);
+  });
+
+  it('a stale row is refused: marked STALE, nothing sent', async () => {
+    await seedThreeHeld();
+    // The booking's appointment got cancelled after the entry parked —
+    // the P51 staleness rule (time-independent branch).
+    state.appointments = [
+      { id: 'a1', startsAt: FUTURE_FAR(), status: 'CANCELLED' },
+      { id: 'a2', startsAt: FUTURE_FAR() },
+      { id: 'a3', startsAt: FUTURE_FAR() },
+    ];
+
+    const target = state.rows.find((r) => r.appointmentId === 'a1')!;
+    const r = await sendOutboxSingle({ entryId: target.id, adminId: 'sec-1' });
+
+    expect(r).toEqual({ entryId: target.id, sent: false, stale: true });
+    expect(scheduleMock).not.toHaveBeenCalled();
+    expect(target).toMatchObject({ status: 'STALE', failureReason: 'stale at send time' });
+    // Everything else still held.
+    expect(state.rows.filter((r2) => r2.status === 'PENDING')).toHaveLength(2);
+  });
+
+  it('rejects a non-pending entry', async () => {
+    await seedThreeHeld();
+    const target = state.rows.find((r) => r.appointmentId === 'a1')!;
+    target.status = 'EXCLUDED';
+    await expect(sendOutboxSingle({ entryId: target.id, adminId: 'sec-1' })).rejects.toThrow(
+      'DISPATCH_ENTRY_NOT_PENDING',
+    );
+    expect(scheduleMock).not.toHaveBeenCalled();
+  });
+
+  it('audits under its own event, distinct from the batch (OUTBOX_SEND_SINGLE)', () => {
+    const events = auditConfigs
+      .map((c) =>
+        c.extractAfter?.({
+          entryId: 'x',
+          sent: true,
+          stale: false,
+          count: 1,
+          entryIds: [],
+          staleIds: [],
+        } as never),
+      )
+      .filter(Boolean)
+      .map((a) => (a as { event: string }).event);
+    expect(events).toContain('OUTBOX_SEND_SINGLE');
+    expect(events).toContain('OUTBOX_BATCH_SENT');
+  });
+});
+
 describe('markDispatchOutcome (worker callback)', () => {
   it('flips the SCHEDULED entry to SENT / FAILED', async () => {
     await recordDispatchEvent({
@@ -623,16 +755,21 @@ describe('P51 — silent mode (master hold-all switch)', () => {
     );
   });
 
-  it('RBAC: the toggle + Send actions gate on whatsapp.dispatch (ADMIN-only in the matrix)', async () => {
-    // can.test.ts pins the matrix (non-ADMIN denied); here we pin that the
-    // actions actually call the guard with that permission.
+  it('RBAC: Send actions gate on whatsapp.dispatch; the toggle on ADMIN-only whatsapp.silent_mode (P58)', async () => {
+    // can.test.ts pins the matrix (P58: SECRETARY holds dispatch, only
+    // ADMIN holds silent_mode); here we pin that the actions actually call
+    // the guard with the right permission — the toggle must NOT ride the
+    // dispatch permission the secretary now has.
     const { readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
     const src = readFileSync(join(process.cwd(), 'lib/whatsapp/dispatch/actions.ts'), 'utf8');
     const silentAction = src.slice(src.indexOf('export async function setSilentModeAction'));
-    expect(silentAction).toContain("await requirePermission('whatsapp.dispatch')");
+    expect(silentAction).toContain("await requirePermission('whatsapp.silent_mode')");
+    expect(silentAction).not.toContain("requirePermission('whatsapp.dispatch')");
     const sendAction = src.slice(src.indexOf('export async function sendOutboxAction'));
     expect(sendAction).toContain("await requirePermission('whatsapp.dispatch')");
+    const singleAction = src.slice(src.indexOf('export async function sendOutboxSingleAction'));
+    expect(singleAction).toContain("await requirePermission('whatsapp.dispatch')");
   });
 
   it('setSilentMode flips the setting and audits with the distinct event', async () => {

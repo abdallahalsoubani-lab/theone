@@ -225,12 +225,16 @@ export const PERMISSIONS = {
   WHATSAPP_MESSAGES_READ: 'whatsapp_messages.read',
   WHATSAPP_MESSAGES_RESEND: 'whatsapp_messages.resend',
 
-  // ── WhatsApp dispatch control (P48 — admin only) ─────────────────────
-  // Per-type AUTO/MANUAL outbox for appointment messages. The admin is the
-  // ONLY role that sees or touches any of it (owner decision).
+  // ── WhatsApp dispatch control (P48, extended P58) ────────────────────
+  // Per-type AUTO/MANUAL outbox for appointment messages. P58: the
+  // SECRETARY runs the outbox day-to-day (view / send / single-send /
+  // exclude — owner decision, silent mode made it her daily workflow);
+  // the silent-mode master switch stays ADMIN-only under its own code.
   WHATSAPP_DISPATCH: 'whatsapp.dispatch',
   WHATSAPP_OUTBOX_READ: 'whatsapp_outbox.read',
   WHATSAPP_OUTBOX_EXCLUDE: 'whatsapp_outbox.exclude',
+  // P58 item 2.4 — flipping the P51 master switch is a management decision.
+  WHATSAPP_SILENT_MODE: 'whatsapp.silent_mode',
 
   // ── Secretary inbox (Prompt 8) ───────────────────────────────────────
   // Surfaces inbound reschedule/cancel requests and outbound delivery
@@ -318,6 +322,12 @@ const SECRETARY_PERMS = new Set<PermissionCode>([
   PERMISSIONS.INBOX_READ,
   PERMISSIONS.WHATSAPP_ATTACHMENTS_READ,
   PERMISSIONS.INBOX_RESOLVE,
+  // P58 — the outbox is the secretary's daily workflow under silent mode:
+  // full queue management (bulk + single send, exclude). The silent-mode
+  // switch itself (WHATSAPP_SILENT_MODE) is deliberately NOT granted.
+  PERMISSIONS.WHATSAPP_DISPATCH,
+  PERMISSIONS.WHATSAPP_OUTBOX_READ,
+  PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE,
   PERMISSIONS.NOTIFICATIONS_READ_OWN,
   PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN,
 ]);
@@ -498,6 +508,7 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.WHATSAPP_DISPATCH,
   PERMISSIONS.WHATSAPP_OUTBOX_READ,
   PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE,
+  PERMISSIONS.WHATSAPP_SILENT_MODE,
   PERMISSIONS.SYSTEM_SETTINGS_CREATE,
   PERMISSIONS.SYSTEM_SETTINGS_READ,
   PERMISSIONS.SYSTEM_SETTINGS_UPDATE,
