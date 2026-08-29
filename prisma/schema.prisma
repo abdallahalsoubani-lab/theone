@@ -1103,6 +1103,10 @@ model WhatsAppMessage {
 
   inboxItems  InboxItem[]          @relation("InboxItemMessage")
   attachments WhatsAppAttachment[]
+  // P57 — broadcast recipients whose send produced this message row. The
+  // campaign semantics live entirely on BroadcastRecipient; this is only
+  // the back side of its delivery-status link.
+  broadcastRecipients BroadcastRecipient[] @relation("BroadcastMessage")
 
   createdAt DateTime @default(now())
 
@@ -1110,6 +1114,42 @@ model WhatsAppMessage {
   @@index([status])
   @@index([providerMessageId])
   @@index([appointmentId])
+}
+
+/// P57 — per-recipient lifecycle of a one-off broadcast run by
+/// scripts/broadcast-number-change.ts. SKIPPED is reserved for rows a
+/// future run deliberately excludes (never set automatically today).
+enum BroadcastStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED
+}
+
+/// P57 — one row per recipient of a one-off admin broadcast campaign
+/// (clinic number change, ~1,689 recipients). The @@unique([campaign,
+/// phone]) pair is the idempotency backbone: --load can never duplicate a
+/// recipient and --apply never re-sends a non-PENDING row. Delivery status
+/// is NOT tracked here — it lives on the linked WhatsAppMessage row, which
+/// the existing Twilio status webhook updates by providerMessageId.
+model BroadcastRecipient {
+  id         String          @id @default(cuid())
+  campaign   String
+  /// E.164, validated at --load.
+  phone      String
+  /// Display-only name from the campaign CSV.
+  name       String?
+  status     BroadcastStatus @default(PENDING)
+  /// Provider-rejection reason captured when status = FAILED.
+  failReason String?
+  sentAt     DateTime?
+  createdAt  DateTime        @default(now())
+
+  messageId String?
+  message   WhatsAppMessage? @relation("BroadcastMessage", fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@unique([campaign, phone])
+  @@index([campaign, status])
 }
 
 enum WaAttachmentStatus {

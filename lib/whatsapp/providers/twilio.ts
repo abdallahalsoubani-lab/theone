@@ -114,7 +114,7 @@ const TERMINAL_TWILIO_CODES = new Set<number>([
   21617, // Concatenated message body exceeds maximum length
   63016, // Failed to send message because tester not opted in (Sandbox)
   63017, // Channel could not be reached at this time
-  63018, // Message failed to send because recipient is invalid
+  63018, // WhatsApp per-day messaging limit reached for the sender (quality tier)
   63024, // Number cannot receive WhatsApp messages
 ]);
 

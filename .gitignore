@@ -61,3 +61,7 @@ staff-credentials-*.txt
 # Playwright artifacts
 /test-results/
 /playwright-report/
+
+# P57 broadcast — recipient PII, transferred out-of-band, never committed
+campaign-*.csv
+broadcast-failed.csv
