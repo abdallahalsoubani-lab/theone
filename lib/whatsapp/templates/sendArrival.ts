@@ -21,6 +21,9 @@ export async function sendArrivalConfirmation(args: {
   patientId: string;
   /** The appointments this one arrival covers; the first anchors the log row. */
   appointmentIds: string[];
+  /** P59 — outbox Send: bypass the stale whatsappReachable flag (see
+   *  sendAppointmentConfirmation). */
+  force?: boolean;
 }): Promise<void> {
   const patient = await db.user.findUnique({
     where: { id: args.patientId },
@@ -33,7 +36,11 @@ export async function sendArrivalConfirmation(args: {
       fullNameAr: true,
     },
   });
-  if (!patient?.whatsappReachable || !patient.phone) return;
+  if (!patient?.phone) {
+    if (args.force) throw new Error('patient has no phone number');
+    return;
+  }
+  if (!patient.whatsappReachable && !args.force) return;
 
   const isAr = patient.languagePref === 'AR';
   const fullName =

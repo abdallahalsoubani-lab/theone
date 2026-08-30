@@ -162,6 +162,44 @@ export function parseMetaErrorCode(reason: string | null | undefined): number | 
   return m ? Number(m[1]) : null;
 }
 
+/**
+ * Provider error codes where the failure is OURS (the sender's channel,
+ * limits, or template configuration), not evidence about the recipient:
+ *   63018 — sender throughput / per-day messaging (quality-tier) limit
+ *   63049 — Meta per-user marketing-template limit (policy throttle)
+ * A failure with one of these must NOT flip `User.whatsappReachable` —
+ * flagging a patient unreachable because OUR sender ran out of daily quota
+ * silently suppresses every later send to them (the P59 outbox bug).
+ */
+const SENDER_SIDE_PROVIDER_CODES = new Set(['63018', '63049']);
+
+const SENDER_SIDE_ERROR_CODES: ReadonlySet<WhatsAppErrorCode> = new Set<WhatsAppErrorCode>([
+  'PROVIDER_RATE_LIMIT',
+  'PROVIDER_AUTH',
+  'PROVIDER_5XX',
+  'PROVIDER_NETWORK',
+  'TEMPLATE_NOT_CONFIGURED',
+  'TEMPLATE_NOT_APPROVED',
+  'TEMPLATE_SID_INVALID',
+]);
+
+/**
+ * Classify a stored failureReason (either the worker's
+ * "{CODE} [{providerCode}]: message" shape or the delivery webhook's
+ * "[{providerCode}] message" shape): true when the failure says something
+ * about OUR side rather than the recipient's account.
+ */
+export function isSenderSideFailure(reason: string | null | undefined): boolean {
+  if (!reason) return false;
+  // Prefix match rather than parseFailureReasonCode — codes with digits
+  // (PROVIDER_5XX) defeat that parser's word-boundary regex.
+  for (const code of SENDER_SIDE_ERROR_CODES) {
+    if (reason.startsWith(code)) return true;
+  }
+  const m = reason.match(/\[(\d{4,6})\]/);
+  return m?.[1] != null && SENDER_SIDE_PROVIDER_CODES.has(m[1]);
+}
+
 function stripSecrets(message: string): string {
   return message
     .replace(/(Bearer\s+)[\w.-]+/gi, '$1<redacted>')

@@ -57,6 +57,8 @@ vi.mock('@/lib/db', () => {
     auditLogs: [] as Array<Record<string, unknown>>,
     inboxItems: [] as Array<Record<string, unknown>>,
     userUpdates: [] as Array<{ id: string; data: Record<string, unknown> }>,
+    // P59 — dispatch-ledger flips recorded by the FAILED status handler.
+    dispatchUpdates: [] as Array<{ where: Record<string, unknown>; data: Record<string, unknown> }>,
     enqueuedOutbound: [] as Array<Record<string, unknown>>,
     // Prompt 49 — thin conversation rows keyed by phone.
     conversations: [] as Array<{
@@ -196,6 +198,27 @@ vi.mock('@/lib/db', () => {
           state.inboxItems.push(data);
           return data;
         }),
+        // P59 — the FAILED status handler dedupes its inbox item per message.
+        findFirst: vi.fn(
+          async ({ where }: { where: { messageId: string; type: string } }) =>
+            state.inboxItems.find(
+              (i) => i.messageId === where.messageId && i.type === where.type,
+            ) ?? null,
+        ),
+      },
+      whatsAppDispatch: {
+        updateMany: vi.fn(
+          async ({
+            where,
+            data,
+          }: {
+            where: Record<string, unknown>;
+            data: Record<string, unknown>;
+          }) => {
+            state.dispatchUpdates.push({ where, data });
+            return { count: 1 };
+          },
+        ),
       },
       whatsAppConversation: {
         upsert: vi.fn(
@@ -293,6 +316,7 @@ type DbState = {
     failureReason: string | null;
     deliveredAt: Date | null;
     readAt: Date | null;
+    template?: { name: string } | null;
   }>;
   inboundMessagesCreated: Array<Record<string, unknown>>;
   attachmentsCreated: Array<Record<string, unknown>>;
@@ -308,6 +332,7 @@ type DbState = {
   auditLogs: Array<Record<string, unknown>>;
   inboxItems: Array<Record<string, unknown>>;
   userUpdates: Array<{ id: string; data: Record<string, unknown> }>;
+  dispatchUpdates: Array<{ where: Record<string, unknown>; data: Record<string, unknown> }>;
   enqueuedOutbound: Array<Record<string, unknown>>;
   conversations: Array<{
     id: string;
@@ -332,6 +357,7 @@ function reset(): void {
   state.auditLogs.length = 0;
   state.inboxItems.length = 0;
   state.userUpdates.length = 0;
+  state.dispatchUpdates.length = 0;
   state.enqueuedOutbound.length = 0;
   state.conversations.length = 0;
   resetProcessed();
@@ -691,6 +717,67 @@ describe('processWebhookEvent — status updates', () => {
       },
     });
     expect(state.userUpdates).toHaveLength(0);
+  });
+
+  // ─── P59 — async failure visibility + sender-side classification ─────────
+
+  it('files an OUTBOUND_DELIVERY_FAILED inbox item on a recipient-side FAILED (once)', async () => {
+    const fail = () =>
+      processWebhookEvent({
+        kind: 'status',
+        status: {
+          providerMessageId: 'out-prov-1',
+          status: 'FAILED',
+          occurredAt: new Date(),
+          failureReason: '[63024]',
+        },
+      });
+    await fail();
+    expect(state.inboxItems).toHaveLength(1);
+    expect(state.inboxItems[0]).toMatchObject({
+      type: 'OUTBOUND_DELIVERY_FAILED',
+      patientId: 'patient-1',
+      messageId: 'out-1',
+      note: '[63024]',
+    });
+    expect(state.userUpdates[0]).toMatchObject({
+      id: 'patient-1',
+      data: { whatsappReachable: false },
+    });
+    // Webhook redelivery must not duplicate the item.
+    await fail();
+    expect(state.inboxItems).toHaveLength(1);
+  });
+
+  it('SENDER-SIDE failure (63018 daily limit) neither flags the patient nor files an item', async () => {
+    await processWebhookEvent({
+      kind: 'status',
+      status: {
+        providerMessageId: 'out-prov-1',
+        status: 'FAILED',
+        occurredAt: new Date(),
+        failureReason: '[63018]',
+      },
+    });
+    expect(state.userUpdates).toHaveLength(0);
+    expect(state.inboxItems).toHaveLength(0);
+  });
+
+  it('flips the SENT dispatch-ledger row to FAILED for the message template type', async () => {
+    state.outboundMessages[0]!.template = { name: 'appointment_confirmation_v2' };
+    await processWebhookEvent({
+      kind: 'status',
+      status: {
+        providerMessageId: 'out-prov-1',
+        status: 'FAILED',
+        occurredAt: new Date(),
+        failureReason: '[63018]',
+      },
+    });
+    expect(state.dispatchUpdates[0]).toMatchObject({
+      where: { appointmentId: 'appt-1', type: 'BOOKING_CONFIRMATION', status: 'SENT' },
+      data: { status: 'FAILED', failureReason: '[63018]' },
+    });
   });
 });
 

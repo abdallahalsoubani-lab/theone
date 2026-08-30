@@ -87,18 +87,22 @@ export function startReminderWorker(): Worker {
         }
         const { markDispatchOutcome } = await import('@/lib/whatsapp/dispatch/outcome');
         try {
+          // P59 — an admin-pressed Send must genuinely ATTEMPT the send:
+          // force bypasses the (possibly stale) whatsappReachable skip, so
+          // the outcome recorded is the provider's, not a silent no-op.
+          const force = job.data.adminSend === true;
           if (kind === 'confirmation') {
             const { sendAppointmentConfirmation } =
               await import('@/lib/whatsapp/templates/sendConfirmation');
-            await sendAppointmentConfirmation({ appointmentId });
+            await sendAppointmentConfirmation({ appointmentId, force });
           } else if (kind === 'reschedule') {
             const { sendAppointmentRescheduled } =
               await import('@/lib/whatsapp/templates/sendRescheduled');
-            await sendAppointmentRescheduled({ appointmentId });
+            await sendAppointmentRescheduled({ appointmentId, force });
           } else {
             const { sendAppointmentCancelled } =
               await import('@/lib/whatsapp/templates/sendCancelled');
-            await sendAppointmentCancelled({ appointmentId });
+            await sendAppointmentCancelled({ appointmentId, force });
           }
         } catch (err) {
           await markDispatchOutcome({
@@ -133,6 +137,9 @@ export function startReminderWorker(): Worker {
           await sendArrivalConfirmation({
             patientId: row.patientId,
             appointmentIds: [appointmentId],
+            // P59 — arrival jobs on this queue only exist via the outbox
+            // Send button; force past the stale reachability flag.
+            force: job.data.adminSend === true,
           });
         } catch (err) {
           await markDispatchOutcome({

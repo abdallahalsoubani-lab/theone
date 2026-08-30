@@ -234,6 +234,32 @@ describe('TwilioWhatsAppProvider.sendTemplate', () => {
     ).rejects.toMatchObject({ code: 'INVALID_RECIPIENT', retryable: false });
   });
 
+  // P59 — 63018 is the SENDER's daily/throughput limit, not a recipient
+  // problem: it must classify sender-side (PROVIDER_RATE_LIMIT) so the
+  // failure never flips the patient's whatsappReachable flag.
+  it('wraps 63018 as PROVIDER_RATE_LIMIT (sender-side), non-retryable', async () => {
+    const client = fakeClient({
+      create: vi.fn(async () => {
+        const err = new Error('daily messages limit reached') as Error & {
+          code: number;
+          status: number;
+        };
+        err.code = 63018;
+        err.status = 429;
+        throw err;
+      }),
+    });
+    const provider = new TwilioWhatsAppProvider({ client });
+    await expect(
+      provider.sendTemplate({
+        name: 'appointment_reminder_30min',
+        language: LanguagePref.EN,
+        recipientPhone: '+962790000000',
+        parameters: [],
+      }),
+    ).rejects.toMatchObject({ code: 'PROVIDER_RATE_LIMIT', retryable: false, providerCode: 63018 });
+  });
+
   it('wraps 429 as PROVIDER_RATE_LIMIT, retryable', async () => {
     const client = fakeClient({
       create: vi.fn(async () => {

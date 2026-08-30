@@ -24,7 +24,7 @@ import { queueRedis } from '@/lib/queue/client';
 import type { WhatsappOutboundJob } from '@/lib/queue/jobs/whatsappOutbound';
 import { WHATSAPP_OUTBOUND_QUEUE } from '@/lib/queue/queues';
 import { whatsapp } from '@/lib/whatsapp';
-import { WhatsAppError, describeWhatsAppError } from '@/lib/whatsapp/errors';
+import { WhatsAppError, describeWhatsAppError, isSenderSideFailure } from '@/lib/whatsapp/errors';
 import { makeOutboundRateLimiter } from '@/lib/whatsapp/rateLimit';
 import type { SendResult } from '@/lib/whatsapp/provider';
 import { substituteTemplateBody } from '@/lib/whatsapp/templates/render';
@@ -124,6 +124,16 @@ async function recordTerminalFailure(args: {
       appointmentId: job.appointmentId ?? null,
     },
   });
+
+  // P59 — a sender-side failure (our daily quota / throughput / template
+  // config) says NOTHING about the recipient: flagging them unreachable
+  // would silently suppress every later send to them, and one inbox item
+  // per message would flood the feed on a quota-exhausted day. Log loudly
+  // instead; the message row itself carries the FAILED status + reason.
+  if (isSenderSideFailure(reason)) {
+    console.error(`[whatsapp.outbound] SENDER-SIDE failure (recipient flag untouched): ${reason}`);
+    return;
+  }
 
   if (job.recipientUserId) {
     await db.user.update({

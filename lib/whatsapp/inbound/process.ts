@@ -152,6 +152,25 @@ async function resolveReplyTargets(args: { fromPhone: string }): Promise<ReplyTa
   };
 }
 
+/**
+ * P59 — map an outbound template name back to its dispatch-ledger type so a
+ * delivery-status FAILURE can flip the matching WhatsAppDispatch row from
+ * SENT (= "handed to the provider") to FAILED (= "the patient did NOT get
+ * it"). Names, not ids, because the registry versions templates by name
+ * prefix (v2/v3/single/multi).
+ */
+function dispatchTypeForTemplate(
+  name: string,
+): 'BOOKING_CONFIRMATION' | 'RESCHEDULE' | 'CANCELLATION' | 'REMINDER' | 'ARRIVAL' | null {
+  if (name.startsWith('appointment_confirmation') || name === 'new_patient_confirmation')
+    return 'BOOKING_CONFIRMATION';
+  if (name.startsWith('appointment_rescheduled')) return 'RESCHEDULE';
+  if (name.startsWith('appointment_cancelled')) return 'CANCELLATION';
+  if (name.startsWith('appointment_reminder')) return 'REMINDER';
+  if (name.startsWith('arrival_confirmation')) return 'ARRIVAL';
+  return null;
+}
+
 async function handleStatusUpdate(args: {
   providerMessageId: string;
   status: 'SENT' | 'DELIVERED' | 'READ' | 'FAILED';
@@ -160,7 +179,13 @@ async function handleStatusUpdate(args: {
 }): Promise<void> {
   const existing = await db.whatsAppMessage.findFirst({
     where: { providerMessageId: args.providerMessageId },
-    select: { id: true, status: true, recipientId: true },
+    select: {
+      id: true,
+      status: true,
+      recipientId: true,
+      appointmentId: true,
+      template: { select: { name: true } },
+    },
   });
   if (!existing) {
     // The status callback may arrive before we've persisted the outbound
@@ -172,6 +197,7 @@ async function handleStatusUpdate(args: {
   // Don't move backwards (READ → DELIVERED), don't overwrite FAILED.
   if (existing.status === 'FAILED' && args.status !== 'FAILED') return;
   if (existing.status === 'READ' && args.status === 'DELIVERED') return;
+  const alreadyFailed = existing.status === 'FAILED';
 
   await db.whatsAppMessage.update({
     where: { id: existing.id },
@@ -184,15 +210,70 @@ async function handleStatusUpdate(args: {
     },
   });
 
-  if (args.status === 'FAILED' && existing.recipientId) {
+  if (args.status !== 'FAILED' || alreadyFailed) return;
+
+  const reason = args.failureReason ?? 'failed';
+  const { isSenderSideFailure } = await import('@/lib/whatsapp/errors');
+  const senderSide = isSenderSideFailure(reason);
+
+  // P59 — the ledger must not keep saying SENT for a message the provider
+  // later reported undelivered: flip the matching entry so the outbox /
+  // audit history tells the truth. Matched by (appointment, type) exactly
+  // like markDispatchOutcome; messages without an appointment (broadcast,
+  // OTP, credentials) have no ledger row and skip.
+  const templateName = existing.template?.name;
+  const dispatchType = templateName ? dispatchTypeForTemplate(templateName) : null;
+  if (existing.appointmentId && dispatchType) {
+    await db.whatsAppDispatch
+      .updateMany({
+        where: {
+          appointmentId: existing.appointmentId,
+          type: dispatchType,
+          status: 'SENT',
+        },
+        data: { status: 'FAILED', failureReason: reason.slice(0, 500) },
+      })
+      .catch((err: unknown) => console.error('[whatsapp.status] dispatch-ledger flip failed', err));
+  }
+
+  if (senderSide) {
+    // Our channel's quota/limits — says nothing about the recipient. Never
+    // flag them unreachable (P59: the 63018 broadcast days were silently
+    // poisoning patients), and no per-message inbox flood.
+    console.error(
+      `[whatsapp.status] delivery failed SENDER-SIDE (recipient flag untouched): ${reason}`,
+    );
+    return;
+  }
+
+  if (existing.recipientId) {
     await db.user.update({
       where: { id: existing.recipientId },
       data: {
         whatsappReachable: false,
         whatsappLastFailureAt: args.occurredAt,
-        whatsappLastFailureReason: args.failureReason ?? 'failed',
+        whatsappLastFailureReason: reason,
       },
     });
+    // P59 — an async delivery failure was previously invisible (the send
+    // "succeeded", the failure arrived later by webhook and nobody was
+    // told). File the same OUTBOUND_DELIVERY_FAILED inbox item the
+    // API-level terminal failure files, once per message.
+    const already = await db.inboxItem.findFirst({
+      where: { messageId: existing.id, type: 'OUTBOUND_DELIVERY_FAILED' },
+      select: { id: true },
+    });
+    if (!already) {
+      await db.inboxItem.create({
+        data: {
+          type: 'OUTBOUND_DELIVERY_FAILED',
+          patientId: existing.recipientId,
+          appointmentId: existing.appointmentId ?? null,
+          messageId: existing.id,
+          note: reason,
+        },
+      });
+    }
   }
 }
 

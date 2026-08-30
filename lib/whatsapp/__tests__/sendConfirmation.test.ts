@@ -98,6 +98,21 @@ describe('sendAppointmentConfirmation', () => {
     warnSpy.mockRestore();
     expect(enqueueMock).not.toHaveBeenCalled();
   });
+
+  // P59 — an admin-pressed outbox Send must genuinely attempt the send.
+  it('force=true sends past a stale whatsappReachable=false flag', async () => {
+    __state.appt = appt({ whatsappReachable: false });
+    await sendAppointmentConfirmation({ appointmentId: 'appt-1', force: true });
+    expect(enqueueMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('force=true throws on a phone-less patient (ledger records FAILED, not a silent SENT)', async () => {
+    __state.appt = appt({ phone: null });
+    await expect(
+      sendAppointmentConfirmation({ appointmentId: 'appt-1', force: true }),
+    ).rejects.toThrow(/no phone/);
+    expect(enqueueMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('P52 — combined new-patient confirmation template selection', () => {

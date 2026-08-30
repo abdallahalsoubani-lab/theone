@@ -146,6 +146,19 @@ function wrapTwilioError(err: unknown): WhatsAppError {
     });
   }
   if (isTerminalTwilioError(providerCode)) {
+    // 63018 is the SENDER's daily/throughput limit — nothing about the
+    // recipient. Terminal for this job (retrying inside the same window
+    // fails identically), but classified sender-side so the failure never
+    // flips the patient's whatsappReachable flag (P59).
+    if (codeNum === 63018) {
+      return new WhatsAppError({
+        code: 'PROVIDER_RATE_LIMIT',
+        message,
+        retryable: false,
+        provider: 'twilio',
+        providerCode,
+      });
+    }
     if (providerCode === 21610 || providerCode === 63016) {
       return new WhatsAppError({
         code: 'RECIPIENT_OPTED_OUT',

@@ -42,7 +42,12 @@ export function categoryLabelForLocale(
  * removed by the dispatch layer — this is the belt to that suspender),
  * and the category/time come from the row, never from a stale snapshot.
  */
-export async function sendAppointmentCancelled(args: { appointmentId: string }): Promise<void> {
+export async function sendAppointmentCancelled(args: {
+  appointmentId: string;
+  /** P59 — outbox Send: bypass the stale whatsappReachable flag (see
+   *  sendAppointmentConfirmation). */
+  force?: boolean;
+}): Promise<void> {
   const appt = await db.appointment.findUnique({
     where: { id: args.appointmentId },
     select: {
@@ -64,7 +69,11 @@ export async function sendAppointmentCancelled(args: { appointmentId: string }):
     return;
   }
   const p = appt.patient;
-  if (!p.whatsappReachable || !p.phone) return;
+  if (!p.phone) {
+    if (args.force) throw new Error('patient has no phone number');
+    return;
+  }
+  if (!p.whatsappReachable && !args.force) return;
 
   const tz = await getClinicTimeZone();
   await enqueueWhatsappOutbound({

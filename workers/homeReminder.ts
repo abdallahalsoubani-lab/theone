@@ -64,7 +64,9 @@ export function startHomeReminderWorker(): Worker {
         );
         return;
       }
-      if (!item.patient.whatsappReachable) {
+      // P59 — an admin-pressed outbox Send bypasses the (possibly stale)
+      // reachability flag; automatic fires still skip.
+      if (!item.patient.whatsappReachable && !job.data.adminSend) {
         console.warn(
           `[home-reminder] patient ${item.patient.id} is unreachable on WhatsApp — skipping`,
         );

@@ -267,7 +267,12 @@ describe('AUTO lifecycle job firing under silent mode', () => {
     await processors[REMINDERS]!({
       data: { appointmentId: 'appt-1', kind: 'arrival', adminSend: true },
     });
-    expect(senders.arrival).toHaveBeenCalledWith({ patientId: 'p1', appointmentIds: ['appt-1'] });
+    // P59 — an admin-pressed Send forces past a stale whatsappReachable flag.
+    expect(senders.arrival).toHaveBeenCalledWith({
+      patientId: 'p1',
+      appointmentIds: ['appt-1'],
+      force: true,
+    });
   });
 });
 

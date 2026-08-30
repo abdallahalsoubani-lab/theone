@@ -30,7 +30,14 @@ function intakeLinkUrl(token: string, language: 'AR' | 'EN'): string {
  * or already started during the wait — the cancel path removes the pending
  * job anyway; this is the belt to that suspender.
  */
-export async function sendAppointmentConfirmation(args: { appointmentId: string }): Promise<void> {
+export async function sendAppointmentConfirmation(args: {
+  appointmentId: string;
+  /** P59 — an admin pressed Send in the outbox: attempt the send even when
+   *  the patient is flagged whatsappReachable=false (the flag may be stale —
+   *  a success flips it back). A missing phone still throws so the dispatch
+   *  ledger records FAILED instead of a silent "SENT". */
+  force?: boolean;
+}): Promise<void> {
   const appt = await db.appointment.findUnique({
     where: { id: args.appointmentId },
     include: {
@@ -63,7 +70,11 @@ export async function sendAppointmentConfirmation(args: { appointmentId: string 
     return;
   }
   const p = appt.patient;
-  if (!p.whatsappReachable || !p.phone) return;
+  if (!p.phone) {
+    if (args.force) throw new Error('patient has no phone number');
+    return;
+  }
+  if (!p.whatsappReachable && !args.force) return;
 
   const isAr = p.languagePref === 'AR';
   const therapist = appt.therapists[0]?.therapist ?? null;

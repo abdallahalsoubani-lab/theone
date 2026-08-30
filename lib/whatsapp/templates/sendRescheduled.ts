@@ -30,7 +30,13 @@ const TEMPLATE_NAME = 'appointment_rescheduled';
  * never break the reschedule itself. Unreachable patients are skipped
  * (User.whatsappReachable, Prompt 8 §4.12).
  */
-export async function sendAppointmentRescheduled(args: { appointmentId: string }): Promise<void> {
+export async function sendAppointmentRescheduled(args: {
+  appointmentId: string;
+  /** P59 — outbox Send: bypass the stale whatsappReachable flag (see
+   *  sendAppointmentConfirmation). Phone-less recipients are still skipped
+   *  (a group message must not abort over one member). */
+  force?: boolean;
+}): Promise<void> {
   const appt = await db.appointment.findUnique({
     where: { id: args.appointmentId },
     include: {
@@ -79,7 +85,7 @@ export async function sendAppointmentRescheduled(args: { appointmentId: string }
   const firstTherapist = appt.therapists?.[0]?.therapist ?? null;
 
   for (const p of recipients) {
-    if (!p.whatsappReachable || !p.phone) continue;
+    if ((!p.whatsappReachable && !args.force) || !p.phone) continue;
     const isAr = p.languagePref === 'AR';
     const patientName = patientDisplayName(p.fullNameEn, p.fullNameAr, isAr ? 'ar' : 'en');
     const clinician = firstTherapist
