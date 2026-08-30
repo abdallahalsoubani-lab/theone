@@ -5,7 +5,7 @@
  *   pnpm tsx scripts/broadcast-number-change.ts                 # dry-run (default)
  *   pnpm tsx scripts/broadcast-number-change.ts --apply         # daily send run
  *   pnpm tsx scripts/broadcast-number-change.ts --report        # campaign report
- *   flags: --cap <n> (default 425)   --ignore-window (loud warning)
+ *   flags: --cap <n> (default 150 — see DEFAULT_DAILY_CAP)   --ignore-window (loud warning)
  *
  * Contract (Prompt 57 + 57b — owner decisions, verbatim):
  *   - Recipients come ONLY from the owner-supplied CSV (`phone,name`, E.164,
@@ -13,7 +13,9 @@
  *     from an absolute path on the VM, deleted after the campaign.
  *   - Fixed-body Arabic template `clinic_number_change_notice` (Twilio
  *     Content SID below), zero variables, existing production sender.
- *   - Daily cap 425, send window 10:00–18:00 Asia/Amman (10:00 inclusive,
+ *   - Daily cap 150 (was 425 — P59: Meta tier is 250/day and the broadcast
+ *     must not starve clinic messages), send window 10:00–18:00 Asia/Amman
+ *     (10:00 inclusive,
  *     18:00 EXCLUSIVE), one message per second, manual morning runs — no
  *     cron, no BullMQ.
  *   - Sends go DIRECTLY through the provider module (lib/whatsapp factory):
@@ -64,7 +66,14 @@ export const TEMPLATE_SID = 'HXe832cda2ae43ab2062ea0bb71ff7bc1b';
 /** P57b — the OWNER's phone. One extra template send per --apply run lands
  *  here as a "the batch ran" confirmation. Hardcoded by decision (§2.1). */
 export const CANARY_PHONE = '+962787075008';
-export const DEFAULT_DAILY_CAP = 425;
+/** P59 (30/08 measured reality): the sender sits on Meta's 250-unique-
+ *  conversations/24h tier — the original 425 cap burned the WHOLE daily
+ *  quota by ~10:50 and every clinic message after it (booking
+ *  confirmations, outbox sends) failed 63018 for the rest of the day.
+ *  150 leaves ~100 conversations/day of headroom for operations. Raise
+ *  only after Meta verifies the business / lifts the tier (--cap
+ *  overrides per-run). */
+export const DEFAULT_DAILY_CAP = 150;
 /** Send window, clinic wall clock: start inclusive, end EXCLUSIVE. */
 export const WINDOW_START_HOUR = 10;
 export const WINDOW_END_HOUR = 18;
@@ -634,7 +643,7 @@ export async function applyRun(deps: BroadcastDeps, opts: ApplyOptions = {}): Pr
         attempted -= 1;
         aborted = 'DAILY_LIMIT_63018';
         deps.log(
-          `[broadcast] ABORT — Twilio 63018: the WhatsApp per-day messaging limit is reached; the daily tier is lower than the cap. Rerun tomorrow — consider --cap 250.`,
+          `[broadcast] ABORT — Twilio 63018: the WhatsApp per-day messaging limit is reached; the daily tier is lower than the cap. Rerun tomorrow with a LOWER --cap (the P59 default 150 leaves headroom for clinic messages).`,
         );
         break;
       }

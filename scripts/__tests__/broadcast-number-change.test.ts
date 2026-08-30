@@ -447,10 +447,13 @@ describe('applyRun — cap + idempotency', () => {
     ).toBe(CANARY_PHONE);
   });
 
-  it('default cap is 425', async () => {
+  // P59 — 150, not 425: the Meta tier is 250 unique conversations/24h and
+  // the broadcast must leave headroom for the clinic's own messages.
+  it('default cap is 150 (leaves tier headroom for clinic messages)', async () => {
     const { deps, store, provider } = makeDeps();
-    seedPending(store, 430);
+    seedPending(store, DEFAULT_DAILY_CAP + 5);
     const summary = await applyRun(deps);
+    expect(DEFAULT_DAILY_CAP).toBe(150);
     expect(summary.attempted).toBe(DEFAULT_DAILY_CAP);
     expect(provider.sendTemplate).toHaveBeenCalledTimes(DEFAULT_DAILY_CAP + 1); // + canary
     expect(summary.remainingPending).toBe(5);
