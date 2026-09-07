@@ -30,6 +30,10 @@ const VALID_SHAPE_TOKENS = new Set([
   'time',
   'dayName',
   'reason',
+  'intakeUrl',
+  'reminderBody',
+  // P60 — the custom-message text slot.
+  'customText',
 ]);
 
 /**

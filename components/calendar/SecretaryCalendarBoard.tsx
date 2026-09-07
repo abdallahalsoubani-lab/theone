@@ -136,9 +136,10 @@ export function SecretaryCalendarBoard({
         found.patientFullNameAr ||
         found.title ||
         found.groupPatients.map((p) => patientDisplayName(p.fullNameEn, p.fullNameAr)).join('، '),
-      // Phone is fetched lazily; the calendar list query is lean. For now,
-      // leave blank and Prompt 7b can fetch on open if needed.
-      patientPhone: '',
+      // P60 — the P15-gated phone the calendar query already ships (null for
+      // Doctor/Therapist and for patient-less EVENTs) drives the header and
+      // the "Send a message" section's has-phone rule.
+      patientPhone: found.patientPhone ?? '',
       therapists: found.therapists,
       roomName: found.roomName,
       startsAt: found.startsAt,
@@ -147,6 +148,8 @@ export function SecretaryCalendarBoard({
       notes: found.notes,
       seriesId: found.seriesId,
       sessionNoteId: found.sessionNoteId,
+      appointmentType: found.appointmentType,
+      checkedInAt: found.checkedInAt,
     });
     setPanelOpen(true);
   };

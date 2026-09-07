@@ -1,19 +1,28 @@
 import { db } from '@/lib/db';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 
+import type { ComposedMessage, SendOutcome, SenderSendOptions } from './types';
 import { appointmentVarContext, buildParamsFromShape, resolveTemplateShape } from './variables';
 import { patientDisplayName } from '@/lib/format/patientName';
 
 const TEMPLATE_NAME = 'appointment_rescheduled';
 
+interface ComposeArgs {
+  appointmentId: string;
+  /** P59 — outbox Send: bypass the stale whatsappReachable flag (see
+   *  sendAppointmentConfirmation). Phone-less recipients are still skipped
+   *  (a group message must not abort over one member). */
+  force?: boolean;
+}
+
 /**
- * The reschedule message (Prompt 48 — the send path that never existed).
+ * The reschedule message (Prompt 48 — the send path that never existed),
+ * split into compose + send in P60.
  *
  * ONE shared funnel: every start-changing mutation calls this after commit;
  * no call site builds its own params. Fires the approved 4-variable
- * `appointment_rescheduled` template — {{1}} patient name, {{2}} new date,
- * {{3}} new time, {{4}} clinician — per recipient language, clinic wall time
- * (Prompt 31).
+ * `appointment_rescheduled` template per recipient language, clinic wall
+ * time (Prompt 31).
  *
  * Documented display decisions (Prompt 48 §Item-1):
  *   - Multi-therapist sessions name the FIRST assigned clinician — the same
@@ -25,18 +34,8 @@ const TEMPLATE_NAME = 'appointment_rescheduled';
  *   - Callers only invoke this on an ACTUAL start change (never on
  *     duration-only resizes or same-slot saves — owner ruling), and the
  *     bulk series path invokes it once for the targeted occurrence only.
- *
- * Best-effort like the confirmation/cancel sends: enqueue failures log and
- * never break the reschedule itself. Unreachable patients are skipped
- * (User.whatsappReachable, Prompt 8 §4.12).
  */
-export async function sendAppointmentRescheduled(args: {
-  appointmentId: string;
-  /** P59 — outbox Send: bypass the stale whatsappReachable flag (see
-   *  sendAppointmentConfirmation). Phone-less recipients are still skipped
-   *  (a group message must not abort over one member). */
-  force?: boolean;
-}): Promise<void> {
+export async function composeAppointmentRescheduled(args: ComposeArgs): Promise<ComposedMessage[]> {
   const appt = await db.appointment.findUnique({
     where: { id: args.appointmentId },
     include: {
@@ -69,20 +68,21 @@ export async function sendAppointmentRescheduled(args: {
       },
     },
   });
-  if (!appt) return;
+  if (!appt) return [];
   // P53 belt: the deferred worker may fire after a cancel raced the queue
   // removal — a terminal appointment never gets a reschedule notice.
   if (appt.status !== 'SCHEDULED' && appt.status !== 'CONFIRMED') {
     console.warn(`[lifecycle] appointment ${args.appointmentId} status=${appt.status} — skipped`);
-    return;
+    return [];
   }
 
   const recipients = appt.patient
     ? [appt.patient]
     : (appt.groupPatients ?? []).map((g) => g.patient);
-  if (recipients.length === 0) return; // patient-less EVENT
+  if (recipients.length === 0) return []; // patient-less EVENT
 
   const firstTherapist = appt.therapists?.[0]?.therapist ?? null;
+  const composed: ComposedMessage[] = [];
 
   for (const p of recipients) {
     if ((!p.whatsappReachable && !args.force) || !p.phone) continue;
@@ -112,17 +112,50 @@ export async function sendAppointmentRescheduled(args: {
       therapistName: clinician,
       language: p.languagePref,
     });
-    void enqueueWhatsappOutbound({
-      kind: 'template',
+    composed.push({
       templateName: TEMPLATE_NAME,
       language: p.languagePref,
       parameters: buildParamsFromShape(shape, ctx),
       recipientPhone: p.phone,
       recipientUserId: p.id,
       appointmentId: appt.id,
-      source: 'queue',
-    }).catch((err: unknown) => {
-      console.error('[appointments.reschedule] notification enqueue failed', err);
     });
   }
+  return composed;
+}
+
+/**
+ * Best-effort like the confirmation/cancel sends: enqueue failures log and
+ * never break the reschedule itself. Unreachable patients are skipped
+ * (User.whatsappReachable, Prompt 8 §4.12) unless `force`.
+ */
+export async function sendAppointmentRescheduled(
+  args: ComposeArgs & SenderSendOptions,
+): Promise<SendOutcome[]> {
+  const composed = await composeAppointmentRescheduled(args);
+  const outcomes: SendOutcome[] = [];
+  for (const m of composed) {
+    try {
+      const jobId = await enqueueWhatsappOutbound({
+        kind: 'template',
+        templateName: m.templateName,
+        language: m.language,
+        parameters: m.parameters,
+        recipientPhone: m.recipientPhone,
+        recipientUserId: m.recipientUserId,
+        appointmentId: m.appointmentId,
+        source: args.source ?? 'queue',
+        sentById: args.sentById ?? null,
+      });
+      outcomes.push({
+        jobId,
+        templateName: m.templateName,
+        language: m.language,
+        recipientUserId: m.recipientUserId,
+      });
+    } catch (err) {
+      console.error('[appointments.reschedule] notification enqueue failed', err);
+    }
+  }
+  return outcomes;
 }

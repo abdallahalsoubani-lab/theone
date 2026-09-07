@@ -17,7 +17,7 @@
  */
 
 import { Worker } from 'bullmq';
-import type { LanguagePref, Prisma, WhatsAppTemplate } from '@prisma/client';
+import type { LanguagePref, Prisma, WaMessageSource, WhatsAppTemplate } from '@prisma/client';
 
 import { db } from '@/lib/db';
 import { queueRedis } from '@/lib/queue/client';
@@ -46,6 +46,23 @@ function buildBodyPreview(job: WhatsappOutboundJob, template: WhatsAppTemplate |
   return `template:${job.templateName ?? '?'}(${job.parameters.join(', ')})`;
 }
 
+/** P60 — map the job's source marker onto the persisted enum (QUEUE default). */
+function messageSource(job: WhatsappOutboundJob): WaMessageSource {
+  switch (job.source) {
+    case 'resend':
+      return 'RESEND';
+    case 'inbound_ack':
+      return 'INBOUND_ACK';
+    case 'inbox':
+      return 'INBOX';
+    case 'manual_panel':
+      return 'MANUAL_PANEL';
+    case 'queue':
+    default:
+      return 'QUEUE';
+  }
+}
+
 async function lookupTemplate(
   name: string,
   language: LanguagePref,
@@ -72,6 +89,7 @@ async function persistAndFinalize(args: {
         ? Object.fromEntries(job.parameters.map((v, i) => [String(i + 1), v]))
         : {}) as Prisma.InputJsonValue,
       direction: 'OUTBOUND',
+      source: messageSource(job),
       status: result.status === 'FAILED' ? 'FAILED' : 'SENT',
       providerMessageId: result.providerMessageId,
       body: buildBodyPreview(job, template),
@@ -113,10 +131,12 @@ async function recordTerminalFailure(args: {
       templateId: template?.id ?? null,
       recipientId: job.recipientUserId ?? null,
       recipientPhone: job.recipientPhone,
+      sentById: job.sentById ?? null,
       parameters: (job.parameters
         ? Object.fromEntries(job.parameters.map((v, i) => [String(i + 1), v]))
         : {}) as Prisma.InputJsonValue,
       direction: 'OUTBOUND',
+      source: messageSource(job),
       status: 'FAILED',
       providerMessageId: null,
       failureReason: reason,

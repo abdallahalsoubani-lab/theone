@@ -21,6 +21,8 @@ import { whatsappOutboundQueue } from '../queues';
 
 export type WhatsappOutboundKind = 'template' | 'text';
 
+export type WhatsappOutboundSource = 'queue' | 'resend' | 'inbound_ack' | 'inbox' | 'manual_panel';
+
 export interface WhatsappOutboundJob {
   kind: WhatsappOutboundKind;
   /** Logical template name; required when kind=template. */
@@ -33,8 +35,10 @@ export interface WhatsappOutboundJob {
   recipientPhone: string;
   recipientUserId?: string | null;
   appointmentId?: string | null;
-  /** Resend / source marker — surfaces in audit + admin UI. Defaults to 'queue'. */
-  source?: 'queue' | 'resend' | 'inbound_ack' | 'inbox';
+  /** Resend / source marker — persisted on the WhatsAppMessage row (P60) so
+   *  the admin log can tell automatic sends from human-initiated ones.
+   *  Defaults to 'queue'. `manual_panel` = the appointment-panel Send (P60). */
+  source?: WhatsappOutboundSource;
   /** Prompt 49 — the staff member manually sending from the Inbox. */
   sentById?: string | null;
   /** Optional handle so resends from the admin log can link back. */

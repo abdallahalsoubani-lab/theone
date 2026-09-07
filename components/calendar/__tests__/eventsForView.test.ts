@@ -26,6 +26,7 @@ const base: Omit<CalendarAppointment, 'therapists'> = {
   notes: null,
   seriesId: null,
   sessionNoteId: null,
+  checkedInAt: null,
 };
 
 const multiTherapist: CalendarAppointment = {

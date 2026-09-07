@@ -1,6 +1,7 @@
 'use client';
 
 import { AppointmentStatus, UserRole } from '@prisma/client';
+import type { AppointmentType } from '@prisma/client';
 import { Check, CircleDot, ExternalLink, FileText, Pencil, UserCog, X } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
@@ -30,6 +31,8 @@ import { formatPhone } from '@/lib/format/phone';
 import { patientProfileHref } from '@/lib/patients/links';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 
+import { SendMessageSection } from '@/components/appointments/send-message/SendMessageSection';
+
 import { CancelAppointmentModal } from './CancelAppointmentModal';
 
 export interface SidePanelAppointment {
@@ -47,6 +50,10 @@ export interface SidePanelAppointment {
   seriesId: string | null;
   /** Primary session note id (null = no report yet) — Prompt 46 row 5. */
   sessionNoteId?: string | null;
+  /** P60 — drives the manual "Send a message" section: EVENT/GROUP have no
+   *  scalar patient (section hidden); arrival applies once checked in. */
+  appointmentType?: AppointmentType;
+  checkedInAt?: Date | null;
 }
 
 interface Props {
@@ -299,6 +306,21 @@ export function AppointmentSidePanel({
           ) : null}
         </div>
 
+        {/* P60 — manual "Send a message" (SECRETARY/ADMIN via can(); the
+            doctor's read-only panel never shows it). Hidden for EVENT/GROUP
+            (no scalar patient) and replaced by a one-line note without a
+            phone. */}
+        <SendMessageSection
+          appointmentId={appointment.id}
+          viewerRole={viewerRole}
+          hasPatient={
+            Boolean(appointment.patientId) &&
+            appointment.appointmentType !== 'EVENT' &&
+            appointment.appointmentType !== 'GROUP'
+          }
+          hasPhone={Boolean(appointment.patientPhone)}
+        />
+
         {/* Session report (Prompt 46 row 5) — this used to be a leftover
             "coming in Prompt 9" placeholder STRING, which is exactly the QA
             finding "no button to add the session report". Clinical authoring,
@@ -331,8 +353,6 @@ export function AppointmentSidePanel({
             )}
           </div>
         ) : null}
-
-        <p className="text-xs text-brand-textMuted">{tSide('linkedPlan')}</p>
       </SheetContent>
       <CancelAppointmentModal
         open={cancelOpen}

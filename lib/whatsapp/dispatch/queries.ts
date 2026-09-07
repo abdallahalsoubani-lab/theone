@@ -104,7 +104,18 @@ export async function getOutbox(): Promise<OutboxData> {
   const [pendingRows, recentRows] = await Promise.all([
     findRows({ status: 'PENDING' }),
     findRows({
-      status: { in: ['SENT', 'FAILED', 'SUPERSEDED', 'EXCLUDED', 'STALE', 'SCHEDULED'] },
+      status: {
+        in: [
+          'SENT',
+          'FAILED',
+          'SUPERSEDED',
+          'EXCLUDED',
+          'STALE',
+          'SCHEDULED',
+          // P60 — closed because the same type went out by hand from the panel.
+          'SUPERSEDED_BY_MANUAL',
+        ],
+      },
       updatedAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
     }),
   ]);
@@ -126,7 +137,8 @@ export async function getOutbox(): Promise<OutboxData> {
   return { pending, recent: recentRows.map((r) => toRow(r, now)) };
 }
 
-/** Total PENDING across the three types — the admin sidebar badge. */
+/** Total PENDING across the six types — the sidebar badge. Rows closed by a
+ *  manual panel send (SUPERSEDED_BY_MANUAL, P60) are never PENDING. */
 export async function pendingOutboxCount(): Promise<number> {
   return db.whatsAppDispatch.count({ where: { status: 'PENDING' } });
 }

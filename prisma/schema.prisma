@@ -157,6 +157,17 @@ enum WaMessageDirection {
   INBOUND
 }
 
+// P60 — where an OUTBOUND message came from (the queue job's `source`
+// marker, persisted so the admin log can tell an automatic send from a
+// human-initiated one: inbox reply, admin resend, appointment-panel send).
+enum WaMessageSource {
+  QUEUE
+  RESEND
+  INBOUND_ACK
+  INBOX
+  MANUAL_PANEL
+}
+
 enum WaMessageStatus {
   QUEUED
   SENT
@@ -206,6 +217,9 @@ enum WaDispatchStatus {
   EXCLUDED // admin removed it from the batch
   STALE // P51 — outlived its moment (reminder past start, …); never sends
   FAILED
+  // P60 — closed because a staff member sent the same message type by hand
+  // from the appointment panel; the automatic job for it never fires.
+  SUPERSEDED_BY_MANUAL
 }
 
 enum WaDispatchReason {
@@ -1074,6 +1088,8 @@ model WhatsAppMessage {
   recipientPhone    String
   parameters        Json               @default("{}")
   direction         WaMessageDirection
+  /** P60 — origin of an outbound row (QUEUE for every automatic path). */
+  source            WaMessageSource    @default(QUEUE)
   status            WaMessageStatus    @default(QUEUED)
   // Provider-side message identifier (Twilio SID `SM…` / `MM…` or Meta
   // `wamid.…`). Used to correlate inbound webhook events back to the row

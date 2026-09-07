@@ -22,8 +22,9 @@ export interface TrackedTemplate {
   sid: string;
 }
 
-/** The templates whose approval gates a fallback (v3 reminders + combined
- *  new-patient confirmation). Keep in sync with the apply scripts' SIDs. */
+/** The templates whose approval gates a fallback or a visibility rule (v3
+ *  reminders, combined new-patient confirmation, P60 custom message). Keep in
+ *  sync with the apply scripts' SIDs. */
 export const APPROVAL_TRACKED: readonly TrackedTemplate[] = [
   {
     name: 'appointment_reminder_single_v3',
@@ -39,6 +40,9 @@ export const APPROVAL_TRACKED: readonly TrackedTemplate[] = [
   { name: 'appointment_reminder_multi', language: 'EN', sid: 'HX96350b9aaca08ce6aa5a38805be41a57' },
   { name: 'new_patient_confirmation', language: 'AR', sid: 'HX456b7ce60ba1ae2ac8ce3af434bbcd28' },
   { name: 'new_patient_confirmation', language: 'EN', sid: 'HXb81dd59693d686f66737764c28b74667' },
+  // P60 — the manual custom-message frame (hidden in the panel until approved).
+  { name: 'clinic_custom_message', language: 'AR', sid: 'HX318759369c2b8d4c72adb0bfe9b812ff' },
+  { name: 'clinic_custom_message', language: 'EN', sid: 'HXa9c5ef16883cba246d296c947e2f9e98' },
 ];
 
 function twilioAuthHeader(): string | null {

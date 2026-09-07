@@ -452,6 +452,14 @@
       "sentAt": "Sent at",
       "recipient": "Recipient",
       "template": "Template",
+      "source": "Source",
+      "sources": {
+        "QUEUE": "Automatic",
+        "RESEND": "Resend",
+        "INBOUND_ACK": "Auto-reply",
+        "INBOX": "Inbox reply",
+        "MANUAL_PANEL": "Manual (appointment panel)"
+      },
       "body": "Body",
       "resend": "Resend",
       "failureReason": {
@@ -470,12 +478,12 @@
         "NOT_IMPLEMENTED": "This provider feature is not implemented yet."
       },
       "metaError": {
-        "131042": "Meta rejected delivery: business/payment eligibility issue. Add a valid payment method and complete business verification in Meta — this is a WhatsApp account setting, not an app bug.",
-        "131026": "The recipient is no longer reachable on WhatsApp.",
-        "131047": "Outside the 24-hour service window — re-engage with an approved template.",
         "131000": "Meta could not deliver the message (generic delivery error).",
-        "132001": "The template language/translation is not approved in Meta.",
-        "131008": "A required template parameter was missing."
+        "131008": "A required template parameter was missing.",
+        "131026": "The recipient is no longer reachable on WhatsApp.",
+        "131042": "Meta rejected delivery: business/payment eligibility issue. Add a valid payment method and complete business verification in Meta — this is a WhatsApp account setting, not an app bug.",
+        "131047": "Outside the 24-hour service window — re-engage with an approved template.",
+        "132001": "The template language/translation is not approved in Meta."
       },
       "twilioApproved": "Twilio: approved",
       "twilioPending": "Twilio: pending",
@@ -499,7 +507,8 @@
         "SUPERSEDED": "Superseded",
         "EXCLUDED": "Excluded",
         "FAILED": "Failed",
-        "STALE": "Stale"
+        "STALE": "Stale",
+        "SUPERSEDED_BY_MANUAL": "Sent manually"
       },
       "sendN": "Send {count}",
       "nothingToSend": "Nothing pending — nothing was sent.",
@@ -649,8 +658,41 @@
     "sidePanel": {
       "patientHeader": "Patient",
       "appointmentDetails": "Appointment",
-      "linkedPlan": "Linked treatment plan: coming in Prompt 9.",
       "openPatientFile": "Open patient file"
+    },
+    "sendMessage": {
+      "title": "Send a message to the patient",
+      "noPhone": "No phone number on file for this patient — nothing can be sent.",
+      "loading": "Loading…",
+      "typeLabel": "Message type",
+      "noTypes": "No message applies to this appointment right now.",
+      "customPending": "Custom message: template pending WhatsApp approval.",
+      "previewLabel": "This is what will be sent",
+      "previewUnavailable": "Preview unavailable — the template is not configured. Send is disabled.",
+      "lang": {
+        "AR": "AR",
+        "EN": "EN"
+      },
+      "customPlaceholder": "Type your message…",
+      "customHint": "Line breaks become spaces; up to {max} characters",
+      "customCount": "{count}/{max}",
+      "send": "Send",
+      "confirmPrompt": "Send now?",
+      "confirmYes": "Yes, send",
+      "confirmNo": "Cancel",
+      "duplicateWarning": "This message type was already sent at {time}. Sending again will deliver it a second time.",
+      "sendAgain": "Send again",
+      "sending": "Sending…",
+      "sentAt": "Sent at {time}",
+      "sentToast": "Message queued for sending.",
+      "types": {
+        "CONFIRMATION": "Confirmation",
+        "REMINDER": "Reminder",
+        "RESCHEDULE": "Reschedule notice",
+        "CANCELLATION": "Cancellation notice",
+        "ARRIVAL": "Arrival confirmation",
+        "CUSTOM": "Custom message"
+      }
     },
     "myScheduleTitle": "My schedule",
     "cancelledView": {

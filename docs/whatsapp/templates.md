@@ -100,6 +100,41 @@ Not implemented in v1 — the Admin maintains status manually because the
 volume is tiny (14 rows) and the polling adds operational complexity that
 isn't worth it at this scale.
 
+## Manual "Send a message" from the appointment panel (P60)
+
+SECRETARY + ADMIN (`whatsapp_manual.send`) can send one of six message types
+by hand from the calendar appointment panel: confirmation, reminder,
+reschedule notice, cancellation notice, arrival confirmation, custom message.
+The first five reuse the existing senders (compose + send split, `force`,
+`source='manual_panel'`); the reminder rides the shared
+`lib/whatsapp/templates/reminderBuilder.ts` the worker uses. A manual send
+bypasses the P48 mode and the P51 silent mode, closes any open automatic
+dispatch row of the same type (`SUPERSEDED_BY_MANUAL`) and removes that
+type's queued job — but never the P17 `appointment-reminder-{id}` job.
+Message rows carry `source=MANUAL_PANEL`; the audit event is
+`MANUAL_MESSAGE_SENT`.
+
+### `clinic_custom_message` — the custom-message frame
+
+| Language | Console name               | Content SID                          |
+| -------- | -------------------------- | ------------------------------------ |
+| AR       | `clinic_custom_message_ar` | `HX318759369c2b8d4c72adb0bfe9b812ff` |
+| EN       | `clinic_custom_message_en` | `HXa9c5ef16883cba246d296c947e2f9e98` |
+
+Variables: `{{1}}` patient first name (per language — same helper as the
+arrival template, `lib/whatsapp/templates/firstName.ts`), `{{2}}` the
+secretary's text. Registered by `scripts/add-custom-message-templates.ts`
+(`--dry-run` / `--apply`, live SID verification, `twilioApproved=false`);
+the hourly approval sync (`APPROVAL_TRACKED`) flips the flag when WhatsApp
+approves and the panel shows the "Custom message" type from that moment —
+no deploy.
+
+WhatsApp parameter constraints (enforced in `lib/whatsapp/manual/customText.ts`,
+shared by the Zod schema and the live preview): newlines and tabs become a
+single space, runs of 4+ spaces collapse to one, trimmed, 1–800 characters
+after normalization. Raw free text outside a template is not possible
+business-initiated; the frame is the only way.
+
 ## Adding a new template
 
 1. Add the row to `prisma/seed/reference-data.ts` (both EN and AR).

@@ -1,29 +1,32 @@
 import { db } from '@/lib/db';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 
+import { isTemplateApproved } from './approval';
 import { patientFirstName } from './firstName';
 import type { ComposedMessage, SendOutcome, SenderSendOptions } from './types';
 import { buildParamsFromShape, resolveTemplateShape } from './variables';
 
-const TEMPLATE_NAME = 'arrival_confirmation';
+/** P60 — the manual custom-message frame (see lib/admin/whatsapp/custom-message-template.ts). */
+export const CUSTOM_MESSAGE_TEMPLATE = 'clinic_custom_message';
 
 interface ComposeArgs {
   patientId: string;
-  /** The appointments this one arrival covers; the first anchors the log row. */
-  appointmentIds: string[];
-  /** P59 — outbox Send: bypass the stale whatsappReachable flag (see
-   *  sendAppointmentConfirmation). */
+  /** Anchors the log row to the appointment the secretary was looking at. */
+  appointmentId: string | null;
+  /** Already normalized by lib/whatsapp/manual/customText.ts. */
+  text: string;
+  /** Human-initiated by definition — the stale whatsappReachable flag never
+   *  blocks it; a missing phone throws so the caller reports a real error. */
   force?: boolean;
 }
 
 /**
- * Arrival-confirmation composition (July 31 item 3, split in P60). `{{1}}`
- * is the patient's FIRST name in their preferred language; the body carries
- * no appointment details, so no date/time context is needed.
+ * Custom-message composition: `{{1}}` first name in the patient's language,
+ * `{{2}}` the secretary's text. Returns null when the frame is not yet
+ * approved for that language (the panel hides the type in that case; this
+ * is the server-side belt).
  */
-export async function composeArrivalConfirmation(
-  args: ComposeArgs,
-): Promise<ComposedMessage | null> {
+export async function composeCustomMessage(args: ComposeArgs): Promise<ComposedMessage | null> {
   const patient = await db.user.findUnique({
     where: { id: args.patientId },
     select: {
@@ -40,18 +43,19 @@ export async function composeArrivalConfirmation(
     return null;
   }
   if (!patient.whatsappReachable && !args.force) return null;
+  if (!(await isTemplateApproved(CUSTOM_MESSAGE_TEMPLATE, patient.languagePref))) return null;
 
-  const shape = await resolveTemplateShape(TEMPLATE_NAME, patient.languagePref);
+  const shape = await resolveTemplateShape(CUSTOM_MESSAGE_TEMPLATE, patient.languagePref);
   if (!shape) {
-    console.error('[arrival] no variable shape for the arrival template — skipping');
+    console.error('[manual] no variable shape for the custom-message template — skipping');
     return null;
   }
-
   return {
-    templateName: TEMPLATE_NAME,
+    templateName: CUSTOM_MESSAGE_TEMPLATE,
     language: patient.languagePref,
     parameters: buildParamsFromShape(shape, {
       patientName: patientFirstName(patient),
+      customText: args.text,
       therapistName: '',
       date: '',
       time: '',
@@ -59,23 +63,14 @@ export async function composeArrivalConfirmation(
     }),
     recipientPhone: patient.phone,
     recipientUserId: patient.id,
-    appointmentId: args.appointmentIds[0] ?? null,
+    appointmentId: args.appointmentId,
   };
 }
 
-/**
- * Arrival-confirmation sender. Fired once per arrival group from the
- * `notifyArrival` seam — kiosk and secretary manual check-in both land here
- * — and by the outbox / P60 panel. The send is enqueued on the outbound
- * WhatsApp queue like every other template (retries, rate limiting, and
- * `WhatsAppMessage` logging are the worker's job) — never sent inline.
- * Unreachable/phone-less patients are skipped silently, matching the other
- * senders.
- */
-export async function sendArrivalConfirmation(
+export async function sendCustomMessage(
   args: ComposeArgs & SenderSendOptions,
 ): Promise<SendOutcome | null> {
-  const composed = await composeArrivalConfirmation(args);
+  const composed = await composeCustomMessage(args);
   if (!composed) return null;
   const jobId = await enqueueWhatsappOutbound({
     kind: 'template',
@@ -85,7 +80,7 @@ export async function sendArrivalConfirmation(
     recipientPhone: composed.recipientPhone,
     recipientUserId: composed.recipientUserId,
     appointmentId: composed.appointmentId,
-    source: args.source ?? 'queue',
+    source: args.source ?? 'manual_panel',
     sentById: args.sentById ?? null,
   });
   return {

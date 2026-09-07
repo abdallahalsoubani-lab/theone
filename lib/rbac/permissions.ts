@@ -235,6 +235,9 @@ export const PERMISSIONS = {
   WHATSAPP_OUTBOX_EXCLUDE: 'whatsapp_outbox.exclude',
   // P58 item 2.4 — flipping the P51 master switch is a management decision.
   WHATSAPP_SILENT_MODE: 'whatsapp.silent_mode',
+  // P60 — send one templated / custom message to the patient by hand from
+  // the appointment panel (SECRETARY + ADMIN; bypasses silent mode).
+  WHATSAPP_MANUAL_SEND: 'whatsapp_manual.send',
 
   // ── Secretary inbox (Prompt 8) ───────────────────────────────────────
   // Surfaces inbound reschedule/cancel requests and outbound delivery
@@ -328,6 +331,7 @@ const SECRETARY_PERMS = new Set<PermissionCode>([
   PERMISSIONS.WHATSAPP_DISPATCH,
   PERMISSIONS.WHATSAPP_OUTBOX_READ,
   PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE,
+  PERMISSIONS.WHATSAPP_MANUAL_SEND,
   PERMISSIONS.NOTIFICATIONS_READ_OWN,
   PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN,
 ]);
@@ -509,6 +513,7 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.WHATSAPP_OUTBOX_READ,
   PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE,
   PERMISSIONS.WHATSAPP_SILENT_MODE,
+  PERMISSIONS.WHATSAPP_MANUAL_SEND,
   PERMISSIONS.SYSTEM_SETTINGS_CREATE,
   PERMISSIONS.SYSTEM_SETTINGS_READ,
   PERMISSIONS.SYSTEM_SETTINGS_UPDATE,

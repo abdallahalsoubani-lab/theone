@@ -46,6 +46,9 @@ export interface CalendarAppointment {
   /** Primary session note id, if one exists (Prompt 46 row 5 — drives the
    *  side panel's Add/Open session-report action). */
   sessionNoteId: string | null;
+  /** Arrival timestamp (Prompt 18) — P60: the side panel offers the manual
+   *  arrival confirmation only once the patient is checked in. */
+  checkedInAt: Date | null;
 }
 
 /**
@@ -114,6 +117,7 @@ export async function listAppointmentsForCalendar(
     notes: r.notes,
     seriesId: r.seriesId,
     sessionNoteId: r.sessionNotes?.[0]?.id ?? null,
+    checkedInAt: r.checkedInAt,
   }));
 }
 

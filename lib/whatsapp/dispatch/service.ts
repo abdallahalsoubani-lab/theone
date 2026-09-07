@@ -5,6 +5,7 @@ import { withAudit } from '@/lib/audit/withAudit';
 import { db } from '@/lib/db';
 import {
   cancelLifecycleMessages,
+  lifecycleJobId,
   scheduleLifecycleMessage,
   type LifecycleKind,
 } from '@/lib/queue/jobs/appointmentReminder';
@@ -198,6 +199,52 @@ export async function recordDispatchEvent(args: {
   }
 
   return { entryId: entry.id, suppressed: null, confirmWasPending: openConfirmation };
+}
+
+// ─── P60 — manual panel send closes the automatic path for that type ──────
+
+/**
+ * A staff member sent this message type by hand from the appointment panel
+ * (P60 decision 5): every open automatic row for (appointment, type) —
+ * PENDING in the outbox or SCHEDULED with a queued job — is closed with the
+ * distinguishable status SUPERSEDED_BY_MANUAL, and the queued job of THAT
+ * type is removed so the patient is never double-messaged. The P17
+ * `appointment-reminder-{id}` job is deliberately left alone (decision 6):
+ * the automatic 24h reminder still goes out at its own time. Rows closed
+ * here drop out of the pending sections + badge (both count PENDING only).
+ * db-only, no audit of its own — the caller's MANUAL_MESSAGE_SENT row
+ * records the send that caused it.
+ */
+export async function closeOpenDispatchForManualSend(args: {
+  appointmentId: string;
+  type: WaDispatchType;
+}): Promise<{ closed: number }> {
+  const res = await db.whatsAppDispatch.updateMany({
+    where: { appointmentId: args.appointmentId, type: args.type, status: { in: OPEN } },
+    data: { status: 'SUPERSEDED_BY_MANUAL', dispatchReason: null },
+  });
+  const { reminderQueue } = await import('@/lib/queue/queues');
+  const jobIds: string[] = [];
+  if (
+    args.type === 'BOOKING_CONFIRMATION' ||
+    args.type === 'RESCHEDULE' ||
+    args.type === 'CANCELLATION'
+  ) {
+    jobIds.push(lifecycleJobId(KIND_BY_TYPE[args.type], args.appointmentId));
+  } else if (args.type === 'REMINDER') {
+    jobIds.push(`outbox-reminder-${args.appointmentId}`);
+  } else if (args.type === 'ARRIVAL') {
+    jobIds.push(`outbox-arrival-${args.appointmentId}`);
+  }
+  for (const jobId of jobIds) {
+    await reminderQueue.remove(jobId).catch(() => undefined);
+  }
+  if (res.count > 0) {
+    console.warn(
+      `[dispatch] appointment ${args.appointmentId}: ${res.count} open ${args.type} row(s) closed — superseded by a manual send`,
+    );
+  }
+  return { closed: res.count };
 }
 
 // ─── Manual outbox operations (ADMIN + SECRETARY — P48 §4.3, P58) ──────────

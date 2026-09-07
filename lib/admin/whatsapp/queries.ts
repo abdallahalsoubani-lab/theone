@@ -70,6 +70,8 @@ export interface MessageListRow {
   templateLanguage: string | null;
   appointmentId: string | null;
   resendCount: number;
+  /** P60 — origin: QUEUE (automatic) / RESEND / INBOUND_ACK / INBOX / MANUAL_PANEL. */
+  source: string;
 }
 
 export async function listMessages(filters: MessageListFilters = {}): Promise<MessageListRow[]> {
@@ -121,5 +123,6 @@ export async function listMessages(filters: MessageListFilters = {}): Promise<Me
     templateLanguage: r.template?.language ?? null,
     appointmentId: r.appointmentId,
     resendCount: r.resendCount,
+    source: r.source,
   }));
 }

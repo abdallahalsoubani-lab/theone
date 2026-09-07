@@ -5,6 +5,7 @@ import { unusedLinkForAppointment } from '@/lib/intake-links/queries';
 import { isTemplateApproved } from './approval';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 
+import type { ComposedMessage, SendOutcome, SenderSendOptions } from './types';
 import { appointmentVarContext, buildParamsFromShape, resolveTemplateShape } from './variables';
 
 const TEMPLATE_NAME = 'appointment_confirmation_v2';
@@ -18,26 +19,27 @@ function intakeLinkUrl(token: string, language: 'AR' | 'EN'): string {
   return `${base}/${language === 'AR' ? 'ar' : 'en'}/intake/link/${token}`;
 }
 
-/**
- * Booking-confirmation sender (P53): extracted from the inline
- * createAppointment block so the deferred lifecycle worker can fire it, and
- * FIXED en route (§2.4): parameters now come from the registry variable
- * shape like the reschedule sender — no more hardcoded order, so a SID/
- * shape switch needs zero deploy.
- *
- * Re-reads the appointment at fire time (the deferral contract: the patient
- * always gets the CURRENT details) and skips silently when it was cancelled
- * or already started during the wait — the cancel path removes the pending
- * job anyway; this is the belt to that suspender.
- */
-export async function sendAppointmentConfirmation(args: {
+interface ComposeArgs {
   appointmentId: string;
   /** P59 — an admin pressed Send in the outbox: attempt the send even when
    *  the patient is flagged whatsappReachable=false (the flag may be stale —
    *  a success flips it back). A missing phone still throws so the dispatch
    *  ledger records FAILED instead of a silent "SENT". */
   force?: boolean;
-}): Promise<void> {
+}
+
+/**
+ * Booking-confirmation composition (P53, split out in P60): re-reads the
+ * appointment at fire time (the deferral contract: the patient always gets
+ * the CURRENT details), picks the template (combined new-patient frame while
+ * an unused intake link exists AND the frame is approved, else the standard
+ * confirmation) and builds the parameters from the registry variable shape.
+ * Returns null when the message must not go out (cancelled / started / no
+ * phone / unreachable without `force`).
+ */
+export async function composeAppointmentConfirmation(
+  args: ComposeArgs,
+): Promise<ComposedMessage | null> {
   const appt = await db.appointment.findUnique({
     where: { id: args.appointmentId },
     include: {
@@ -58,23 +60,23 @@ export async function sendAppointmentConfirmation(args: {
       },
     },
   });
-  if (!appt || !appt.patient) return;
+  if (!appt || !appt.patient) return null;
   if (appt.status !== 'SCHEDULED' && appt.status !== 'CONFIRMED') {
     console.warn(
       `[lifecycle] appointment ${args.appointmentId} status=${appt.status} — confirmation skipped`,
     );
-    return;
+    return null;
   }
   if (appt.startsAt.getTime() <= Date.now()) {
     console.warn(`[lifecycle] appointment ${args.appointmentId} already started — skipped`);
-    return;
+    return null;
   }
   const p = appt.patient;
   if (!p.phone) {
     if (args.force) throw new Error('patient has no phone number');
-    return;
+    return null;
   }
-  if (!p.whatsappReachable && !args.force) return;
+  if (!p.whatsappReachable && !args.force) return null;
 
   const isAr = p.languagePref === 'AR';
   const therapist = appt.therapists[0]?.therapist ?? null;
@@ -106,7 +108,7 @@ export async function sendAppointmentConfirmation(args: {
   const shape = await resolveTemplateShape(templateName, p.languagePref);
   if (!shape) {
     console.error(`[lifecycle] no variable shape for ${templateName} — skipping`);
-    return;
+    return null;
   }
   const ctx = await appointmentVarContext({
     startsAt: appt.startsAt,
@@ -115,16 +117,44 @@ export async function sendAppointmentConfirmation(args: {
     language: p.languagePref,
     intakeUrl: useCombined && link ? intakeLinkUrl(link.token, p.languagePref) : undefined,
   });
-  await enqueueWhatsappOutbound({
-    kind: 'template',
+  return {
     templateName,
     language: p.languagePref,
     parameters: buildParamsFromShape(shape, ctx),
     recipientPhone: p.phone,
     recipientUserId: p.id,
     appointmentId: appt.id,
-    source: 'queue',
+  };
+}
+
+/**
+ * Booking-confirmation sender (P53): the deferred lifecycle worker, the
+ * outbox Send and the P60 manual panel all fire this. Compose, then enqueue
+ * on the outbound queue (retries / rate limit / WhatsAppMessage row live in
+ * the worker). Returns null when nothing was enqueued.
+ */
+export async function sendAppointmentConfirmation(
+  args: ComposeArgs & SenderSendOptions,
+): Promise<SendOutcome | null> {
+  const composed = await composeAppointmentConfirmation(args);
+  if (!composed) return null;
+  const jobId = await enqueueWhatsappOutbound({
+    kind: 'template',
+    templateName: composed.templateName,
+    language: composed.language,
+    parameters: composed.parameters,
+    recipientPhone: composed.recipientPhone,
+    recipientUserId: composed.recipientUserId,
+    appointmentId: composed.appointmentId,
+    source: args.source ?? 'queue',
+    sentById: args.sentById ?? null,
   });
+  return {
+    jobId,
+    templateName: composed.templateName,
+    language: composed.language,
+    recipientUserId: composed.recipientUserId,
+  };
 }
 
 /**

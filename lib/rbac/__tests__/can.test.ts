@@ -83,6 +83,8 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.WHATSAPP_DISPATCH]: true,
     [PERMISSIONS.WHATSAPP_OUTBOX_READ]: true,
     [PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE]: true,
+    // P60 — manual send from the appointment panel.
+    [PERMISSIONS.WHATSAPP_MANUAL_SEND]: true,
     [PERMISSIONS.NOTIFICATIONS_READ_OWN]: 'own',
     [PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN]: 'own',
   },
@@ -233,6 +235,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.WHATSAPP_OUTBOX_READ]: true,
     [PERMISSIONS.WHATSAPP_OUTBOX_EXCLUDE]: true,
     [PERMISSIONS.WHATSAPP_SILENT_MODE]: true,
+    [PERMISSIONS.WHATSAPP_MANUAL_SEND]: true,
     [PERMISSIONS.SYSTEM_SETTINGS_CREATE]: true,
     [PERMISSIONS.SYSTEM_SETTINGS_READ]: true,
     [PERMISSIONS.SYSTEM_SETTINGS_UPDATE]: true,
@@ -676,6 +679,15 @@ describe('P48/P58 — WhatsApp dispatch control', () => {
     expect(can(u('ADMIN'), PERMISSIONS.WHATSAPP_SILENT_MODE)).toBe(true);
     for (const role of ['SECRETARY', 'DOCTOR', 'THERAPIST', 'PATIENT'] as const) {
       expect(can(u(role), PERMISSIONS.WHATSAPP_SILENT_MODE)).toBe(false);
+    }
+  });
+
+  it('P60 — manual panel send: SECRETARY + ADMIN only (doctor/therapist/patient denied)', () => {
+    for (const role of ['ADMIN', 'SECRETARY'] as const) {
+      expect(can(u(role), PERMISSIONS.WHATSAPP_MANUAL_SEND)).toBe(true);
+    }
+    for (const role of ['DOCTOR', 'THERAPIST', 'PATIENT'] as const) {
+      expect(can(u(role), PERMISSIONS.WHATSAPP_MANUAL_SEND)).toBe(false);
     }
   });
 });

@@ -110,6 +110,9 @@ export function MessagesTable({ rows, initialFilters }: Props) {
                   {t('template')}
                 </th>
                 <th className="px-3 py-2 text-start font-medium text-brand-textMuted">
+                  {t('source')}
+                </th>
+                <th className="px-3 py-2 text-start font-medium text-brand-textMuted">
                   {t('body')}
                 </th>
                 <th className="px-3 py-2 text-end font-medium text-brand-textMuted">
@@ -145,6 +148,15 @@ export function MessagesTable({ rows, initialFilters }: Props) {
                       <span className="font-mono">
                         {row.templateName}/{row.templateLanguage}
                       </span>
+                    ) : (
+                      '—'
+                    )}
+                  </td>
+                  <td className="px-3 py-3 text-xs">
+                    {row.direction === 'OUTBOUND' ? (
+                      <Badge variant={row.source === 'MANUAL_PANEL' ? 'cyan' : 'muted'}>
+                        {t(`sources.${row.source}`)}
+                      </Badge>
                     ) : (
                       '—'
                     )}
