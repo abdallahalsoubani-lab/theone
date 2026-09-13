@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 
-import { normalizeJordanPhone } from '@/lib/format/phone';
+import { normalizePhoneForStorage } from '@/lib/format/phone';
 import { sharedPhoneHoldersAction } from '@/lib/patients/actions';
 import type { SharedPhoneHolder } from '@/lib/patients/shared-phone';
 
@@ -18,7 +18,9 @@ export function useSharedPhoneHolders(
   excludeId?: string | null,
 ): SharedPhoneHolder[] {
   const [holders, setHolders] = useState<SharedPhoneHolder[]>([]);
-  const phone = rawPhone ? normalizeJordanPhone(rawPhone) : null;
+  // P61 — was Jordan-only, so the shared-number hint never fired for a
+  // foreign number (and the secretary lost the duplicate warning entirely).
+  const phone = rawPhone ? normalizePhoneForStorage(rawPhone) : null;
 
   useEffect(() => {
     if (!phone) {

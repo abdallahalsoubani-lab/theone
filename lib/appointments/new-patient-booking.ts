@@ -6,7 +6,7 @@ import { withAudit } from '@/lib/audit/withAudit';
 import { hashPassword } from '@/lib/auth/password';
 import { generateTempPassword } from '@/lib/admin/temp-password';
 import { db } from '@/lib/db';
-import { normalizePhoneForStorage } from '@/lib/format/phone';
+import { normalizePhoneStrict } from '@/lib/format/phone-validate';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { findSharedPhoneHolders, sharedPhoneHolderNames } from '@/lib/patients/shared-phone';
 import { addCareTeamMemberTx } from '@/lib/patients/assignment';
@@ -99,7 +99,10 @@ export const createNewPatientBooking = withAudit<[NewPatientBookingInput], NewPa
     // to clean international E.164 (separators stripped) or the booking is
     // refused. The old fallback stored the raw typed text verbatim, which
     // is how `+972 52-505-4631` reached Twilio and failed with 21211.
-    const normalizedPhone = normalizePhoneForStorage(input.phone);
+    // P61 item 2 — strict now: valid FOR ITS COUNTRY, not merely "enough
+    // digits", so `+999…` and a too-short US number are refused here rather
+    // than at Twilio.
+    const normalizedPhone = normalizePhoneStrict(input.phone);
     if (!normalizedPhone) {
       throw new NewPatientBookingError({
         code: 'INVALID_PHONE',

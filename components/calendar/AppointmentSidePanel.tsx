@@ -27,7 +27,7 @@ import {
 import { sessionNoteCreateHref, sessionNoteEditHref } from '@/lib/clinical/role-links';
 import { formatDate, formatTime } from '@/lib/format/date';
 import { patientDisplayName } from '@/lib/format/patientName';
-import { formatPhone } from '@/lib/format/phone';
+import { formatPatientPhone } from '@/lib/format/phone';
 import { patientProfileHref } from '@/lib/patients/links';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 
@@ -181,7 +181,7 @@ export function AppointmentSidePanel({
       >
         <SheetHeader>
           <SheetTitle>{patientName}</SheetTitle>
-          <SheetDescription>{formatPhone(appointment.patientPhone)}</SheetDescription>
+          <SheetDescription>{formatPatientPhone(appointment.patientPhone)}</SheetDescription>
         </SheetHeader>
 
         <Link

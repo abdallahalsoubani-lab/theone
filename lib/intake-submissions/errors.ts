@@ -13,8 +13,10 @@ export const SUBMISSION_ERRORS = {
   },
   INVALID_PHONE: {
     code: 'INTAKE_SUBMISSION_INVALID_PHONE',
-    message_en: 'Enter a valid Jordan mobile number (e.g. 079 / 078 / 077).',
-    message_ar: 'أدخل رقم هاتف أردني صحيح (مثال: 079 / 078 / 077).',
+    // P61 item 2 — no longer Jordan-only: any number valid for its own
+    // country is accepted, so the message must not name Jordan's prefixes.
+    message_en: 'Not a valid number for the selected country.',
+    message_ar: 'رقم غير صالح لهذا البلد.',
   },
   RATE_LIMITED: {
     code: 'INTAKE_SUBMISSION_RATE_LIMITED',

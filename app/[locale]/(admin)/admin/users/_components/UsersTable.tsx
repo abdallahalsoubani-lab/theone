@@ -29,7 +29,7 @@ import {
   restoreUserAction,
 } from '@/lib/admin/users/actions';
 import type { UserListRow } from '@/lib/admin/users/queries';
-import { formatPhone } from '@/lib/format/phone';
+import { formatPatientPhone } from '@/lib/format/phone';
 
 interface Props {
   rows: UserListRow[];
@@ -139,7 +139,7 @@ export function UsersTable({ rows, total, page, pageSize, initialSearch, leaves 
           // wraps the value in LRM markers; dir="ltr" belts-and-braces.
           cell: ({ row }) => (
             <span dir="ltr" className="font-mono text-xs">
-              {formatPhone(row.original.phone)}
+              {formatPatientPhone(row.original.phone)}
             </span>
           ),
         },

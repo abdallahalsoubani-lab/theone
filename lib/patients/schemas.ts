@@ -67,12 +67,24 @@ const patientBaseSchema = z.object({
   address: z.string().max(500).optional().default(''),
   occupation: z.string().max(120).optional().or(z.literal('')).nullable(),
   emergencyContactName: z.string().max(120).optional().or(z.literal('')).nullable(),
+  // P61 item 2 — was /^\+9627\d{8}$/ (Jordan only). The emergency contact is
+  // not a WhatsApp recipient, so it is normalised to the same canonical shape
+  // but not put through the country-level parser the messaged phone gets.
   emergencyContactPhone: z
     .string()
-    .regex(/^\+9627\d{8}$/, 'phoneJordan')
     .optional()
     .or(z.literal(''))
-    .nullable(),
+    .nullable()
+    .transform((v, ctx) => {
+      const raw = (v ?? '').trim();
+      if (raw === '') return null;
+      const normalized = normalizePhoneForStorage(raw);
+      if (!normalized) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'phoneE164' });
+        return z.NEVER;
+      }
+      return normalized;
+    }),
   languagePref: z.nativeEnum(LanguagePref).default(LanguagePref.AR),
   hijriCalendarPref: z.boolean().default(false),
   medicalHistorySummary: z.string().max(2000).optional().or(z.literal('')).nullable(),
@@ -122,12 +134,24 @@ export const patientSelfEditSchema = z.object({
   // Optional (July change request #10) — matches the create form.
   address: z.string().max(500).optional().default(''),
   emergencyContactName: z.string().max(120).optional().or(z.literal('')).nullable(),
+  // P61 item 2 — was /^\+9627\d{8}$/ (Jordan only). The emergency contact is
+  // not a WhatsApp recipient, so it is normalised to the same canonical shape
+  // but not put through the country-level parser the messaged phone gets.
   emergencyContactPhone: z
     .string()
-    .regex(/^\+9627\d{8}$/, 'phoneJordan')
     .optional()
     .or(z.literal(''))
-    .nullable(),
+    .nullable()
+    .transform((v, ctx) => {
+      const raw = (v ?? '').trim();
+      if (raw === '') return null;
+      const normalized = normalizePhoneForStorage(raw);
+      if (!normalized) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'phoneE164' });
+        return z.NEVER;
+      }
+      return normalized;
+    }),
   languagePref: z.nativeEnum(LanguagePref),
   hijriCalendarPref: z.boolean(),
 });

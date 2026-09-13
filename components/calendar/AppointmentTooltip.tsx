@@ -5,7 +5,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { CalendarAppointment } from '@/lib/appointments/queries';
-import { formatPhone } from '@/lib/format/phone';
+import { formatPatientPhone } from '@/lib/format/phone';
 
 import { appointmentTooltipModel, hoverCapable } from './appointmentTooltipModel';
 
@@ -110,7 +110,7 @@ export function AppointmentTooltip({
             <div>
               <span className="text-brand-textMuted">{t('tooltip.phone')}: </span>
               <span dir="ltr" className="font-mono">
-                {formatPhone(m.phone)}
+                {formatPatientPhone(m.phone)}
               </span>
             </div>
           ) : null}

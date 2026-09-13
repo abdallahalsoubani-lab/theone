@@ -23,6 +23,11 @@
       "openCalendar": "فتح التقويم",
       "month": "الشهر",
       "year": "السنة"
+    },
+    "phoneField": {
+      "countryLabel": "رمز الدولة",
+      "numberPlaceholder": "79 012 3456",
+      "willBeSavedAs": "سيُحفظ كـ {phone}"
     }
   },
   "appointments": {

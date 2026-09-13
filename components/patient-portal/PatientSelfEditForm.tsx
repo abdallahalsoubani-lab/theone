@@ -11,7 +11,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { updateOwnProfileAction } from '@/lib/patients/actions';
 import { patientSelfEditSchema, type PatientSelfEditInput } from '@/lib/patients/schemas';
-import { formatPhone } from '@/lib/format/phone';
+import { formatPatientPhone } from '@/lib/format/phone';
 
 interface Props {
   initial: PatientSelfEditInput;
@@ -53,7 +53,7 @@ export function PatientSelfEditForm({ initial, readOnly }: Props) {
           <Card>
             <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
               <ReadField label={t('fullNameEn')} value={readOnly.fullNameEn} />
-              <ReadField label={t('phone')} value={formatPhone(readOnly.phone)} />
+              <ReadField label={t('phone')} value={formatPatientPhone(readOnly.phone)} />
               <ReadField
                 label={t('dateOfBirth')}
                 value={readOnly.dateOfBirth.toISOString().slice(0, 10)}

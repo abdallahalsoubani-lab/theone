@@ -64,6 +64,7 @@
     "date-fns": "^4.1.0",
     "ioredis": "^5.10.1",
     "jose": "^6.2.3",
+    "libphonenumber-js": "^1.13.13",
     "lucide-react": "^0.469.0",
     "next": "15.5.21",
     "next-auth": "5.0.0-beta.31",

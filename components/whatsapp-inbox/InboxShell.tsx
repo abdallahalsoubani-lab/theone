@@ -8,7 +8,7 @@ import { useEffect } from 'react';
 
 import { ThreadPane, type LinkablePatient } from '@/components/whatsapp-inbox/ThreadPane';
 import { Badge } from '@/components/ui/badge';
-import { formatPhone } from '@/lib/format/phone';
+import { formatPatientPhone } from '@/lib/format/phone';
 import { formatTime } from '@/lib/format/date';
 import { patientDisplayName } from '@/lib/format/patientName';
 import type { ConversationListRow, ThreadView } from '@/lib/whatsapp/inbox/queries';
@@ -135,7 +135,7 @@ export function InboxShell({
                     </span>
                   </span>
                   <span className="font-mono text-[10px] text-brand-textMuted" dir="ltr">
-                    &lrm;{formatPhone(c.phone)}
+                    &lrm;{formatPatientPhone(c.phone)}
                   </span>
                 </button>
               </li>

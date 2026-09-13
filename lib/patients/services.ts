@@ -8,6 +8,8 @@ import { patientDisplayName } from '@/lib/format/patientName';
 import { sendPatientCredentials } from '@/lib/whatsapp/templates/sendCredentials';
 
 import { addCareTeamMemberTx, PatientAssignmentError } from './assignment';
+import { normalizePhoneStrict } from '@/lib/format/phone-validate';
+
 import { findSharedPhoneHolders, sharedPhoneHolderNames } from './shared-phone';
 import type { PatientCreateInput, PatientSelfEditInput, PatientUpdateInput } from './schemas';
 import type { SharedPhoneHolder } from './shared-phone';
@@ -30,6 +32,24 @@ const notFound: LocalizedError = {
   message_en: 'Patient not found.',
   message_ar: 'لم يتم العثور على المراجع.',
 };
+
+// P61 item 2 — the shared Zod schema decides the STORAGE SHAPE on both the
+// client and the server (it must stay dependency-free: the patient form runs
+// it in the browser). Country-level validity is decided here, where the
+// metadata can be loaded without shipping 150 kB to every visitor.
+const invalidPhone: LocalizedError = {
+  code: 'PATIENT_PHONE_INVALID',
+  message_en: 'Not a valid number for the selected country.',
+  message_ar: 'رقم غير صالح لهذا البلد.',
+};
+
+/** Canonical E.164 for storage, or a localized rejection. Null input passes. */
+function requireValidPhone(phone: string | null | undefined): string | null {
+  if (!phone) return null;
+  const canonical = normalizePhoneStrict(phone);
+  if (!canonical) throw new PatientAdminError(invalidPhone);
+  return canonical;
+}
 
 // P50 (revised) §5.3 — surfaced on the FIRST create attempt when the phone is
 // already registered to another patient; the form shows a confirm dialog and
@@ -80,8 +100,9 @@ export const createPatient = withAudit<[PatientCreateInput, string], CreatePatie
     // P57: the lookup lists EVERY active holder (a number may already be
     // shared by two siblings) — one helper for the form hint, the quick-add
     // and this guard.
-    if (input.phone && !input.confirmSharedPhone) {
-      const holders = await findSharedPhoneHolders(input.phone);
+    const phone = requireValidPhone(input.phone);
+    if (phone && !input.confirmSharedPhone) {
+      const holders = await findSharedPhoneHolders(phone);
       if (holders.length > 0) {
         throw new PatientAdminError(sharedPhoneConfirm(sharedPhoneHolderNames(holders), holders));
       }
@@ -101,7 +122,7 @@ export const createPatient = withAudit<[PatientCreateInput, string], CreatePatie
       const user = await tx.user.create({
         data: {
           email: input.email,
-          phone: input.phone || null,
+          phone,
           role: UserRole.PATIENT,
           fullNameEn: input.fullNameEn,
           // P47 row 8 — new patients are English-name only; the column is
@@ -189,6 +210,8 @@ export const updatePatient = withAudit<[PatientUpdateInput], { patientId: string
     });
     if (!target) throw new PatientAdminError(notFound);
 
+    const phone = requireValidPhone(input.phone);
+
     // P50: only email uniqueness is re-validated — patient phones may be
     // shared (family number) or absent.
     if (input.email && target.email !== input.email) {
@@ -211,7 +234,7 @@ export const updatePatient = withAudit<[PatientUpdateInput], { patientId: string
           // non-destructive rule; display falls back to it when English
           // is empty).
           email: input.email,
-          phone: input.phone || null,
+          phone,
           languagePref: input.languagePref,
         },
       });

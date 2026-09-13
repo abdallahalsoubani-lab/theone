@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import type { FieldValues, UseFormReturn } from 'react-hook-form';
 
 import { SelectField, TextField, TextareaField } from '@/components/forms/FormFields';
+import { PhoneField } from '@/components/forms/PhoneField';
 import { DateField } from '@/components/forms/DateField';
 import { Card, CardContent } from '@/components/ui/card';
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -60,15 +61,14 @@ export function PublicProfileFields({
           />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextField
+          {/* P61 item 2 — a patient with a foreign number could not submit
+              the intake link at all (the submission service normalised the
+              phone as Jordan-only). Country selector, Jordan by default. */}
+          <PhoneField
             form={form}
             name={n('phone')}
             label={t('phone')}
-            type="tel"
-            inputMode="tel"
-            placeholder="07XXXXXXXX"
             description={lockIdentity ? t('lockedIdentityHint') : t('phoneHint')}
-            autoComplete="tel"
             disabled={lockIdentity}
           />
           <DateField form={form} name={n('dateOfBirth')} label={t('dateOfBirth')} />

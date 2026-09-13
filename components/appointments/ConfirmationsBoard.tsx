@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 import type { ReminderConfirmationRow } from '@/lib/appointments/confirmations';
 import { formatDate, formatTime } from '@/lib/format/date';
-import { formatPhone } from '@/lib/format/phone';
+import { formatPatientPhone } from '@/lib/format/phone';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { patientProfileHref } from '@/lib/patients/links';
 
@@ -85,7 +85,7 @@ export function ConfirmationsBoard({
                             {patientDisplayName(r.patientFullNameEn, r.patientFullNameAr, locale)}
                           </span>
                           <span className="font-mono text-xs text-brand-textMuted" dir="ltr">
-                            {formatPhone(r.patientPhone)}
+                            {formatPatientPhone(r.patientPhone)}
                           </span>
                         </div>
                       </td>

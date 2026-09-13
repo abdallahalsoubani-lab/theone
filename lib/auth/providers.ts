@@ -4,6 +4,8 @@ import type { User } from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { z } from 'zod';
 
+import { normalizePhoneStrict } from '@/lib/format/phone-validate';
+
 import { db } from '@/lib/db';
 
 import {
@@ -34,7 +36,13 @@ const credentialsSchema = z.object({
 
 const phoneOtpSchema = z.object({
   // Jordan E.164 mobile — country code 962 + 9-digit subscriber starting with 7.
-  phone: z.string().regex(/^\+9627\d{8}$/),
+  // P61 item 2 — was /^\+9627\d{8}$/ (Jordan only): a patient the clinic can
+  // register with a foreign number must also be able to log in with it. The
+  // shared parser decides validity; a bare `07…` is still read as Jordanian.
+  phone: z
+    .string()
+    .transform((v) => normalizePhoneStrict(v))
+    .refine((v): v is string => v !== null, 'phoneInvalid'),
   otp: z
     .string()
     .regex(/^\d{6}$/)

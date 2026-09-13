@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Link } from '@/i18n/navigation';
 import { patientDisplayName } from '@/lib/format/patientName';
-import { formatPhone } from '@/lib/format/phone';
+import { formatPatientPhone } from '@/lib/format/phone';
 import { hasPlaceholderDob } from '@/lib/patients/placeholder-dob';
 import type { PatientFileData } from '@/lib/patients/queries';
 import { displayAgeYears } from '@/lib/patients/schemas';
@@ -94,7 +94,7 @@ export function PatientHeader({
           {/* Phone is null for Doctor/Therapist viewers (Prompt 15 §1) — omit it. */}
           {patient.phone ? (
             <span className="font-mono text-brand-textMuted" dir="ltr">
-              {formatPhone(patient.phone)}
+              {formatPatientPhone(patient.phone)}
             </span>
           ) : null}
           {/* P57 — shared family number. Null (never rendered) for

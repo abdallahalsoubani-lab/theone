@@ -23,6 +23,11 @@
       "openCalendar": "Open calendar",
       "month": "Month",
       "year": "Year"
+    },
+    "phoneField": {
+      "countryLabel": "Country code",
+      "numberPlaceholder": "79 012 3456",
+      "willBeSavedAs": "Will be saved as {phone}"
     }
   },
   "shell": {

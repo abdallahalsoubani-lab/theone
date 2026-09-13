@@ -11,7 +11,23 @@ import { db } from '@/lib/db';
 import { type CareTeam, type ClinicianRef } from './assignment';
 import { pendingFirstVisitIds } from './first-visit';
 import { displayAgeYears, isPediatric, type PatientListFilters } from './schemas';
+import { normalizePhoneForStorage, phoneSearchSuffix } from '@/lib/format/phone';
+
 import { findSharedPhoneHolders, type SharedPhoneHolder } from './shared-phone';
+
+/**
+ * Extra phone predicates for a search term: the canonical E.164 the term
+ * normalises to, and its last-8-digit suffix. Empty when the term is not
+ * phone-shaped, so a name search costs nothing.
+ */
+function phoneSearchClauses(search: string): Array<{ phone: { contains: string } }> {
+  const clauses: Array<{ phone: { contains: string } }> = [];
+  const canonical = normalizePhoneForStorage(search);
+  if (canonical) clauses.push({ phone: { contains: canonical } });
+  const suffix = phoneSearchSuffix(search);
+  if (suffix) clauses.push({ phone: { contains: suffix } });
+  return clauses;
+}
 
 // Re-export so the patient-file gate and can() resource check keep importing
 // the assignment check from one place (`@/lib/patients/queries`) even though
@@ -90,7 +106,14 @@ export async function listPatients({
             { fullNameAr: { contains: filters.search } },
             ...(canSeeContact
               ? [
+                  // P61 item 2 §2.3.4 — a phone search must hit whatever shape
+                  // was typed. The raw `contains` only ever matched the stored
+                  // canonical, so searching «0790123456» found nobody once the
+                  // row held «+962790123456». We now also match the canonical
+                  // form of the query and its last-8-digit suffix, which is
+                  // identical across 07…, +9627…, 00962… and ٠٧… .
                   { phone: { contains: filters.search } },
+                  ...phoneSearchClauses(filters.search),
                   { email: { contains: filters.search, mode: 'insensitive' as const } },
                 ]
               : []),

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { formatDate } from '@/lib/format/date';
-import { formatPhone } from '@/lib/format/phone';
+import { formatPatientPhone } from '@/lib/format/phone';
 import type { PatientFileData } from '@/lib/patients/queries';
 import { isUnknownDob } from '@/lib/patients/schemas';
 
@@ -80,7 +80,7 @@ export function PatientProfileTab({
         <CardContent className="grid gap-4 p-6 sm:grid-cols-2">
           <Field
             label={t('phone')}
-            value={patient.phone ? formatPhone(patient.phone) : tCommon('hidden')}
+            value={patient.phone ? formatPatientPhone(patient.phone) : tCommon('hidden')}
           />
           <Field label={t('email')} value={patient.email} />
           <Field label={t('address')} value={patient.address} className="sm:col-span-2" />
@@ -89,7 +89,9 @@ export function PatientProfileTab({
           <Field
             label={t('emergencyContactPhone')}
             value={
-              patient.emergencyContactPhone ? formatPhone(patient.emergencyContactPhone) : null
+              patient.emergencyContactPhone
+                ? formatPatientPhone(patient.emergencyContactPhone)
+                : null
             }
           />
         </CardContent>

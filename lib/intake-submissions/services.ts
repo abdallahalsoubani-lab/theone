@@ -5,7 +5,7 @@ import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
 import { db } from '@/lib/db';
 import { createNotification } from '@/lib/notifications/actions';
-import { normalizeJordanPhone } from '@/lib/format/phone';
+import { normalizePhoneStrict } from '@/lib/format/phone-validate';
 import { createAdultIntake, createPediatricIntake } from '@/lib/intake/services';
 import { adultIntakeSchema, pediatricIntakeSchema } from '@/lib/intake/schemas';
 import { createPatient } from '@/lib/patients/services';
@@ -21,13 +21,17 @@ import type { PublicSubmissionInput } from './schemas';
  * actor to attribute), and the row itself IS the durable record. Every
  * REVIEW action below (approve/link/reject) is fully audited.
  *
- * Write-only: this never reads or returns patient data. Phone is normalised to
- * Jordan E.164 here; an unparseable number is rejected before any write.
+ * Write-only: this never reads or returns patient data.
+ *
+ * P61 item 2 — the phone used to be normalised as JORDAN ONLY here, which is
+ * exactly why a patient with a foreign number could not submit the intake link
+ * the clinic sends them. It now accepts any number that is valid for its own
+ * country, with a bare `07…` still read as Jordanian.
  */
 export async function createPublicSubmission(
   input: PublicSubmissionInput,
 ): Promise<{ submissionId: string }> {
-  const normalized = normalizeJordanPhone(input.profile.phone);
+  const normalized = normalizePhoneStrict(input.profile.phone);
   if (!normalized) throw new IntakeSubmissionError(SUBMISSION_ERRORS.INVALID_PHONE);
 
   // Explicit preferred-language choice wins (QA 5.3); the form locale stays as

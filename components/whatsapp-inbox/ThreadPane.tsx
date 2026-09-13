@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/dialog';
 import { SearchableSelect, type PickerOption } from '@/components/ui/searchable-select';
 import { formatDateTime, formatTime } from '@/lib/format/date';
-import { formatPhone } from '@/lib/format/phone';
+import { formatPatientPhone } from '@/lib/format/phone';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { patientProfileHref } from '@/lib/patients/links';
 import {
@@ -187,7 +187,7 @@ export function ThreadPane({
             <span className="text-sm font-semibold text-brand-navy">{t('unknownNumber')}</span>
           )}
           <p className="font-mono text-xs text-brand-textMuted" dir="ltr">
-            &lrm;{formatPhone(c.phone)}
+            &lrm;{formatPatientPhone(c.phone)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -311,7 +311,7 @@ export function ThreadPane({
             <p className="text-xs text-brand-textMuted">
               {t('linkConfirmText', {
                 name: patientDisplayName(linkTarget.fullNameEn, linkTarget.fullNameAr, locale),
-                phone: formatPhone(c.phone),
+                phone: formatPatientPhone(c.phone),
               })}
             </p>
           ) : null}

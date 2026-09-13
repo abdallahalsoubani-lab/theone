@@ -17,7 +17,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Link } from '@/i18n/navigation';
 import { patientDisplayName } from '@/lib/format/patientName';
-import { formatPhone } from '@/lib/format/phone';
+import { formatPatientPhone } from '@/lib/format/phone';
 import type { PatientListRow } from '@/lib/patients/queries';
 import { sharedPhoneHolderNames } from '@/lib/patients/shared-phone';
 
@@ -137,7 +137,7 @@ export function PatientsTable({
             row.original.phone ? (
               <span className="inline-flex flex-wrap items-center gap-1">
                 <span className="font-mono text-xs" dir="ltr">
-                  {formatPhone(row.original.phone)}
+                  {formatPatientPhone(row.original.phone)}
                 </span>
                 {/* P57 — shared family number (Secretary/Admin rows only). */}
                 {row.original.sharedWith && row.original.sharedWith.length > 0 ? (

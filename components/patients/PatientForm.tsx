@@ -27,6 +27,7 @@ import {
 import { Link } from '@/i18n/navigation';
 import type { Result } from '@/lib/auth/result';
 import { createPatientAction, updatePatientAction } from '@/lib/patients/actions';
+import { PhoneField } from '@/components/forms/PhoneField';
 import type { ClinicianRef } from '@/lib/patients/assignment';
 import {
   patientCreateSchema,
@@ -74,7 +75,9 @@ export function PatientForm(props: Props) {
     ? { ...props.initial, dateOfBirth: toDateInputValue(props.initial.dateOfBirth) }
     : {
         fullNameEn: '',
-        phone: '+9627',
+        // P61 — the country selector owns the code now; the field starts empty
+        // so the secretary types only the national number.
+        phone: '',
         email: null,
         dateOfBirth: toDateInputValue(new Date()),
         gender: Gender.MALE,
@@ -210,13 +213,13 @@ export function PatientForm(props: Props) {
               <CardContent className="space-y-4 p-6">
                 <h2 className="text-lg font-medium text-brand-navy">{t('sectionContact')}</h2>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <TextField
+                  {/* P61 item 2 — country selector (Jordan by default), so a
+                      foreign number is two clicks away and the old «+9627»
+                      prefill no longer reads as a locked format. */}
+                  <PhoneField
                     form={form}
                     name={'phone' as never}
                     label={t('phone')}
-                    type="tel"
-                    inputMode="tel"
-                    placeholder="+9627XXXXXXXX"
                     description={isEdit ? t('phoneIsUsername') : undefined}
                   />
                   {/* P57 — shared family number hint (Secretary/Admin only;

@@ -2,11 +2,19 @@
 
 import { z } from 'zod';
 
+import { normalizePhoneStrict } from '@/lib/format/phone-validate';
+
 import { requestOtp } from '@/lib/auth/otp';
 import { AUTH_ERRORS, fail, ok, type Result } from '@/lib/auth/result';
 
 const phoneSchema = z.object({
-  phone: z.string().regex(/^\+9627\d{8}$/),
+  // P61 item 2 — was /^\+9627\d{8}$/ (Jordan only): a patient the clinic can
+  // register with a foreign number must also be able to log in with it. The
+  // shared parser decides validity; a bare `07…` is still read as Jordanian.
+  phone: z
+    .string()
+    .transform((v) => normalizePhoneStrict(v))
+    .refine((v): v is string => v !== null, 'phoneInvalid'),
 });
 
 interface OtpRequestSuccess {
