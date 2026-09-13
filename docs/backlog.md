@@ -90,3 +90,14 @@ trigger it being picked up.
 - **Internal team chat** — out of scope; WhatsApp covers it.
 - **Patient telehealth** — out of scope.
 - **AI-assisted note drafting** — out of scope.
+- **`appointment_confirmation_v2` has a NULL `variablesShape`** — it is the
+  LAST live template relying on the implicit `LEGACY_SHAPES` fallback in
+  `lib/whatsapp/templates/variables.ts`, which is what still feeds it a
+  therapist name. The other three appointment templates were given explicit
+  shapes by the P54 v2 switch. **Do not "fix" the NULL by writing a shape
+  without checking the approved Twilio body first** — the wrong shape reorders
+  live message parameters. Found in P61.
+- **`getUtilization` filters on `therapistId`** (`lib/analytics/queries.ts:54`)
+  — a column P20 replaced with the `AppointmentTherapist` M2M. The per-therapist
+  branch looks dead; if anything ever passes `therapistId` it will throw. Spotted
+  in P61, not touched.

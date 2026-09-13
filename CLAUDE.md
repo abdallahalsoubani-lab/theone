@@ -264,7 +264,9 @@ pnpm format:check      # Prettier check
 pnpm test              # Vitest run (currently 912 tests)
 pnpm i18n:check        # EN + AR key parity
 pnpm build             # Next.js production build
-pnpm size-limit        # 200 kB gzipped first-load JS budget
+pnpm size-limit        # 800 kB gzipped first-load JS budget — currently 778.9 kB
+                       # (2.6% headroom: ~21 kB. Check this before adding ANY
+                       # client-side dependency; server-only imports are free.)
 ```
 
 When you finish a change, run typecheck + lint + the affected test file
