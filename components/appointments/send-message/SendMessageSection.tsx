@@ -14,6 +14,7 @@ import {
   type ManualMessageOptionsDto,
 } from '@/lib/whatsapp/manual/actions';
 import { CUSTOM_TEXT_MAX, normalizeCustomText } from '@/lib/whatsapp/manual/customText';
+import { anyRecipientReachable, type PanelRecipient } from '@/lib/whatsapp/manual/panelRecipients';
 import type { ManualMessageType } from '@/lib/whatsapp/manual/types';
 import { substituteTemplateBody } from '@/lib/whatsapp/templates/render';
 
@@ -29,16 +30,14 @@ interface Props {
    *  effective role). The server action is the authority regardless. */
   viewerRole: UserRole;
   /**
-   * P61 — the section renders whenever the appointment has AT LEAST ONE
-   * patient, whatever its type and however many therapists it carries. Only
-   * a patient-less EVENT is excluded. (P60 also excluded GROUP and anything
-   * without a scalar `patientId`, which is what hid the section on every
-   * multi-therapist group booking in production.)
+   * P61 — everyone this appointment can message, with the phone read from the
+   * SAME place as the recipient (see lib/whatsapp/manual/panelRecipients.ts).
+   * The section renders whenever there is at least one; only a patient-less
+   * EVENT is empty. Reading the count from the members while reading the
+   * phone from the scalar relation is what produced the "no phone on file"
+   * bug on single-member groups.
    */
-  recipientCount: number;
-  /** False only when the single scalar patient has no phone on file — for a
-   *  group the per-patient truth comes back with the loaded options. */
-  hasPhone: boolean;
+  recipients: PanelRecipient[];
 }
 
 /**
@@ -49,7 +48,7 @@ interface Props {
  * it, and sends NOW, bypassing the automatic dispatch settings and the
  * silent mode (human-initiated).
  */
-export function SendMessageSection({ appointmentId, viewerRole, recipientCount, hasPhone }: Props) {
+export function SendMessageSection({ appointmentId, viewerRole, recipients: panel }: Props) {
   const t = useTranslations('appointments.sendMessage');
   const locale = useLocale();
   const [open, setOpen] = useState(false);
@@ -61,10 +60,11 @@ export function SendMessageSection({ appointmentId, viewerRole, recipientCount, 
   const [customText, setCustomText] = useState('');
   const [sentSummary, setSentSummary] = useState<string | null>(null);
 
-  if (recipientCount < 1 || !can({ id: 'viewer', role: viewerRole }, 'whatsapp_manual.send')) {
+  if (panel.length < 1 || !can({ id: 'viewer', role: viewerRole }, 'whatsapp_manual.send')) {
     return null;
   }
-  if (recipientCount === 1 && !hasPhone) {
+  // Not "the scalar patient has no phone" — NOBODY on the appointment has one.
+  if (!anyRecipientReachable(panel)) {
     return <p className="text-xs text-brand-textMuted">{t('noPhone')}</p>;
   }
 
@@ -197,7 +197,7 @@ export function SendMessageSection({ appointmentId, viewerRole, recipientCount, 
       >
         <span className="inline-flex items-center gap-2 text-sm font-medium text-brand-navy">
           <Send className="size-4 text-brand-cyan" aria-hidden />
-          {recipientCount > 1 ? t('titleMany', { count: recipientCount }) : t('title')}
+          {panel.length > 1 ? t('titleMany', { count: panel.length }) : t('title')}
         </span>
         <ChevronDown
           className={`size-4 text-brand-textMuted transition-transform ${open ? 'rotate-180' : ''}`}

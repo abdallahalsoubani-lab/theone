@@ -112,8 +112,8 @@ describe('eventsForView', () => {
       appointmentType: 'GROUP',
       title: 'Back-care workshop',
       groupPatients: [
-        { id: 'p1', fullNameEn: 'John', fullNameAr: 'جون' },
-        { id: 'p2', fullNameEn: 'Mona', fullNameAr: 'منى' },
+        { id: 'p1', fullNameEn: 'John', fullNameAr: 'جون', phone: null },
+        { id: 'p2', fullNameEn: 'Mona', fullNameAr: 'منى', phone: null },
       ],
       therapists: [
         { id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' },
@@ -137,8 +137,8 @@ describe('eventsForView', () => {
       appointmentType: 'GROUP',
       title: null,
       groupPatients: [
-        { id: 'p1', fullNameEn: 'John', fullNameAr: 'جون' },
-        { id: 'p2', fullNameEn: 'Mona', fullNameAr: 'منى' },
+        { id: 'p1', fullNameEn: 'John', fullNameAr: 'جون', phone: null },
+        { id: 'p2', fullNameEn: 'Mona', fullNameAr: 'منى', phone: null },
       ],
       therapists: [{ id: 't1', fullNameEn: 'Ahmad', fullNameAr: 'أحمد' }],
     };

@@ -86,8 +86,8 @@ describe('appointmentTooltipModel', () => {
       patientFullNameAr: '',
       title: 'Back-care workshop',
       groupPatients: [
-        { id: 'p1', fullNameEn: 'John', fullNameAr: 'جون' },
-        { id: 'p2', fullNameEn: 'Mona', fullNameAr: 'منى' },
+        { id: 'p1', fullNameEn: 'John', fullNameAr: 'جون', phone: null },
+        { id: 'p2', fullNameEn: 'Mona', fullNameAr: 'منى', phone: null },
       ],
     };
     const m = appointmentTooltipModel(group, 'ar');

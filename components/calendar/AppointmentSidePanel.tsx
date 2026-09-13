@@ -32,6 +32,7 @@ import { patientProfileHref } from '@/lib/patients/links';
 import { useIsMobile } from '@/lib/hooks/useIsMobile';
 
 import { SendMessageSection } from '@/components/appointments/send-message/SendMessageSection';
+import { panelRecipients } from '@/lib/whatsapp/manual/panelRecipients';
 
 import { CancelAppointmentModal } from './CancelAppointmentModal';
 
@@ -53,10 +54,11 @@ export interface SidePanelAppointment {
   /** P60 — drives the manual "Send a message" section; arrival applies once
    *  checked in. */
   appointmentType?: AppointmentType;
-  /** P61 — the appointment's GROUP members (empty for the single-patient
-   *  types). Together with `patientId` this is the ONLY input to whether the
-   *  send section renders: at least one patient, whatever the type. */
-  groupPatientIds?: string[];
+  /** P61 — the appointment's GROUP members WITH their P15-gated phones (empty
+   *  for the single-patient types). Together with `patientId`/`patientPhone`
+   *  this is the ONLY input to whether the send section renders and whether
+   *  anyone on it is reachable. */
+  groupPatients?: { id: string; phone: string | null }[];
   checkedInAt?: Date | null;
 }
 
@@ -318,12 +320,16 @@ export function AppointmentSidePanel({
             so every GROUP booking — including the two-therapist/one-patient
             sessions the clinic books as groups — lost the section entirely,
             even though it has a patient to message. The rule is now simply
-            "has at least one patient"; only a patient-less EVENT is out. */}
+            "has at least one patient"; only a patient-less EVENT is out.
+
+            P61 follow-up: the recipients AND their phones now come from ONE
+            helper. The first fix counted members but still read the phone off
+            the scalar relation (null on a GROUP), so a one-member group
+            reported "no phone on file" for a perfectly reachable patient. */}
         <SendMessageSection
           appointmentId={appointment.id}
           viewerRole={viewerRole}
-          recipientCount={appointment.patientId ? 1 : (appointment.groupPatientIds?.length ?? 0)}
-          hasPhone={Boolean(appointment.patientPhone)}
+          recipients={panelRecipients(appointment)}
         />
 
         {/* Session report (Prompt 46 row 5) — this used to be a leftover

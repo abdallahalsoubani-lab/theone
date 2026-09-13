@@ -1,4 +1,5 @@
 import { db } from '@/lib/db';
+import { RECIPIENT_PATIENT_SELECT } from '@/lib/whatsapp/manual/recipients';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 
 import { isTemplateApproved } from './approval';
@@ -27,16 +28,13 @@ interface ComposeArgs {
  * is the server-side belt).
  */
 export async function composeCustomMessage(args: ComposeArgs): Promise<ComposedMessage | null> {
+  // P61 follow-up — these two senders address a patient DIRECTLY by id, so
+  // they never touched the appointment's scalar relation and were never part
+  // of the group-phone bug. They now share the one recipient column set so a
+  // future column can't be added to some recipients and not others.
   const patient = await db.user.findUnique({
     where: { id: args.patientId },
-    select: {
-      id: true,
-      phone: true,
-      languagePref: true,
-      whatsappReachable: true,
-      fullNameEn: true,
-      fullNameAr: true,
-    },
+    select: RECIPIENT_PATIENT_SELECT,
   });
   if (!patient?.phone) {
     if (args.force) throw new Error('patient has no phone number');

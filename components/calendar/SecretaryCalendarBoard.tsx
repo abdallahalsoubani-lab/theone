@@ -149,9 +149,10 @@ export function SecretaryCalendarBoard({
       seriesId: found.seriesId,
       sessionNoteId: found.sessionNoteId,
       appointmentType: found.appointmentType,
-      // P61 — a GROUP's patients live in the M2M; the panel needs them to
-      // know the appointment HAS someone to message.
-      groupPatientIds: found.groupPatients.map((p) => p.id),
+      // P61 — a GROUP's patients live in the M2M; the panel needs them (and
+      // their P15-gated phones) to know the appointment has someone to
+      // message and whether that someone is reachable.
+      groupPatients: found.groupPatients.map((p) => ({ id: p.id, phone: p.phone })),
       checkedInAt: found.checkedInAt,
     });
     setPanelOpen(true);

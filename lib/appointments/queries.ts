@@ -15,6 +15,17 @@ export interface PersonRef {
   fullNameAr: string;
 }
 
+/**
+ * A GROUP member as the calendar carries it. P61 follow-up: the phone rides
+ * along (P15-gated exactly like the scalar `patientPhone`) because the side
+ * panel has to know whether a MEMBER is reachable — for a GROUP the scalar
+ * relation is null, so reading `patientPhone` said "no phone on file" for a
+ * patient whose number was right there on the membership.
+ */
+export interface GroupMemberRef extends PersonRef {
+  phone: string | null;
+}
+
 export interface CalendarAppointment {
   id: string;
   /** Null for a patient-less EVENT (July #8 part 2). */
@@ -26,7 +37,7 @@ export interface CalendarAppointment {
   title: string | null;
   /** GROUP members (July #8 part 3) — empty for every non-GROUP type. The
    *  calendar chip shows the count + names for a group. */
-  groupPatients: PersonRef[];
+  groupPatients: GroupMemberRef[];
   /** All therapists on this session (Prompt 20) — the calendar renders the
    *  appointment in each one's resource column. */
   therapists: PersonRef[];
@@ -81,7 +92,9 @@ export async function listAppointmentsForCalendar(
       patient: { select: { id: true, fullNameEn: true, fullNameAr: true, phone: true } },
       groupPatients: {
         orderBy: { createdAt: 'asc' },
-        include: { patient: { select: { id: true, fullNameEn: true, fullNameAr: true } } },
+        include: {
+          patient: { select: { id: true, fullNameEn: true, fullNameAr: true, phone: true } },
+        },
       },
       therapists: {
         orderBy: { createdAt: 'asc' },
@@ -105,7 +118,13 @@ export async function listAppointmentsForCalendar(
     patientFullNameEn: r.patient?.fullNameEn ?? '',
     patientFullNameAr: r.patient?.fullNameAr ?? '',
     title: r.title,
-    groupPatients: r.groupPatients.map((g) => g.patient),
+    groupPatients: r.groupPatients.map((g) => ({
+      id: g.patient.id,
+      fullNameEn: g.patient.fullNameEn,
+      fullNameAr: g.patient.fullNameAr,
+      // Same P15 boundary as `patientPhone` below — hidden from Doctor/Therapist.
+      phone: canSeeContact ? (g.patient.phone ?? null) : null,
+    })),
     therapists: r.therapists.map((t) => t.therapist),
     roomId: r.room?.id ?? null,
     roomName: r.room?.name ?? null,

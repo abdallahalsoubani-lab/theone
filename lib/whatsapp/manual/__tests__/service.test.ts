@@ -173,7 +173,14 @@ const sendOne = async (
   return first.result;
 };
 
-/** A GROUP appointment: no scalar patient, N members in the M2M. */
+/**
+ * A GROUP appointment: no scalar patient, N members in the M2M.
+ *
+ * P61 follow-up — `patient: null` and `patientId: null` are the POINT of this
+ * fixture. Production groups have no scalar relation at all, so any code that
+ * silently falls back to it (as the panel's `hasPhone` did) must fail here
+ * rather than quietly read a populated scalar patient.
+ */
 function groupAppt(members: Array<Record<string, unknown>>, over: Record<string, unknown> = {}) {
   return appt({
     appointmentType: 'GROUP',
@@ -594,6 +601,31 @@ describe('P61 — every appointment with a patient can be messaged', () => {
     await send('ARRIVAL', { recipientIds: ['g1'] });
     expect(enqueued).toHaveLength(1);
     expect(enqueued[0]).toMatchObject({ templateName: 'arrival_confirmation' });
+  });
+
+  it('REGRESSION: a ONE-member group is fully sendable (the live "no phone on file" bug)', async () => {
+    // Every group on the clinic's calendar has exactly one member. The panel
+    // used to read the phone off the null scalar relation for these and
+    // refused to send; the service always had it right, which is why only a
+    // panel-level test catches it (see __tests__/panelRecipients.test.ts).
+    state.appt = groupAppt([{ id: 'alaa', phone: '+962788453529', fullNameEn: 'Alaa Alshmilan' }]);
+    const o = await getManualMessageOptions('a1');
+    expect(o.recipients).toEqual([expect.objectContaining({ patientId: 'alaa', hasPhone: true })]);
+    expect(o.options.map((x) => x.type)).toContain('CONFIRMATION');
+    const batch = await send('CONFIRMATION');
+    expect(batch.results).toEqual([expect.objectContaining({ patientId: 'alaa', ok: true })]);
+    expect(enqueued[0]).toMatchObject({
+      recipientUserId: 'alaa',
+      recipientPhone: '+962788453529',
+      source: 'manual_panel',
+    });
+  });
+
+  it('a group member with NO phone is the only case that reports no phone', async () => {
+    state.appt = groupAppt([{ id: 'g1', phone: null }]);
+    const o = await getManualMessageOptions('a1');
+    expect(o.recipients).toEqual([expect.objectContaining({ patientId: 'g1', hasPhone: false })]);
+    await expect(send('CONFIRMATION')).rejects.toMatchObject({ code: 'NO_PHONE' });
   });
 
   it('a group member never receives another patient’s intake link', async () => {
