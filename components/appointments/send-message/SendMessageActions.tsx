@@ -10,6 +10,11 @@ import { formatDateTime, formatTime } from '@/lib/format/date';
 interface Props {
   /** ISO time of the last non-failed send of this type (decision 7). */
   duplicateAt: string | null;
+  /** P61 — WHO already received this type (multi-patient appointments only;
+   *  empty for a single recipient, which keeps P60's wording). */
+  duplicateNames?: string[];
+  /** Label suffix for a multi-recipient send ("Send to 3 patients"). */
+  sendCount?: number;
   /** ISO time of a send just made from this section. */
   sentAt: string | null;
   sending: boolean;
@@ -23,7 +28,15 @@ interface Props {
  * A previous send of the same type is never a silent block: it shows the
  * time it went out and the confirm button reads "Send again".
  */
-export function SendMessageActions({ duplicateAt, sentAt, sending, disabled, onSend }: Props) {
+export function SendMessageActions({
+  duplicateAt,
+  duplicateNames = [],
+  sendCount,
+  sentAt,
+  sending,
+  disabled,
+  onSend,
+}: Props) {
   const t = useTranslations('appointments.sendMessage');
   const locale = useLocale();
   const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
@@ -36,7 +49,14 @@ export function SendMessageActions({ duplicateAt, sentAt, sending, disabled, onS
         <p className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-brand-text">
           <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-700" aria-hidden />
           <span>
-            {t('duplicateWarning', { time: formatDateTime(new Date(duplicateAt), intlLocale) })}
+            {duplicateNames.length > 0
+              ? t('duplicateWarningNamed', {
+                  names: duplicateNames.join('، '),
+                  time: formatDateTime(new Date(duplicateAt), intlLocale),
+                })
+              : t('duplicateWarning', {
+                  time: formatDateTime(new Date(duplicateAt), intlLocale),
+                })}
           </span>
         </p>
       ) : null}
@@ -80,7 +100,11 @@ export function SendMessageActions({ duplicateAt, sentAt, sending, disabled, onS
           onClick={() => setConfirming(true)}
         >
           <Send className="me-2 size-4" aria-hidden />
-          {resend ? t('sendAgain') : t('send')}
+          {resend
+            ? t('sendAgain')
+            : sendCount && sendCount > 1
+              ? t('sendToCount', { count: sendCount })
+              : t('send')}
         </Button>
       )}
     </div>

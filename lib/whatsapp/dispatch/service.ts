@@ -218,9 +218,19 @@ export async function recordDispatchEvent(args: {
 export async function closeOpenDispatchForManualSend(args: {
   appointmentId: string;
   type: WaDispatchType;
+  /** P61 — a manual send to ONE patient of a group supersedes only that
+   *  patient's automatic row. Rows written by the single-patient automatic
+   *  paths carry a null patientId, so the scalar case must still match those
+   *  (patientId IN (given, null)) or today's close-out would regress. */
+  patientId?: string;
 }): Promise<{ closed: number }> {
   const res = await db.whatsAppDispatch.updateMany({
-    where: { appointmentId: args.appointmentId, type: args.type, status: { in: OPEN } },
+    where: {
+      appointmentId: args.appointmentId,
+      type: args.type,
+      status: { in: OPEN },
+      ...(args.patientId ? { OR: [{ patientId: args.patientId }, { patientId: null }] } : {}),
+    },
     data: { status: 'SUPERSEDED_BY_MANUAL', dispatchReason: null },
   });
   const { reminderQueue } = await import('@/lib/queue/queues');

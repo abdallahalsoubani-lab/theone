@@ -81,7 +81,14 @@ vi.mock('@/lib/db', () => ({
       ),
     },
     user: {
-      findUnique: vi.fn(async () => (state.appt?.patient as Record<string, unknown>) ?? null),
+      findUnique: vi.fn(async ({ where }: { where: { id: string } }) => {
+        const a = state.appt as Record<string, unknown> | null;
+        if (!a) return null;
+        const scalar = a.patient as Record<string, unknown> | null;
+        if (scalar && scalar.id === where.id) return scalar;
+        const members = (a.groupPatients ?? []) as Array<{ patient: Record<string, unknown> }>;
+        return members.find((g) => g.patient.id === where.id)?.patient ?? null;
+      }),
     },
     whatsAppTemplate: {
       findUnique: vi.fn(async ({ where }: { where: { name_language: { name: string } } }) => ({
@@ -96,7 +103,14 @@ vi.mock('@/lib/db', () => ({
       ]),
     },
     whatsAppMessage: {
-      findFirst: vi.fn(async () => (state.lastSent ? { sentAt: state.lastSent } : null)),
+      findMany: vi.fn(async ({ where }: { where: { recipientId?: { in: string[] } } }) =>
+        state.lastSent
+          ? (where.recipientId?.in ?? []).map((recipientId) => ({
+              recipientId,
+              sentAt: state.lastSent,
+            }))
+          : [],
+      ),
     },
   },
 }));
@@ -106,8 +120,9 @@ import { substituteTemplateBody } from '@/lib/whatsapp/templates/render';
 import {
   ManualSendError,
   getManualMessageOptions,
-  lastSentOfType,
+  lastSentByRecipient,
   sendManualAppointmentMessage,
+  type ManualSendResult,
 } from '../service';
 
 const FUTURE = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
@@ -146,6 +161,39 @@ const send = (type: string, extra: Record<string, unknown> = {}) =>
     ...extra,
   });
 
+/** P61 — the send is a batch now; the single-recipient assertions read the
+ *  one and only result. */
+const sendOne = async (
+  type: string,
+  extra: Record<string, unknown> = {},
+): Promise<ManualSendResult> => {
+  const batch = await send(type, extra);
+  const first = batch.results[0]!;
+  if (!first.ok) throw new ManualSendError(first.code);
+  return first.result;
+};
+
+/** A GROUP appointment: no scalar patient, N members in the M2M. */
+function groupAppt(members: Array<Record<string, unknown>>, over: Record<string, unknown> = {}) {
+  return appt({
+    appointmentType: 'GROUP',
+    patientId: null,
+    patient: null,
+    groupPatients: members.map((m) => ({
+      checkedInAt: (m.checkedInAt as Date | null) ?? null,
+      patient: {
+        id: m.id,
+        phone: m.phone === undefined ? `+96279000000${m.id}` : m.phone,
+        languagePref: m.languagePref ?? 'AR',
+        whatsappReachable: true,
+        fullNameEn: m.fullNameEn ?? `Patient ${m.id}`,
+        fullNameAr: m.fullNameAr ?? `مريض ${m.id}`,
+      },
+    })),
+    ...over,
+  });
+}
+
 beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -160,7 +208,7 @@ beforeEach(() => {
 describe('sendManualAppointmentMessage — confirmation from the panel', () => {
   it('enqueues through the shared sender with manual_panel + sentById, closes the auto dispatch, audits', async () => {
     state.appt = appt();
-    const r = await send('CONFIRMATION');
+    const r = await sendOne('CONFIRMATION');
     expect(enqueued).toHaveLength(1);
     expect(enqueued[0]).toMatchObject({
       kind: 'template',
@@ -172,7 +220,11 @@ describe('sendManualAppointmentMessage — confirmation from the panel', () => {
       source: 'manual_panel',
       sentById: ACTOR,
     });
-    expect(closeMock).toHaveBeenCalledWith({ appointmentId: 'a1', type: 'BOOKING_CONFIRMATION' });
+    expect(closeMock).toHaveBeenCalledWith({
+      appointmentId: 'a1',
+      type: 'BOOKING_CONFIRMATION',
+      patientId: 'p1',
+    });
     expect(r).toMatchObject({
       type: 'CONFIRMATION',
       templateName: 'appointment_confirmation_v2',
@@ -212,7 +264,7 @@ describe('sendManualAppointmentMessage — confirmation from the panel', () => {
 
   it('records resend=true when the action layer confirmed a second send', async () => {
     state.appt = appt();
-    const r = await send('CONFIRMATION', { resend: true });
+    const r = await sendOne('CONFIRMATION', { resend: true });
     expect(r.resend).toBe(true);
   });
 });
@@ -241,7 +293,11 @@ describe('server-side applicability (never trusts the UI)', () => {
       templateName: 'appointment_cancelled_v2',
       source: 'manual_panel',
     });
-    expect(closeMock).toHaveBeenCalledWith({ appointmentId: 'a1', type: 'CANCELLATION' });
+    expect(closeMock).toHaveBeenCalledWith({
+      appointmentId: 'a1',
+      type: 'CANCELLATION',
+      patientId: 'p1',
+    });
   });
 
   it('arrival on a checked-in appointment sends the arrival template', async () => {
@@ -256,7 +312,11 @@ describe('server-side applicability (never trusts the UI)', () => {
       parameters: ['سارة'],
       source: 'manual_panel',
     });
-    expect(closeMock).toHaveBeenCalledWith({ appointmentId: 'a1', type: 'ARRIVAL' });
+    expect(closeMock).toHaveBeenCalledWith({
+      appointmentId: 'a1',
+      type: 'ARRIVAL',
+      patientId: 'p1',
+    });
   });
 
   it('missing patient / phone are refused with their own codes', async () => {
@@ -272,7 +332,7 @@ describe('server-side applicability (never trusts the UI)', () => {
 describe('reminder from the panel — the shared builder', () => {
   it('uses the v3 single template the worker would use; closes REMINDER holds only', async () => {
     state.appt = appt();
-    const r = await send('REMINDER');
+    const r = await sendOne('REMINDER');
     expect(enqueued).toHaveLength(1);
     expect(enqueued[0]).toMatchObject({
       templateName: 'appointment_reminder_single_v3',
@@ -283,7 +343,11 @@ describe('reminder from the panel — the shared builder', () => {
     expect(r.templateName).toBe('appointment_reminder_single_v3');
     // Decision 6: the dispatch close is typed REMINDER (the P17 job itself is
     // never touched — pinned in the dispatch close test).
-    expect(closeMock).toHaveBeenCalledWith({ appointmentId: 'a1', type: 'REMINDER' });
+    expect(closeMock).toHaveBeenCalledWith({
+      appointmentId: 'a1',
+      type: 'REMINDER',
+      patientId: 'p1',
+    });
   });
 });
 
@@ -295,8 +359,8 @@ describe('custom message', () => {
       code: 'CUSTOM_TEMPLATE_PENDING',
     });
     const o = await getManualMessageOptions('a1');
-    expect(o.customApproved).toBe(false);
-    expect(o.customFrame).toBeNull();
+    expect(o.customApprovedByLanguage.AR).toBe(false);
+    expect(o.customFrameByLanguage.AR).toBeNull();
     expect(o.options.map((x) => x.type)).not.toContain('CUSTOM');
   });
 
@@ -336,8 +400,8 @@ describe('custom message', () => {
       enqueued[0]!.parameters as string[],
     );
     const { normalizeCustomText } = await import('../customText');
-    const previewBody = substituteTemplateBody(o.customFrame!, [
-      o.patientFirstName,
+    const previewBody = substituteTemplateBody(o.customFrameByLanguage.AR!, [
+      o.recipients[0]!.firstName,
       normalizeCustomText(raw),
     ]);
     expect(previewBody).toBe(sentBody);
@@ -345,13 +409,14 @@ describe('custom message', () => {
   });
 });
 
-describe('getManualMessageOptions + lastSentOfType', () => {
+describe('getManualMessageOptions + lastSentByRecipient', () => {
   it('lists applicable types with previews equal to the composed body, and last-sent times', async () => {
     state.appt = appt();
     state.lastSent = new Date('2030-05-01T10:00:00Z');
     const o = await getManualMessageOptions('a1');
-    expect(o).toMatchObject({ hasPatient: true, hasPhone: true, language: 'AR' });
-    expect(o.patientFirstName).toBe('سارة');
+    expect(o.recipients).toHaveLength(1);
+    expect(o.recipients[0]).toMatchObject({ patientId: 'p1', language: 'AR', hasPhone: true });
+    expect(o.recipients[0]!.firstName).toBe('سارة');
     expect(o.options.map((x) => x.type)).toEqual([
       'CONFIRMATION',
       'REMINDER',
@@ -359,10 +424,10 @@ describe('getManualMessageOptions + lastSentOfType', () => {
       'CUSTOM',
     ]);
     const conf = o.options.find((x) => x.type === 'CONFIRMATION')!;
-    expect(conf.preview).toContain('مرحباً Sara Khalil، تم تأكيد موعدك مع د. لينا');
-    expect(conf.lastSentAt?.toISOString()).toBe('2030-05-01T10:00:00.000Z');
+    expect(conf.previewByLanguage.AR).toContain('مرحباً Sara Khalil، تم تأكيد موعدك مع د. لينا');
+    expect(conf.lastSentByRecipient.p1!.toISOString()).toBe('2030-05-01T10:00:00.000Z');
     const rem = o.options.find((x) => x.type === 'REMINDER')!;
-    expect(rem.preview).toMatch(/نذكّركم بموعدكم غداً الساعة/);
+    expect(rem.previewByLanguage.AR).toMatch(/نذكّركم بموعدكم غداً الساعة/);
     // Sending the confirmation produces exactly the previewed text.
     await send('CONFIRMATION');
     expect(
@@ -370,28 +435,30 @@ describe('getManualMessageOptions + lastSentOfType', () => {
         FRAMES.appointment_confirmation_v2!,
         enqueued[0]!.parameters as string[],
       ),
-    ).toBe(conf.preview);
+    ).toBe(conf.previewByLanguage.AR);
   });
 
   it('EVENT / patient-less → no options, section hidden', async () => {
     state.appt = appt({ patient: null, patientId: null, appointmentType: 'EVENT' });
     const o = await getManualMessageOptions('a1');
-    expect(o.hasPatient).toBe(false);
+    expect(o.recipients).toEqual([]);
     expect(o.options).toEqual([]);
   });
 
-  it('lastSentOfType queries the template family of the type (non-failed outbound only)', async () => {
+  it('lastSentByRecipient queries the template family of the type, per patient (non-failed outbound only)', async () => {
     const { db } = await import('@/lib/db');
     state.lastSent = new Date('2030-05-02T10:00:00Z');
-    const at = await lastSentOfType('a1', 'REMINDER');
-    expect(at?.toISOString()).toBe('2030-05-02T10:00:00.000Z');
+    const map = await lastSentByRecipient('a1', 'REMINDER', ['p1', 'p2']);
+    expect(map.get('p1')?.toISOString()).toBe('2030-05-02T10:00:00.000Z');
+    expect(map.get('p2')?.toISOString()).toBe('2030-05-02T10:00:00.000Z');
     const call = (
-      db.whatsAppMessage.findFirst as unknown as { mock: { calls: unknown[][] } }
+      db.whatsAppMessage.findMany as unknown as { mock: { calls: unknown[][] } }
     ).mock.calls.at(-1)![0] as { where: Record<string, unknown> };
     expect(call.where).toMatchObject({
       appointmentId: 'a1',
       direction: 'OUTBOUND',
       status: { not: 'FAILED' },
+      recipientId: { in: ['p1', 'p2'] },
       template: {
         name: {
           in: [
@@ -406,5 +473,134 @@ describe('getManualMessageOptions + lastSentOfType', () => {
 
   it('ManualSendError carries the code', () => {
     expect(new ManualSendError('NO_PHONE').code).toBe('NO_PHONE');
+  });
+});
+
+/**
+ * P61 item 1 — the section must work on EVERY appointment that has a patient.
+ * The production bug: a two-therapist booking (made as a GROUP, so the scalar
+ * patientId is null) rendered no "Send a message" section at all.
+ */
+describe('P61 — every appointment with a patient can be messaged', () => {
+  it('regression: 2 therapists + 1 patient → options, preview and send all work', async () => {
+    state.appt = appt({
+      therapists: [
+        { therapist: { fullNameEn: 'Ola Osama', fullNameAr: 'علا أسامة' } },
+        { therapist: { fullNameEn: 'Rana Adeeb', fullNameAr: 'رنا أديب' } },
+      ],
+    });
+    const o = await getManualMessageOptions('a1');
+    expect(o.recipients).toHaveLength(1);
+    expect(o.options.map((x) => x.type)).toContain('CONFIRMATION');
+    const conf = o.options.find((x) => x.type === 'CONFIRMATION')!;
+    expect(conf.previewByLanguage.AR).toBeTruthy();
+    const r = await sendOne('CONFIRMATION');
+    expect(r.templateName).toBe('appointment_confirmation_v2');
+    expect(enqueued).toHaveLength(1);
+  });
+
+  it('the therapist variable names the FIRST clinician — identical for 1 and 2 therapists', async () => {
+    state.appt = appt();
+    await sendOne('CONFIRMATION');
+    const single = enqueued[0]!.parameters as string[];
+    enqueued.length = 0;
+    state.appt = appt({
+      therapists: [
+        { therapist: { fullNameEn: 'Dr. Lina', fullNameAr: 'د. لينا' } },
+        { therapist: { fullNameEn: 'Rana Adeeb', fullNameAr: 'رنا أديب' } },
+      ],
+    });
+    await sendOne('CONFIRMATION');
+    // Byte-identical: adding a second therapist changes nothing that goes out.
+    expect(enqueued[0]!.parameters).toEqual(single);
+    expect(single[1]).toBe('د. لينا');
+  });
+
+  it('STRETCHING with zero therapists → section works, variable is the clinic fallback (never empty)', async () => {
+    state.appt = appt({ appointmentType: 'STRETCHING', therapists: [] });
+    const o = await getManualMessageOptions('a1');
+    expect(o.recipients).toHaveLength(1);
+    await sendOne('CONFIRMATION');
+    const params = enqueued[0]!.parameters as string[];
+    expect(params[1]).toBe('فريق العيادة');
+    expect(params.every((p) => p.length > 0)).toBe(true);
+  });
+
+  it('GROUP with 3 patients → 3 messages, 3 audit events, ONE batchId, each in their own language', async () => {
+    state.appt = groupAppt([
+      { id: 'g1', languagePref: 'AR', fullNameEn: 'Sara Khalil', fullNameAr: 'سارة خليل' },
+      { id: 'g2', languagePref: 'EN', fullNameEn: 'John Smith', fullNameAr: 'جون سميث' },
+      { id: 'g3', languagePref: 'AR', fullNameEn: 'Lina Odeh', fullNameAr: 'لينا عودة' },
+    ]);
+    const batch = await send('CONFIRMATION');
+    expect(batch.results).toHaveLength(3);
+    expect(batch.results.every((r) => r.ok)).toBe(true);
+    expect(enqueued).toHaveLength(3);
+    expect(enqueued.map((e) => e.recipientUserId)).toEqual(['g1', 'g2', 'g3']);
+    expect(enqueued.map((e) => e.language)).toEqual(['AR', 'EN', 'AR']);
+    // Every row anchors to the same appointment and one traceable action.
+    expect(enqueued.every((e) => e.appointmentId === 'a1')).toBe(true);
+    const ids = new Set(batch.results.map((r) => (r.ok ? r.result.batchId : null)));
+    expect(ids.size).toBe(1);
+    expect([...ids][0]).toBe(batch.batchId);
+    // Each patient's OWN name (the display name is the English field since
+    // P47, in both catalogs) — never the group's first member for everyone.
+    expect((enqueued[0]!.parameters as string[])[0]).toBe('Sara Khalil');
+    expect((enqueued[1]!.parameters as string[])[0]).toBe('John Smith');
+    expect((enqueued[2]!.parameters as string[])[0]).toBe('Lina Odeh');
+  });
+
+  it('one recipient failing (no phone) never aborts the batch', async () => {
+    state.appt = groupAppt([{ id: 'g1' }, { id: 'g2', phone: null }, { id: 'g3' }]);
+    const batch = await send('CONFIRMATION');
+    expect(batch.results.map((r) => r.ok)).toEqual([true, false, true]);
+    expect(batch.results.find((r) => !r.ok)).toMatchObject({
+      patientId: 'g2',
+      code: 'NO_PHONE',
+    });
+    expect(enqueued).toHaveLength(2);
+  });
+
+  it('only the selected recipients are messaged; an id not on the appointment is rejected', async () => {
+    state.appt = groupAppt([{ id: 'g1' }, { id: 'g2' }, { id: 'g3' }]);
+    await send('CONFIRMATION', { recipientIds: ['g1', 'g3'] });
+    expect(enqueued.map((e) => e.recipientUserId)).toEqual(['g1', 'g3']);
+    enqueued.length = 0;
+    await expect(
+      send('CONFIRMATION', { recipientIds: ['g1', 'not-on-this-appointment'] }),
+    ).rejects.toMatchObject({ code: 'RECIPIENT_NOT_ON_APPOINTMENT' });
+    expect(enqueued).toHaveLength(0);
+  });
+
+  it('group previews are one per distinct language among the recipients', async () => {
+    state.appt = groupAppt([
+      { id: 'g1', languagePref: 'AR' },
+      { id: 'g2', languagePref: 'AR' },
+    ]);
+    const arOnly = await getManualMessageOptions('a1');
+    const conf = arOnly.options.find((x) => x.type === 'CONFIRMATION')!;
+    expect(Object.keys(conf.previewByLanguage)).toEqual(['AR']);
+    expect(conf.applicableRecipientIds).toEqual(['g1', 'g2']);
+  });
+
+  it('arrival is offered per membership — only the group members who arrived', async () => {
+    state.appt = groupAppt([{ id: 'g1', checkedInAt: new Date() }, { id: 'g2' }], {
+      status: 'IN_PROGRESS',
+      startsAt: new Date(Date.now() - 10 * 60 * 1000),
+    });
+    const o = await getManualMessageOptions('a1');
+    const arrival = o.options.find((x) => x.type === 'ARRIVAL')!;
+    expect(arrival.applicableRecipientIds).toEqual(['g1']);
+    await send('ARRIVAL', { recipientIds: ['g1'] });
+    expect(enqueued).toHaveLength(1);
+    expect(enqueued[0]).toMatchObject({ templateName: 'arrival_confirmation' });
+  });
+
+  it('a group member never receives another patient’s intake link', async () => {
+    const links = await import('@/lib/intake-links/queries');
+    vi.mocked(links.unusedLinkForAppointment).mockResolvedValueOnce({ token: 'tok' });
+    state.appt = groupAppt([{ id: 'g1' }]);
+    await send('CONFIRMATION');
+    expect(enqueued[0]!.templateName).toBe('appointment_confirmation_v2');
   });
 });

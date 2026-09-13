@@ -2,6 +2,7 @@ import type { CancellationCategory } from '@prisma/client';
 
 import { db } from '@/lib/db';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
+import { RECIPIENT_PATIENT_SELECT, getMessageRecipients } from '@/lib/whatsapp/manual/recipients';
 import { clinicDateKey, clinicHm } from '@/lib/time/clinic';
 import { getClinicTimeZone } from '@/lib/time/clinic-server';
 
@@ -35,6 +36,9 @@ export function categoryLabelForLocale(
 
 interface ComposeArgs {
   appointmentId: string;
+  /** P61 — which patient of the appointment to address (see sendConfirmation).
+   *  Omitted = the single recipient; a GROUP member must be named explicitly. */
+  recipientId?: string;
   /** P59 — outbox Send: bypass the stale whatsappReachable flag (see
    *  sendAppointmentConfirmation). */
   force?: boolean;
@@ -59,19 +63,28 @@ export async function composeAppointmentCancelled(
       status: true,
       cancellationCategory: true,
       patientId: true,
-      patient: {
-        select: { id: true, phone: true, languagePref: true, whatsappReachable: true },
+      appointmentType: true,
+      checkedInAt: true,
+      patient: { select: RECIPIENT_PATIENT_SELECT },
+      // P61 — a GROUP's members live in the M2M (empty scalar relation).
+      groupPatients: {
+        orderBy: { createdAt: 'asc' },
+        select: { checkedInAt: true, patient: { select: RECIPIENT_PATIENT_SELECT } },
       },
     },
   });
-  if (!appt || !appt.patient) return null;
+  if (!appt) return null;
   if (appt.status !== 'CANCELLED') {
     console.warn(
       `[dispatch] appointment ${args.appointmentId} status=${appt.status} — cancellation message skipped`,
     );
     return null;
   }
-  const p = appt.patient;
+  const recipients = getMessageRecipients(appt);
+  const p = args.recipientId
+    ? (recipients.find((r) => r.id === args.recipientId) ?? null)
+    : (recipients[0] ?? null);
+  if (!p) return null;
   if (!p.phone) {
     if (args.force) throw new Error('patient has no phone number');
     return null;
@@ -88,7 +101,7 @@ export async function composeAppointmentCancelled(
       categoryLabelForLocale(appt.cancellationCategory ?? 'OTHER', p.languagePref),
     ],
     recipientPhone: p.phone,
-    recipientUserId: appt.patientId ?? null,
+    recipientUserId: p.id,
     appointmentId: appt.id,
   };
 }

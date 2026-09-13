@@ -1,6 +1,7 @@
 import { db } from '@/lib/db';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 
+import { getAppointmentTherapistLabel } from './therapistLabel';
 import type { ComposedMessage, SendOutcome, SenderSendOptions } from './types';
 import { appointmentVarContext, buildParamsFromShape, resolveTemplateShape } from './variables';
 import { patientDisplayName } from '@/lib/format/patientName';
@@ -81,24 +82,20 @@ export async function composeAppointmentRescheduled(args: ComposeArgs): Promise<
     : (appt.groupPatients ?? []).map((g) => g.patient);
   if (recipients.length === 0) return []; // patient-less EVENT
 
-  const firstTherapist = appt.therapists?.[0]?.therapist ?? null;
   const composed: ComposedMessage[] = [];
 
   for (const p of recipients) {
     if ((!p.whatsappReachable && !args.force) || !p.phone) continue;
     const isAr = p.languagePref === 'AR';
     const patientName = patientDisplayName(p.fullNameEn, p.fullNameAr, isAr ? 'ar' : 'en');
-    const clinician = firstTherapist
-      ? isAr
-        ? firstTherapist.fullNameAr
-        : firstTherapist.fullNameEn
-      : appt.appointmentType === 'STRETCHING'
-        ? isAr
-          ? 'جلسة استطالة'
-          : 'Stretching session'
-        : isAr
-          ? 'فريق العيادة'
-          : 'the clinic team';
+    // P61 — the one shared label; identical output to the inline chain it
+    // replaces (first-of-N, «جلسة استطالة» for a therapist-less stretching
+    // booking, «فريق العيادة» otherwise).
+    const clinician = getAppointmentTherapistLabel({
+      therapists: appt.therapists ?? [],
+      language: p.languagePref,
+      appointmentType: appt.appointmentType,
+    });
     // Prompt 48b: parameters come from the registry shape (legacy P48
     // 4-var today; the v2 [patient, dayName, date, time] after the switch).
     const shape = await resolveTemplateShape(TEMPLATE_NAME, p.languagePref);

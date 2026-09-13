@@ -692,7 +692,17 @@
         "CANCELLATION": "Cancellation notice",
         "ARRIVAL": "Arrival confirmation",
         "CUSTOM": "Custom message"
-      }
+      },
+      "titleMany": "Send a message to the {count} patients",
+      "recipientsLabel": "Recipients ({count})",
+      "recipientNoPhone": "No phone number on file.",
+      "recipientNotApplicable": "This message type does not apply to this patient right now.",
+      "alreadySentChip": "Already sent",
+      "previewLabelCount": "This is what {count} patients will receive",
+      "sendToCount": "Send to {count} patients",
+      "duplicateWarningNamed": "Already sent to {names} at {time}. Sending again will deliver it a second time.",
+      "sentAllSummary": "Sent to {count} patient(s).",
+      "sentPartialSummary": "Sent to {sent} of {total}. Failed: {names}."
     },
     "myScheduleTitle": "My schedule",
     "cancelledView": {

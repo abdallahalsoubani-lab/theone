@@ -187,7 +187,17 @@
         "CANCELLATION": "إشعار الإلغاء",
         "ARRIVAL": "تأكيد الوصول",
         "CUSTOM": "رسالة مخصصة"
-      }
+      },
+      "titleMany": "إرسال رسالة إلى {count} مرضى",
+      "recipientsLabel": "المستلمون ({count})",
+      "recipientNoPhone": "لا يوجد رقم هاتف مسجّل.",
+      "recipientNotApplicable": "هذا النوع من الرسائل لا ينطبق على هذا المريض حالياً.",
+      "alreadySentChip": "أُرسلت سابقاً",
+      "previewLabelCount": "هذا ما سيصل {count} من المرضى",
+      "sendToCount": "إرسال لـ {count} مرضى",
+      "duplicateWarningNamed": "أُرسلت سابقاً إلى {names} بتاريخ {time}. الإرسال مجدداً سيوصلها مرة ثانية.",
+      "sentAllSummary": "أُرسلت إلى {count} من المرضى.",
+      "sentPartialSummary": "أُرسلت لـ {sent} من {total}. تعذّر الإرسال إلى: {names}."
     },
     "myScheduleTitle": "جدولي",
     "cancelledView": {

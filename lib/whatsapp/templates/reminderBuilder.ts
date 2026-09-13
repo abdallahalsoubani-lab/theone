@@ -7,6 +7,7 @@ import { getClinicTimeZone } from '@/lib/time/clinic-server';
 
 import { reminderV3Approved } from './approval';
 import { formatReminderAppointments, reminderTime } from './reminderAppointments';
+import { getAppointmentTherapistLabel } from './therapistLabel';
 import type { ComposedMessage } from './types';
 import { appointmentVarContext, buildParamsFromShape, resolveTemplateShape } from './variables';
 
@@ -58,6 +59,8 @@ interface SameDayAppt {
   id: string;
   startsAt: Date;
   durationMinutes: number;
+  /** P61 — drives the therapist-less fallback wording. */
+  appointmentType: string;
   therapists: TherapistRef[];
 }
 
@@ -128,6 +131,7 @@ export async function buildAppointmentReminderMessages(
         id: true,
         startsAt: true,
         durationMinutes: true,
+        appointmentType: true,
         therapists: {
           orderBy: { createdAt: 'asc' },
           take: 1,
@@ -157,6 +161,7 @@ export async function buildAppointmentReminderMessages(
       id: appt.id,
       startsAt: appt.startsAt,
       durationMinutes: appt.durationMinutes,
+      appointmentType: appt.appointmentType,
       therapists: appt.therapists,
     };
     // The day's appointments for THIS recipient (group members render
@@ -174,8 +179,14 @@ export async function buildAppointmentReminderMessages(
 
     if (!useV3) {
       for (const da of dayAppts) {
-        const th = da.therapists[0]?.therapist ?? null;
-        const therapistName = (lang === 'AR' ? th?.fullNameAr : th?.fullNameEn) ?? '';
+        // P61 — this used to fall back to an EMPTY string when the
+        // appointment had no therapist (STRETCHING), and Twilio rejects empty
+        // template parameters. Same shared label as every other sender.
+        const therapistName = getAppointmentTherapistLabel({
+          therapists: da.therapists,
+          language: lang,
+          appointmentType: da.appointmentType,
+        });
         const shapeV2 = await resolveTemplateShape('appointment_reminder_v2', lang);
         if (!shapeV2) {
           console.error('[reminder] no variable shape for appointment_reminder_v2 — skipping');

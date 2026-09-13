@@ -50,9 +50,13 @@ export interface SidePanelAppointment {
   seriesId: string | null;
   /** Primary session note id (null = no report yet) — Prompt 46 row 5. */
   sessionNoteId?: string | null;
-  /** P60 — drives the manual "Send a message" section: EVENT/GROUP have no
-   *  scalar patient (section hidden); arrival applies once checked in. */
+  /** P60 — drives the manual "Send a message" section; arrival applies once
+   *  checked in. */
   appointmentType?: AppointmentType;
+  /** P61 — the appointment's GROUP members (empty for the single-patient
+   *  types). Together with `patientId` this is the ONLY input to whether the
+   *  send section renders: at least one patient, whatever the type. */
+  groupPatientIds?: string[];
   checkedInAt?: Date | null;
 }
 
@@ -306,18 +310,19 @@ export function AppointmentSidePanel({
           ) : null}
         </div>
 
-        {/* P60 — manual "Send a message" (SECRETARY/ADMIN via can(); the
-            doctor's read-only panel never shows it). Hidden for EVENT/GROUP
-            (no scalar patient) and replaced by a one-line note without a
-            phone. */}
+        {/* P60/P61 — manual "Send a message" (SECRETARY/ADMIN via can(); the
+            doctor's read-only panel never shows it).
+
+            P61 root cause: this gate used to read
+              Boolean(patientId) && type !== 'EVENT' && type !== 'GROUP'
+            so every GROUP booking — including the two-therapist/one-patient
+            sessions the clinic books as groups — lost the section entirely,
+            even though it has a patient to message. The rule is now simply
+            "has at least one patient"; only a patient-less EVENT is out. */}
         <SendMessageSection
           appointmentId={appointment.id}
           viewerRole={viewerRole}
-          hasPatient={
-            Boolean(appointment.patientId) &&
-            appointment.appointmentType !== 'EVENT' &&
-            appointment.appointmentType !== 'GROUP'
-          }
+          recipientCount={appointment.patientId ? 1 : (appointment.groupPatientIds?.length ?? 0)}
           hasPhone={Boolean(appointment.patientPhone)}
         />
 

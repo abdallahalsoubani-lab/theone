@@ -4,7 +4,9 @@ import { patientDisplayName } from '@/lib/format/patientName';
 import { unusedLinkForAppointment } from '@/lib/intake-links/queries';
 import { isTemplateApproved } from './approval';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
+import { RECIPIENT_PATIENT_SELECT, getMessageRecipients } from '@/lib/whatsapp/manual/recipients';
 
+import { getAppointmentTherapistLabel } from './therapistLabel';
 import type { ComposedMessage, SendOutcome, SenderSendOptions } from './types';
 import { appointmentVarContext, buildParamsFromShape, resolveTemplateShape } from './variables';
 
@@ -21,6 +23,10 @@ function intakeLinkUrl(token: string, language: 'AR' | 'EN'): string {
 
 interface ComposeArgs {
   appointmentId: string;
+  /** P61 — which patient of the appointment to address. Omitted = the single
+   *  recipient (today's behaviour for SESSION/STRETCHING); required to pick a
+   *  member of a GROUP. An id that is not on the appointment composes nothing. */
+  recipientId?: string;
   /** P59 — an admin pressed Send in the outbox: attempt the send even when
    *  the patient is flagged whatsappReachable=false (the flag may be stale —
    *  a success flips it back). A missing phone still throws so the dispatch
@@ -43,15 +49,12 @@ export async function composeAppointmentConfirmation(
   const appt = await db.appointment.findUnique({
     where: { id: args.appointmentId },
     include: {
-      patient: {
-        select: {
-          id: true,
-          phone: true,
-          languagePref: true,
-          whatsappReachable: true,
-          fullNameEn: true,
-          fullNameAr: true,
-        },
+      patient: { select: RECIPIENT_PATIENT_SELECT },
+      // P61 — a GROUP keeps its patients in the M2M; the scalar relation is
+      // empty there, which is why this composer used to return null for one.
+      groupPatients: {
+        orderBy: { createdAt: 'asc' },
+        select: { checkedInAt: true, patient: { select: RECIPIENT_PATIENT_SELECT } },
       },
       therapists: {
         orderBy: { createdAt: 'asc' },
@@ -60,7 +63,12 @@ export async function composeAppointmentConfirmation(
       },
     },
   });
-  if (!appt || !appt.patient) return null;
+  if (!appt) return null;
+  const recipients = getMessageRecipients(appt);
+  const recipient = args.recipientId
+    ? (recipients.find((r) => r.id === args.recipientId) ?? null)
+    : (recipients[0] ?? null);
+  if (!recipient) return null;
   if (appt.status !== 'SCHEDULED' && appt.status !== 'CONFIRMED') {
     console.warn(
       `[lifecycle] appointment ${args.appointmentId} status=${appt.status} — confirmation skipped`,
@@ -71,7 +79,7 @@ export async function composeAppointmentConfirmation(
     console.warn(`[lifecycle] appointment ${args.appointmentId} already started — skipped`);
     return null;
   }
-  const p = appt.patient;
+  const p = recipient;
   if (!p.phone) {
     if (args.force) throw new Error('patient has no phone number');
     return null;
@@ -79,14 +87,13 @@ export async function composeAppointmentConfirmation(
   if (!p.whatsappReachable && !args.force) return null;
 
   const isAr = p.languagePref === 'AR';
-  const therapist = appt.therapists[0]?.therapist ?? null;
-  const therapistName = therapist
-    ? isAr
-      ? therapist.fullNameAr
-      : therapist.fullNameEn
-    : isAr
-      ? 'فريق العيادة'
-      : 'the clinic team';
+  // P61 — the shared label (first-of-N / clinic-team fallback). `appointmentType`
+  // is deliberately NOT passed: this template's therapist-less wording has always
+  // been «فريق العيادة» even for a STRETCHING booking, and it must stay identical.
+  const therapistName = getAppointmentTherapistLabel({
+    therapists: appt.therapists,
+    language: p.languagePref,
+  });
 
   // P52 — a new-patient booking carries an UNUSED personal intake link. When
   // present, the patient's ONE message is the combined template (date + time
@@ -99,7 +106,9 @@ export async function composeAppointmentConfirmation(
   // booking falls back to the standard approved confirmation (no inline
   // link; the link still lives on the patient file for the secretary to
   // send). The daily approval-sync flips this automatically.
-  const link = await unusedLinkForAppointment(appt.id);
+  // P61 — the personal intake link belongs to the booking's own patient; a
+  // GROUP member must never receive someone else's link.
+  const link = p.viaMembership ? null : await unusedLinkForAppointment(appt.id);
   const useCombined = link
     ? await isTemplateApproved(NEW_PATIENT_TEMPLATE_NAME, p.languagePref)
     : false;

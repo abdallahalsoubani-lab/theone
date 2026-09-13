@@ -26,6 +26,12 @@ export interface ApplicabilityInput {
   hasPhone: boolean;
   /** `clinic_custom_message` is twilioApproved for the patient's language. */
   customApproved: boolean;
+  /**
+   * P61 — the recipient is a GROUP member, so arrival is decided ONLY by
+   * their own `AppointmentPatient.checkedInAt`: an IN_PROGRESS group session
+   * does not mean every member walked in.
+   */
+  perPatientArrival?: boolean;
   now?: Date;
 }
 
@@ -48,7 +54,11 @@ export function isManualTypeApplicable(
     case 'CANCELLATION':
       return input.status === 'CANCELLED';
     case 'ARRIVAL':
-      return (input.status === 'IN_PROGRESS' || input.checkedInAt !== null) && now < end;
+      return (
+        (input.perPatientArrival
+          ? input.checkedInAt !== null
+          : input.status === 'IN_PROGRESS' || input.checkedInAt !== null) && now < end
+      );
     case 'CUSTOM':
       return input.customApproved;
   }
