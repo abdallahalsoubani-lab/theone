@@ -135,6 +135,16 @@ single space, runs of 4+ spaces collapse to one, trimmed, 1–800 characters
 after normalization. Raw free text outside a template is not possible
 business-initiated; the frame is the only way.
 
+**Second rider (P62):** the internal "your patient has arrived" alert to the
+clinicians assigned to a checked-in appointment travels inside this same
+frame until a dedicated template is approved — `{{1}}` is then the
+CLINICIAN's first name and `{{2}}` the alert text built by
+`lib/whatsapp/templates/sendStaffArrivalAlert.ts` (clinic-wide patient
+display name + clinic-wall HH:mm, one message per clinician per arrival).
+Staff-bound, so it bypasses the silent mode and the dispatch modes; a
+clinician with no phone on file simply gets nothing. Swapping to a
+dedicated template later is that one file plus a registry row.
+
 ## Adding a new template
 
 1. Add the row to `prisma/seed/reference-data.ts` (both EN and AR).

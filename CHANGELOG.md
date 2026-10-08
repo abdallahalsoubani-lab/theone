@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **P62 — internal WhatsApp alert to the assigned clinicians when their
+  patient checks in** (kiosk or secretary). Rides the approved
+  `clinic_custom_message` frame in the clinician's language, one message per
+  clinician per arrival (an adjacent run lists every time once). Staff-bound:
+  bypasses the silent mode and the dispatch modes; a clinician with no phone
+  on file is skipped silently. The outbound worker no longer opens an Inbox
+  conversation or a delivery-failed triage item for a staff recipient.
+
 ## [1.0.0] — TBD
 
 Initial production-ready release. The system was built across 12 sequential

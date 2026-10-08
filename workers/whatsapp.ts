@@ -14,10 +14,21 @@
  *      flips User.whatsappReachable=false, and inserts an InboxItem so
  *      the Secretary sees an OUTBOUND_DELIVERY_FAILED action
  *   6. On success: bumps User.whatsappReachable back to true
+ *
+ * P62 — staff-bound internal alerts (recipient user role ≠ PATIENT) share
+ * the queue, the provider call, the message row, and the reachability
+ * flag, but skip the two PATIENT-only side effects: the Inbox conversation
+ * bump (3) and the OUTBOUND_DELIVERY_FAILED triage item (5).
  */
 
 import { Worker } from 'bullmq';
-import type { LanguagePref, Prisma, WaMessageSource, WhatsAppTemplate } from '@prisma/client';
+import type {
+  LanguagePref,
+  Prisma,
+  UserRole,
+  WaMessageSource,
+  WhatsAppTemplate,
+} from '@prisma/client';
 
 import { db } from '@/lib/db';
 import { queueRedis } from '@/lib/queue/client';
@@ -76,8 +87,10 @@ async function persistAndFinalize(args: {
   job: WhatsappOutboundJob;
   template: WhatsAppTemplate | null;
   result: SendResult;
+  /** P62 — true when the recipient user is a STAFF row (internal alert). */
+  recipientIsStaff: boolean;
 }): Promise<void> {
-  const { job, template, result } = args;
+  const { job, template, result, recipientIsStaff } = args;
   const sentAt = new Date();
   await db.whatsAppMessage.create({
     data: {
@@ -99,17 +112,24 @@ async function persistAndFinalize(args: {
   });
   // Prompt 49 — keep the conversation's ordering timestamp fresh on every
   // outbound (create-if-missing so template sends to new numbers thread too).
-  await db.whatsAppConversation
-    .upsert({
-      where: { phone: job.recipientPhone },
-      update: { lastMessageAt: sentAt },
-      create: {
-        phone: job.recipientPhone,
-        patientId: job.recipientUserId ?? null,
-        lastMessageAt: sentAt,
-      },
-    })
-    .catch((err: unknown) => console.error('[whatsapp] conversation bump failed', err));
+  // P62 — NOT for a staff-bound internal alert: the Inbox threads are patient
+  // conversations (the row's patientId links to a patient file), and dozens
+  // of arrival alerts a day would otherwise pin every clinician's number to
+  // the top of the secretary's Inbox. A clinician who replies gets a thread
+  // from the inbound path at that moment, like any unknown number.
+  if (!recipientIsStaff) {
+    await db.whatsAppConversation
+      .upsert({
+        where: { phone: job.recipientPhone },
+        update: { lastMessageAt: sentAt },
+        create: {
+          phone: job.recipientPhone,
+          patientId: job.recipientUserId ?? null,
+          lastMessageAt: sentAt,
+        },
+      })
+      .catch((err: unknown) => console.error('[whatsapp] conversation bump failed', err));
+  }
 
   if (job.recipientUserId && result.status !== 'FAILED') {
     // Successful delivery clears any prior reachability flag.
@@ -124,8 +144,10 @@ async function recordTerminalFailure(args: {
   job: WhatsappOutboundJob;
   template: WhatsAppTemplate | null;
   reason: string;
+  /** P62 — true when the recipient user is a STAFF row (internal alert). */
+  recipientIsStaff: boolean;
 }): Promise<void> {
-  const { job, template, reason } = args;
+  const { job, template, reason, recipientIsStaff } = args;
   const message = await db.whatsAppMessage.create({
     data: {
       templateId: template?.id ?? null,
@@ -165,6 +187,16 @@ async function recordTerminalFailure(args: {
       },
     });
 
+    // P62 — OUTBOUND_DELIVERY_FAILED is a PATIENT-triage item (the Inbox row
+    // links to /secretary/patients/{id}); for a staff recipient that link
+    // would be dead. The FAILED message row above is the record — the admin
+    // message log shows it with its reason. Log loudly, ids only.
+    if (recipientIsStaff) {
+      console.error(
+        `[whatsapp.outbound] staff-bound message to user=${job.recipientUserId} failed terminally: ${reason}`,
+      );
+      return;
+    }
     await db.inboxItem.create({
       data: {
         type: 'OUTBOUND_DELIVERY_FAILED',
@@ -192,10 +224,14 @@ export function startWhatsappOutboundWorker(): Worker {
       // recipient user or the appointment it references no longer exists, the
       // message must NOT go out — skip cleanly, complete the job. Ids only in
       // the log, never the phone.
+      // P62 — the same lookup tells us whether this is a staff-bound internal
+      // alert (no Inbox thread, no patient-triage item on failure). An
+      // unknown role (no recipient user at all) keeps the patient behaviour.
+      let recipientIsStaff = false;
       if (data.recipientUserId) {
         const recipient = await db.user.findFirst({
           where: { id: data.recipientUserId, deletedAt: null },
-          select: { id: true },
+          select: { id: true, role: true },
         });
         if (!recipient) {
           console.warn(
@@ -203,6 +239,8 @@ export function startWhatsappOutboundWorker(): Worker {
           );
           return { ok: false, skipped: 'RECIPIENT_MISSING' };
         }
+        const role: UserRole | undefined = recipient.role;
+        recipientIsStaff = role !== undefined && role !== 'PATIENT';
       }
       if (data.appointmentId) {
         const appt = await db.appointment.findUnique({
@@ -262,7 +300,7 @@ export function startWhatsappOutboundWorker(): Worker {
         // and the patient would receive the same message again (the observed
         // triple-send hazard). Log loudly and complete instead.
         try {
-          await persistAndFinalize({ job: data, template, result });
+          await persistAndFinalize({ job: data, template, result, recipientIsStaff });
         } catch (persistErr) {
           console.error(
             `[whatsapp.outbound] job=${job.id ?? '?'} SENT but persistence failed — completing without retry (a retry would re-send)`,
@@ -280,11 +318,12 @@ export function startWhatsappOutboundWorker(): Worker {
         if ((isWhatsAppErr && !err.retryable) || isFinalAttempt) {
           // P50 C-3: a bookkeeping failure here (FK race on rows deleted
           // mid-flight) must not mask the provider error or extend retries.
-          await recordTerminalFailure({ job: data, template, reason }).catch((recordErr) =>
-            console.error(
-              `[whatsapp.outbound] job=${job.id ?? '?'} terminal-failure bookkeeping failed`,
-              recordErr,
-            ),
+          await recordTerminalFailure({ job: data, template, reason, recipientIsStaff }).catch(
+            (recordErr) =>
+              console.error(
+                `[whatsapp.outbound] job=${job.id ?? '?'} terminal-failure bookkeeping failed`,
+                recordErr,
+              ),
           );
           // Returning normally would let BullMQ retry; throwing with the
           // attempts already at max produces a single failure record. To
