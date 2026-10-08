@@ -1,4 +1,4 @@
-import { AuditAction, UserRole } from '@prisma/client';
+import { AuditAction, type Prisma, UserRole } from '@prisma/client';
 
 import { auth } from '@/auth';
 import { withAudit } from '@/lib/audit/withAudit';
@@ -41,6 +41,23 @@ const duplicateIdentifier: LocalizedError = {
   message_ar: 'البريد الإلكتروني أو الهاتف مستخدم مسبقاً.',
 };
 
+/**
+ * P62 follow-up — the duplicate pre-check mirrors the DB rule, not a stricter
+ * one. `User_phone_unique_active_staff` (migration 20260726) keeps a phone
+ * unique among ACTIVE STAFF only: patients may share a number with each other
+ * AND with a staff member (a therapist whose child is a patient, a
+ * receptionist who registered herself as a test patient). Checking every
+ * role here is what blocked the admin from saving a staff phone that any
+ * patient row already held. Email stays global (`User_email_unique_active`
+ * spans every role). NULL phone never participates (P50).
+ */
+function identifierConflictWhere(email: string, phone: string | null): Prisma.UserWhereInput {
+  return {
+    deletedAt: null,
+    OR: [{ email }, ...(phone ? [{ phone, role: { not: UserRole.PATIENT } }] : [])],
+  };
+}
+
 interface CreateUserResult {
   userId: string;
   tempPassword: string;
@@ -56,12 +73,7 @@ export const createUser = withAudit<[UserCreateInput], CreateUserResult>(
   async function createUserInner(input: UserCreateInput): Promise<CreateUserResult> {
     const email = input.email.toLowerCase();
     const conflict = await db.user.findFirst({
-      where: {
-        deletedAt: null,
-        // P50: phone may be null — a null clause would match every
-        // phone-less row, so it only participates when present.
-        OR: [{ email }, ...(input.phone ? [{ phone: input.phone }] : [])],
-      },
+      where: identifierConflictWhere(email, input.phone),
       select: { id: true },
     });
     if (conflict) throw new UserAdminError(duplicateIdentifier);
@@ -125,11 +137,7 @@ export const updateUser = withAudit<[UserUpdateInput], { userId: string }>(
 
     const email = input.email.toLowerCase();
     const conflict = await db.user.findFirst({
-      where: {
-        id: { not: input.id },
-        deletedAt: null,
-        OR: [{ email }, ...(input.phone ? [{ phone: input.phone }] : [])],
-      },
+      where: { id: { not: input.id }, ...identifierConflictWhere(email, input.phone) },
       select: { id: true },
     });
     if (conflict) throw new UserAdminError(duplicateIdentifier);

@@ -28,10 +28,17 @@ export async function requestPasswordReset(input: {
         where: { email: id.toLowerCase(), deletedAt: null },
         select: { id: true },
       })
-    : await db.user.findFirst({
+    : // P62 follow-up — a phone may be shared by a staff account and a
+      // patient row; password reset is for password holders, so a staff
+      // account wins when one holds the number (patients log in by OTP).
+      ((await db.user.findFirst({
+        where: { phone: id, deletedAt: null, role: { not: 'PATIENT' } },
+        select: { id: true },
+      })) ??
+      (await db.user.findFirst({
         where: { phone: id, deletedAt: null },
         select: { id: true },
-      });
+      })));
 
   if (user) {
     const token = randomBytes(32).toString('hex');

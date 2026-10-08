@@ -164,8 +164,10 @@ export async function verifyOtpAndSignIn(input: {
     throw err;
   }
 
+  // P62 follow-up — a staff account may now hold the same number as a
+  // patient; this is the PATIENT flow, so never read the staff row's flag.
   const user = await db.user.findFirst({
-    where: { phone: parsed.data.phone, deletedAt: null },
+    where: { phone: parsed.data.phone, deletedAt: null, role: 'PATIENT' },
     select: { mustChangePassword: true },
   });
   const redirectTo = user?.mustChangePassword ? '/change-password' : ROLE_HOME.PATIENT;
