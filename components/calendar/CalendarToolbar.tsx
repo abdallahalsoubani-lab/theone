@@ -9,6 +9,8 @@ import { DirectionalIcon } from '@/components/ui/DirectionalIcon';
 import { formatDate } from '@/lib/format/date';
 import { fromClinicWall } from '@/lib/time/clinic';
 
+import type { DayLayout } from './dayLayout';
+
 interface Props {
   view: View;
   /** CLINIC-WALL date (SecretaryCalendar's grid space — Prompt 31). */
@@ -16,13 +18,27 @@ interface Props {
   onViewChange: (view: View) => void;
   onNavigate: (date: Date) => void;
   onToday: () => void;
+  /** P63 — day layout switch (lanes | merged). Rendered only in DAY view and
+   *  only when the board has clinician lanes to merge (the therapist's own
+   *  board omits the handler). */
+  dayLayout?: DayLayout;
+  onDayLayoutChange?: (layout: DayLayout) => void;
 }
 
 /**
  * Calendar toolbar — view switcher (Day / Week / Month / Agenda), date
- * navigator, today button. RTL-aware via DirectionalIcon.
+ * navigator, today button, and (P63) the day layout switch. RTL-aware via
+ * DirectionalIcon + logical spacing classes.
  */
-export function CalendarToolbar({ view, date, onViewChange, onNavigate, onToday }: Props) {
+export function CalendarToolbar({
+  view,
+  date,
+  onViewChange,
+  onNavigate,
+  onToday,
+  dayLayout = 'lanes',
+  onDayLayoutChange,
+}: Props) {
   const t = useTranslations('appointments');
   const locale = useLocale();
   const intlLocale = locale === 'ar' ? 'ar' : 'en';
@@ -63,6 +79,31 @@ export function CalendarToolbar({ view, date, onViewChange, onNavigate, onToday 
       </div>
 
       <div className="flex items-center gap-1">
+        {view === Views.DAY && onDayLayoutChange ? (
+          <div
+            role="group"
+            aria-label={t('dayLayoutLabel')}
+            className="me-2 flex items-center gap-1 border-e border-brand-border pe-2"
+          >
+            {(
+              [
+                { l: 'lanes', label: t('dayLayoutLanes') },
+                { l: 'merged', label: t('dayLayoutMerged') },
+              ] as const
+            ).map(({ l, label }) => (
+              <Button
+                key={l}
+                type="button"
+                variant={dayLayout === l ? 'default' : 'ghost'}
+                size="sm"
+                aria-pressed={dayLayout === l}
+                onClick={() => onDayLayoutChange(l)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        ) : null}
         {(
           [
             { v: Views.DAY, label: t('viewDay') },

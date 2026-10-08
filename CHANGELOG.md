@@ -8,6 +8,11 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **P63 — calendar day layout switch (lanes | merged).** DAY view can drop the
+  per-clinician columns and render one Google-Calendar-style column with
+  concurrent appointments side by side, each chip tinted by its clinician.
+  Remembered per browser; default stays "by therapist"; drag in the merged
+  layout is a time-only move.
 - **P62 — internal WhatsApp alert to the assigned clinicians when their
   patient checks in** (kiosk or secretary). Rides the approved
   `clinic_custom_message` frame in the clinician's language, one message per

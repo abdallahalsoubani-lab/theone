@@ -21,4 +21,11 @@ describe('resourcesForView', () => {
   it('returns undefined when there are no resources, even in day view', () => {
     expect(resourcesForView('day', [])).toBeUndefined();
   });
+
+  it('P63 — the MERGED day layout drops the lanes even with resources; lanes keeps them', () => {
+    expect(resourcesForView('day', RESOURCES, 'merged')).toBeUndefined();
+    expect(resourcesForView('day', RESOURCES, 'lanes')).toBe(RESOURCES);
+    // Week never had lanes, whatever the day layout says.
+    expect(resourcesForView('week', RESOURCES, 'lanes')).toBeUndefined();
+  });
 });

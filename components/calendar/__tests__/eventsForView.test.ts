@@ -54,6 +54,38 @@ describe('eventsForView', () => {
     expect(events[0]!.resourceId).toBe('t1'); // first therapist → tint + "+N" hint
   });
 
+  it('P63 merged day → ONE chip per appointment (the week shape on a single day), first-therapist tint', () => {
+    const events = eventsForView([multiTherapist], 'day', 'en', 'merged');
+    expect(events).toHaveLength(1);
+    expect(events[0]!.id).toBe('appt-1'); // no composite per-lane id
+    expect(events[0]!.resourceId).toBe('t1');
+    // The explicit lanes layout is byte-identical to the historical day fan-out.
+    expect(eventsForView([multiTherapist], 'day', 'en', 'lanes')).toEqual(
+      eventsForView([multiTherapist], 'day', 'en'),
+    );
+  });
+
+  it('P63 merged day keeps the stretching / other tints via the synthetic ids (no lanes exist)', () => {
+    const stretching: CalendarAppointment = {
+      ...base,
+      id: 'st-1',
+      appointmentType: 'STRETCHING',
+      therapists: [],
+    };
+    const event: CalendarAppointment = {
+      ...base,
+      id: 'ev-1',
+      appointmentType: 'EVENT',
+      title: 'Maintenance',
+      therapists: [],
+    };
+    const events = eventsForView([stretching, event], 'day', 'en', 'merged');
+    expect(events.map((e) => [e.id, e.resourceId])).toEqual([
+      ['st-1', STRETCHING_LANE_ID],
+      ['ev-1', OTHER_LANE_ID],
+    ]);
+  });
+
   it('month and agenda also collapse to one event per appointment', () => {
     expect(eventsForView([multiTherapist], 'month', 'en')).toHaveLength(1);
     expect(eventsForView([multiTherapist], 'agenda', 'en')).toHaveLength(1);

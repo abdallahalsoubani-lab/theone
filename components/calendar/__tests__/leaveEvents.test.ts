@@ -19,6 +19,34 @@ const leave = {
 };
 
 describe('leaveBackgroundEvents', () => {
+  it('P63 merged day on a multi-clinician board → hidden (one column cannot show whose leave)', () => {
+    expect(
+      leaveBackgroundEvents([leave], 'day', {
+        onLeaveLabel: label,
+        hasResourceLanes: true,
+        dayLayout: 'merged',
+      }),
+    ).toEqual([]);
+  });
+
+  it('P63 merged day on a single-clinician board → visible, like week', () => {
+    expect(
+      leaveBackgroundEvents([leave], 'day', {
+        onLeaveLabel: label,
+        hasResourceLanes: false,
+        dayLayout: 'merged',
+      }),
+    ).toHaveLength(1);
+    // Explicit lanes = the historical day behaviour.
+    expect(
+      leaveBackgroundEvents([leave], 'day', {
+        onLeaveLabel: label,
+        hasResourceLanes: true,
+        dayLayout: 'lanes',
+      }),
+    ).toHaveLength(1);
+  });
+
   it('day view → one block per leave, keyed to the clinician resource lane', () => {
     const events = leaveBackgroundEvents([leave], 'day', {
       onLeaveLabel: label,

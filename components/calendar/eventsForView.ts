@@ -5,6 +5,8 @@ import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { toClinicWall } from '@/lib/time/clinic';
 
+import { type DayLayout, DEFAULT_DAY_LAYOUT, usesResourceLanes } from './dayLayout';
+
 /**
  * Maps appointments to react-big-calendar events, VIEW-AWARE (Calendar overlap
  * fix, Option ②).
@@ -17,6 +19,10 @@ import { toClinicWall } from '@/lib/time/clinic';
  *   chips piled at the same time in a single day column. `resourceId` is the
  *   first therapist so the existing card derives its tint + "+N" co-therapist
  *   hint with no extra plumbing.
+ * - P63 — the MERGED day layout (./dayLayout) is the week shape on a single
+ *   day: one chip per appointment, tinted by its first clinician, laid side by
+ *   side by rbc's `no-overlap` algorithm. Lanes are a DAY + `lanes` property,
+ *   not a day-view property.
  *
  * Pure (only `date-fns` + a type-only rbc import) so it unit-tests without React
  * or the calendar runtime.
@@ -57,6 +63,7 @@ export function eventsForView(
   appointments: CalendarAppointment[],
   view: View,
   locale: string,
+  layout: DayLayout = DEFAULT_DAY_LAYOUT,
 ): CalendarEvent[] {
   // Name-first chips (Prompt 55 §2 — clinic request, reversing the P38 NI-10
   // time prefix): "ما بدها الساعة تطلع عالحجز — بتقرأها من السطور". The grid
@@ -77,7 +84,7 @@ export function eventsForView(
   const start = (a: CalendarAppointment) => toClinicWall(a.startsAt);
   const end = (a: CalendarAppointment) => addMinutes(start(a), a.durationMinutes);
 
-  if (view === 'day') {
+  if (usesResourceLanes(view, layout)) {
     return appointments.flatMap((a) => {
       // P54 — STRETCHING gets its own dedicated lane (evaluated BEFORE the
       // no-therapist fallback so it never lands in "Other" again).
@@ -121,8 +128,8 @@ export function eventsForView(
     });
   }
 
-  // Non-day views: one chip per appointment (no resource lanes — resourceId
-  // only feeds the chip tint).
+  // No-lane grids (week / month / agenda, and the P63 merged day): one chip
+  // per appointment — resourceId only feeds the chip tint.
   return appointments.map((a) => ({
     id: a.id,
     title: title(a),

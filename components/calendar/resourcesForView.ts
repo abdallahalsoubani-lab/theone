@@ -1,5 +1,7 @@
 import type { View } from 'react-big-calendar';
 
+import { type DayLayout, DEFAULT_DAY_LAYOUT, usesResourceLanes } from './dayLayout';
+
 /**
  * react-big-calendar only supports resource columns (one lane per therapist)
  * in the single-day time grid. Passing `resources` in week / month / agenda
@@ -11,9 +13,17 @@ import type { View } from 'react-big-calendar';
  * Restrict resources to DAY view; every other view renders the standard grid
  * (7 even day columns for week, the month grid, etc.).
  *
+ * P63 — the day view itself has two layouts (./dayLayout): `lanes` keeps the
+ * resource columns; `merged` drops them so the day renders as ONE column with
+ * concurrent chips side by side (Google-Calendar style).
+ *
  * `import type` keeps this module runtime-free of react-big-calendar so it
  * unit-tests without loading the library.
  */
-export function resourcesForView<T>(view: View, resources: T[]): T[] | undefined {
-  return view === 'day' && resources.length > 0 ? resources : undefined;
+export function resourcesForView<T>(
+  view: View,
+  resources: T[],
+  layout: DayLayout = DEFAULT_DAY_LAYOUT,
+): T[] | undefined {
+  return usesResourceLanes(view, layout) && resources.length > 0 ? resources : undefined;
 }

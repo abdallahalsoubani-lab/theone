@@ -1,5 +1,7 @@
 import type { View } from 'react-big-calendar';
 
+import { type DayLayout, DEFAULT_DAY_LAYOUT } from './dayLayout';
+
 /**
  * Approved-leave → react-big-calendar `backgroundEvents` mapping
  * (Prompt 11 §4.1.5, extracted + view-scoped in Prompt 55 §1).
@@ -14,7 +16,9 @@ import type { View } from 'react-big-calendar';
  * a block there would wash the whole day column for every clinician — so
  * blocks render only when the calendar is single-clinician (the therapist
  * board passes its own leaves and no resources). Month/agenda ignore
- * backgroundEvents entirely.
+ * backgroundEvents entirely. P63 — the MERGED day layout has no lanes
+ * either, so it follows the week rule: blocks only on single-clinician
+ * boards.
  *
  * Pure (type-only rbc import) so it unit-tests without the calendar runtime.
  */
@@ -37,10 +41,11 @@ export interface LeaveBackgroundEvent {
 export function leaveBackgroundEvents(
   leaves: LeaveBlock[] | undefined,
   view: View,
-  opts: { onLeaveLabel: string; hasResourceLanes: boolean },
+  opts: { onLeaveLabel: string; hasResourceLanes: boolean; dayLayout?: DayLayout },
 ): LeaveBackgroundEvent[] {
   if (!leaves || leaves.length === 0) return [];
-  const visible = view === 'day' || (view === 'week' && !opts.hasResourceLanes);
+  const lanesOnGrid = view === 'day' && (opts.dayLayout ?? DEFAULT_DAY_LAYOUT) === 'lanes';
+  const visible = lanesOnGrid || ((view === 'day' || view === 'week') && !opts.hasResourceLanes);
   if (!visible) return [];
   return leaves.map((l) => {
     const start = new Date(

@@ -5,7 +5,7 @@ import './calendar.css';
 import { ar as arLocale, enUS as enLocale } from 'date-fns/locale';
 import { format as formatDateFns, getDay, parse, startOfWeek } from 'date-fns';
 import { useLocale, useTranslations } from 'next-intl';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Calendar,
   dateFnsLocalizer,
@@ -25,6 +25,12 @@ import { AppointmentTooltip } from './AppointmentTooltip';
 import { CalendarToolbar } from './CalendarToolbar';
 import { buildCalendarLanes, eventCardContent, eventsForView } from './eventsForView';
 import { leaveBackgroundEvents } from './leaveEvents';
+import {
+  type DayLayout,
+  DEFAULT_DAY_LAYOUT,
+  readStoredDayLayout,
+  storeDayLayout,
+} from './dayLayout';
 import { resourcesForView } from './resourcesForView';
 import { CALENDAR_SLOTS_PER_GROUP, CALENDAR_STEP_MINUTES } from './slotConfig';
 
@@ -148,6 +154,18 @@ export function SecretaryCalendar({
   const [view, setView] = useState<View>(Views.DAY);
   const [date, setDate] = useState<Date>(() => toClinicWall(new Date()));
 
+  // P63 — day layout (lanes | merged). Starts at the default so the server
+  // and the first client render agree; the per-browser preference is applied
+  // after mount (same pattern as the sidebar collapse). See ./dayLayout.
+  const [dayLayout, setDayLayout] = useState<DayLayout>(DEFAULT_DAY_LAYOUT);
+  useEffect(() => {
+    setDayLayout(readStoredDayLayout());
+  }, []);
+  const changeDayLayout = (next: DayLayout) => {
+    setDayLayout(next);
+    storeDayLayout(next);
+  };
+
   const localizer = useMemo(
     () =>
       dateFnsLocalizer({
@@ -165,8 +183,8 @@ export function SecretaryCalendar({
   // emit one event per appointment so a multi-therapist session isn't
   // duplicated into the same combined day column. See ./eventsForView.
   const events = useMemo<AppointmentEvent[]>(
-    () => eventsForView(appointments, view, locale),
-    [appointments, view, locale],
+    () => eventsForView(appointments, view, locale, dayLayout),
+    [appointments, view, locale, dayLayout],
   );
 
   // Leave overlays — rendered via react-big-calendar's `backgroundEvents`
@@ -180,8 +198,9 @@ export function SecretaryCalendar({
       leaveBackgroundEvents(leaves, view, {
         onLeaveLabel: tLeave('calendar.onLeave'),
         hasResourceLanes: resources.length > 0,
+        dayLayout,
       }),
-    [leaves, view, resources.length, tLeave],
+    [leaves, view, resources.length, tLeave, dayLayout],
   );
 
   // A synthetic "Other" lane holds therapist-less appointments (STRETCHING —
@@ -240,6 +259,11 @@ export function SecretaryCalendar({
           onViewChange={setView}
           onNavigate={(target) => setDate(target)}
           onToday={() => setDate(toClinicWall(new Date()))}
+          dayLayout={dayLayout}
+          // P63 — the switch is meaningless on a single-clinician board (the
+          // therapist's own calendar passes no resources, so there are no
+          // lanes to merge): hide it there.
+          onDayLayoutChange={resources.length > 0 ? changeDayLayout : undefined}
         />
         <div className={cn('h-[calc(100vh-16rem)] min-h-[640px]')}>
           <DnDCalendar
@@ -247,7 +271,7 @@ export function SecretaryCalendar({
             events={events}
             // Resources (therapist lanes) only in DAY view — rbc can't lay them
             // out in week/month, which clipped + desynced the columns (Fix Prompt 4).
-            resources={resourcesForView(view, rbcResources)}
+            resources={resourcesForView(view, rbcResources, dayLayout)}
             resourceIdAccessor={(r) => (r as CalendarResource).resourceId}
             resourceTitleAccessor={(r) => (r as CalendarResource).resourceTitle}
             startAccessor="start"

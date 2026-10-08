@@ -197,6 +197,28 @@ is anchored to ONE shared patient, so every row stays patient-bound.
 - Care team: only SESSION rows' therapists are added (a STRETCHING row
   contributes nobody). Messaging/reminders are type-agnostic.
 
+## Day layout: lanes vs merged (P63)
+
+The day grid has two layouts, switched from the toolbar (DAY view only) and
+remembered per browser in localStorage (`theone.calendar.dayLayout`, default
+`lanes`) — see `components/calendar/dayLayout.ts`:
+
+- **lanes** — one resource column per clinician (+ the P54 stretching and
+  "other" synthetic lanes). Drag between columns reassigns the therapist
+  (`resolveDrop`).
+- **merged** — a single day column, Google-Calendar style: one chip per
+  appointment, concurrent chips laid side by side by rbc's `no-overlap`
+  algorithm, each tinted by its first clinician (colour only — no clinician
+  name on the chip, owner decision). A drag is a time-only move (no column =
+  no reassign target), exactly like week view; a slot click opens the booking
+  modal without a preselected therapist. Leave overlays follow the week rule
+  (hidden on multi-clinician boards, since one column can't show whose leave).
+
+`resourcesForView`, `eventsForView` and `leaveBackgroundEvents` all take the
+layout; "lanes" is a DAY + `lanes` property, not a day-view property. The
+switch is hidden on single-clinician boards (the therapist's own calendar
+passes no resources, so there is nothing to merge).
+
 ## Permissions
 
 Unchanged from Prompt 7 — all Prompt 7b flows ride on the existing
