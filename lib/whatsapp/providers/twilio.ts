@@ -8,6 +8,7 @@ import type {
   DeliveryStatusEvent,
   InboundMessage,
   InboundMediaDescriptor,
+  ProviderMediaItem,
   SendResult,
   SendTemplateParams,
   SendTextParams,
@@ -64,6 +65,8 @@ export interface TwilioWhatsAppProviderOptions {
   from?: string;
   /** Public webhook URL used to populate `statusCallback` on outbound sends. */
   statusCallbackUrl?: string | null;
+  /** REST fetch for the media list (P62-session follow-up); injectable for tests. */
+  fetchImpl?: typeof fetch;
 }
 
 /**
@@ -253,11 +256,13 @@ export class TwilioWhatsAppProvider implements WhatsAppProvider {
   private readonly authToken: string;
   private readonly from: string;
   private readonly statusCallbackUrl: string | null;
+  private readonly fetchImpl: typeof fetch;
 
   constructor(opts: TwilioWhatsAppProviderOptions = {}) {
     this.accountSid = opts.accountSid ?? env.TWILIO_ACCOUNT_SID ?? '';
     this.authToken = opts.authToken ?? env.TWILIO_AUTH_TOKEN ?? '';
     this.from = opts.from ?? env.TWILIO_WHATSAPP_FROM ?? '';
+    this.fetchImpl = opts.fetchImpl ?? fetch;
     this.statusCallbackUrl =
       opts.statusCallbackUrl !== undefined
         ? opts.statusCallbackUrl
@@ -434,6 +439,68 @@ export class TwilioWhatsAppProvider implements WhatsAppProvider {
    * `twilioContentSid` in `WhatsAppTemplate` is reported LOUDLY by name here
    * — never discovered as a silent send failure at 8 AM reminder time.
    */
+  /**
+   * P62-session follow-up — list an inbound message's media through the REST
+   * API so a FAILED attachment can be downloaded again. Twilio keeps inbound
+   * media on the message resource until it is explicitly deleted, and the
+   * per-item API URL (`…/Media/ME….` without `.json`) is stable — unlike the
+   * signed redirect it answers with. Items are sorted by creation time so
+   * `index` lines up with the webhook's `MediaUrl{i}` order. Throws a
+   * WhatsAppError on auth / not-found / provider failure (the repair script
+   * reports it per row).
+   */
+  async listMessageMedia(providerMessageId: string): Promise<ProviderMediaItem[]> {
+    if (!this.accountSid || !this.authToken) {
+      throw new WhatsAppError({
+        code: 'PROVIDER_AUTH',
+        message: 'Twilio credentials missing — set TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN.',
+        retryable: false,
+        provider: 'twilio',
+      });
+    }
+    if (!/^[MS]M[0-9a-f]{32}$/i.test(providerMessageId)) {
+      throw new WhatsAppError({
+        code: 'PROVIDER_UNKNOWN',
+        message: 'not a Twilio message sid',
+        retryable: false,
+        provider: 'twilio',
+      });
+    }
+    const base = 'https://api.twilio.com';
+    const url = `${base}/2010-04-01/Accounts/${this.accountSid}/Messages/${providerMessageId}/Media.json?PageSize=50`;
+    const auth = `Basic ${Buffer.from(`${this.accountSid}:${this.authToken}`).toString('base64')}`;
+    const res = await this.fetchImpl(url, { headers: { Authorization: auth } });
+    if (!res.ok) {
+      throw new WhatsAppError({
+        code:
+          res.status === 401 || res.status === 403
+            ? 'PROVIDER_AUTH'
+            : res.status >= 500
+              ? 'PROVIDER_5XX'
+              : 'PROVIDER_UNKNOWN',
+        message: `media list ${res.status}`,
+        retryable: res.status >= 500,
+        provider: 'twilio',
+        providerCode: res.status,
+      });
+    }
+    const body = (await res.json()) as {
+      media_list?: Array<{ sid: string; content_type: string; uri: string; date_created?: string }>;
+    };
+    const stamp = (v: string | undefined): number => {
+      const t = v ? Date.parse(v) : Number.NaN;
+      return Number.isFinite(t) ? t : 0;
+    };
+    const list = [...(body.media_list ?? [])].sort(
+      (a, b) => stamp(a.date_created) - stamp(b.date_created),
+    );
+    return list.map((m, index) => ({
+      index,
+      url: `${base}${m.uri.replace(/\.json$/, '')}`,
+      contentType: m.content_type,
+    }));
+  }
+
   async healthCheck(): Promise<boolean> {
     if (!this.accountSid || !this.authToken || !this.from) {
       console.warn(

@@ -6,6 +6,16 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Inbound WhatsApp media dying on a first-fetch 404** («تعذّر تنزيل المرفق»):
+  Twilio can announce a media item before it is readable; every 4xx was
+  terminal, so 8 of ~120 attachments were lost permanently. 404/408/429/5xx
+  now retry with backoff (6 attempts, 15s→4m) and a row is never left PENDING
+  after the budget. New provider method `listMessageMedia` (Twilio) +
+  `scripts/retry-inbound-media.ts --dry-run|--apply` re-download the FAILED
+  rows from the provider.
+
 ### Added
 
 - **P63 — calendar day layout switch (lanes | merged).** DAY view can drop the

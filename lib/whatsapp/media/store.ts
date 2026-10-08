@@ -22,18 +22,43 @@ export interface StoreMediaResult {
   reason?: string;
 }
 
+/** Which BullMQ attempt this call is (1-based) and how many the job has. The
+ *  worker passes its own counters; a direct caller (repair script) passes
+ *  `{ attempt: 1, maxAttempts: 1 }` so every outcome is final. */
+export interface StoreMediaAttempt {
+  attempt: number;
+  maxAttempts: number;
+}
+
+/**
+ * Provider statuses worth another try. Production evidence (08/10, P62
+ * session): 8 of ~120 inbound attachments failed with `provider fetch 404`
+ * on the FIRST fetch, fired within a second of the webhook — the media
+ * resource was not yet readable on Twilio's side although the webhook had
+ * already announced it. Treating every 4xx as terminal turned that race
+ * into a permanent «تعذّر تنزيل المرفق». 404/408/429 and every 5xx now retry
+ * with the job's backoff; 401/403/410/413/415 stay terminal (credentials,
+ * forbidden, gone, too large, unsupported — none of them heal by waiting).
+ */
+export function isRetryableMediaStatus(status: number): boolean {
+  return status === 404 || status === 408 || status === 429 || status >= 500;
+}
+
 /**
  * P56 — download ONE inbound attachment from the provider's temporary URL
  * (with Basic auth) and store the bytes in object storage. Idempotent: a row
  * already STORED/FAILED/EXPIRED is skipped. Validation (allowlist + size cap)
  * happens here; a disallowed type or oversize file is marked FAILED (never
- * retried), while a transient fetch error throws so BullMQ retries.
+ * retried). A retryable fetch status throws so BullMQ retries — and on the
+ * job's FINAL attempt it is recorded as FAILED instead, so a row never sits
+ * in PENDING («جارٍ التنزيل») forever after the retries run out.
  *
  * `fetchImpl` is injectable for tests; defaults to global fetch.
  */
 export async function storeInboundMedia(
   args: { attachmentId: string; mediaUrl: string },
   fetchImpl: typeof fetch = fetch,
+  attemptInfo: StoreMediaAttempt = { attempt: 1, maxAttempts: 1 },
 ): Promise<StoreMediaResult> {
   const attachment = await db.whatsAppAttachment.findUnique({
     where: { id: args.attachmentId },
@@ -41,6 +66,8 @@ export async function storeInboundMedia(
   });
   if (!attachment) return { status: 'SKIPPED', reason: 'not found' };
   if (attachment.status !== 'PENDING') return { status: 'SKIPPED', reason: 'already resolved' };
+
+  const finalAttempt = attemptInfo.attempt >= attemptInfo.maxAttempts;
 
   const markFailed = async (reason: string): Promise<StoreMediaResult> => {
     await db.whatsAppAttachment.update({
@@ -57,11 +84,17 @@ export async function storeInboundMedia(
   const auth = twilioAuthHeader();
   const res = await fetchImpl(args.mediaUrl, auth ? { headers: { Authorization: auth } } : {});
   if (!res.ok) {
-    // 4xx (expired/forbidden) is terminal; 5xx/network throw for a retry.
-    if (res.status >= 400 && res.status < 500) {
-      return markFailed(`provider fetch ${res.status}`);
+    if (isRetryableMediaStatus(res.status) && !finalAttempt) {
+      console.warn(
+        `[inbound-media] attachment=${attachment.id} provider fetch ${res.status} — retrying (attempt ${attemptInfo.attempt}/${attemptInfo.maxAttempts})`,
+      );
+      throw new Error(`media fetch failed: ${res.status}`);
     }
-    throw new Error(`media fetch failed: ${res.status}`);
+    const suffix =
+      isRetryableMediaStatus(res.status) && attemptInfo.maxAttempts > 1
+        ? ` (after ${attemptInfo.maxAttempts} attempts)`
+        : '';
+    return markFailed(`provider fetch ${res.status}${suffix}`);
   }
 
   const bytes = Buffer.from(await res.arrayBuffer());
@@ -88,7 +121,7 @@ export async function storeInboundMedia(
   );
   await db.whatsAppAttachment.update({
     where: { id: attachment.id },
-    data: { status: 'STORED', storageKey, sizeBytes: bytes.byteLength },
+    data: { status: 'STORED', storageKey, sizeBytes: bytes.byteLength, failureReason: null },
   });
   console.warn(`[inbound-media] attachment=${attachment.id} STORED key=${storageKey}`);
   return { status: 'STORED' };

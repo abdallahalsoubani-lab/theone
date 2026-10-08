@@ -89,10 +89,29 @@ export type WebhookEvent =
   | { kind: 'inbound'; message: InboundMessage }
   | { kind: 'status'; status: DeliveryStatusEvent };
 
+/** One media item of an inbound provider message, as the provider's API
+ *  lists it after the fact (P62-session follow-up — the re-fetch path). */
+export interface ProviderMediaItem {
+  /** 0-based position, aligned with the webhook's `MediaUrl{i}` order. */
+  index: number;
+  /** Stable, credentialed content URL (NOT the short-lived signed redirect). */
+  url: string;
+  contentType: string;
+}
+
 export interface WhatsAppProvider {
   readonly id: 'console' | 'meta' | 'twilio';
   sendTemplate(params: SendTemplateParams): Promise<SendResult>;
   sendText(params: SendTextParams): Promise<SendResult>;
+
+  /**
+   * OPTIONAL — list the media attached to an inbound message by its provider
+   * id, so a FAILED attachment can be downloaded again later (the webhook URL
+   * is never stored). Twilio keeps inbound media on the message resource
+   * until explicitly deleted; providers that cannot do this simply omit the
+   * method and the repair script reports it.
+   */
+  listMessageMedia?(providerMessageId: string): Promise<ProviderMediaItem[]>;
 
   /**
    * Verify the inbound webhook signature. Returns true if the signature is

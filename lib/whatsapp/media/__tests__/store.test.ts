@@ -32,7 +32,7 @@ vi.mock('@/lib/storage/client', () => ({
   },
 }));
 
-import { storeInboundMedia } from '../store';
+import { isRetryableMediaStatus, storeInboundMedia } from '../store';
 
 const fetchOk = (bytes: number, ct = 'image/jpeg') =>
   vi.fn(async () => ({
@@ -87,17 +87,85 @@ describe('storeInboundMedia', () => {
     expect(state.puts).toHaveLength(0);
   });
 
-  it('a 4xx provider fetch is terminal → FAILED (not retried)', async () => {
-    const fetch4xx = vi.fn(async () => ({ ok: false, status: 404 })) as unknown as typeof fetch;
-    const r = await storeInboundMedia({ attachmentId: 'att-1', mediaUrl: 'https://x/m' }, fetch4xx);
-    expect(r.status).toBe('FAILED');
+  // P62-session follow-up: production showed 8 of ~120 attachments dying on
+  // a FIRST-fetch 404 (Twilio announces the media before it is readable).
+  it('a 404 on a non-final attempt THROWS so BullMQ retries — no FAILED row written', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const fetch404 = vi.fn(async () => ({ ok: false, status: 404 })) as unknown as typeof fetch;
+    await expect(
+      storeInboundMedia({ attachmentId: 'att-1', mediaUrl: 'https://x/m' }, fetch404, {
+        attempt: 1,
+        maxAttempts: 6,
+      }),
+    ).rejects.toThrow(/404/);
+    expect(state.updates).toHaveLength(0);
+    warn.mockRestore();
   });
 
-  it('a 5xx provider fetch throws so BullMQ retries', async () => {
+  it('a 404 on the FINAL attempt → FAILED, reason carries the attempt budget', async () => {
+    const fetch404 = vi.fn(async () => ({ ok: false, status: 404 })) as unknown as typeof fetch;
+    const r = await storeInboundMedia(
+      { attachmentId: 'att-1', mediaUrl: 'https://x/m' },
+      fetch404,
+      {
+        attempt: 6,
+        maxAttempts: 6,
+      },
+    );
+    expect(r.status).toBe('FAILED');
+    expect(r.reason).toBe('provider fetch 404 (after 6 attempts)');
+    expect((state.updates[0]!.data as Record<string, unknown>).status).toBe('FAILED');
+  });
+
+  it('401/403/410 are terminal on ANY attempt (credentials / forbidden / gone do not heal)', async () => {
+    for (const status of [401, 403, 410]) {
+      state.updates = [];
+      const f = vi.fn(async () => ({ ok: false, status })) as unknown as typeof fetch;
+      const r = await storeInboundMedia({ attachmentId: 'att-1', mediaUrl: 'https://x/m' }, f, {
+        attempt: 1,
+        maxAttempts: 6,
+      });
+      expect(r.status).toBe('FAILED');
+      expect(r.reason).toBe(`provider fetch ${status}`);
+    }
+  });
+
+  it('a 5xx on a non-final attempt throws so BullMQ retries', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const fetch5xx = vi.fn(async () => ({ ok: false, status: 503 })) as unknown as typeof fetch;
     await expect(
-      storeInboundMedia({ attachmentId: 'att-1', mediaUrl: 'https://x/m' }, fetch5xx),
+      storeInboundMedia({ attachmentId: 'att-1', mediaUrl: 'https://x/m' }, fetch5xx, {
+        attempt: 2,
+        maxAttempts: 3,
+      }),
     ).rejects.toThrow();
+    warn.mockRestore();
+  });
+
+  it('a 5xx on the FINAL attempt → FAILED (a row is never left PENDING after the budget)', async () => {
+    const fetch5xx = vi.fn(async () => ({ ok: false, status: 503 })) as unknown as typeof fetch;
+    const r = await storeInboundMedia(
+      { attachmentId: 'att-1', mediaUrl: 'https://x/m' },
+      fetch5xx,
+      {
+        attempt: 3,
+        maxAttempts: 3,
+      },
+    );
+    expect(r.status).toBe('FAILED');
+    expect(r.reason).toBe('provider fetch 503 (after 3 attempts)');
+  });
+
+  it('the default attempt info is a single final attempt (repair script path)', async () => {
+    const fetch404 = vi.fn(async () => ({ ok: false, status: 404 })) as unknown as typeof fetch;
+    const r = await storeInboundMedia({ attachmentId: 'att-1', mediaUrl: 'https://x/m' }, fetch404);
+    expect(r.status).toBe('FAILED');
+    expect(r.reason).toBe('provider fetch 404');
+  });
+
+  it('isRetryableMediaStatus: 404/408/429/5xx yes; 400/401/403/410/413/415 no', () => {
+    for (const s of [404, 408, 429, 500, 502, 503]) expect(isRetryableMediaStatus(s)).toBe(true);
+    for (const s of [400, 401, 403, 410, 413, 415]) expect(isRetryableMediaStatus(s)).toBe(false);
   });
 
   it('is idempotent — an already-STORED row is skipped', async () => {

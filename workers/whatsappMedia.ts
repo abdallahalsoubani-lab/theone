@@ -59,7 +59,17 @@ export function startWhatsappMediaWorker(): Worker {
       }
       if (job.name === FETCH_INBOUND_MEDIA_JOB) {
         const data = job.data as FetchInboundMediaJob;
-        await storeInboundMedia({ attachmentId: data.attachmentId, mediaUrl: data.mediaUrl });
+        // The store decides retry-vs-terminal from the attempt counters: a
+        // retryable provider status throws (BullMQ backs off) until the
+        // final attempt, which records FAILED instead of leaving PENDING.
+        await storeInboundMedia(
+          { attachmentId: data.attachmentId, mediaUrl: data.mediaUrl },
+          fetch,
+          {
+            attempt: (job.attemptsMade ?? 0) + 1,
+            maxAttempts: job.opts.attempts ?? 1,
+          },
+        );
         return;
       }
     },
