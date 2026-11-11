@@ -25,6 +25,10 @@ export interface HomeProgramItemRow {
   durationMinutes: number;
   setsReps: string | null;
   therapistNote: string | null;
+  /** P64 #15 — per-patient goal override + patient photo document ids.
+   *  Optional: approval snapshots taken before P64 lack them. */
+  goal?: string | null;
+  photoDocumentIds?: string[];
   active: boolean;
   reminderJobKey: string | null;
   createdAt: Date;
@@ -50,6 +54,8 @@ function shape(row: NonNullable<Awaited<ReturnType<typeof loadItem>>>): HomeProg
     durationMinutes: row.durationMinutes,
     setsReps: row.setsReps,
     therapistNote: row.therapistNote,
+    goal: row.goal,
+    photoDocumentIds: row.photoDocumentIds,
     active: row.active,
     reminderJobKey: row.reminderJobKey,
     createdAt: row.createdAt,

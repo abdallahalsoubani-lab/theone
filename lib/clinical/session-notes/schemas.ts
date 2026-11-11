@@ -3,6 +3,11 @@ import { z } from 'zod';
 /**
  * Session-note Zod schemas (Prompt 9 §4.7).
  *
+ * P64 #11 — a session note is now the SESSION RESULT: free-text result,
+ * pain, measurements and the treatment / exercises given. The four SOAP
+ * fields moved to the monthly report (lib/clinical/monthly-reports); they
+ * stay accepted here so historical notes remain editable / amendable.
+ *
  * Pain score is the only required clinical field; SOAP fields are
  * optional. This mirrors how real therapists actually use SOAP — they
  * fill what's relevant, not all four sections on every note. The free-
@@ -21,6 +26,9 @@ export const sessionNoteCreateSchema = z.object({
   plan: optionalText,
   painScore: z.number().int().min(0).max(10),
   measurements: z.string().max(5000).optional().nullable(),
+  // P64 #11 — the session RESULT (SOAP moved to the monthly report).
+  result: optionalText,
+  treatmentGiven: optionalText,
 });
 
 export const sessionNoteUpdateSchema = z.object({
@@ -31,6 +39,9 @@ export const sessionNoteUpdateSchema = z.object({
   plan: optionalText,
   painScore: z.number().int().min(0).max(10),
   measurements: z.string().max(5000).optional().nullable(),
+  // P64 #11 — the session RESULT (SOAP moved to the monthly report).
+  result: optionalText,
+  treatmentGiven: optionalText,
 });
 
 export const sessionNoteAddendumSchema = z.object({
@@ -41,6 +52,9 @@ export const sessionNoteAddendumSchema = z.object({
   plan: optionalText,
   painScore: z.number().int().min(0).max(10),
   measurements: z.string().max(5000).optional().nullable(),
+  // P64 #11 — the session RESULT (SOAP moved to the monthly report).
+  result: optionalText,
+  treatmentGiven: optionalText,
 });
 
 export type SessionNoteCreateInput = z.infer<typeof sessionNoteCreateSchema>;
@@ -58,8 +72,16 @@ export function addendumHasClinicalContent(input: {
   assessment?: string | null;
   plan?: string | null;
   measurements?: string | null;
+  result?: string | null;
+  treatmentGiven?: string | null;
 }): boolean {
-  return [input.subjective, input.objective, input.assessment, input.plan, input.measurements].some(
-    (v) => (v ?? '').trim().length > 0,
-  );
+  return [
+    input.subjective,
+    input.objective,
+    input.assessment,
+    input.plan,
+    input.measurements,
+    input.result,
+    input.treatmentGiven,
+  ].some((v) => (v ?? '').trim().length > 0);
 }

@@ -35,6 +35,13 @@ export const exerciseCreateSchema = z.object({
   imageUrl: mediaUrl,
   imageMimeType: z.string().optional().nullable(),
   imageSizeBytes: z.number().int().min(0).optional().nullable(),
+  // P64 #15 — extra library images + the default goal for the home-program PDF.
+  extraImageUrls: z
+    .array(z.string().max(2048).refine(isStorageUrl, 'Invalid media URL.'))
+    .max(8)
+    .optional(),
+  goalEn: z.string().max(500).optional().nullable(),
+  goalAr: z.string().max(500).optional().nullable(),
 });
 
 export const exerciseUpdateSchema = exerciseCreateSchema.extend({

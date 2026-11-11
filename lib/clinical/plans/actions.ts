@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import type { Result } from '@/lib/auth/result';
 import type { LocalizedError } from '@/lib/db';
+import { ensureCanReadPatient } from '@/lib/patients/access';
 import { requirePermission } from '@/lib/rbac/guards';
 
 import { planCreateSchema, planProposeSchema, planRejectSchema, planUpdateSchema } from './schemas';
@@ -16,6 +17,7 @@ import {
   discontinueTreatmentPlan,
   pauseTreatmentPlan,
   planToLocalized,
+  proposeInitialTreatmentPlan,
   proposeTreatmentPlanChange,
   rejectProposal,
   updateTreatmentPlan,
@@ -105,6 +107,36 @@ export async function proposeTreatmentPlanChangeAction(
     const data = await proposeTreatmentPlanChange(parsed.data, { therapistId });
     revalidatePath('/doctor/dashboard');
     revalidatePath(`/therapist/patients/${parsed.data.patientId}`);
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: planToLocalized(err) };
+  }
+}
+
+/** P64 #10 — a therapist proposes the FIRST plan for a patient with none. */
+export async function proposeInitialTreatmentPlanAction(
+  raw: unknown,
+): Promise<Result<{ planId: string }, LocalizedError>> {
+  await requirePermission('treatment_plans.propose');
+  const parsed = planCreateSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: {
+        code: 'VALIDATION',
+        message_en: parsed.error.issues[0]?.message ?? 'Invalid plan input.',
+        message_ar: 'بيانات الخطة غير صالحة.',
+      },
+    };
+  }
+  try {
+    await ensureCanReadPatient(parsed.data.patientId);
+    const therapistId = await currentTherapistId();
+    const data = await proposeInitialTreatmentPlan(parsed.data, { therapistId });
+    revalidatePath('/doctor/dashboard');
+    revalidatePath(`/doctor/patients/${parsed.data.patientId}`);
+    revalidatePath(`/therapist/patients/${parsed.data.patientId}`);
+    revalidatePath(`/secretary/patients/${parsed.data.patientId}`);
     return { ok: true, data };
   } catch (err) {
     return { ok: false, error: planToLocalized(err) };

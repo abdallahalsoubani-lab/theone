@@ -1,12 +1,14 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import type { ReactNode } from 'react';
 import {
   useForm,
   type DefaultValues,
+  type FieldErrors,
   type FieldValues,
+  type SubmitErrorHandler,
   type SubmitHandler,
   type UseFormReturn,
 } from 'react-hook-form';
@@ -59,6 +61,7 @@ export function AppForm<TSchema extends ZodTypeAny, TResult>({
   children,
 }: AppFormProps<TSchema, TResult>) {
   const locale = useLocale();
+  const tValidation = useTranslations('validation');
   const form = useForm<z.infer<TSchema>>({
     resolver: zodResolver(schema),
     defaultValues,
@@ -86,10 +89,26 @@ export function AppForm<TSchema extends ZodTypeAny, TResult>({
     onSuccess?.(result.data, form);
   };
 
+  // P64 #9 — a client-side validation failure used to do NOTHING visible: on
+  // a long mobile form (the patient intake link) the patient pressed submit,
+  // the error sat off-screen, and the form looked broken / "didn't arrive".
+  // Now: one toast + scroll to (and focus) the first invalid field.
+  const onInvalid: SubmitErrorHandler<z.infer<TSchema>> = (errors: FieldErrors) => {
+    toast.error(tValidation('formHasErrors'));
+    if (Object.keys(errors).length === 0) return;
+    requestAnimationFrame(() => {
+      const first = document.querySelector<HTMLElement>('[aria-invalid="true"]');
+      if (first) {
+        first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        first.focus({ preventScroll: true });
+      }
+    });
+  };
+
   return (
     <Form {...form}>
       <form
-        onSubmit={form.handleSubmit(onSubmit)}
+        onSubmit={form.handleSubmit(onSubmit, onInvalid)}
         className={cn('space-y-6', className)}
         noValidate
       >

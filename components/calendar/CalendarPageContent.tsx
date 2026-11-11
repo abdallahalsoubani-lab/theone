@@ -1,6 +1,11 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { SecretaryCalendarBoard } from '@/components/calendar/SecretaryCalendarBoard';
+import {
+  calendarFetchWindow,
+  parseCalendarDateParam,
+  parseCalendarViewParam,
+} from '@/lib/appointments/calendar-window';
 import { closedDayKeys } from '@/lib/appointments/closed-days';
 import {
   listActiveClinicians,
@@ -11,7 +16,6 @@ import { db } from '@/lib/db';
 import { listApprovedLeavesInRange } from '@/lib/leave/queries';
 import { can } from '@/lib/rbac/can';
 import { requirePermission } from '@/lib/rbac/guards';
-import { clinicDaySpan } from '@/lib/time/clinic';
 import { getClinicTimeZone } from '@/lib/time/clinic-server';
 
 /**
@@ -26,8 +30,11 @@ import { getClinicTimeZone } from '@/lib/time/clinic-server';
 export async function CalendarPageContent({
   locale,
   autoBook,
+  searchParams = {},
 }: {
   locale: string;
+  /** P64 #1 — `?date=YYYY-MM-DD&view=…`: the viewed date drives the fetch window. */
+  searchParams?: Record<string, string | undefined>;
   /** NI-5 (Prompt 41): deep-link from the patient-file "Book doctor visit"
    *  CTA — opens the booking modal prefilled + doctor-scoped. */
   autoBook?: { patientId: string; doctorsOnly: boolean };
@@ -38,13 +45,11 @@ export async function CalendarPageContent({
   const viewer = await requirePermission('appointments.read');
   const tAppointments = await getTranslations('appointments');
 
-  // Whole CLINIC days (Prompt 31): the process runs on UTC, so `setHours` day
-  // math would anchor the window to 03:00 Amman and clip the clinic day.
-  const span = clinicDaySpan(new Date(), 7, 21, await getClinicTimeZone());
-  const from = span.start;
-  // The calendar + leave queries compare with `lte`, so pass the last instant
-  // inside the span rather than its exclusive end.
-  const to = new Date(span.end.getTime() - 1);
+  // P64 #1 — the window follows the VIEWED date (URL), not today, so any past
+  // week is reachable. Whole CLINIC days (Prompt 31) inside calendarFetchWindow.
+  const dateKey = parseCalendarDateParam(searchParams.date);
+  const view = parseCalendarViewParam(searchParams.view);
+  const { from, to } = calendarFetchWindow({ dateKey, view }, await getClinicTimeZone());
 
   const [appointments, resources, patients, rooms, settings, leaves] = await Promise.all([
     listAppointmentsForCalendar({ from, to }),
@@ -78,6 +83,8 @@ export async function CalendarPageContent({
     <section className="p-4 sm:p-6">
       <SecretaryCalendarBoard
         appointments={appointments}
+        initialDateKey={dateKey}
+        initialView={view}
         resources={resources}
         leaves={leaves}
         patients={patients}

@@ -21,6 +21,9 @@ export interface ExerciseRow {
   imageUrl: string | null;
   imageMimeType: string | null;
   imageSizeBytes: number | null;
+  extraImageUrls: string[];
+  goalEn: string | null;
+  goalAr: string | null;
   version: number;
   active: boolean;
   replacedById: string | null;

@@ -20,11 +20,15 @@ import { rescheduleAppointmentAction } from '@/lib/appointments/actions';
 import { dragReassignTherapistIds } from '@/lib/appointments/drag';
 import { patientDisplayName } from '@/lib/format/patientName';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
+import type { CalendarViewParam } from '@/lib/appointments/calendar-window';
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { RESIZE_MIN_MINUTES } from '@/lib/appointments/schemas';
 
 interface Props {
   appointments: CalendarAppointment[];
+  /** P64 #1 — viewed date/view from the URL (null = today / day view). */
+  initialDateKey?: string | null;
+  initialView?: CalendarViewParam | null;
   resources: Array<{ id: string; fullNameEn: string; fullNameAr: string; role?: string }>;
   /** Approved leaves overlapping the visible range (Prompt 11 §4.1.5). */
   leaves?: Array<{ id: string; userId: string; startDate: Date; endDate: Date }>;
@@ -72,6 +76,8 @@ interface Props {
  */
 export function SecretaryCalendarBoard({
   appointments,
+  initialDateKey,
+  initialView,
   resources,
   leaves,
   patients,
@@ -275,6 +281,8 @@ export function SecretaryCalendarBoard({
 
       <SecretaryCalendar
         appointments={appointments}
+        initialDateKey={initialDateKey}
+        initialView={initialView}
         resources={resources}
         leaves={leaves}
         minHour={minHour}

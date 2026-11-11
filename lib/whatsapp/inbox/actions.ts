@@ -39,6 +39,7 @@ async function requireInboxUser(): Promise<{ id: string; role: string } | null> 
 
 function revalidateInbox(): void {
   revalidatePath('/[locale]/(staff)/secretary/whatsapp', 'page');
+  revalidatePath('/[locale]/(admin)/admin/whatsapp/inbox', 'page');
 }
 
 // ─── Shared read state (§1.3) ─────────────────────────────────────────────

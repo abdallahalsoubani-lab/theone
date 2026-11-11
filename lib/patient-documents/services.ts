@@ -9,7 +9,7 @@ import { db } from '@/lib/db';
 import { PatientDocumentError, DOC_ERRORS } from './errors';
 import { buildDocumentKey, validatePatientDocInput } from './policy';
 import type { CreateTicketInput } from './schemas';
-import { sniffMatchesDeclared } from './sniff';
+import { SNIFF_HEAD_BYTES, sniffMatchesDeclared } from './sniff';
 import { deleteObject, getObjectHeadBytes, presignDocumentPut, SIGN_TTL_SECONDS } from './storage';
 
 export interface UploadTicket {
@@ -144,7 +144,7 @@ export const finalizeDocument = withAudit<[{ documentId: string }], FinalizeResu
       return { documentId: doc.id, patientId: doc.patientId, outcome: 'READY' };
     }
 
-    const head = await getObjectHeadBytes(doc.storageKey, 32);
+    const head = await getObjectHeadBytes(doc.storageKey, SNIFF_HEAD_BYTES);
     const matches = sniffMatchesDeclared(doc.mimeType, head);
 
     if (!matches) {

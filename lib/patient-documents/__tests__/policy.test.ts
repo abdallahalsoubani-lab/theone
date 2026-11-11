@@ -15,10 +15,11 @@ describe('isAllowedMime', () => {
     expect(isAllowedMime('image/jpeg')).toBe(true);
     expect(isAllowedMime('image/heic')).toBe(true);
   });
-  it('rejects docx / zip / arbitrary types', () => {
+  it('allows Word (P64 #14); rejects zip / arbitrary types', () => {
     expect(
       isAllowedMime('application/vnd.openxmlformats-officedocument.wordprocessingml.document'),
-    ).toBe(false);
+    ).toBe(true);
+    expect(isAllowedMime('application/msword')).toBe(true);
     expect(isAllowedMime('application/zip')).toBe(false);
     expect(isAllowedMime('application/octet-stream')).toBe(false);
   });

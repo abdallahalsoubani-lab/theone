@@ -128,7 +128,7 @@ export default async function TherapistPatientFilePage({
           patientId={patient.id}
           locale={locale === 'ar' ? 'ar' : 'en'}
           documents={documents}
-          canUpload={false}
+          canUpload
           canDelete={false}
           reports={{
             patientId: patient.id,

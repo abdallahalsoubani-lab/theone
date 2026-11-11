@@ -5,7 +5,8 @@ import './calendar.css';
 import { ar as arLocale, enUS as enLocale } from 'date-fns/locale';
 import { format as formatDateFns, getDay, parse, startOfWeek } from 'date-fns';
 import { useLocale, useTranslations } from 'next-intl';
-import { useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import {
   Calendar,
   dateFnsLocalizer,
@@ -17,13 +18,22 @@ import withDragAndDrop from 'react-big-calendar/lib/addons/dragAndDrop';
 import 'react-big-calendar/lib/addons/dragAndDrop/styles.css';
 
 import { TooltipProvider } from '@/components/ui/tooltip';
+import {
+  anchorInstantForDateKey,
+  type CalendarViewParam,
+} from '@/lib/appointments/calendar-window';
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { fromClinicWall, toClinicWall } from '@/lib/time/clinic';
 import { cn } from '@/lib/utils';
 
 import { AppointmentTooltip } from './AppointmentTooltip';
 import { CalendarToolbar } from './CalendarToolbar';
-import { buildCalendarLanes, eventCardContent, eventsForView } from './eventsForView';
+import {
+  buildCalendarLanes,
+  eventCardContent,
+  eventsForView,
+  SYNTHETIC_LANE_IDS,
+} from './eventsForView';
 import { leaveBackgroundEvents } from './leaveEvents';
 import {
   type DayLayout,
@@ -33,6 +43,12 @@ import {
 } from './dayLayout';
 import { resourcesForView } from './resourcesForView';
 import { CALENDAR_SLOTS_PER_GROUP, CALENDAR_STEP_MINUTES } from './slotConfig';
+import {
+  assignTherapistTints,
+  resolveTint,
+  TherapistTintContext,
+  useTherapistTint,
+} from './therapistColors';
 
 interface CalendarResource {
   resourceId: string;
@@ -41,6 +57,11 @@ interface CalendarResource {
 
 export interface SecretaryCalendarProps {
   appointments: CalendarAppointment[];
+  /** P64 #1 — the viewed date (`YYYY-MM-DD`, clinic day) + view from the URL.
+   *  Navigation writes them back to the URL so the server refetches the
+   *  window around the viewed date (no lookback limit). */
+  initialDateKey?: string | null;
+  initialView?: CalendarViewParam | null;
   /** Active therapists / doctors — rendered as resource columns. */
   resources: Array<{ id: string; fullNameEn: string; fullNameAr: string }>;
   /** Approved leaves overlapping the visible range (Prompt 11 §4.1.5).
@@ -65,6 +86,9 @@ export interface SecretaryCalendarProps {
    * calendar is read-only.
    */
   editable?: boolean;
+  /** P64 #7 — every clinician whose colour must stay distinct (defaults to the
+   *  lanes + the clinicians on the loaded appointments). */
+  tintIds?: string[];
 }
 
 // react-big-calendar drag-and-drop addon, wrapped once at module scope so the
@@ -83,33 +107,6 @@ interface AppointmentEvent extends RbcEvent {
   appointment?: CalendarAppointment;
 }
 
-/**
- * Per-therapist tint palette. Each entry is a soft-fill / strong-border
- * pair designed to remain readable behind the dark navy event text.
- *
- * Hues are spaced evenly around the color wheel from the brand-blue base
- * so two adjacent therapists never read as the same color, while keeping
- * the same saturation + lightness curve so no card visually "shouts"
- * over its neighbour. This is data-viz coloration (not a brand token) —
- * it sits next to the brand palette without replacing it.
- */
-const THERAPIST_TINTS: ReadonlyArray<{ bg: string; border: string; swatch: string }> = [
-  { bg: 'rgba(27, 73, 130, 0.12)', border: 'rgba(27, 73, 130, 0.55)', swatch: '#1b4982' }, //  brand blue
-  { bg: 'rgba(61, 192, 217, 0.16)', border: 'rgba(61, 192, 217, 0.60)', swatch: '#3dc0d9' }, // brand cyan
-  { bg: 'rgba(30, 95, 88, 0.14)', border: 'rgba(30, 95, 88, 0.55)', swatch: '#1e5f58' }, //   brand teal
-  { bg: 'rgba(124, 58, 237, 0.12)', border: 'rgba(124, 58, 237, 0.50)', swatch: '#7c3aed' }, // violet
-  { bg: 'rgba(217, 119, 6, 0.14)', border: 'rgba(217, 119, 6, 0.55)', swatch: '#d97706' }, //   amber
-  { bg: 'rgba(219, 39, 119, 0.12)', border: 'rgba(219, 39, 119, 0.50)', swatch: '#db2777' }, // pink
-];
-
-/** Stable hash → palette index. Same therapist id always lands on the
- *  same tint across renders, sessions, and browser reloads. */
-function therapistTint(id: string): (typeof THERAPIST_TINTS)[number] {
-  let hash = 0;
-  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) | 0;
-  return THERAPIST_TINTS[Math.abs(hash) % THERAPIST_TINTS.length]!;
-}
-
 /** Statuses that should keep the therapist tint. Terminal statuses
  *  (cancelled, completed, no-show, in-progress) carry their own
  *  meaning-bearing color from calendar.css and must override. */
@@ -126,8 +123,18 @@ const TINT_STATUSES = new Set(['SCHEDULED', 'CONFIRMED']);
  * RTL is handled via [dir='rtl'] selectors in calendar.css plus the locale-
  * aware date-fns localizer below. Test by visiting /ar/secretary/calendar.
  */
+/** P64 #6 — date-fns patterns for the grid headers (weekday + day number). */
+const CALENDAR_FORMATS = {
+  dayFormat: 'EEEE d',
+  weekdayFormat: 'EEEE',
+  agendaDateFormat: 'EEEE d MMMM',
+  dayHeaderFormat: 'EEEE d MMMM',
+};
+
 export function SecretaryCalendar({
   appointments,
+  initialDateKey,
+  initialView,
   resources,
   leaves,
   minHour,
@@ -137,6 +144,7 @@ export function SecretaryCalendar({
   onEventDrop,
   onEventResize,
   editable = true,
+  tintIds,
 }: SecretaryCalendarProps) {
   const locale = useLocale();
   const t = useTranslations('appointments');
@@ -151,8 +159,40 @@ export function SecretaryCalendar({
   // in CLINIC-WALL space (`toClinicWall`), so the grid reads in clinic time on
   // any machine. Everything leaving the component through interaction
   // callbacks is converted back to real instants with `fromClinicWall`.
-  const [view, setView] = useState<View>(Views.DAY);
-  const [date, setDate] = useState<Date>(() => toClinicWall(new Date()));
+  const [view, setViewState] = useState<View>(initialView ?? Views.DAY);
+  const [date, setDateState] = useState<Date>(() =>
+    toClinicWall(initialDateKey ? anchorInstantForDateKey(initialDateKey) : new Date()),
+  );
+
+  // P64 #1 — mirror navigation into the URL (`?date=&view=`) so the server
+  // page refetches the window around the VIEWED date. Replace (not push) so
+  // the back button leaves the calendar instead of stepping through days;
+  // the transition keeps the current events on screen until the new ones
+  // arrive. The one-shot booking deep-link params are dropped on the way.
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [, startNavTransition] = useTransition();
+  const syncUrl = (nextDate: Date, nextView: View) => {
+    const params = new URLSearchParams(searchParams?.toString() ?? '');
+    params.delete('bookPatient');
+    params.delete('doctors');
+    params.set('date', formatDateFns(nextDate, 'yyyy-MM-dd'));
+    params.set('view', nextView);
+    startNavTransition(() => router.replace(`?${params.toString()}`, { scroll: false }));
+  };
+  // Refs carry the latest pair: rbc's month drill-down fires onNavigate and
+  // onView back-to-back in one tick, before React re-renders.
+  const latest = useRef({ date, view });
+  const setDate = (next: Date) => {
+    latest.current.date = next;
+    setDateState(next);
+    syncUrl(next, latest.current.view);
+  };
+  const setView = (next: View) => {
+    latest.current.view = next;
+    setViewState(next);
+    syncUrl(latest.current.date, next);
+  };
 
   // P63 — day layout (lanes | merged). Starts at the default so the server
   // and the first client render agree; the per-browser preference is applied
@@ -165,6 +205,16 @@ export function SecretaryCalendar({
     setDayLayout(next);
     storeDayLayout(next);
   };
+
+  // P64 #7 — one distinct colour per clinician (see ./therapistColors).
+  const therapistTint = useMemo(() => {
+    const ids = tintIds ?? [
+      ...resources.map((r) => r.id),
+      ...appointments.flatMap((a) => a.therapists.map((t) => t.id)),
+    ];
+    const map = assignTherapistTints(ids);
+    return (id: string) => resolveTint(map, id, (x) => SYNTHETIC_LANE_IDS.has(x));
+  }, [tintIds, resources, appointments]);
 
   const localizer = useMemo(
     () =>
@@ -251,172 +301,180 @@ export function SecretaryCalendar({
     // 0 means sweeping across many chips never rapid-fires tooltips (each
     // hover earns its own delay); disableHoverableContent keeps the floating
     // card pointer-transparent so it never blocks neighboring slots.
-    <TooltipProvider delayDuration={450} skipDelayDuration={0} disableHoverableContent>
-      <div className="space-y-4">
-        <CalendarToolbar
-          view={view}
-          date={date}
-          onViewChange={setView}
-          onNavigate={(target) => setDate(target)}
-          onToday={() => setDate(toClinicWall(new Date()))}
-          dayLayout={dayLayout}
-          // P63 — the switch is meaningless on a single-clinician board (the
-          // therapist's own calendar passes no resources, so there are no
-          // lanes to merge): hide it there.
-          onDayLayoutChange={resources.length > 0 ? changeDayLayout : undefined}
-        />
-        <div className={cn('h-[calc(100vh-16rem)] min-h-[640px]')}>
-          <DnDCalendar
-            localizer={localizer}
-            events={events}
-            // Resources (therapist lanes) only in DAY view — rbc can't lay them
-            // out in week/month, which clipped + desynced the columns (Fix Prompt 4).
-            resources={resourcesForView(view, rbcResources, dayLayout)}
-            resourceIdAccessor={(r) => (r as CalendarResource).resourceId}
-            resourceTitleAccessor={(r) => (r as CalendarResource).resourceTitle}
-            startAccessor="start"
-            endAccessor="end"
+    <TherapistTintContext.Provider value={therapistTint}>
+      <TooltipProvider delayDuration={450} skipDelayDuration={0} disableHoverableContent>
+        <div className="space-y-4">
+          <CalendarToolbar
             view={view}
-            onView={setView}
             date={date}
-            onNavigate={setDate}
-            // Clinic "now" (current-time indicator + today highlight) — must
-            // live in the same clinic-wall space as the events.
-            getNow={() => toClinicWall(new Date())}
-            views={['day', 'week', 'month', 'agenda']}
-            // Lay concurrent events as equal-width, truly side-by-side columns
-            // instead of rbc's default 'overlap' (which widens each event 1.7× so
-            // they cover/clip each other — unreadable for 3+, worse in narrow week
-            // columns). Calendar overlap fix, Option ①.
-            dayLayoutAlgorithm="no-overlap"
-            // 15-min interaction step grouped into whole-hour gridline/label
-            // groups (July 31 item 1) — see ./slotConfig for the contract.
-            step={CALENDAR_STEP_MINUTES}
-            timeslots={CALENDAR_SLOTS_PER_GROUP}
-            min={minTime}
-            max={maxTime}
-            selectable={editable}
-            // Drag-to-reschedule is gated on `editable` and never applies to the
-            // leave background overlays (which have no underlying appointment).
-            draggableAccessor={(event) =>
-              Boolean(editable && (event as AppointmentEvent).appointment)
-            }
-            // Edge-resize to change duration (July #6) — gated on the same
-            // `editable` role flag as drag; never on the leave overlays.
-            resizable={editable}
-            resizableAccessor={(event) =>
-              Boolean(editable && (event as AppointmentEvent).appointment)
-            }
-            onEventDrop={
-              editable
-                ? ({ event, start, resourceId }) => {
-                    const appt = (event as AppointmentEvent).appointment;
-                    if (!appt) return;
-                    onEventDrop?.({
-                      appointmentId: appt.id,
-                      // Grid Dates are clinic-wall — back to a real instant
-                      // before the reschedule action / conflict engine sees it.
-                      start: fromClinicWall(start as Date),
-                      resourceId: typeof resourceId === 'string' ? resourceId : undefined,
-                    });
-                  }
-                : undefined
-            }
-            onEventResize={
-              editable
-                ? ({ event, start, end }) => {
-                    const appt = (event as AppointmentEvent).appointment;
-                    if (!appt) return;
-                    onEventResize?.({
-                      appointmentId: appt.id,
-                      start: fromClinicWall(start as Date),
-                      end: fromClinicWall(end as Date),
-                    });
-                  }
-                : undefined
-            }
-            onSelectSlot={(s) => {
-              onSelectSlot?.({
-                start: fromClinicWall(s.start as Date),
-                end: fromClinicWall(s.end as Date),
-                resourceId: typeof s.resourceId === 'string' ? s.resourceId : undefined,
-              });
-            }}
-            onSelectEvent={(e) => {
-              const appt = (e as AppointmentEvent).appointment;
-              if (appt) onSelectEvent?.(appt.id);
-            }}
-            messages={{
-              allDay: t('allDay'),
-              previous: t('previous'),
-              next: t('next'),
-              today: t('today'),
-              month: t('viewMonth'),
-              week: t('viewWeek'),
-              day: t('viewDay'),
-              agenda: t('viewAgenda'),
-              noEventsInRange: t('noEventsInRange'),
-              showMore: (count) => t('showMore', { count }),
-            }}
-            eventPropGetter={(event) => {
-              // rbc-event-compact (Prompt 55 §2): ≤15-minute bookings drop to a
-              // tighter padding so the name line stays legible at slot height.
-              const compact =
-                event.appointment && event.appointment.durationMinutes <= 15
-                  ? ' rbc-event-compact'
-                  : '';
-              const base: { className: string; style?: React.CSSProperties } = {
-                className: `rbc-event-status-${event.status ?? 'leave'}${compact}`,
-              };
-              if (event.status && TINT_STATUSES.has(event.status)) {
-                const tint = therapistTint(event.resourceId);
-                base.style = {
-                  backgroundColor: tint.bg,
-                  borderColor: tint.border,
-                };
-              }
-              return base;
-            }}
-            slotPropGetter={(date: Date) => {
-              // Per-slot styling hints — react-big-calendar invokes this
-              // for every 15-minute cell with the slot's start Date.
-              //
-              //   - rbc-peak-slot: 09:00–17:00 (the clinic's working core).
-              //     calendar.css lifts these to pure white against an
-              //     off-peak off-white background.
-              //   - rbc-noon: the 12:00 slot — picks up a heavier top
-              //     border as a visual AM/PM divider.
-              //
-              // slotGroupPropGetter would be the conceptually cleaner
-              // place for the noon hint, but the library's runtime invokes
-              // it with zero args (the slot date isn't available there).
-              // Slot Dates arrive in clinic-wall space (like the events), so
-              // local getters read clinic hours on any machine.
-              const h = date.getHours();
-              const m = date.getMinutes();
-              const classes: string[] = [];
-              if (h >= 9 && h < 17) classes.push('rbc-peak-slot');
-              if (h === 12 && m === 0) classes.push('rbc-noon');
-              // Grey past slots so they read as unselectable (Fix 6C item 1). The
-              // server is the source of truth (APPOINTMENT_IN_PAST); this is the
-              // affordance. Wall-vs-wall comparison, same clinic space.
-              if (date.getTime() < toClinicWall(new Date()).getTime())
-                classes.push('rbc-past-slot');
-              return classes.length > 0 ? { className: classes.join(' ') } : {};
-            }}
-            backgroundEvents={leaveBg as unknown as AppointmentEvent[]}
-            components={{
-              event: AppointmentEventCard,
-              resourceHeader: TherapistResourceHeader,
-            }}
+            onViewChange={setView}
+            onNavigate={(target) => setDate(target)}
+            onToday={() => setDate(toClinicWall(new Date()))}
+            dayLayout={dayLayout}
+            // P63 — the switch is meaningless on a single-clinician board (the
+            // therapist's own calendar passes no resources, so there are no
+            // lanes to merge): hide it there.
+            onDayLayoutChange={resources.length > 0 ? changeDayLayout : undefined}
           />
+          <div className={cn('h-[calc(100vh-16rem)] min-h-[640px]')}>
+            <DnDCalendar
+              localizer={localizer}
+              // P64 #6 — without `culture` rbc resolved `locales[undefined]`, so
+              // every grid header rendered in English even on /ar. The headers
+              // also carry the full weekday name next to the day number.
+              culture={locale === 'ar' ? 'ar' : 'en-US'}
+              formats={CALENDAR_FORMATS}
+              events={events}
+              // Resources (therapist lanes) only in DAY view — rbc can't lay them
+              // out in week/month, which clipped + desynced the columns (Fix Prompt 4).
+              resources={resourcesForView(view, rbcResources, dayLayout)}
+              resourceIdAccessor={(r) => (r as CalendarResource).resourceId}
+              resourceTitleAccessor={(r) => (r as CalendarResource).resourceTitle}
+              startAccessor="start"
+              endAccessor="end"
+              view={view}
+              onView={setView}
+              date={date}
+              onNavigate={setDate}
+              // Clinic "now" (current-time indicator + today highlight) — must
+              // live in the same clinic-wall space as the events.
+              getNow={() => toClinicWall(new Date())}
+              views={['day', 'week', 'month', 'agenda']}
+              // Lay concurrent events as equal-width, truly side-by-side columns
+              // instead of rbc's default 'overlap' (which widens each event 1.7× so
+              // they cover/clip each other — unreadable for 3+, worse in narrow week
+              // columns). Calendar overlap fix, Option ①.
+              dayLayoutAlgorithm="no-overlap"
+              // 15-min interaction step grouped into whole-hour gridline/label
+              // groups (July 31 item 1) — see ./slotConfig for the contract.
+              step={CALENDAR_STEP_MINUTES}
+              timeslots={CALENDAR_SLOTS_PER_GROUP}
+              min={minTime}
+              max={maxTime}
+              selectable={editable}
+              // Drag-to-reschedule is gated on `editable` and never applies to the
+              // leave background overlays (which have no underlying appointment).
+              draggableAccessor={(event) =>
+                Boolean(editable && (event as AppointmentEvent).appointment)
+              }
+              // Edge-resize to change duration (July #6) — gated on the same
+              // `editable` role flag as drag; never on the leave overlays.
+              resizable={editable}
+              resizableAccessor={(event) =>
+                Boolean(editable && (event as AppointmentEvent).appointment)
+              }
+              onEventDrop={
+                editable
+                  ? ({ event, start, resourceId }) => {
+                      const appt = (event as AppointmentEvent).appointment;
+                      if (!appt) return;
+                      onEventDrop?.({
+                        appointmentId: appt.id,
+                        // Grid Dates are clinic-wall — back to a real instant
+                        // before the reschedule action / conflict engine sees it.
+                        start: fromClinicWall(start as Date),
+                        resourceId: typeof resourceId === 'string' ? resourceId : undefined,
+                      });
+                    }
+                  : undefined
+              }
+              onEventResize={
+                editable
+                  ? ({ event, start, end }) => {
+                      const appt = (event as AppointmentEvent).appointment;
+                      if (!appt) return;
+                      onEventResize?.({
+                        appointmentId: appt.id,
+                        start: fromClinicWall(start as Date),
+                        end: fromClinicWall(end as Date),
+                      });
+                    }
+                  : undefined
+              }
+              onSelectSlot={(s) => {
+                onSelectSlot?.({
+                  start: fromClinicWall(s.start as Date),
+                  end: fromClinicWall(s.end as Date),
+                  resourceId: typeof s.resourceId === 'string' ? s.resourceId : undefined,
+                });
+              }}
+              onSelectEvent={(e) => {
+                const appt = (e as AppointmentEvent).appointment;
+                if (appt) onSelectEvent?.(appt.id);
+              }}
+              messages={{
+                allDay: t('allDay'),
+                previous: t('previous'),
+                next: t('next'),
+                today: t('today'),
+                month: t('viewMonth'),
+                week: t('viewWeek'),
+                day: t('viewDay'),
+                agenda: t('viewAgenda'),
+                noEventsInRange: t('noEventsInRange'),
+                showMore: (count) => t('showMore', { count }),
+              }}
+              eventPropGetter={(event) => {
+                // rbc-event-compact (Prompt 55 §2): ≤15-minute bookings drop to a
+                // tighter padding so the name line stays legible at slot height.
+                const compact =
+                  event.appointment && event.appointment.durationMinutes <= 15
+                    ? ' rbc-event-compact'
+                    : '';
+                const base: { className: string; style?: React.CSSProperties } = {
+                  className: `rbc-event-status-${event.status ?? 'leave'}${compact}`,
+                };
+                if (event.status && TINT_STATUSES.has(event.status)) {
+                  const tint = therapistTint(event.resourceId);
+                  base.style = {
+                    backgroundColor: tint.bg,
+                    borderColor: tint.border,
+                  };
+                }
+                return base;
+              }}
+              slotPropGetter={(date: Date) => {
+                // Per-slot styling hints — react-big-calendar invokes this
+                // for every 15-minute cell with the slot's start Date.
+                //
+                //   - rbc-peak-slot: 09:00–17:00 (the clinic's working core).
+                //     calendar.css lifts these to pure white against an
+                //     off-peak off-white background.
+                //   - rbc-noon: the 12:00 slot — picks up a heavier top
+                //     border as a visual AM/PM divider.
+                //
+                // slotGroupPropGetter would be the conceptually cleaner
+                // place for the noon hint, but the library's runtime invokes
+                // it with zero args (the slot date isn't available there).
+                // Slot Dates arrive in clinic-wall space (like the events), so
+                // local getters read clinic hours on any machine.
+                const h = date.getHours();
+                const m = date.getMinutes();
+                const classes: string[] = [];
+                if (h >= 9 && h < 17) classes.push('rbc-peak-slot');
+                if (h === 12 && m === 0) classes.push('rbc-noon');
+                // Grey past slots so they read as unselectable (Fix 6C item 1). The
+                // server is the source of truth (APPOINTMENT_IN_PAST); this is the
+                // affordance. Wall-vs-wall comparison, same clinic space.
+                if (date.getTime() < toClinicWall(new Date()).getTime())
+                  classes.push('rbc-past-slot');
+                return classes.length > 0 ? { className: classes.join(' ') } : {};
+              }}
+              backgroundEvents={leaveBg as unknown as AppointmentEvent[]}
+              components={{
+                event: AppointmentEventCard,
+                resourceHeader: TherapistResourceHeader,
+              }}
+            />
+          </div>
         </div>
-      </div>
-    </TooltipProvider>
+      </TooltipProvider>
+    </TherapistTintContext.Provider>
   );
 }
 
 function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
+  const tintFor = useTherapistTint();
   // react-big-calendar reuses `components.event` for backgroundEvents too,
   // which are leave overlays without an `appointment` field — render just
   // the title for those.
@@ -432,7 +490,7 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
   // hour; the name must read large and clear. Full details (incl. the exact
   // time) stay in the click-open side panel and the hover tooltip.
   const { primary, note } = eventCardContent(event);
-  const tint = therapistTint(event.resourceId);
+  const tint = tintFor(event.resourceId);
   return (
     // Prompt 56 — rich hover tooltip (desktop/fine-pointer only). Wraps the
     // card content INSIDE .rbc-event, so drag/click handlers on the event
@@ -442,7 +500,7 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
         <div className="flex items-start gap-1.5">
           <span
             aria-hidden="true"
-            className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
+            className="cal-chip-dot mt-1 h-1.5 w-1.5 shrink-0 rounded-full"
             style={{ backgroundColor: tint.swatch }}
           />
           {/* Name + note ONLY (owner ruling 24 Aug: «بس الاسم يطلع في المربع
@@ -450,12 +508,14 @@ function AppointmentEventCard({ event }: { event: AppointmentEvent }) {
               badge left the card; both remain in the hover tooltip and the
               side panel. The name WRAPS to two lines instead of truncating
               («لو ع سطرين»); shorter chips clip via overflow-hidden. */}
-          <span className="line-clamp-2 min-w-0 flex-1 break-words text-[13px] font-semibold leading-tight">
+          <span className="cal-chip-name line-clamp-2 min-w-0 flex-1 break-words text-[13px] font-semibold leading-tight">
             {primary}
           </span>
         </div>
         {note ? (
-          <div className="truncate ps-3 text-[11px] leading-tight opacity-75">{note}</div>
+          <div className="cal-chip-note truncate ps-3 text-[11px] leading-tight opacity-75">
+            {note}
+          </div>
         ) : null}
       </div>
     </AppointmentTooltip>
@@ -478,7 +538,7 @@ function TherapistResourceHeader({
   label: React.ReactNode;
   resource: CalendarResource;
 }) {
-  const tint = therapistTint(resource.resourceId);
+  const tint = useTherapistTint()(resource.resourceId);
   return (
     <div className="therapist-header">
       <span

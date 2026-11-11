@@ -41,6 +41,23 @@ export function formatDate(date: Date, locale: AppLocale, opts: CalendarOption =
   }).format(date);
 }
 
+/** Long date with the weekday — "Monday, November 9, 2026" / "الاثنين، 9 نوفمبر 2026" (P64 #6). */
+export function formatDateWithWeekday(
+  date: Date,
+  locale: AppLocale,
+  opts: CalendarOption = {},
+): string {
+  // 'ar' (not ar-JO): «الاثنين، 9 نوفمبر» — the month names the clinic uses,
+  // matching the calendar grid headers (date-fns `ar`).
+  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar' : resolveIntlLocale(locale), {
+    ...baseOptions(opts),
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  }).format(date);
+}
+
 /** Short numeric date — "06/01/2026" (en-US) / "1‏/6‏/2026" (ar-JO). */
 export function formatShortDate(date: Date, locale: AppLocale, opts: CalendarOption = {}): string {
   return new Intl.DateTimeFormat(resolveIntlLocale(locale), {

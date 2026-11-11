@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 
 import { AdultIntakeForm } from '@/components/intake/AdultIntakeForm';
 import { PediatricIntakeForm } from '@/components/intake/PediatricIntakeForm';
+import { AssessmentDocumentsCard } from '@/components/patients/AssessmentDocumentsCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
@@ -79,6 +80,7 @@ export default async function AdminNewIntakePage({
           basePath="/admin/patients"
         />
       )}
+      <AssessmentDocumentsCard patientId={patient.id} locale={locale} />
     </section>
   );
 }

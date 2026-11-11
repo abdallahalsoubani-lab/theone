@@ -1,4 +1,4 @@
-import type { PatientDocMime } from './policy';
+import { DOC_MIME, DOCX_MIME, type PatientDocMime } from './policy';
 
 /**
  * Magic-byte content sniff (Prompt 22 §3 storage safety). Detects the REAL
@@ -27,6 +27,12 @@ const HEIF_BRANDS = new Set([
   'heif',
 ]);
 
+const OLE2 = [0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1];
+const OOXML_FIRST_ENTRIES = ['[Content_Types].xml', '_rels/', 'word/', 'docProps/'];
+
+/** Leading bytes the finalize step must fetch for every sniff to decide. */
+export const SNIFF_HEAD_BYTES = 64;
+
 /** Detect the canonical MIME from magic bytes, or null if unrecognized. */
 export function sniffMime(bytes: Uint8Array): PatientDocMime | null {
   if (bytes.length < 12) return null;
@@ -44,6 +50,15 @@ export function sniffMime(bytes: Uint8Array): PatientDocMime | null {
   if (ascii(bytes, 0, 4) === 'RIFF' && ascii(bytes, 8, 4) === 'WEBP') return 'image/webp';
   // HEIC/HEIF — "ftyp" box at offset 4 with a HEIF brand at offset 8
   if (ascii(bytes, 4, 4) === 'ftyp' && HEIF_BRANDS.has(ascii(bytes, 8, 4))) return 'image/heic';
+  // Legacy Word .doc — OLE2 compound file D0 CF 11 E0 A1 B1 1A E1 (P64 #14).
+  if (OLE2.every((b, i) => bytes[i] === b)) return DOC_MIME;
+  // Word .docx — ZIP local-file header "PK\x03\x04" whose FIRST entry is an
+  // OOXML part. A plain zip (or a zipped .exe) renamed .docx fails here.
+  if (bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04) {
+    const nameLen = (bytes[26] ?? 0) | ((bytes[27] ?? 0) << 8);
+    const name = ascii(bytes, 30, Math.min(nameLen, bytes.length - 30));
+    if (OOXML_FIRST_ENTRIES.some((p) => name.startsWith(p))) return DOCX_MIME;
+  }
   return null;
 }
 

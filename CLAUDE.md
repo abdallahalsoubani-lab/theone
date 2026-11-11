@@ -38,7 +38,7 @@ Adding or swapping any of these requires the owner's sign-off:
 - **Runtime:** Node.js 20 LTS (Node 22 also supported), pnpm 10
 - **Framework:** Next.js 15 App Router + React 19 + TypeScript strict mode
 - **Styling:** Tailwind CSS + shadcn/ui (brand tokens locked in `tailwind.config.ts`)
-- **Data:** PostgreSQL 16 + Prisma 6 (26 models, 28 enums, 8 migrations)
+- **Data:** PostgreSQL 16 + Prisma 6 (43 models, 43 enums, 43 migrations)
 - **Auth:** Auth.js v5 beta with Credentials + Phone-OTP providers (`lib/auth/`)
 - **i18n:** next-intl (AR is the default locale; routes are always
   prefixed `/{ar,en}/...`; full RTL)
@@ -50,7 +50,7 @@ Adding or swapping any of these requires the owner's sign-off:
 - **File storage:** AWS SDK v3 + presigned PUT URLs (MinIO locally, S3 in
   production; `lib/storage/`)
 - **Analytics charts:** Recharts (`components/analytics/`)
-- **Tests:** Vitest for unit + integration (912 passing); Playwright scaffolds
+- **Tests:** Vitest for unit + integration (2600 passing); Playwright scaffolds
   for a11y + mobile (run after `pnpm playwright install`)
 
 ---
@@ -194,7 +194,7 @@ checkConflicts()`. Every action that creates or moves an appointment
 
 - **Zero hardcoded UI strings.** Every label goes through
   `useTranslations('namespace')`. CI gate: `pnpm i18n:check` enforces
-  EN + AR key parity (currently 1087 keys).
+  EN + AR key parity (currently 1828 keys).
 - New keys go in the matching namespace in both `messages/en.json` and
   `messages/ar.json` in the same commit.
 
@@ -219,13 +219,17 @@ checkConflicts()`. Every action that creates or moves an appointment
 - Display is locale-aware via `lib/format/date.ts` (`formatDate`,
   `formatTime`, `formatDateTime`). Patient `hijriCalendarPref` flips the
   formatter to Hijri.
-- Recurring expansion anchors on UTC for DST-safety
-  (`lib/appointments/recurrence.ts`).
+- Clinic-wall time lives in `lib/time/clinic.ts` (Asia/Amman). There is no
+  hidden recurrence: the multi-appointment modal books EXPLICIT rows, and
+  «كرّر» (`lib/appointments/batch-repeat.ts`) just expands into more rows.
 
 ### Storage
 
-- Direct browser-to-S3 uploads via presigned PUT URLs from
-  `lib/storage/presign.ts`. Never proxy uploads through Next.js handlers.
+- Uploads go through the same-origin proxy route `/api/v1/storage/[...key]`
+  with a short-lived signed capability token (`lib/storage/uploadToken.ts`,
+  `lib/storage/urls.ts`) — MinIO is localhost-only on the VM, so direct
+  browser-to-S3 PUTs are unreachable. Patient documents are magic-byte
+  sniffed on finalize (`lib/patient-documents/sniff.ts`).
 - MinIO locally with `forcePathStyle: true`; production uses AWS S3.
 - Public URLs read from `env.S3_PUBLIC_BASE_URL` (CDN in prod).
 
@@ -261,12 +265,12 @@ The pre-commit hook runs the staged-file subset; CI runs the full set:
 pnpm typecheck         # strict TS, no emit
 pnpm lint              # ESLint, zero warnings tolerated
 pnpm format:check      # Prettier check
-pnpm test              # Vitest run (currently 912 tests)
+pnpm test              # Vitest run (currently 2600 tests)
 pnpm i18n:check        # EN + AR key parity
 pnpm build             # Next.js production build
-pnpm size-limit        # 800 kB gzipped first-load JS budget — currently 778.9 kB
-                       # (2.6% headroom: ~21 kB. Check this before adding ANY
-                       # client-side dependency; server-only imports are free.)
+pnpm size-limit        # 800 kB gzipped shared-chunk budget — currently 797.8 kB
+                       # (P64; ~2 kB headroom. Check this before adding ANY
+                       # client-side code or dependency; server-only imports are free.)
 ```
 
 When you finish a change, run typecheck + lint + the affected test file
@@ -306,7 +310,7 @@ Quick mapping:
 | Question                                                             | Answer                                                                                      |
 | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | Why is this slot unbookable?                                         | `lib/appointments/conflicts.ts`                                                             |
-| How does the recurring builder fan out?                              | `lib/appointments/recurrence.ts` + `services.ts`                                            |
+| How does the multi-appointment «كرّر» fan out?                       | `lib/appointments/batch-repeat.ts` → explicit rows → `services.ts`                          |
 | What permissions does role X have?                                   | `lib/rbac/permissions.ts` → `ROLE_PERMISSIONS`                                              |
 | How is a patient's file structured?                                  | `components/patients/PatientFilePage.tsx`                                                   |
 | Why didn't this WhatsApp message send?                               | `lib/whatsapp/providers/` + `InboxItem.OUTBOUND_DELIVERY_FAILED`                            |

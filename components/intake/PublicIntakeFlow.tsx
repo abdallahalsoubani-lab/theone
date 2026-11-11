@@ -1,19 +1,9 @@
 'use client';
 
-import {
-  Comorbidity,
-  Gender,
-  LanguagePref,
-  PainSeverity,
-  PainStability,
-  PainTiming,
-  PhysicalActivityLevel,
-  ReferralSource,
-  SymptomDuration,
-} from '@prisma/client';
+import { Gender, LanguagePref } from '@prisma/client';
 import { Baby, CheckCircle2, User } from 'lucide-react';
 import { useTranslations } from 'next-intl';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { FieldValues, UseFormReturn } from 'react-hook-form';
 
 import { AppForm } from '@/components/forms/AppForm';
@@ -23,6 +13,8 @@ import { PublicProfileFields } from '@/components/intake/PublicProfileFields';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import type { CustomQuestionRow } from '@/lib/admin/custom-questions/queries';
+import { withCustomAnswerRules } from '@/lib/intake/buildCustomQuestionSchema';
+import { adultIntakeSchema, pediatricIntakeSchema } from '@/lib/intake/schemas';
 import { submitPublicIntakeAction } from '@/lib/intake-submissions/publicActions';
 import {
   publicAdultSubmissionSchema,
@@ -51,36 +43,28 @@ interface Props {
 
 type Step = 'choose' | 'adult' | 'pediatric' | 'done';
 
-const ADULT_ANSWER_DEFAULTS = {
-  physicalActivityLevel: PhysicalActivityLevel.MODERATE,
-  medicalDiagnosis: '',
-  primaryComplaint: '',
-  painTiming: PainTiming.DAY,
-  symptomDuration: SymptomDuration.WEEKS_2_3,
-  painSeverity: PainSeverity.FIVE,
-  painAggravatingFactors: null,
-  painRelievingFactors: null,
-  painStability: PainStability.CONSTANT,
-  currentMedicationsForProblem: null,
-  otherMedications: null,
-  conditions: [Comorbidity.NONE],
-  otherConditions: null,
-  previousFractures: null,
-  previousSurgeries: null,
-  previousPtExperience: null,
-  referralSource: ReferralSource.FRIEND_FAMILY,
-  customAnswers: {},
-};
-
-const PEDIATRIC_ANSWER_DEFAULTS = {
-  numberOfSiblings: 0,
-  birthOrder: 1,
-  customAnswers: {},
-};
+// P64 #8 — only the admin custom questions are asked; the retired fixed
+// fields stay unset (hidden pre-filled defaults would be saved as answers).
+const ANSWER_DEFAULTS = { customAnswers: {} };
 
 export function PublicIntakeFlow({ locale, adultQuestions, pediatricQuestions, linkMode }: Props) {
   const t = useTranslations('publicIntake');
   const tCommon = useTranslations('common');
+  // Required admin questions are enforced on submit (P64 #8).
+  const adultSchema = useMemo(
+    () =>
+      publicAdultSubmissionSchema.extend({
+        answers: withCustomAnswerRules(adultIntakeSchema, adultQuestions),
+      }),
+    [adultQuestions],
+  );
+  const pediatricSchema = useMemo(
+    () =>
+      publicPediatricSubmissionSchema.extend({
+        answers: withCustomAnswerRules(pediatricIntakeSchema, pediatricQuestions),
+      }),
+    [pediatricQuestions],
+  );
   const [step, setStep] = useState<Step>(
     linkMode ? (linkMode.forcedType === 'ADULT' ? 'adult' : 'pediatric') : 'choose',
   );
@@ -152,14 +136,14 @@ export function PublicIntakeFlow({ locale, adultQuestions, pediatricQuestions, l
       )}
       {isAdult ? (
         <AppForm
-          schema={publicAdultSubmissionSchema}
+          schema={adultSchema}
           defaultValues={
             {
               type: 'ADULT',
               locale,
               website: '',
               profile: emptyProfile,
-              answers: ADULT_ANSWER_DEFAULTS,
+              answers: ANSWER_DEFAULTS,
             } as never
           }
           action={linkMode ? submitViaLink('ADULT') : (values) => submitPublicIntakeAction(values)}
@@ -185,14 +169,14 @@ export function PublicIntakeFlow({ locale, adultQuestions, pediatricQuestions, l
         </AppForm>
       ) : (
         <AppForm
-          schema={publicPediatricSubmissionSchema}
+          schema={pediatricSchema}
           defaultValues={
             {
               type: 'PEDIATRIC',
               locale,
               website: '',
               profile: emptyProfile,
-              answers: PEDIATRIC_ANSWER_DEFAULTS,
+              answers: ANSWER_DEFAULTS,
             } as never
           }
           action={

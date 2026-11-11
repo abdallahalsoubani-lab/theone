@@ -161,6 +161,13 @@ vi.mock('@/lib/db', () => {
           async ({ where }: { where: { id: string } }) =>
             state.users.find((u) => u.id === where.id) ?? null,
         ),
+        // P64 #10 — active doctors for an initial proposal.
+        findMany: vi.fn(async ({ where }: { where: { role: string } }) =>
+          state.users.filter((u) => u.role === where.role).map((u) => ({ id: u.id })),
+        ),
+      },
+      careTeamMember: {
+        findFirst: vi.fn(async () => null),
       },
       auditLog: {
         create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
@@ -209,6 +216,7 @@ import {
   approveProposal,
   createTreatmentPlan,
   PlanError,
+  proposeInitialTreatmentPlan,
   proposeTreatmentPlanChange,
   rejectProposal,
   pauseTreatmentPlan,
@@ -651,6 +659,65 @@ describe('rejectProposal', () => {
     expect(state.plans.find((p) => p.id === 'proposal-1')!.rejectedReason).toBe('too aggressive');
     expect(state.plans.find((p) => p.id === 'active-1')!.status).toBe(PlanStatus.ACTIVE);
     expect(state.notifications[0]).toMatchObject({ type: 'PLAN_PROPOSAL_REJECTED' });
+  });
+});
+
+describe('proposeInitialTreatmentPlan (P64 #10)', () => {
+  beforeEach(() => setSession({ user: { id: 'therapist-1', role: 'THERAPIST' } }));
+
+  it('creates a parent-less PROPOSED v1 + notifies every doctor', async () => {
+    const r = await proposeInitialTreatmentPlan(baseCreate, { therapistId: 'therapist-1' });
+    const row = state.plans.find((p) => p.id === r.planId)!;
+    expect(row).toMatchObject({
+      status: PlanStatus.PROPOSED,
+      version: 1,
+      parentPlanId: null,
+      doctorId: 'doctor-1',
+    });
+    expect(state.notifications).toHaveLength(1);
+    expect(state.notifications[0]).toMatchObject({
+      recipientId: 'doctor-1',
+      type: 'PLAN_INITIAL_PROPOSED',
+    });
+  });
+
+  it('refuses when an active plan or a pending proposal exists', async () => {
+    await proposeInitialTreatmentPlan(baseCreate, { therapistId: 'therapist-1' });
+    await expect(
+      proposeInitialTreatmentPlan(baseCreate, { therapistId: 'therapist-1' }),
+    ).rejects.toMatchObject({ error: { code: 'PLAN_PROPOSAL_PENDING' } });
+    setSession({ user: { id: 'doctor-1', role: 'DOCTOR' } });
+    await createTreatmentPlan({ ...baseCreate, patientId: 'patient-2' }, { doctorId: 'doctor-1' });
+    await expect(
+      proposeInitialTreatmentPlan(
+        { ...baseCreate, patientId: 'patient-2' },
+        { therapistId: 'therapist-1' },
+      ),
+    ).rejects.toMatchObject({ error: { code: 'PLAN_ACTIVE_EXISTS' } });
+  });
+
+  it('ANY doctor may approve an initial proposal; approver becomes the plan doctor', async () => {
+    const r = await proposeInitialTreatmentPlan(baseCreate, { therapistId: 'therapist-1' });
+    state.plans.find((p) => p.id === r.planId)!.doctorId = 'doctor-elsewhere';
+    setSession({ user: { id: 'doctor-1', role: 'DOCTOR' } });
+    await approveProposal({ proposedPlanId: r.planId }, { doctorId: 'doctor-1' });
+    const row = state.plans.find((p) => p.id === r.planId)!;
+    expect(row).toMatchObject({
+      status: PlanStatus.ACTIVE,
+      doctorId: 'doctor-1',
+      approvedById: 'doctor-1',
+    });
+    expect(state.careTeamUpserts.some((c) => c.clinicianId === 'doctor-1')).toBe(true);
+  });
+
+  it('any doctor may reject an initial proposal', async () => {
+    const r = await proposeInitialTreatmentPlan(baseCreate, { therapistId: 'therapist-1' });
+    state.plans.find((p) => p.id === r.planId)!.doctorId = 'doctor-elsewhere';
+    await rejectProposal(
+      { proposedPlanId: r.planId, rejectedReason: 'needs more detail' },
+      { doctorId: 'doctor-1' },
+    );
+    expect(state.plans.find((p) => p.id === r.planId)!.status).toBe(PlanStatus.REJECTED);
   });
 });
 

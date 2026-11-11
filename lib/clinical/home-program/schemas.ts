@@ -26,6 +26,9 @@ export const homeProgramItemCreateSchema = z.object({
   durationMinutes: z.number().int().min(1).max(180),
   setsReps: z.string().max(50).optional().nullable(),
   therapistNote: z.string().max(2000).optional().nullable(),
+  // P64 #15 — home-program PDF: goal override + this patient's photos.
+  goal: z.string().max(500).optional().nullable(),
+  photoDocumentIds: z.array(z.string().min(1)).max(6).optional(),
 });
 
 export const homeProgramItemUpdateSchema = homeProgramItemCreateSchema.extend({

@@ -1,6 +1,7 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
 
+import { AssessmentDocumentsCard } from '@/components/patients/AssessmentDocumentsCard';
 import { PediatricAssessmentForm } from '@/components/pediatric-assessment/PediatricAssessmentForm';
 import { listFieldsForAssessment } from '@/lib/pediatric-assessment/customFields/queries';
 import { getAssessmentById } from '@/lib/pediatric-assessment/queries';
@@ -47,6 +48,7 @@ export default async function EditPediatricAssessmentPage({
         backHref={`/doctor/patients/${patient.id}`}
         locale={locale}
       />
+      <AssessmentDocumentsCard patientId={patient.id} locale={locale} />
     </section>
   );
 }

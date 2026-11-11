@@ -34,10 +34,23 @@ export async function PatientPlanTab({ state, patientId, viewerRole }: Props) {
   // that teleported them into the Doctor shell (the A-19 disease); for them
   // planHref returns null and titles render as plain text.
   const canCreatePlan = viewerRole === 'DOCTOR';
+  // P64 #10 — a therapist may PROPOSE the first plan (doctor approves) when
+  // there is neither an active plan nor a pending proposal.
+  const canProposeInitial = viewerRole === 'THERAPIST' && !state.proposal;
 
   return (
     <div className="space-y-4">
-      {state.active ? null : canCreatePlan ? (
+      {state.active ? null : canProposeInitial ? (
+        <div className="flex items-center justify-between rounded-md border border-brand-border bg-brand-bg p-4">
+          <p className="text-sm text-brand-textMuted">{t('noActivePlan')}</p>
+          <Button asChild size="sm">
+            <Link href={`/therapist/plans/new?patientId=${patientId}`}>
+              <Plus className="me-1 size-4" />
+              {t('newPlanProposal')}
+            </Link>
+          </Button>
+        </div>
+      ) : canCreatePlan ? (
         <div className="flex items-center justify-between rounded-md border border-brand-border bg-brand-bg p-4">
           <p className="text-sm text-brand-textMuted">{t('noActivePlan')}</p>
           <Button asChild size="sm">

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { sniffMatchesDeclared, sniffMime } from '../sniff';
+import { DOC_MIME, DOCX_MIME } from '../policy';
+import { SNIFF_HEAD_BYTES, sniffMatchesDeclared, sniffMime } from '../sniff';
 
 function bytes(...nums: number[]): Uint8Array {
   return new Uint8Array(nums);
@@ -32,9 +33,18 @@ describe('sniffMime', () => {
     expect(sniffMime(bytes(0x25, 0x50))).toBeNull();
   });
 
-  it('returns null for an unrecognized signature (e.g. a ZIP / renamed exe)', () => {
-    // "PK\x03\x04" — a ZIP/docx/xlsx container, deliberately not allowed.
+  it('returns null for a plain ZIP (no OOXML first entry) — P64 #14', () => {
+    expect(sniffMime(zipWithFirstEntry('payload.exe'))).toBeNull();
     expect(sniffMime(pad([0x50, 0x4b, 0x03, 0x04]))).toBeNull();
+  });
+
+  it('detects .docx — ZIP whose first entry is an OOXML part', () => {
+    expect(sniffMime(zipWithFirstEntry('[Content_Types].xml'))).toBe(DOCX_MIME);
+    expect(sniffMime(zipWithFirstEntry('word/document.xml'))).toBe(DOCX_MIME);
+  });
+
+  it('detects legacy .doc — OLE2 compound file', () => {
+    expect(sniffMime(pad([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]))).toBe(DOC_MIME);
   });
 
   it('returns null for an ELF executable masquerading as something else', () => {
@@ -42,7 +52,21 @@ describe('sniffMime', () => {
   });
 });
 
+function zipWithFirstEntry(name: string): Uint8Array {
+  const bytes = new Uint8Array(SNIFF_HEAD_BYTES);
+  bytes.set([0x50, 0x4b, 0x03, 0x04]);
+  bytes[26] = name.length & 0xff;
+  bytes[27] = name.length >> 8;
+  for (let i = 0; i < name.length && 30 + i < bytes.length; i++) bytes[30 + i] = name.charCodeAt(i);
+  return bytes;
+}
+
 describe('sniffMatchesDeclared', () => {
+  it('P64 #14 — a .docx declared as .doc (or vice versa) is a mismatch', () => {
+    expect(sniffMatchesDeclared(DOCX_MIME, zipWithFirstEntry('[Content_Types].xml'))).toBe(true);
+    expect(sniffMatchesDeclared(DOC_MIME, zipWithFirstEntry('[Content_Types].xml'))).toBe(false);
+  });
+
   it('passes when declared matches the real bytes', () => {
     expect(sniffMatchesDeclared('application/pdf', PDF)).toBe(true);
     expect(sniffMatchesDeclared('image/png', PNG)).toBe(true);

@@ -75,3 +75,58 @@ export function buildCustomQuestionSchema(
 
   return z.object(shape);
 }
+
+function isEmptyAnswer(v: unknown): boolean {
+  return v === undefined || v === null || v === '' || (Array.isArray(v) && v.length === 0);
+}
+
+/**
+ * Issues for a `customAnswers` map against the ACTIVE questions (P64 #8).
+ *
+ * Since the fixed intake fields were retired, the admin custom questions ARE
+ * the intake — so their `required` flag must actually be enforced (it was only
+ * a label asterisk before). Empty answers to required questions report the
+ * `required` validation token so FormMessage localizes them.
+ */
+export function customAnswerIssues(
+  questions: ReadonlyArray<CustomQuestionRow>,
+  answers: Record<string, unknown> | null | undefined,
+): Array<{ questionId: string; message: string }> {
+  const active = questions.filter((q) => q.active);
+  const map = answers ?? {};
+  const parsed = buildCustomQuestionSchema(active).safeParse(map);
+  if (parsed.success) return [];
+  const seen = new Set<string>();
+  const out: Array<{ questionId: string; message: string }> = [];
+  for (const issue of parsed.error.issues) {
+    const questionId = String(issue.path[0] ?? '');
+    if (!questionId || seen.has(questionId)) continue;
+    seen.add(questionId);
+    out.push({
+      questionId,
+      message: isEmptyAnswer(map[questionId]) ? 'required' : issue.message,
+    });
+  }
+  return out;
+}
+
+/**
+ * Wrap an intake schema (whose output has `customAnswers`) so the client form
+ * blocks submit on a missing required custom answer, with the error on
+ * `customAnswers.<questionId>` — exactly the RHF field name the question uses.
+ */
+export function withCustomAnswerRules<S extends z.ZodTypeAny>(
+  schema: S,
+  questions: ReadonlyArray<CustomQuestionRow>,
+) {
+  return schema.superRefine((value: unknown, ctx) => {
+    const answers = (value as { customAnswers?: Record<string, unknown> } | null)?.customAnswers;
+    for (const i of customAnswerIssues(questions, answers)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: i.message,
+        path: ['customAnswers', i.questionId],
+      });
+    }
+  });
+}

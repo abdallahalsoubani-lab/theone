@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { formatDateTime } from '@/lib/format/date';
-import { formatIntakeAnswer } from '@/lib/intake/display';
+import { formatIntakeAnswer, EMPTY_ANSWER_DISPLAY } from '@/lib/intake/display';
 import type { IntakeAssessmentDetail } from '@/lib/intake/queries';
 
 /**
@@ -54,10 +54,14 @@ export async function IntakeAssessmentView({
   const fieldKeys = isAdult ? ADULT_FIELD_KEYS : PEDIATRIC_FIELD_KEYS;
   // Enum answers render through the SAME intake.adult option labels the form
   // inputs use (QA 5.1); unknown values fall back to the stored raw key.
-  const rows = fieldKeys.map((k) => ({
-    label: tFields(k),
-    value: formatIntakeAnswer(k, data[k], tFields),
-  }));
+  // P64 #8 — intakes taken after the fixed fields were retired leave them
+  // empty; show only answered rows, and drop the card when none are.
+  const rows = fieldKeys
+    .map((k) => ({
+      label: tFields(k),
+      value: formatIntakeAnswer(k, data[k], tFields),
+    }))
+    .filter((r) => r.value !== EMPTY_ANSWER_DISPLAY);
   const assessedBy = locale === 'ar' ? assessment.assessedByAr : assessment.assessedByEn;
 
   return (
@@ -81,18 +85,20 @@ export async function IntakeAssessmentView({
         </span>
       </div>
 
-      <Card>
-        <CardContent className="space-y-3 p-6">
-          <h2 className="text-lg font-medium text-brand-navy">
-            {isAdult ? t('typeAdult') : t('typePediatric')}
-          </h2>
-          <dl className="grid gap-3 text-sm sm:grid-cols-2">
-            {rows.map((r) => (
-              <Row key={r.label} label={r.label} value={r.value} />
-            ))}
-          </dl>
-        </CardContent>
-      </Card>
+      {rows.length > 0 ? (
+        <Card>
+          <CardContent className="space-y-3 p-6">
+            <h2 className="text-lg font-medium text-brand-navy">
+              {isAdult ? t('typeAdult') : t('typePediatric')}
+            </h2>
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              {rows.map((r) => (
+                <Row key={r.label} label={r.label} value={r.value} />
+              ))}
+            </dl>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {assessment.custom.length > 0 ? (
         <Card>

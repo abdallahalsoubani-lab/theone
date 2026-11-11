@@ -37,9 +37,13 @@ export function adminNavEntries(): AdminNavEntry[] {
     { labelKey: 'patients', href: '/admin/patients', icon: 'heartPulse' },
     // Prompt 55 §1 — the leaves board got a proper sidebar entry.
     { labelKey: 'leaves', href: '/admin/leaves', icon: 'calendarOff' },
+    // P64 #4 — per-pair read-only calendar access for therapists.
+    { labelKey: 'scheduleAccess', href: '/admin/schedule-access', icon: 'users' },
     { labelKey: 'specialties', href: '/admin/specialties', icon: 'briefcaseMedical' },
     { labelKey: 'rooms', href: '/admin/rooms', icon: 'doorOpen' },
     { labelKey: 'customQuestions', href: '/admin/intake-questions', icon: 'clipboardList' },
+    // P64 #12b — the WhatsApp conversations inbox, mirrored into the admin shell.
+    { labelKey: 'whatsappInbox', href: '/admin/whatsapp/inbox', icon: 'messageSquare' },
     { labelKey: 'whatsappTemplates', href: '/admin/whatsapp/templates', icon: 'messageSquare' },
     // P48 — the manual dispatch outbox; the badge is the total pending count.
     { labelKey: 'whatsappOutbox', href: '/admin/whatsapp/outbox', icon: 'send', badge: 'waOutbox' },

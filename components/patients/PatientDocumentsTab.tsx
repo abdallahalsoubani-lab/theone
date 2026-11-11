@@ -18,6 +18,7 @@ import {
   PATIENT_DOC_MAX_BYTES,
   PATIENT_DOC_MIME_TYPES,
   docExtensionMatchesType,
+  mimeFromWordExtension,
   type PatientDocMime,
 } from '@/lib/patient-documents/policy';
 import type { DocumentListRow } from '@/lib/patient-documents/queries';
@@ -42,7 +43,8 @@ interface Props {
   documents: DocumentListRow[];
   canUpload: boolean;
   canDelete: boolean;
-  reports: ReportLinks;
+  /** Omitted on the assessment pages (P64 #17) — uploads only, no reports. */
+  reports?: ReportLinks;
 }
 
 function formatBytes(n: number): string {
@@ -74,11 +76,14 @@ export function PatientDocumentsTab({
     if (!file) return;
     // Pre-flight (Prompt 32 §3.2): reject before any bytes travel — type,
     // filename-extension consistency, then size (mirrors the server checks).
-    if (!(PATIENT_DOC_MIME_TYPES as readonly string[]).includes(file.type)) {
+    // P64 #14 — some OSes hand Word files over with an empty type; the
+    // extension then names it (the server sniff still checks the real bytes).
+    const contentType = file.type || mimeFromWordExtension(file.name);
+    if (!(PATIENT_DOC_MIME_TYPES as readonly string[]).includes(contentType)) {
       toast.error(t('errorUnsupported'));
       return;
     }
-    if (!docExtensionMatchesType(file.name, file.type as PatientDocMime)) {
+    if (!docExtensionMatchesType(file.name, contentType as PatientDocMime)) {
       toast.error(t('errorUnsupported'));
       return;
     }
@@ -93,7 +98,7 @@ export function PatientDocumentsTab({
         fileName: file.name,
         category,
         note: note.trim() || undefined,
-        contentType: file.type,
+        contentType,
         sizeBytes: file.size,
       });
       if (!ticket.ok) {
@@ -106,7 +111,7 @@ export function PatientDocumentsTab({
         await putWithProgress({
           url: ticket.data.uploadUrl,
           file,
-          contentType: file.type,
+          contentType,
         });
       } catch (putErr) {
         const kind = classifyUploadError(putErr);
@@ -160,28 +165,30 @@ export function PatientDocumentsTab({
     });
   }
 
-  const reportItems: Array<{ key: string; label: string; href: string }> = [
-    {
-      key: 'patient-file',
-      label: t('reportPatientFile'),
-      href: `/api/v1/exports/patient-file/${reports.patientId}?locale=${locale}`,
-    },
-  ];
-  if (reports.planId) {
+  const reportItems: Array<{ key: string; label: string; href: string }> = reports
+    ? [
+        {
+          key: 'patient-file',
+          label: t('reportPatientFile'),
+          href: `/api/v1/exports/patient-file/${reports.patientId}?locale=${locale}`,
+        },
+      ]
+    : [];
+  if (reports?.planId) {
     reportItems.push({
       key: 'plan',
       label: t('reportTreatmentPlan'),
       href: `/api/v1/exports/treatment-plan/${reports.planId}?locale=${locale}`,
     });
   }
-  if (reports.noteId) {
+  if (reports?.noteId) {
     reportItems.push({
       key: 'note',
       label: t('reportSessionReport'),
       href: `/api/v1/exports/session-report/${reports.noteId}?locale=${locale}`,
     });
   }
-  if (reports.pediatricId) {
+  if (reports?.pediatricId) {
     reportItems.push({
       key: 'pediatric',
       label: t('reportPediatric'),
@@ -192,7 +199,7 @@ export function PatientDocumentsTab({
   return (
     <div className="space-y-8">
       {/* Reports — one-click downloads of generated system PDFs. */}
-      <section className="space-y-3">
+      <section className={reports ? 'space-y-3' : 'hidden'}>
         <h3 className="text-sm font-semibold text-brand-navy">{t('reportsHeading')}</h3>
         <div className="flex flex-wrap gap-2">
           {reportItems.map((r) => (
@@ -244,7 +251,7 @@ export function PatientDocumentsTab({
               <input
                 ref={inputRef}
                 type="file"
-                accept={PATIENT_DOC_MIME_TYPES.join(',')}
+                accept={[...PATIENT_DOC_MIME_TYPES, '.doc', '.docx'].join(',')}
                 className="hidden"
                 onChange={handleFile}
               />

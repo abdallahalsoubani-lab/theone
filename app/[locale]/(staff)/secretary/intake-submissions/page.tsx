@@ -5,7 +5,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { formatDateTime } from '@/lib/format/date';
-import { listPendingSubmissions } from '@/lib/intake-submissions/queries';
+import { patientDisplayName } from '@/lib/format/patientName';
+import { listPendingSubmissions, listRecentLinkIntakes } from '@/lib/intake-submissions/queries';
+import { patientProfileHref } from '@/lib/patients/links';
 import { requirePermission } from '@/lib/rbac/guards';
 
 /**
@@ -19,12 +21,13 @@ export default async function IntakeSubmissionsPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  await requirePermission('intake_submission.read');
+  const viewer = await requirePermission('intake_submission.read');
   const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
 
-  const [t, rows] = await Promise.all([
+  const [t, rows, linkRows] = await Promise.all([
     getTranslations('intakeSubmissions'),
     listPendingSubmissions(),
+    listRecentLinkIntakes(),
   ]);
 
   return (
@@ -64,6 +67,52 @@ export default async function IntakeSubmissionsPage({
           ))}
         </ul>
       )}
+
+      {/* P64 #9 — personal-link intakes land straight on the patient file;
+          list the recent ones so the desk sees them arrive. */}
+      <div className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold text-brand-navy">{t('viaLinkTitle')}</h2>
+          <p className="text-sm text-brand-textMuted">{t('viaLinkSubtitle')}</p>
+        </div>
+        {linkRows.length === 0 ? (
+          <p className="rounded-md border border-dashed border-brand-border bg-brand-bg p-6 text-center text-sm text-brand-textMuted">
+            {t('viaLinkEmpty')}
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {linkRows.map((r) => (
+              <li key={r.intakeId}>
+                <Card>
+                  <CardContent className="flex flex-wrap items-center gap-4 p-4">
+                    <Badge variant={r.type === 'ADULT' ? 'default' : 'outline'}>
+                      {r.type === 'ADULT' ? t('typeAdult') : t('typeChild')}
+                    </Badge>
+                    <Badge variant="muted">{t('viaLinkBadge')}</Badge>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium text-brand-navy">
+                        <bdi>{patientDisplayName(r.patientNameEn, r.patientNameAr)}</bdi>
+                      </p>
+                      <p className="text-xs text-brand-textMuted">
+                        {formatDateTime(r.receivedAt, intlLocale)}
+                      </p>
+                    </div>
+                    <Button asChild size="sm" variant="outline">
+                      <Link
+                        href={
+                          `${patientProfileHref(viewer.role, r.patientId)}/intake/${r.intakeId}` as `/${string}`
+                        }
+                      >
+                        {t('viaLinkOpen')}
+                      </Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }

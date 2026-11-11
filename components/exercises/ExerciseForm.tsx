@@ -55,6 +55,10 @@ export function ExerciseForm({ initial }: Props) {
   const [imageSizeBytes, setImageSizeBytes] = useState<number | null>(
     initial?.imageSizeBytes ?? null,
   );
+  // P64 #15 — extra library images + default goal (home-program PDF).
+  const [extraImageUrls, setExtraImageUrls] = useState<string[]>(initial?.extraImageUrls ?? []);
+  const [goalEn, setGoalEn] = useState(initial?.goalEn ?? '');
+  const [goalAr, setGoalAr] = useState(initial?.goalAr ?? '');
   const [videoUrl, setVideoUrl] = useState<string | null>(initial?.videoUrl ?? null);
   const [videoMimeType, setVideoMimeType] = useState<string | null>(initial?.videoMimeType ?? null);
   const [videoSizeBytes, setVideoSizeBytes] = useState<number | null>(
@@ -79,6 +83,9 @@ export function ExerciseForm({ initial }: Props) {
         videoUrl,
         videoMimeType,
         videoSizeBytes,
+        extraImageUrls,
+        goalEn: goalEn || null,
+        goalAr: goalAr || null,
       };
       const r = initial
         ? await updateExerciseAction({ id: initial.id, ...payload })
@@ -217,6 +224,29 @@ export function ExerciseForm({ initial }: Props) {
         </div>
       </section>
 
+      <section className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <Label htmlFor="goalEn">{t('goalEn')}</Label>
+          <textarea
+            id="goalEn"
+            value={goalEn}
+            onChange={(e) => setGoalEn(e.target.value)}
+            rows={2}
+            className="mt-1 block w-full rounded-md border border-brand-border bg-brand-surface p-2 text-sm"
+          />
+        </div>
+        <div>
+          <Label htmlFor="goalAr">{t('goalAr')}</Label>
+          <textarea
+            id="goalAr"
+            value={goalAr}
+            onChange={(e) => setGoalAr(e.target.value)}
+            rows={2}
+            className="mt-1 block w-full rounded-md border border-brand-border bg-brand-surface p-2 text-sm"
+          />
+        </div>
+      </section>
+
       <section className="grid gap-4 sm:grid-cols-2">
         <MediaUploader
           kind="exercise_image"
@@ -238,6 +268,39 @@ export function ExerciseForm({ initial }: Props) {
             setVideoSizeBytes(v.sizeBytes);
           }}
         />
+      </section>
+
+      {/* P64 #15 — more images for the home-program PDF (max 8). */}
+      <section className="space-y-2">
+        <p className="text-sm font-medium text-brand-navy">{t('extraImages')}</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {extraImageUrls.map((url, i) => (
+            <MediaUploader
+              key={url}
+              kind="exercise_image"
+              value={url}
+              label={`${t('image')} ${i + 2}`}
+              onChange={(v) =>
+                setExtraImageUrls((prev) =>
+                  v.url
+                    ? prev.map((u, j) => (j === i ? v.url! : u))
+                    : prev.filter((_, j) => j !== i),
+                )
+              }
+            />
+          ))}
+          {extraImageUrls.length < 8 ? (
+            <MediaUploader
+              key={`add-${extraImageUrls.length}`}
+              kind="exercise_image"
+              value={null}
+              label={t('addImage')}
+              onChange={(v) => {
+                if (v.url) setExtraImageUrls((prev) => [...prev, v.url!]);
+              }}
+            />
+          ) : null}
+        </div>
       </section>
 
       <div className="flex justify-end gap-2">

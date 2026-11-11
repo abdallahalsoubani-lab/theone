@@ -102,6 +102,14 @@ export const NOTIFICATION_TEMPLATES: Record<NotificationType, NotificationTempla
     titleKey: 'notifications.types.INTAKE_SUBMISSION_RECEIVED.title',
     bodyKey: 'notifications.types.INTAKE_SUBMISSION_RECEIVED.body',
   },
+  INTAKE_LINK_COMPLETED: {
+    titleKey: 'notifications.types.INTAKE_LINK_COMPLETED.title',
+    bodyKey: 'notifications.types.INTAKE_LINK_COMPLETED.body',
+  },
+  PLAN_INITIAL_PROPOSED: {
+    titleKey: 'notifications.types.PLAN_INITIAL_PROPOSED.title',
+    bodyKey: 'notifications.types.PLAN_INITIAL_PROPOSED.body',
+  },
   BOOKING_WAITLIST_SLOT_FREED: {
     titleKey: 'notifications.types.BOOKING_WAITLIST_SLOT_FREED.title',
     bodyKey: 'notifications.types.BOOKING_WAITLIST_SLOT_FREED.body',
@@ -135,4 +143,6 @@ export type NotificationParams = {
   PATIENT_DECLINED_APPOINTMENT: { patientName: string; day: string; time: string };
   BOOKING_WAITLIST_SLOT_FREED: { time: string; patientName: string };
   INTAKE_SUBMISSION_RECEIVED: { patientName: string };
+  INTAKE_LINK_COMPLETED: { patientName: string };
+  PLAN_INITIAL_PROPOSED: { therapistName: string; patientName: string };
 };

@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
 import { ConfirmDialog } from '@/components/ui/ConfirmDialog';
 import {
@@ -48,13 +49,20 @@ export function QuestionsBoard({ initialScope, adult, pediatric }: Props) {
         <TabsTrigger value="PEDIATRIC">{t('pediatricTab')}</TabsTrigger>
       </TabsList>
       <TabsContent value="ADULT">
-        <QuestionsList rows={adult} />
+        {/* P64 #8 — keyed on the rows so a server refresh (after archiving)
+            remounts the list: it copies `rows` into local order state once,
+            and without the key an archived question kept looking active. */}
+        <QuestionsList key={rowsKey(adult)} rows={adult} />
       </TabsContent>
       <TabsContent value="PEDIATRIC">
-        <QuestionsList rows={pediatric} />
+        <QuestionsList key={rowsKey(pediatric)} rows={pediatric} />
       </TabsContent>
     </Tabs>
   );
+}
+
+function rowsKey(rows: CustomQuestionRow[]): string {
+  return rows.map((r) => `${r.id}:${r.active ? 1 : 0}:${r.required ? 1 : 0}`).join('|');
 }
 
 function QuestionsList({ rows }: { rows: CustomQuestionRow[] }) {
@@ -141,7 +149,7 @@ function QuestionsList({ rows }: { rows: CustomQuestionRow[] }) {
           onDragStart={() => onDragStart(q.id)}
           onDragOver={onDragOver}
           onDrop={() => onDrop(q.id)}
-          className="flex items-center gap-3 p-3 hover:bg-brand-bg"
+          className={cn('flex items-center gap-3 p-3 hover:bg-brand-bg', !q.active && 'opacity-60')}
         >
           <button
             type="button"
@@ -156,7 +164,7 @@ function QuestionsList({ rows }: { rows: CustomQuestionRow[] }) {
                 {locale === 'ar' ? q.nameAr : q.nameEn}
               </span>
               {q.required ? <Badge variant="cyan">★</Badge> : null}
-              {!q.active ? <Badge variant="muted">{tCommon('no')}</Badge> : null}
+              {!q.active ? <Badge variant="muted">{t('archivedBadge')}</Badge> : null}
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-brand-textMuted">
               <Badge variant="muted">{t(`type${pascal(q.type)}`)}</Badge>
@@ -180,7 +188,7 @@ function QuestionsList({ rows }: { rows: CustomQuestionRow[] }) {
               </DropdownMenuItem>
               {q.active ? (
                 <DropdownMenuItem onSelect={() => handleDeactivate(q.id)}>
-                  {t('deactivatedToast').replace('.', '')}
+                  {t('archiveAction')}
                 </DropdownMenuItem>
               ) : null}
               {q.answerCount === 0 ? (

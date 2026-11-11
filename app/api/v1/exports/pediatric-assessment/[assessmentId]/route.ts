@@ -6,6 +6,9 @@ import {
   pedExportErrorToLocalized,
 } from '@/lib/exports/pediatricAssessment';
 import { getEffectiveSession } from '@/lib/impersonation/session';
+import { ensureCanReadPatientStaff } from '@/lib/patients/access';
+import { getAssessmentById } from '@/lib/pediatric-assessment/queries';
+import { ForbiddenError } from '@/lib/rbac/guards';
 
 /**
  * Pediatric assessment PDF export (Prompt 21 §5).
@@ -31,6 +34,21 @@ export async function GET(
   const { assessmentId } = await params;
   const url = new URL(request.url);
   const locale: 'en' | 'ar' = url.searchParams.get('locale') === 'ar' ? 'ar' : 'en';
+
+  // Care-team gate (P64 #16): the permission above is unscoped, so a
+  // DOCTOR/THERAPIST must also be on this patient's care team.
+  const assessment = await getAssessmentById(assessmentId);
+  if (!assessment) {
+    return NextResponse.json({ error: { code: 'NOT_FOUND' } }, { status: 404 });
+  }
+  try {
+    await ensureCanReadPatientStaff(assessment.patientId);
+  } catch (err) {
+    if (err instanceof ForbiddenError) {
+      return NextResponse.json({ error: { code: 'FORBIDDEN' } }, { status: 403 });
+    }
+    throw err;
+  }
 
   try {
     const { buffer } = await generatePediatricAssessmentPdf({ assessmentId, locale });

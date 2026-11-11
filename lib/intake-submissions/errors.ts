@@ -1,3 +1,4 @@
+import { IntakeError } from '@/lib/intake/errors';
 import { toLocalizedError, type LocalizedError } from '@/lib/db';
 
 export const SUBMISSION_ERRORS = {
@@ -49,5 +50,17 @@ export class IntakeSubmissionError extends Error {
 
 export function submissionToLocalized(err: unknown): LocalizedError {
   if (err instanceof IntakeSubmissionError) return err.error;
+  // P64 #8 — a missing required custom answer: the public form nests the
+  // intake under `answers.`, so re-key the field details for AppForm.
+  if (err instanceof IntakeError) return prefixIntakeDetails(err.error);
   return toLocalizedError(err);
+}
+
+/** Re-key IntakeError field details from `customAnswers.x` to `answers.customAnswers.x`. */
+export function prefixIntakeDetails(error: LocalizedError): LocalizedError {
+  if (!error.details) return error;
+  return {
+    ...error,
+    details: Object.fromEntries(Object.entries(error.details).map(([k, v]) => [`answers.${k}`, v])),
+  };
 }

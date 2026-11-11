@@ -2,6 +2,7 @@
 
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
+import { useMemo } from 'react';
 import type { FieldValues, UseFormReturn } from 'react-hook-form';
 
 import { AppForm } from '@/components/forms/AppForm';
@@ -10,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import type { CustomQuestionRow } from '@/lib/admin/custom-questions/queries';
+import { withCustomAnswerRules } from '@/lib/intake/buildCustomQuestionSchema';
 import { createPediatricIntakeAction } from '@/lib/intake/actions';
 import { pediatricIntakeSchema, type PediatricIntakeInput } from '@/lib/intake/schemas';
 import { formatDate } from '@/lib/format/date';
@@ -39,15 +41,16 @@ export function PediatricIntakeForm({
   const locale = useLocale();
   const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
 
-  const defaultValues: PediatricIntakeInput = {
-    numberOfSiblings: 0,
-    birthOrder: 1,
-    customAnswers: {},
-  };
+  // P64 #8 — only custom answers are collected now (no hidden defaults).
+  const defaultValues: Partial<PediatricIntakeInput> = { customAnswers: {} };
+  const schema = useMemo(
+    () => withCustomAnswerRules(pediatricIntakeSchema, customQuestions),
+    [customQuestions],
+  );
 
   return (
     <AppForm
-      schema={pediatricIntakeSchema}
+      schema={schema}
       defaultValues={defaultValues as never}
       action={(values) =>
         createPediatricIntakeAction({

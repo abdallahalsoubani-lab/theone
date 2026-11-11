@@ -9,9 +9,11 @@ import { CalendarPageContent } from '@/components/calendar/CalendarPageContent';
  */
 export default async function DoctorCalendarPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<Record<string, string>>;
 }) {
   const { locale } = await params;
-  return <CalendarPageContent locale={locale} />;
+  return <CalendarPageContent locale={locale} searchParams={await searchParams} />;
 }

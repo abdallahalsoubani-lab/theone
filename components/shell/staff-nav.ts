@@ -68,6 +68,12 @@ export function staffNavEntries(role: UserRole): StaffNavEntry[] {
       // Prompt 55 §1 — staff-leave management (direct add + delete): the
       // secretary is who hears "الدكتورة مش جاية بكرا" first.
       { labelKey: 'navigation:leaves', href: '/secretary/leaves', icon: 'calendarX' },
+      // P64 #4 — per-pair read-only calendar access for therapists.
+      {
+        labelKey: 'navigation:scheduleAccess',
+        href: '/secretary/schedule-access',
+        icon: 'userCheck',
+      },
       { labelKey: 'patients:navTitle', href: '/secretary/patients', icon: 'users' },
       {
         labelKey: 'navigation:intakeSubmissions',

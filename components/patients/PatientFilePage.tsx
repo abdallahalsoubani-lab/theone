@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 
+import { MonthlyReportsPanel } from '@/components/clinical/MonthlyReportsPanel';
 import { PatientNotesTab } from '@/components/clinical/PatientNotesTab';
 import { PatientPlanTab } from '@/components/clinical/PatientPlanTab';
 import { PatientTimelineTab } from '@/components/clinical/PatientTimelineTab';
@@ -130,13 +131,21 @@ export async function PatientFilePage({
         }
         notes={
           notes ? (
-            <PatientNotesTab
-              notes={notes}
-              viewerRole={viewerRole ?? 'SECRETARY'}
-              actorId={actorId ?? ''}
-              locale={locale}
-              addable={reportableAppointments}
-            />
+            <div className="space-y-8">
+              {/* P64 #11 — monthly SOAP reports above the per-session results. */}
+              <MonthlyReportsPanel
+                patientId={patient.id}
+                locale={locale}
+                canWrite={viewerRole === 'DOCTOR' || viewerRole === 'THERAPIST'}
+              />
+              <PatientNotesTab
+                notes={notes}
+                viewerRole={viewerRole ?? 'SECRETARY'}
+                actorId={actorId ?? ''}
+                locale={locale}
+                addable={reportableAppointments}
+              />
+            </div>
           ) : undefined
         }
         timeline={

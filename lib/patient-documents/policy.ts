@@ -1,9 +1,14 @@
 /**
- * Patient-document upload constraints (Prompt 22 §3). Images + PDF only, 20 MB
- * max. No docx for v1 — a docx is a ZIP container, so a magic-byte sniff can't
- * cleanly distinguish it from other zips / zipped executables; adding it later
- * is easy if the clinic asks.
+ * Patient-document upload constraints (Prompt 22 §3). Images + PDF, 20 MB max.
+ *
+ * P64 #14 — the clinic asked for Word: `.doc` (OLE2 compound file) and `.docx`
+ * (a ZIP). The sniff (sniff.ts) pins each to its container AND, for docx, to
+ * an OOXML first entry, so an arbitrary zip renamed `.docx` is still rejected.
+ * Word files are never rendered inline — the viewer downloads them.
  */
+
+export const DOC_MIME = 'application/msword';
+export const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 export const PATIENT_DOC_MAX_BYTES = 20 * 1024 * 1024; // 20 MB
 
@@ -14,12 +19,20 @@ export const PATIENT_DOC_MIME_TYPES = [
   'image/webp',
   'image/heic',
   'image/heif',
+  DOC_MIME,
+  DOCX_MIME,
 ] as const;
 
 export type PatientDocMime = (typeof PATIENT_DOC_MIME_TYPES)[number];
 
 export function isAllowedMime(ct: string): ct is PatientDocMime {
   return (PATIENT_DOC_MIME_TYPES as readonly string[]).includes(ct);
+}
+
+/** `.doc` / `.docx` → its MIME, for files the browser hands over untyped. */
+export function mimeFromWordExtension(fileName: string): string {
+  const ext = fileName.slice(fileName.lastIndexOf('.') + 1).toLowerCase();
+  return ext === 'doc' ? DOC_MIME : ext === 'docx' ? DOCX_MIME : '';
 }
 
 export function extensionFor(ct: string): string {
@@ -35,6 +48,10 @@ export function extensionFor(ct: string): string {
     case 'image/heic':
     case 'image/heif':
       return 'heic';
+    case DOC_MIME:
+      return 'doc';
+    case DOCX_MIME:
+      return 'docx';
     default:
       return 'bin';
   }
@@ -50,6 +67,8 @@ const DOC_EXTENSIONS_FOR_TYPE: Record<PatientDocMime, ReadonlyArray<string>> = {
   'image/webp': ['webp'],
   'image/heic': ['heic'],
   'image/heif': ['heif', 'heic'],
+  [DOC_MIME]: ['doc'],
+  [DOCX_MIME]: ['docx'],
 };
 
 export function docExtensionMatchesType(fileName: string, contentType: PatientDocMime): boolean {

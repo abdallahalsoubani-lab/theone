@@ -20,6 +20,7 @@ import { createSeriesBatchAction, previewSeriesBatchAction } from '@/lib/appoint
 import { patientDisplayName } from '@/lib/format/patientName';
 import { rowInstant, validateBatchRows } from '@/lib/appointments/batch-validation';
 import type { DayKey } from '@/lib/appointments/conflicts-time';
+import { expandRepeatDates } from '@/lib/appointments/batch-repeat';
 import { MAX_BATCH_ROWS } from '@/lib/appointments/schemas';
 import { AppointmentType } from '@prisma/client';
 import { clinicDateKey, clinicHm } from '@/lib/time/clinic';
@@ -138,6 +139,34 @@ export function CreateSeriesModal({
     setConflicts({});
   };
 
+  // P64 #13 — «كرّر»: copies of row `index` (same setup, new dates) inserted
+  // right after it, as ordinary explicit rows; capped at MAX_BATCH_ROWS.
+  const repeatRow = (index: number, weekdays: DayKey[], weeks: number) => {
+    const source = rows[index];
+    if (!source) return;
+    const { dates, truncated } = expandRepeatDates({
+      sourceDate: source.date,
+      weekdays,
+      weeks,
+      closedDays: closedDays ?? [],
+      room: MAX_BATCH_ROWS - rows.length,
+    });
+    if (dates.length === 0) {
+      toast.error(t('repeat.nothingAdded'));
+      return;
+    }
+    const copies: BatchRowUI[] = dates.map((date) => ({
+      ...source,
+      therapistIds: [...source.therapistIds],
+      key: `row-${Math.random().toString(36).slice(2)}`,
+      date,
+    }));
+    setRows((prev) => [...prev.slice(0, index + 1), ...copies, ...prev.slice(index + 1)]);
+    setConflicts({});
+    if (truncated) toast.warning(t('maxRows', { max: String(MAX_BATCH_ROWS) }));
+    else toast.success(t('repeat.added', { count: String(dates.length) }));
+  };
+
   const removeRow = (index: number) => {
     setRows((prev) => (prev.length === 1 ? prev : prev.filter((_, i) => i !== index)));
     setConflicts({});
@@ -247,6 +276,9 @@ export function CreateSeriesModal({
             minDate={minDate}
             onChange={patch}
             onRemove={removeRow}
+            onRepeat={repeatRow}
+            canAddMore={rows.length < MAX_BATCH_ROWS}
+            closedDays={closedDays ?? []}
           />
         </div>
 

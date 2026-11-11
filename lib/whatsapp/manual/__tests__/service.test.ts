@@ -60,6 +60,7 @@ const FRAMES: Record<string, string> = {
 const state = vi.hoisted(() => ({
   appt: null as Record<string, unknown> | null,
   customApproved: true,
+  v4Approved: false,
   lastSent: null as Date | null,
 }));
 
@@ -94,7 +95,11 @@ vi.mock('@/lib/db', () => ({
       findUnique: vi.fn(async ({ where }: { where: { name_language: { name: string } } }) => ({
         variablesShape: null,
         twilioApproved:
-          where.name_language.name === 'clinic_custom_message' ? state.customApproved : true,
+          where.name_language.name === 'clinic_custom_message'
+            ? state.customApproved
+            : where.name_language.name.endsWith('_v4')
+              ? state.v4Approved
+              : true,
         contentPreview: FRAMES[where.name_language.name] ?? 'T:{{1}}|{{2}}|{{3}}|{{4}}',
       })),
       findMany: vi.fn(async () => [
@@ -209,6 +214,7 @@ beforeEach(() => {
   silentSpy.mockClear();
   state.appt = null;
   state.customApproved = true;
+  state.v4Approved = false;
   state.lastSent = null;
 });
 
@@ -337,17 +343,20 @@ describe('server-side applicability (never trusts the UI)', () => {
 });
 
 describe('reminder from the panel — the shared builder', () => {
-  it('uses the v3 single template the worker would use; closes REMINDER holds only', async () => {
+  it('P64 #3 — rides the day-named custom frame (never «غداً»); closes REMINDER holds only', async () => {
     state.appt = appt();
     const r = await sendOne('REMINDER');
     expect(enqueued).toHaveLength(1);
+    const params = enqueued[0]!.parameters as string[];
+    expect(params[1]).toMatch(/^نذكّركم بموعدكم في المركز يوم \S+ \d+ \S+ الساعة /);
+    expect(params.join(' ')).not.toContain('غداً');
     expect(enqueued[0]).toMatchObject({
-      templateName: 'appointment_reminder_single_v3',
+      templateName: 'clinic_custom_message',
       source: 'manual_panel',
       sentById: ACTOR,
       appointmentId: 'a1',
     });
-    expect(r.templateName).toBe('appointment_reminder_single_v3');
+    expect(r.templateName).toBe('clinic_custom_message');
     // Decision 6: the dispatch close is typed REMINDER (the P17 job itself is
     // never touched — pinned in the dispatch close test).
     expect(closeMock).toHaveBeenCalledWith({
@@ -355,6 +364,26 @@ describe('reminder from the panel — the shared builder', () => {
       type: 'REMINDER',
       patientId: 'p1',
     });
+  });
+});
+
+describe('P64 #2/#3 — reminder template priority', () => {
+  it('v4 button template wins once approved: [first name, when-phrase]', async () => {
+    state.v4Approved = true;
+    state.appt = appt();
+    await sendOne('REMINDER');
+    expect(enqueued[0]!.templateName).toBe('appointment_reminder_v4');
+    const params = enqueued[0]!.parameters as string[];
+    expect(params).toHaveLength(2);
+    expect(params[0]).toBe('سارة');
+    expect(params[1]).toMatch(/^يوم \S+ \d+ \S+ الساعة /);
+  });
+
+  it('neither v4 nor the custom frame approved → legacy v3 path', async () => {
+    state.customApproved = false;
+    state.appt = appt();
+    await sendOne('REMINDER');
+    expect(enqueued[0]!.templateName).toBe('appointment_reminder_single_v3');
   });
 });
 
@@ -434,7 +463,8 @@ describe('getManualMessageOptions + lastSentByRecipient', () => {
     expect(conf.previewByLanguage.AR).toContain('مرحباً Sara Khalil، تم تأكيد موعدك مع د. لينا');
     expect(conf.lastSentByRecipient.p1!.toISOString()).toBe('2030-05-01T10:00:00.000Z');
     const rem = o.options.find((x) => x.type === 'REMINDER')!;
-    expect(rem.previewByLanguage.AR).toMatch(/نذكّركم بموعدكم غداً الساعة/);
+    expect(rem.previewByLanguage.AR).toMatch(/نذكّركم بموعدكم في المركز يوم /);
+    expect(rem.previewByLanguage.AR).not.toContain('غداً');
     // Sending the confirmation produces exactly the previewed text.
     await send('CONFIRMATION');
     expect(

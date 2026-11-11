@@ -41,9 +41,13 @@ describe('adultIntakeSchema', () => {
     expect(adultIntakeSchema.safeParse(noField).success).toBe(true);
   });
 
-  it('still rejects a missing truly-required field (primaryComplaint — regression)', () => {
-    const r = adultIntakeSchema.safeParse({ ...adultBase(), primaryComplaint: '' });
-    expect(r.success).toBe(false);
+  it('P64 #8 — the retired fixed fields are all optional (custom questions are the intake)', () => {
+    const r = adultIntakeSchema.safeParse({ customAnswers: {} });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.conditions).toEqual([]);
+    expect(adultIntakeSchema.safeParse({ ...adultBase(), primaryComplaint: '' }).success).toBe(
+      true,
+    );
   });
 
   it('rejects NONE alongside another condition (mutual exclusion)', () => {

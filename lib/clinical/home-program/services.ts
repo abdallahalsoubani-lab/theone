@@ -90,7 +90,7 @@ async function ensureExerciseReferencable(exerciseId: string): Promise<void> {
  * the patient's assigned therapist (or any clinical staff via Admin).
  * Patients can only act on their own.
  */
-async function ensureClinicalActorCanManage(args: {
+export async function ensureClinicalActorCanManage(args: {
   actorId: string;
   patientId: string;
 }): Promise<void> {
@@ -105,6 +105,26 @@ async function ensureClinicalActorCanManage(args: {
     return;
   }
   throw new HomeProgramError(forbidden);
+}
+
+/**
+ * P64 #15 — keep only ids that are READY image documents of THIS patient
+ * (a stale or foreign id is dropped silently rather than failing the save).
+ */
+async function patientPhotoIds(patientId: string, ids: string[] | undefined): Promise<string[]> {
+  if (!ids || ids.length === 0) return [];
+  const rows = await db.patientDocument.findMany({
+    where: {
+      id: { in: ids },
+      patientId,
+      status: 'READY',
+      active: true,
+      mimeType: { startsWith: 'image/' },
+    },
+    select: { id: true },
+  });
+  const ok = new Set(rows.map((r) => r.id));
+  return ids.filter((id) => ok.has(id));
 }
 
 export const addHomeProgramItem = withAudit<
@@ -133,6 +153,8 @@ export const addHomeProgramItem = withAudit<
         durationMinutes: input.durationMinutes,
         setsReps: input.setsReps ?? null,
         therapistNote: input.therapistNote ?? null,
+        goal: input.goal?.trim() || null,
+        photoDocumentIds: await patientPhotoIds(input.patientId, input.photoDocumentIds),
         active: true,
       },
       select: { id: true },
@@ -200,6 +222,8 @@ export const updateHomeProgramItem = withAudit<
         durationMinutes: input.durationMinutes,
         setsReps: input.setsReps ?? null,
         therapistNote: input.therapistNote ?? null,
+        goal: input.goal?.trim() || null,
+        photoDocumentIds: await patientPhotoIds(existing.patientId, input.photoDocumentIds),
         active: input.active,
       },
     });

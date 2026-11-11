@@ -6,7 +6,7 @@ import { Views, type View } from 'react-big-calendar';
 
 import { Button } from '@/components/ui/button';
 import { DirectionalIcon } from '@/components/ui/DirectionalIcon';
-import { formatDate } from '@/lib/format/date';
+import { formatDate, formatDateWithWeekday } from '@/lib/format/date';
 import { fromClinicWall } from '@/lib/time/clinic';
 
 import type { DayLayout } from './dayLayout';
@@ -74,7 +74,11 @@ export function CalendarToolbar({
               was the calendar's hydration mismatch (Prompt 34). Convert the
               wall back to the true instant first: identical text on server
               and client, exact historical rendering preserved. */}
-          {formatDate(fromClinicWall(date), intlLocale)}
+          {/* P64 #6 — the weekday name next to the date ("الاثنين، 9 نوفمبر")
+              in day view, where the label names exactly one day. */}
+          {view === Views.DAY
+            ? formatDateWithWeekday(fromClinicWall(date), intlLocale)
+            : formatDate(fromClinicWall(date), intlLocale)}
         </span>
       </div>
 

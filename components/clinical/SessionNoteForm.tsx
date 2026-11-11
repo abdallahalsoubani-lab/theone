@@ -20,6 +20,8 @@ interface BaseInitial {
   plan: string;
   painScore: number;
   measurements: string;
+  result?: string;
+  treatmentGiven?: string;
 }
 
 interface Props {
@@ -34,7 +36,8 @@ interface Props {
 }
 
 /**
- * Shared SOAP form for session notes (Prompt 9 §4.7).
+ * Shared session-result form (Prompt 9 §4.7; P64 #11 — result + treatment
+ * given replace SOAP, which moved to the monthly report).
  *
  * Mode flips which action is invoked on submit. All three modes share
  * the same UI surface so the cognitive load on the therapist is low —
@@ -63,6 +66,16 @@ export function SessionNoteForm({
   const [plan, setPlan] = useState(initial?.plan ?? '');
   const [painScore, setPainScore] = useState<number>(initial?.painScore ?? 0);
   const [measurements, setMeasurements] = useState(initial?.measurements ?? '');
+  const [result, setResult] = useState(initial?.result ?? '');
+  const [treatmentGiven, setTreatmentGiven] = useState(initial?.treatmentGiven ?? '');
+  // P64 #11 — SOAP lives in the monthly report now. The four fields only
+  // render when editing a HISTORICAL note that already carries SOAP text.
+  const legacySoap = [
+    initial?.subjective,
+    initial?.objective,
+    initial?.assessment,
+    initial?.plan,
+  ].some((v) => (v ?? '').trim().length > 0);
 
   function submit() {
     startTransition(async () => {
@@ -73,6 +86,8 @@ export function SessionNoteForm({
         plan: plan || null,
         painScore,
         measurements: measurements || null,
+        result: result || null,
+        treatmentGiven: treatmentGiven || null,
       };
       const r =
         mode === 'create'
@@ -108,10 +123,22 @@ export function SessionNoteForm({
         </p>
       </div>
 
-      <SoapField id="s" label={t('subjective')} value={subjective} onChange={setSubjective} />
-      <SoapField id="o" label={t('objective')} value={objective} onChange={setObjective} />
-      <SoapField id="a" label={t('assessment')} value={assessment} onChange={setAssessment} />
-      <SoapField id="p" label={t('planField')} value={plan} onChange={setPlan} />
+      <SoapField id="result" label={t('result')} value={result} onChange={setResult} />
+      <SoapField
+        id="treatmentGiven"
+        label={t('treatmentGiven')}
+        value={treatmentGiven}
+        onChange={setTreatmentGiven}
+      />
+
+      {legacySoap ? (
+        <>
+          <SoapField id="s" label={t('subjective')} value={subjective} onChange={setSubjective} />
+          <SoapField id="o" label={t('objective')} value={objective} onChange={setObjective} />
+          <SoapField id="a" label={t('assessment')} value={assessment} onChange={setAssessment} />
+          <SoapField id="p" label={t('planField')} value={plan} onChange={setPlan} />
+        </>
+      ) : null}
 
       <section>
         <Label htmlFor="pain">

@@ -300,6 +300,8 @@ interface SessionNoteFTS {
   objective: string;
   assessment: string;
   plan: string;
+  result: string | null;
+  treatmentGiven: string | null;
   therapistName: string;
 }
 
@@ -316,6 +318,7 @@ async function loadSessionNotes(
       Prisma.sql`
         SELECT n.id, n."createdAt", n."parentNoteId",
                n.subjective, n.objective, n.assessment, n.plan,
+               n.result, n."treatmentGiven",
                u."fullNameEn" AS "therapistName"
         FROM "SessionNote" n
         JOIN "User" u ON u.id = n."therapistId"
@@ -325,7 +328,9 @@ async function loadSessionNotes(
                 coalesce(n.subjective, '') || ' ' ||
                 coalesce(n.objective,  '') || ' ' ||
                 coalesce(n.assessment, '') || ' ' ||
-                coalesce(n.plan,       '')
+                coalesce(n.plan,       '') || ' ' ||
+                coalesce(n.result, '') || ' ' ||
+                coalesce(n."treatmentGiven", '')
               ) @@ websearch_to_tsquery('simple', ${search})
         ORDER BY n."createdAt" DESC
       `,
@@ -342,6 +347,8 @@ async function loadSessionNotes(
         objective: true,
         assessment: true,
         plan: true,
+        result: true,
+        treatmentGiven: true,
         therapist: { select: { fullNameEn: true } },
       },
     });
@@ -353,6 +360,8 @@ async function loadSessionNotes(
       objective: r.objective,
       assessment: r.assessment,
       plan: r.plan,
+      result: r.result,
+      treatmentGiven: r.treatmentGiven,
       therapistName: r.therapist.fullNameEn,
     }));
   }
@@ -361,7 +370,7 @@ async function loadSessionNotes(
     kind: r.parentNoteId ? ('SESSION_NOTE_ADDENDUM' as const) : ('SESSION_NOTE' as const),
     occurredAt: r.createdAt,
     title: r.parentNoteId ? 'Session note addendum' : 'Session note',
-    body: [r.subjective, r.objective, r.assessment, r.plan]
+    body: [r.result, r.treatmentGiven, r.subjective, r.objective, r.assessment, r.plan]
       .filter(Boolean)
       .join(' · ')
       .slice(0, 280),

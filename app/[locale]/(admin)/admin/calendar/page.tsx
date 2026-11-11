@@ -17,6 +17,7 @@ export default async function AdminCalendarPage({
   return (
     <CalendarPageContent
       locale={locale}
+      searchParams={sp}
       autoBook={
         sp.bookPatient ? { patientId: sp.bookPatient, doctorsOnly: sp.doctors === '1' } : undefined
       }

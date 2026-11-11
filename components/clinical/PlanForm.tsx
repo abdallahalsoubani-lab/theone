@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import {
   createTreatmentPlanAction,
+  proposeInitialTreatmentPlanAction,
   proposeTreatmentPlanChangeAction,
   updateTreatmentPlanAction,
 } from '@/lib/clinical/plans/actions';
@@ -56,6 +57,9 @@ interface Props {
   /** Doctor direct-edit mode (QA 6.1): the ACTIVE plan being revised. Takes
    *  precedence over `activePlanId`; submit creates the next version. */
   editPlanId?: string;
+  /** P64 #10 — therapist drafts the FIRST plan (no active one): submit goes
+   *  to the doctor as a PROPOSED plan instead of creating it ACTIVE. */
+  initialProposal?: boolean;
   patient: PlanFormPatient;
   therapists: PlanFormTherapist[];
   exerciseOptions: ExerciseOption[];
@@ -81,6 +85,7 @@ interface Props {
 export function PlanForm({
   activePlanId,
   editPlanId,
+  initialProposal = false,
   patient,
   therapists,
   exerciseOptions,
@@ -165,13 +170,23 @@ export function PlanForm({
               activePlanId,
               proposalReason,
             })
-          : await createTreatmentPlanAction(payload);
+          : initialProposal
+            ? await proposeInitialTreatmentPlanAction(payload)
+            : await createTreatmentPlanAction(payload);
       if (!result.ok) {
         toast.error(locale === 'ar' ? result.error.message_ar : result.error.message_en);
         return;
       }
       toast.success(
-        t(editPlanId ? 'updatedToast' : activePlanId ? 'proposedToast' : 'createdToast'),
+        t(
+          editPlanId
+            ? 'updatedToast'
+            : activePlanId
+              ? 'proposedToast'
+              : initialProposal
+                ? 'initialProposedToast'
+                : 'createdToast',
+        ),
       );
       // An edit creates the NEXT version — land on the new plan's view, not
       // the superseded one.
@@ -400,7 +415,11 @@ export function PlanForm({
           {t('cancel')}
         </Button>
         <Button type="submit" disabled={pending}>
-          {editPlanId ? t('saveChanges') : activePlanId ? t('submitProposal') : t('createPlan')}
+          {editPlanId
+            ? t('saveChanges')
+            : activePlanId || initialProposal
+              ? t('submitProposal')
+              : t('createPlan')}
         </Button>
       </div>
     </form>

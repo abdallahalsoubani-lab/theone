@@ -86,16 +86,27 @@ const generateInner = async ({
         { label: ar ? 'القياسات' : 'Measurements', value: note.measurementsText || '—' },
       ],
     },
-    { heading: ar ? 'الشكوى (S)' : 'Subjective (S)', body: note.subjective },
-    { heading: ar ? 'الفحص (O)' : 'Objective (O)', body: note.objective },
-    { heading: ar ? 'التقييم (A)' : 'Assessment (A)', body: note.assessment },
-    { heading: ar ? 'الخطة (P)' : 'Plan (P)', body: note.plan },
+    // P64 #11 — the session RESULT; SOAP moved to the monthly report, so the
+    // SOAP sections only appear on historical notes that carry them.
+    ...[
+      { heading: ar ? 'نتيجة الجلسة' : 'Session result', body: note.result },
+      {
+        heading: ar ? 'العلاج / التمارين المقدمة' : 'Treatment / exercises given',
+        body: note.treatmentGiven,
+      },
+      { heading: ar ? 'الشكوى (S)' : 'Subjective (S)', body: note.subjective },
+      { heading: ar ? 'الفحص (O)' : 'Objective (O)', body: note.objective },
+      { heading: ar ? 'التقييم (A)' : 'Assessment (A)', body: note.assessment },
+      { heading: ar ? 'الخطة (P)' : 'Plan (P)', body: note.plan },
+    ].filter((sec) => (sec.body ?? '').trim().length > 0),
   ];
 
   for (const a of addenda) {
     sections.push({
       heading: `${ar ? 'إضافة' : 'Addendum'} — ${dt(a.createdAt, locale)}`,
-      body: [a.subjective, a.objective, a.assessment, a.plan].filter(Boolean).join('\n'),
+      body: [a.result, a.treatmentGiven, a.subjective, a.objective, a.assessment, a.plan]
+        .filter(Boolean)
+        .join('\n'),
     });
   }
 

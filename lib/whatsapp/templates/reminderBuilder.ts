@@ -5,8 +5,18 @@ import { patientDisplayName } from '@/lib/format/patientName';
 import { clinicDateKey } from '@/lib/time/clinic';
 import { getClinicTimeZone } from '@/lib/time/clinic-server';
 
-import { reminderV3Approved } from './approval';
-import { formatReminderAppointments, reminderTime } from './reminderAppointments';
+import { REMINDER_BUTTONS_TEMPLATE } from '@/lib/admin/whatsapp/button-templates';
+import { CUSTOM_MESSAGE_TEMPLATE_NAME } from '@/lib/admin/whatsapp/custom-message-template';
+import { normalizeCustomText } from '@/lib/whatsapp/manual/customText';
+
+import { isTemplateApproved, reminderV3Approved } from './approval';
+import { patientFirstName } from './firstName';
+import {
+  appointmentWhenText,
+  formatReminderAppointments,
+  reminderCustomText,
+  reminderTime,
+} from './reminderAppointments';
 import { getAppointmentTherapistLabel } from './therapistLabel';
 import type { ComposedMessage } from './types';
 import { appointmentVarContext, buildParamsFromShape, resolveTemplateShape } from './variables';
@@ -169,6 +179,42 @@ export async function buildAppointmentReminderMessages(
     const dayAppts: SameDayAppt[] = isGroupReminder
       ? [anchorAsSameDay]
       : (sameDayByPatient.get(recipient.id) ?? [anchorAsSameDay]);
+
+    // P64 #3 — «موعدك غداً» for a Saturday appointment booked on Thursday:
+    // the approved v3 bodies HARD-CODE «غداً», and they go out whenever the
+    // reminder is sent (manual panel, outbox Send, late booking). The reminder
+    // now names the appointment's OWN day + date:
+    //   1. the confirm/decline button template (v4) once WhatsApp approves it;
+    //   2. until then, the approved custom-message frame (day-correct text,
+    //      no buttons — the v3 reminders had no buttons either);
+    //   3. only if neither is approved, the legacy v3/v2 path below.
+    const useButtons = await isTemplateApproved(REMINDER_BUTTONS_TEMPLATE, lang);
+    const useFrame = !useButtons && (await isTemplateApproved(CUSTOM_MESSAGE_TEMPLATE_NAME, lang));
+    if (useButtons || useFrame) {
+      const templateName = useButtons ? REMINDER_BUTTONS_TEMPLATE : CUSTOM_MESSAGE_TEMPLATE_NAME;
+      const shape = await resolveTemplateShape(templateName, lang);
+      if (!shape) {
+        console.error(`[reminder] no variable shape for ${templateName} — skipping`);
+        continue;
+      }
+      messages.push({
+        templateName,
+        language: lang,
+        parameters: buildParamsFromShape(shape, {
+          patientName: patientFirstName(recipient),
+          therapistName: '',
+          date: '',
+          time: '',
+          dayName: '',
+          appointmentWhen: appointmentWhenText(dayAppts, rLocale),
+          customText: normalizeCustomText(reminderCustomText(dayAppts, rLocale)),
+        }),
+        recipientPhone: recipient.phone,
+        recipientUserId: recipient.id,
+        appointmentId: appt.id,
+      });
+      continue;
+    }
 
     // P52/P53 deploy — the v3 one-per-day templates only work once
     // WhatsApp APPROVES them (a pending template fails to send). Until

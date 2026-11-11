@@ -1,4 +1,4 @@
-import { Pencil, Plus } from 'lucide-react';
+import { FileDown, Pencil, Plus } from 'lucide-react';
 import { getTranslations } from 'next-intl/server';
 
 import { ComplianceWidget } from '@/components/home-program/ComplianceWidget';
@@ -96,6 +96,19 @@ export async function PatientHomeProgramTab({
                   </>
                 )}
               </Link>
+            </Button>
+          ) : null}
+          {/* P64 #15 — the printable home program (patient's language). */}
+          {items.length > 0 ? (
+            <Button asChild size="sm" variant="outline">
+              <a
+                href={`/api/v1/exports/home-program/${patientId}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <FileDown className="me-1 size-4" />
+                {tHp('pdf.download')}
+              </a>
             </Button>
           ) : null}
         </div>

@@ -161,7 +161,8 @@ export function QuestionForm({ mode, initial }: Props) {
               </div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <SwitchField form={form} name={'required' as never} label={t('required')} />
-                <SwitchField form={form} name={'active' as never} label={tCommon('yes')} />
+                {/* P64 #8 — was labelled «Yes»; off = archived (hidden from forms). */}
+                <SwitchField form={form} name={'active' as never} label={t('activeLabel')} />
               </div>
 
               {isSelectType(type) ? (

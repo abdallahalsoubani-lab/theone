@@ -15,6 +15,9 @@ export interface SessionNoteRow {
   plan: string;
   painScore: number | null;
   measurementsText: string;
+  /** P64 #11 — session result fields ('' on historical SOAP notes). */
+  result: string;
+  treatmentGiven: string;
   parentNoteId: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -37,6 +40,8 @@ function selectShape() {
     plan: true,
     painScore: true,
     measurements: true,
+    result: true,
+    treatmentGiven: true,
     parentNoteId: true,
     createdAt: true,
     updatedAt: true,
@@ -48,6 +53,8 @@ function shape(
   row: NonNullable<Awaited<ReturnType<typeof db.sessionNote.findUnique>>> & {
     therapist: { fullNameEn: string; fullNameAr: string };
     measurements: unknown;
+    result: string | null;
+    treatmentGiven: string | null;
   },
 ): Omit<SessionNoteRow, 'addenda'> {
   const m = row.measurements as { text?: string } | null;
@@ -64,6 +71,8 @@ function shape(
     plan: row.plan,
     painScore: row.painScore,
     measurementsText: m?.text ?? '',
+    result: row.result ?? '',
+    treatmentGiven: row.treatmentGiven ?? '',
     parentNoteId: row.parentNoteId,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

@@ -139,7 +139,8 @@
     "atLeastTwoOptions": "Add at least two options.",
     "phoneE164": "Enter a valid phone number in international format (e.g. +9627XXXXXXXX).",
     "dobFuture": "Date of birth cannot be in the future.",
-    "dobTooEarly": "Date of birth must be after 1900."
+    "dobTooEarly": "Date of birth must be after 1900.",
+    "formHasErrors": "Some answers are missing or invalid — please check the highlighted fields."
   },
   "admin": {
     "navTitle": "Admin",
@@ -256,7 +257,10 @@
       "typeDate": "Date",
       "appliesAdult": "Adult only",
       "appliesPediatric": "Pediatric only",
-      "appliesBoth": "Both"
+      "appliesBoth": "Both",
+      "archivedBadge": "Archived — hidden from forms",
+      "archiveAction": "Archive",
+      "activeLabel": "Active (shown in the intake form)"
     },
     "settings": {
       "title": "Clinic settings",
@@ -870,14 +874,14 @@
       "category": "Category",
       "noteOptional": "Note (optional)",
       "uploadButton": "Upload file",
-      "uploadHint": "PDF or image (JPEG, PNG, WebP, HEIC), up to {maxMb} MB.",
+      "uploadHint": "PDF, Word (DOC, DOCX) or image (JPEG, PNG, WebP, HEIC), up to {maxMb} MB.",
       "download": "Download",
       "empty": "No documents uploaded yet.",
       "uploadSuccess": "Document uploaded.",
       "deleteSuccess": "Document removed.",
       "deleteTitle": "Remove document",
       "deleteConfirm": "Remove \"{name}\" from this patient's file? This hides it from the list.",
-      "errorUnsupported": "Only PDF and image files are allowed.",
+      "errorUnsupported": "Only PDF, Word and image files are allowed.",
       "errorTooLarge": "The file exceeds the {maxMb} MB limit.",
       "errorUploadFailed": "Upload failed. Please try again.",
       "errorStorageUnavailable": "File storage is currently unavailable — please tell the administrator.",
@@ -1025,14 +1029,16 @@
       "referralGoogleSearch": "Google search",
       "referralWalkBy": "Walking by",
       "referralEvent": "Event",
-      "referralOther": "Other"
+      "referralOther": "Other",
+      "noQuestions": "No intake questions are configured yet."
     },
     "pediatric": {
       "sectionFamily": "Family context",
       "sectionCustom": "Additional questions",
       "numberOfSiblings": "Number of siblings",
       "birthOrder": "Birth order",
-      "birthOrderHelp": "Position among siblings (1 = eldest)."
+      "birthOrderHelp": "Position among siblings (1 = eldest).",
+      "noQuestions": "No intake questions are configured yet."
     },
     "validation": {
       "otherConditionsRequired": "Please describe the other conditions.",
@@ -1103,12 +1109,14 @@
       "customQuestions": "Intake questions",
       "settings": "Clinic settings",
       "audit": "Audit log",
+      "whatsappInbox": "WhatsApp inbox",
       "whatsappTemplates": "WhatsApp templates",
       "whatsappMessages": "WhatsApp messages",
       "calendar": "Calendar",
       "reports": "Reports",
       "leaves": "Leaves",
-      "whatsappOutbox": "Message outbox"
+      "whatsappOutbox": "Message outbox",
+      "scheduleAccess": "Schedule access"
     },
     "inbox": "Inbox",
     "exerciseLibrary": "Exercise library",
@@ -1125,7 +1133,8 @@
     "leaves": "Leaves",
     "myLeaves": "My leave",
     "collapseMenu": "Hide the menu",
-    "expandMenu": "Show the menu"
+    "expandMenu": "Show the menu",
+    "scheduleAccess": "Schedule access"
   },
   "publicIntake": {
     "clinicName": "The One for Physiotherapy",
@@ -1180,7 +1189,12 @@
     "linkedToast": "Intake linked to the existing patient.",
     "rejectedToast": "Submission rejected.",
     "alreadyApproved": "This submission has already been approved.",
-    "alreadyRejected": "This submission has already been rejected."
+    "alreadyRejected": "This submission has already been rejected.",
+    "viaLinkTitle": "Received via personal link",
+    "viaLinkSubtitle": "Intake forms patients completed through the link sent to them (last 30 days). They are already saved in the patient file.",
+    "viaLinkEmpty": "No intake forms received via link in the last 30 days.",
+    "viaLinkBadge": "Via link",
+    "viaLinkOpen": "Open intake"
   },
   "styleGuide": {
     "title": "Style guide",
@@ -1338,6 +1352,14 @@
       "PATIENT_DECLINED_APPOINTMENT": {
         "title": "Patient can’t attend",
         "body": "{patientName} indicated they will not attend their appointment on {day} at {time}."
+      },
+      "INTAKE_LINK_COMPLETED": {
+        "title": "Intake form received",
+        "body": "{patientName} completed their intake form — it is saved in the patient file."
+      },
+      "PLAN_INITIAL_PROPOSED": {
+        "title": "New plan awaiting approval",
+        "body": "{therapistName} proposed a treatment plan for {patientName} — awaiting your approval."
       }
     }
   },
@@ -1434,12 +1456,17 @@
       "editTitle": "Edit treatment plan",
       "editSubtitle": "Saving creates a new version of the plan and supersedes the current one. The assigned therapist is notified.",
       "saveChanges": "Save changes",
-      "updatedToast": "Plan updated."
+      "updatedToast": "Plan updated.",
+      "newPlanProposal": "Propose a treatment plan",
+      "proposeInitialTitle": "Propose a treatment plan",
+      "proposeInitialSubtitle": "The plan goes to the doctor for approval; until then the team sees it as “awaiting approval”.",
+      "initialProposedToast": "Plan sent to the doctor for approval",
+      "initialNoteLabel": "Note for the doctor (optional)"
     },
     "notes": {
-      "newNoteTitle": "Write session note",
+      "newNoteTitle": "Write session result",
       "newNoteSubtitle": "Saving the note transitions the appointment to Completed.",
-      "editNoteTitle": "Edit session note",
+      "editNoteTitle": "Edit session result",
       "addendumTitle": "Add addendum",
       "addendumSubtitle": "Addenda are how corrections after the 24-hour window are recorded.",
       "editWindowOpen": "You can edit this note for the next 24 hours.",
@@ -1467,7 +1494,9 @@
       "addendaHeading": "Addenda",
       "noteMissing": "Report missing",
       "missingReportsHeading": "Sessions missing their report",
-      "addReport": "Add report"
+      "addReport": "Add report",
+      "result": "Session result",
+      "treatmentGiven": "Treatment / exercises given"
     },
     "reports": {
       "endOfDayTitle": "End-of-day report",
@@ -1578,7 +1607,11 @@
         "uploadFailed": "Upload failed. Try again.",
         "storageUnavailable": "File storage is currently unavailable — please tell the administrator.",
         "networkError": "Connection dropped during upload. Check your network and try again."
-      }
+      },
+      "goalEn": "Default goal (English)",
+      "goalAr": "Default goal (Arabic)",
+      "extraImages": "More images (home-program PDF)",
+      "addImage": "Add an image"
     },
     "homeProgram": {
       "builderTitle": "{name}'s home program",
@@ -1649,7 +1682,22 @@
       "approvedProgram": "Approved program",
       "emptyTabAwaitingApproval": "No approved program yet — a draft is waiting for the doctor's approval.",
       "revisionPendingNote": "A revised program is awaiting the doctor's approval. The patient still follows the approved program shown here.",
-      "revisionDraftNote": "A draft revision is in progress and has not been submitted for approval yet. The patient still follows the approved program shown here."
+      "revisionDraftNote": "A draft revision is in progress and has not been submitted for approval yet. The patient still follows the approved program shown here.",
+      "goal": "Goal for this patient",
+      "goalPlaceholder": "Leave empty to use the exercise's default goal",
+      "patientPhotos": "This patient's photos (PDF)",
+      "patientPhotosEmpty": "No photos yet — upload images to the patient's Documents tab first.",
+      "pdf": {
+        "heading": "Home program PDF",
+        "subtitle": "Cover copy for the printed program; the diagnosis comes from the active treatment plan and the PDF prints in the patient's language.",
+        "download": "Download PDF",
+        "goals": "This program helps with (one per line)",
+        "goalsPlaceholder": "Head and trunk control\nPreparing for sitting",
+        "parentNotes": "Note for the family",
+        "parentNotesPlaceholder": "The program is play + positions spread through the day, not one sitting.",
+        "save": "Save cover",
+        "savedToast": "Cover saved"
+      }
     },
     "compliance": {
       "sevenDay": "7-day rate",
@@ -1657,6 +1705,23 @@
       "streak": "Streak (days)",
       "overdue": "Overdue",
       "lastCompleted": "Last completed"
+    },
+    "monthlyReports": {
+      "heading": "Monthly reports",
+      "empty": "No monthly report yet.",
+      "writeThisMonth": "Write this month's report",
+      "editThisMonth": "Edit this month's report",
+      "month": "Month",
+      "newHint": "One report per patient per month.",
+      "editingHint": "This month already has a report — saving updates it.",
+      "subjective": "Subjective (S)",
+      "objective": "Objective (O)",
+      "assessment": "Assessment (A)",
+      "plan": "Plan (P)",
+      "save": "Save report",
+      "cancel": "Cancel",
+      "createdToast": "Monthly report saved",
+      "updatedToast": "Monthly report updated"
     }
   },
   "calendar": {
@@ -1737,7 +1802,18 @@
       },
       "save": "Book appointments",
       "saving": "Booking…",
-      "createdToast": "{count} appointment(s) booked."
+      "createdToast": "{count} appointment(s) booked.",
+      "repeat": {
+        "button": "Repeat",
+        "needDate": "Pick the row's date first",
+        "daysLabel": "Repeat on",
+        "weeksLabel": "For how many weeks",
+        "apply": "Add rows",
+        "cancel": "Cancel",
+        "hint": "Copies this row's setup (time, type, therapist, room, duration) onto the chosen days of the following weeks — each copy is a normal row you can still edit or delete.",
+        "added": "{count} rows added",
+        "nothingAdded": "No rows to add — pick at least one open day."
+      }
     }
   },
   "leave": {
@@ -2073,5 +2149,18 @@
       "failed": "Attachment could not be downloaded",
       "expired": "Attachment deleted after retention period"
     }
+  },
+  "scheduleGrants": {
+    "title": "Schedule access",
+    "subtitle": "Let a therapist see a colleague's calendar beside their own — view only, they can't book or change anything.",
+    "viewer": "Therapist",
+    "owner": "Can see the schedule of",
+    "choose": "Choose…",
+    "add": "Grant access",
+    "added": "Access granted",
+    "revoked": "Access removed",
+    "empty": "No therapist can see another schedule yet.",
+    "seesLabel": "{name} can see:",
+    "revoke": "Remove access to {name}"
   }
 }

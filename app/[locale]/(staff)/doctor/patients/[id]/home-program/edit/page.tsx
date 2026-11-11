@@ -3,10 +3,12 @@ import { notFound } from 'next/navigation';
 
 import { HomeProgramApprovalPanel } from '@/components/home-program/HomeProgramApprovalPanel';
 import { HomeProgramBuilder } from '@/components/home-program/HomeProgramBuilder';
+import { HomeProgramCoverEditor } from '@/components/home-program/HomeProgramCoverEditor';
 import { HomeProgramReviewActions } from '@/components/home-program/HomeProgramReviewActions';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import { getApprovalState } from '@/lib/clinical/home-program/approval';
+import { getHomeProgramCover, listPatientPhotos } from '@/lib/clinical/home-program/cover';
 import { listHomeProgramForPatient } from '@/lib/clinical/home-program/queries';
 import { listExerciseOptionsIncluding } from '@/lib/clinical/plans/exercises';
 import { db } from '@/lib/db';
@@ -40,7 +42,7 @@ export default async function DoctorHomeProgramEditPage({
   const t = await getTranslations('clinical.homeProgram');
   const tApproval = await getTranslations('clinical.homeProgram.approval');
 
-  const [patient, items, approval, submission] = await Promise.all([
+  const [patient, items, approval, submission, cover, patientPhotos] = await Promise.all([
     db.user.findUnique({
       where: { id },
       select: { id: true, fullNameEn: true, fullNameAr: true, role: true },
@@ -51,6 +53,8 @@ export default async function DoctorHomeProgramEditPage({
       where: { patientId: id },
       select: { submittedBy: { select: { fullNameEn: true, fullNameAr: true } } },
     }),
+    getHomeProgramCover(id),
+    listPatientPhotos(id),
   ]);
   if (!patient || patient.role !== 'PATIENT') notFound();
   // Active catalog + the versions the existing items already reference, so
@@ -112,7 +116,17 @@ export default async function DoctorHomeProgramEditPage({
         hasApprovedSnapshot={approval.hasApprovedSnapshot}
         submittedAt={approval.submittedAt}
       />
-      <HomeProgramBuilder patientId={patient.id} items={items} exerciseOptions={exerciseOptions} />
+      <HomeProgramCoverEditor
+        patientId={patient.id}
+        initialGoals={cover.goals}
+        initialParentNotes={cover.parentNotes}
+      />
+      <HomeProgramBuilder
+        patientId={patient.id}
+        items={items}
+        exerciseOptions={exerciseOptions}
+        patientPhotos={patientPhotos}
+      />
 
       {underReview ? (
         <Card>

@@ -1,6 +1,7 @@
 import { AppointmentStatus, type UserRole } from '@prisma/client';
 
 import { db } from '@/lib/db';
+import { BUTTON_CARRIER_TEMPLATES } from '@/lib/whatsapp/templates/buttonCarriers';
 
 /**
  * Reminder-confirmation tracking (Prompt 48b §3.6) — the surface that makes
@@ -83,7 +84,8 @@ export async function listReminderConfirmations(
     where: {
       appointmentId: { in: ids },
       OR: [
-        { direction: 'OUTBOUND', template: { name: 'appointment_reminder_v2' } },
+        // P64 — every template that carries the confirm/decline buttons.
+        { direction: 'OUTBOUND', template: { name: { in: BUTTON_CARRIER_TEMPLATES } } },
         { direction: 'INBOUND', intent: { in: ['CONFIRM', 'CANCEL_REQUEST'] } },
       ],
     },

@@ -3,7 +3,9 @@ import { notFound } from 'next/navigation';
 
 import { HomeProgramApprovalPanel } from '@/components/home-program/HomeProgramApprovalPanel';
 import { HomeProgramBuilder } from '@/components/home-program/HomeProgramBuilder';
+import { HomeProgramCoverEditor } from '@/components/home-program/HomeProgramCoverEditor';
 import { getApprovalState } from '@/lib/clinical/home-program/approval';
+import { getHomeProgramCover, listPatientPhotos } from '@/lib/clinical/home-program/cover';
 import { listHomeProgramForPatient } from '@/lib/clinical/home-program/queries';
 import { listExerciseOptionsIncluding } from '@/lib/clinical/plans/exercises';
 import { db } from '@/lib/db';
@@ -21,13 +23,15 @@ export default async function TherapistHomeProgramEditPage({
   await ensureCanReadPatient(id);
   const t = await getTranslations('clinical.homeProgram');
 
-  const [patient, items, approval] = await Promise.all([
+  const [patient, items, approval, cover, patientPhotos] = await Promise.all([
     db.user.findUnique({
       where: { id },
       select: { id: true, fullNameEn: true, fullNameAr: true, role: true },
     }),
     listHomeProgramForPatient(id),
     getApprovalState(id),
+    getHomeProgramCover(id),
+    listPatientPhotos(id),
   ]);
   if (!patient || patient.role !== 'PATIENT') notFound();
   // Active catalog + the versions the existing items already reference, so
@@ -54,7 +58,17 @@ export default async function TherapistHomeProgramEditPage({
         hasApprovedSnapshot={approval.hasApprovedSnapshot}
         submittedAt={approval.submittedAt}
       />
-      <HomeProgramBuilder patientId={patient.id} items={items} exerciseOptions={exerciseOptions} />
+      <HomeProgramCoverEditor
+        patientId={patient.id}
+        initialGoals={cover.goals}
+        initialParentNotes={cover.parentNotes}
+      />
+      <HomeProgramBuilder
+        patientId={patient.id}
+        items={items}
+        exerciseOptions={exerciseOptions}
+        patientPhotos={patientPhotos}
+      />
     </section>
   );
 }

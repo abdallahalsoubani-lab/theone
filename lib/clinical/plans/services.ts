@@ -69,6 +69,11 @@ const notProposed: LocalizedError = {
   message_en: 'Only PROPOSED plans can be approved or rejected.',
   message_ar: 'يمكن الموافقة على/رفض الخطط المقترحة فقط.',
 };
+const noDoctor: LocalizedError = {
+  code: 'PLAN_NO_DOCTOR',
+  message_en: 'No active doctor is available to approve this plan.',
+  message_ar: 'لا يوجد طبيب فعّال للموافقة على هذه الخطة.',
+};
 const notActive: LocalizedError = {
   code: 'PLAN_NOT_ACTIVE',
   message_en: 'Only ACTIVE plans can transition here.',
@@ -355,6 +360,115 @@ export const proposeTreatmentPlanChange = withAudit<
   },
 );
 
+// ─── Therapist initial proposal (P64 #10) ───────────────────────────────────
+/**
+ * A therapist drafts the FIRST plan for a patient who has none. It is a
+ * PROPOSED row with no parent (version 1): the whole team sees it on the
+ * patient file as «بانتظار الموافقة», and a doctor approves (→ ACTIVE) or
+ * rejects it through the same approve/reject flow as a revision.
+ *
+ * The reviewing doctor recorded on the row is the patient's care-team doctor
+ * when there is one, else the first active doctor — but since no doctor
+ * authored it, ANY doctor may decide an initial proposal; the approver then
+ * becomes the plan's doctor.
+ */
+export const proposeInitialTreatmentPlan = withAudit<
+  [PlanCreateInput, { therapistId: string }],
+  { planId: string }
+>(
+  {
+    entityType: 'TreatmentPlan',
+    action: AuditAction.CREATE,
+    extractEntityId: (_args, result) => result.planId,
+    extractAfter: () => ({ event: 'INITIAL_PROPOSED' }) as Prisma.InputJsonValue,
+  },
+  async function proposeInitialInner(input, ctx): Promise<{ planId: string }> {
+    const [active, pending] = await Promise.all([
+      db.treatmentPlan.findFirst({
+        where: { patientId: input.patientId, status: PlanStatus.ACTIVE },
+        select: { id: true },
+      }),
+      db.treatmentPlan.findFirst({
+        where: { patientId: input.patientId, status: PlanStatus.PROPOSED },
+        select: { id: true },
+      }),
+    ]);
+    if (active) throw new PlanError(conflictActive);
+    if (pending) throw new PlanError(conflictProposal);
+
+    const doctors = await db.user.findMany({
+      where: { role: UserRole.DOCTOR, deletedAt: null },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (doctors.length === 0) throw new PlanError(noDoctor);
+    const careDoctor = await db.careTeamMember.findFirst({
+      where: {
+        patientId: input.patientId,
+        clinicianId: { in: doctors.map((d) => d.id) },
+      },
+      select: { clinicianId: true },
+      orderBy: { assignedAt: 'asc' },
+    });
+    const doctorId = careDoctor?.clinicianId ?? doctors[0]!.id;
+
+    const created = await db.$transaction(async (tx) => {
+      const row = await tx.treatmentPlan.create({
+        data: {
+          patientId: input.patientId,
+          doctorId,
+          assignedTherapistId: input.assignedTherapistId,
+          diagnosisPrimary: input.diagnosisPrimary,
+          diagnosisSecondary: input.diagnosisSecondary,
+          goalsShortTerm: input.goalsShortTerm,
+          goalsLongTerm: input.goalsLongTerm ?? '',
+          frequencyPerWeek: input.frequencyPerWeek,
+          durationWeeks: input.durationWeeks,
+          therapistNotes: input.therapistNotes,
+          status: PlanStatus.PROPOSED,
+          version: 1,
+          parentPlanId: null,
+        },
+        select: { id: true },
+      });
+      await tx.planExercise.createMany({
+        data: input.exercises.map((e) => ({
+          planId: row.id,
+          exerciseId: e.exerciseId,
+          sets: e.sets,
+          reps: e.reps,
+          durationSeconds: e.durationSeconds,
+          customNotes: e.customNotes ?? null,
+          order: e.order,
+        })),
+      });
+      return row;
+    });
+
+    const [therapistName, patientName] = await Promise.all([
+      fullName(ctx.therapistId),
+      fullName(input.patientId),
+    ]);
+    // Every active doctor can decide it, so every doctor is told.
+    await Promise.all(
+      doctors.map((d) =>
+        createNotification({
+          recipientId: d.id,
+          type: 'PLAN_INITIAL_PROPOSED',
+          params: { therapistName, patientName },
+          linkPath: `/doctor/plans/${created.id}`,
+          relatedEntityType: 'TreatmentPlan',
+          relatedEntityId: created.id,
+        }).catch((err: unknown) => {
+          console.error('[plans] notification PLAN_INITIAL_PROPOSED failed', err);
+        }),
+      ),
+    );
+
+    return { planId: created.id };
+  },
+);
+
 // ─── Approve proposal ───────────────────────────────────────────────────────
 export const approveProposal = withAudit<
   [{ proposedPlanId: string }, { doctorId: string }],
@@ -382,10 +496,24 @@ export const approveProposal = withAudit<
     if (proposed.status !== PlanStatus.PROPOSED) throw new PlanError(notProposed);
     // Doctor approval is gated to the plan's authoring doctor — the
     // RBAC permission grants the capability, this check binds it to
-    // the right row.
-    if (proposed.doctorId !== ctx.doctorId) throw new PlanError(forbidden);
+    // the right row. P64 #10: an INITIAL proposal (no parent) had no
+    // authoring doctor, so any doctor may decide it.
+    const initial = proposed.parentPlanId === null;
+    if (!initial && proposed.doctorId !== ctx.doctorId) throw new PlanError(forbidden);
+    if (initial) {
+      const active = await db.treatmentPlan.findFirst({
+        where: { patientId: proposed.patientId, status: PlanStatus.ACTIVE },
+        select: { id: true },
+      });
+      if (active) throw new PlanError(conflictActive);
+    }
 
     await db.$transaction(async (tx) => {
+      if (initial) {
+        // The approver becomes the plan's doctor + joins the care team (as
+        // the doctor-create path does — FR-PAT-3).
+        await addCareTeamMemberTx(tx, proposed.patientId, ctx.doctorId, ctx.doctorId);
+      }
       if (proposed.parentPlanId) {
         await tx.treatmentPlan.update({
           where: { id: proposed.parentPlanId },
@@ -398,6 +526,7 @@ export const approveProposal = withAudit<
           status: PlanStatus.ACTIVE,
           approvedAt: new Date(),
           approvedById: ctx.doctorId,
+          ...(initial ? { doctorId: ctx.doctorId } : {}),
         },
       });
     });
@@ -441,11 +570,15 @@ export const rejectProposal = withAudit<
         doctorId: true,
         assignedTherapistId: true,
         status: true,
+        parentPlanId: true,
       },
     });
     if (!proposed) throw new PlanError(notFound);
     if (proposed.status !== PlanStatus.PROPOSED) throw new PlanError(notProposed);
-    if (proposed.doctorId !== ctx.doctorId) throw new PlanError(forbidden);
+    // P64 #10 — any doctor may decide an initial (parent-less) proposal.
+    if (proposed.parentPlanId !== null && proposed.doctorId !== ctx.doctorId) {
+      throw new PlanError(forbidden);
+    }
 
     await db.treatmentPlan.update({
       where: { id: proposed.id },

@@ -27,7 +27,8 @@ export type TemplateVarToken =
   | 'reason'
   | 'intakeUrl'
   | 'reminderBody'
-  | 'customText';
+  | 'customText'
+  | 'appointmentWhen';
 
 export interface TemplateVarContext {
   patientName: string;
@@ -47,6 +48,9 @@ export interface TemplateVarContext {
   reminderBody?: string;
   /** P60 — the secretary's free text inside the custom-message frame. */
   customText?: string;
+  /** P64 — «يوم السبت 14 نوفمبر الساعة 10:00 ص»: the appointment's own day
+   *  (never "tomorrow") + time(s). {{2}} of the v4 button templates. */
+  appointmentWhen?: string;
 }
 
 /** Pre-48b hardcoded orders — the exact arrays the call sites used to build. */
@@ -68,6 +72,9 @@ export const LEGACY_SHAPES: Record<string, TemplateVarToken[]> = {
   appointment_reminder_multi: ['reminderBody'],
   // P60 — the manual custom message: {{1}} patient first name, {{2}} text.
   clinic_custom_message: ['patientName', 'customText'],
+  // P64 — the confirm/decline button templates: {{1}} first name, {{2}} when.
+  appointment_reminder_v4: ['patientName', 'appointmentWhen'],
+  appointment_confirmation_v4: ['patientName', 'appointmentWhen'],
 };
 
 function isTokenArray(v: unknown): v is TemplateVarToken[] {
@@ -86,6 +93,7 @@ function isTokenArray(v: unknown): v is TemplateVarToken[] {
           'intakeUrl',
           'reminderBody',
           'customText',
+          'appointmentWhen',
         ].includes(t),
     )
   );

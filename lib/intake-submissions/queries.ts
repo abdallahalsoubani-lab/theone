@@ -3,6 +3,7 @@ import 'server-only';
 import type { IntakeType } from '@prisma/client';
 
 import { db } from '@/lib/db';
+import { SYSTEM_USER_ID } from '@/lib/system/actor';
 
 export interface SubmissionListRow {
   id: string;
@@ -25,6 +26,45 @@ export async function listPendingSubmissions(): Promise<SubmissionListRow[]> {
       createdAt: true,
     },
   });
+}
+
+export interface LinkIntakeRow {
+  intakeId: string;
+  patientId: string;
+  type: IntakeType;
+  patientNameEn: string;
+  patientNameAr: string;
+  receivedAt: Date;
+}
+
+/**
+ * P64 #9 — intakes patients completed through their PERSONAL link. These are
+ * saved straight to the file (no review — P52 decision 3), so they never sit
+ * in the pending queue; the requests page lists the recent ones so the desk
+ * can SEE them arrive. Identified by the SYSTEM assessor the link path uses.
+ */
+export async function listRecentLinkIntakes(days = 30): Promise<LinkIntakeRow[]> {
+  const since = new Date(Date.now() - days * 86_400_000);
+  const rows = await db.intakeAssessment.findMany({
+    where: { assessedById: SYSTEM_USER_ID, createdAt: { gte: since } },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+    select: {
+      id: true,
+      patientId: true,
+      type: true,
+      createdAt: true,
+      patient: { select: { fullNameEn: true, fullNameAr: true } },
+    },
+  });
+  return rows.map((r) => ({
+    intakeId: r.id,
+    patientId: r.patientId,
+    type: r.type,
+    patientNameEn: r.patient.fullNameEn,
+    patientNameAr: r.patient.fullNameAr,
+    receivedAt: r.createdAt,
+  }));
 }
 
 export async function countPendingSubmissions(): Promise<number> {

@@ -2,6 +2,7 @@
 
 import { SecretaryCalendar } from '@/components/calendar/SecretaryCalendar';
 import { useRouter } from '@/i18n/navigation';
+import type { CalendarViewParam } from '@/lib/appointments/calendar-window';
 import type { CalendarAppointment } from '@/lib/appointments/queries';
 import { therapistAppointmentHref } from '@/lib/appointments/links';
 
@@ -14,24 +15,37 @@ import { therapistAppointmentHref } from '@/lib/appointments/links';
  */
 export function TherapistScheduleBoard({
   appointments,
+  initialDateKey,
+  initialView,
   minHour,
   maxHour,
   navById,
   leaves,
+  resources = [],
+  tintIds,
 }: {
   appointments: CalendarAppointment[];
+  initialDateKey?: string | null;
+  initialView?: CalendarViewParam | null;
   minHour: number;
   maxHour: number;
   /** appointmentId → where its card should navigate. */
   navById: Record<string, { patientId: string; sessionNoteId?: string | null }>;
   /** The therapist's OWN approved leaves (Prompt 55 §1) — gray day/week blocks. */
   leaves?: Array<{ id: string; userId: string; startDate: Date; endDate: Date }>;
+  /** P64 #4 — own + granted colleagues' lanes; empty = single-clinician board. */
+  resources?: Array<{ id: string; fullNameEn: string; fullNameAr: string }>;
+  /** Every active clinician id, so colours match the secretary calendar. */
+  tintIds?: string[];
 }) {
   const router = useRouter();
   return (
     <SecretaryCalendar
       appointments={appointments}
-      resources={[]}
+      initialDateKey={initialDateKey}
+      initialView={initialView}
+      resources={resources}
+      tintIds={tintIds}
       leaves={leaves}
       minHour={minHour}
       maxHour={maxHour}

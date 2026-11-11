@@ -5,6 +5,7 @@ import { auth } from '@/auth';
 import { PlanCard } from '@/components/clinical/PlanCard';
 import { Link } from '@/i18n/navigation';
 import { getPlanById } from '@/lib/clinical/plans/queries';
+import { ensureCanReadPatient } from '@/lib/patients/access';
 import { requirePermission } from '@/lib/rbac/guards';
 
 export default async function TherapistPlanPage({
@@ -19,6 +20,9 @@ export default async function TherapistPlanPage({
   const session = await auth();
   const plan = await getPlanById(id);
   if (!plan) notFound();
+  // Care-team gate — the permission above is unscoped, so without this any
+  // therapist could open any plan by id (P64 #16).
+  await ensureCanReadPatient(plan.patientId);
 
   return (
     <section className="mx-auto max-w-4xl space-y-6 p-6">

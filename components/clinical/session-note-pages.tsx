@@ -121,6 +121,8 @@ export async function EditSessionNoteBody({
           plan: note.plan,
           painScore: note.painScore ?? 0,
           measurements: note.measurementsText,
+          result: note.result,
+          treatmentGiven: note.treatmentGiven,
         }}
         redirectTo={`${patientsBasePath}/${note.patientId}`}
       />

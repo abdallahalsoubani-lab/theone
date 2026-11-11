@@ -1,5 +1,6 @@
 import { AuditAction, type LanguagePref } from '@prisma/client';
 
+import { BUTTON_TEMPLATE_NAMES } from '@/lib/admin/whatsapp/button-templates';
 import { db } from '@/lib/db';
 import { env } from '@/lib/env';
 import { SYSTEM_USER_ID } from '@/lib/system/actor';
@@ -72,10 +73,27 @@ export interface ApprovalSyncResult {
   flipped: string[];
 }
 
+/**
+ * P64 — the confirm/decline button templates get their SIDs only when the
+ * create script runs, so they are tracked from their DB rows (any row named
+ * in BUTTON_TEMPLATE_NAMES that carries a SID) instead of a hard-coded list.
+ */
+async function registryTrackedTemplates(): Promise<TrackedTemplate[]> {
+  const rows = await db.whatsAppTemplate.findMany({
+    where: { name: { in: BUTTON_TEMPLATE_NAMES }, twilioContentSid: { not: null } },
+    select: { name: true, language: true, twilioContentSid: true },
+  });
+  return rows.map((r) => ({ name: r.name, language: r.language, sid: r.twilioContentSid! }));
+}
+
 export async function syncTemplateApproval(
-  tracked: readonly TrackedTemplate[] = APPROVAL_TRACKED,
+  trackedArg?: readonly TrackedTemplate[],
   fetchImpl: typeof fetch = fetch,
 ): Promise<ApprovalSyncResult> {
+  const tracked = trackedArg ?? [
+    ...APPROVAL_TRACKED,
+    ...(await registryTrackedTemplates().catch(() => [])),
+  ];
   const auth = twilioAuthHeader();
   if (!auth) {
     console.warn('[templates] approval sync skipped — no Twilio credentials');

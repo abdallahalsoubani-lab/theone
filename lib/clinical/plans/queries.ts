@@ -172,7 +172,8 @@ export async function getPatientPlanState(patientId: string): Promise<PatientPla
  */
 export async function listPendingProposalsForDoctor(doctorId: string): Promise<PlanCardRow[]> {
   const rows = await db.treatmentPlan.findMany({
-    where: { doctorId, status: PlanStatus.PROPOSED },
+    // P64 #10 — initial (parent-less) proposals belong to every doctor.
+    where: { status: PlanStatus.PROPOSED, OR: [{ doctorId }, { parentPlanId: null }] },
     orderBy: { createdAt: 'desc' },
     select: planSelect(),
   });

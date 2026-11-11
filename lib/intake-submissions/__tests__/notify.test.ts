@@ -23,6 +23,8 @@ vi.mock('@/lib/patients/services', () => ({ createPatient: vi.fn() }));
 vi.mock('@/lib/intake/services', () => ({
   createAdultIntake: vi.fn(),
   createPediatricIntake: vi.fn(),
+  // P64 #8 — required-answer gate; no required questions in these tests.
+  assertRequiredCustomAnswers: vi.fn(async () => undefined),
 }));
 vi.mock('@/lib/notifications/actions', () => ({
   createNotification: vi.fn(async (args: Record<string, unknown>) => {

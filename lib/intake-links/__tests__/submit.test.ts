@@ -18,9 +18,26 @@ const state = {
   profileUpdates: [] as Array<Record<string, unknown>>,
   intakeCreated: [] as Array<Record<string, unknown>>,
   linkClaims: [] as Array<Record<string, unknown>>,
+  notifications: [] as Array<Record<string, unknown>>,
 };
 
-vi.mock('@/lib/intake/services', () => ({ buildAnswerRows: vi.fn(async () => []) }));
+vi.mock('@/lib/intake/services', () => ({
+  buildAnswerRows: vi.fn(async () => []),
+  assertRequiredCustomAnswers: vi.fn(async () => undefined),
+}));
+// P64 #9 — the post-commit staff notification fan-out.
+vi.mock('@/lib/notifications/actions', () => ({
+  createNotification: vi.fn(async (args: Record<string, unknown>) => {
+    state.notifications.push(args);
+    return { id: 'n' };
+  }),
+}));
+vi.mock('@/lib/patients/assignment', () => ({
+  getCareTeam: vi.fn(async () => ({
+    therapists: [{ id: 'ther-1', fullNameEn: 'T', fullNameAr: 'ت' }],
+    doctors: [],
+  })),
+}));
 vi.mock('@/lib/system/actor', () => ({ SYSTEM_USER_ID: 'system' }));
 
 vi.mock('@/lib/db', () => {
@@ -48,6 +65,10 @@ vi.mock('@/lib/db', () => {
   return {
     db: {
       patientIntakeLink: { findUnique: vi.fn(async () => state.link) },
+      user: {
+        findUnique: vi.fn(async () => ({ fullNameEn: 'Pat One', fullNameAr: 'م' })),
+        findMany: vi.fn(async () => [{ id: 'sec-1' }, { id: 'adm-1' }]),
+      },
       $transaction: vi.fn(async (cb: (t: typeof tx) => Promise<unknown>) => cb(tx)),
     },
   };
@@ -91,6 +112,7 @@ beforeEach(() => {
   state.profileUpdates = [];
   state.intakeCreated = [];
   state.linkClaims = [];
+  state.notifications = [];
 });
 
 describe('submitIntakeViaLink', () => {
@@ -104,6 +126,26 @@ describe('submitIntakeViaLink', () => {
     expect(user).not.toHaveProperty('fullNameEn');
     expect(user).not.toHaveProperty('phone');
     expect(state.intakeCreated).toHaveLength(1);
+  });
+
+  it('P64 #9 — notifies the desk (to the requests page) and the care team (to the file)', async () => {
+    await submitIntakeViaLink(payload());
+    const byRecipient = Object.fromEntries(
+      state.notifications.map((n) => [n.recipientId as string, n]),
+    );
+    expect(Object.keys(byRecipient).sort()).toEqual(['adm-1', 'sec-1', 'ther-1']);
+    expect(byRecipient['sec-1']).toMatchObject({
+      type: 'INTAKE_LINK_COMPLETED',
+      params: { patientName: 'Pat One' },
+      linkPath: '/secretary/intake-submissions',
+    });
+    expect(byRecipient['ther-1']!.linkPath).toBe('/therapist/patients/pat-1');
+  });
+
+  it('P64 #9 — no notification when the link is invalid', async () => {
+    state.link = null;
+    await expect(submitIntakeViaLink(payload())).rejects.toBeInstanceOf(IntakeLinkSubmitError);
+    expect(state.notifications).toHaveLength(0);
   });
 
   it('claims the link single-use (usedAt set where still null)', async () => {

@@ -12,6 +12,7 @@ import {
   genderLabelKey,
   languagePrefLabel,
   resolveCustomAnswerValue,
+  EMPTY_ANSWER_DISPLAY,
 } from '@/lib/intake/display';
 import { findPatientsByPhone, getSubmissionById } from '@/lib/intake-submissions/queries';
 import { requirePermission } from '@/lib/rbac/guards';
@@ -78,10 +79,14 @@ export default async function IntakeSubmissionDetailPage({
   const fieldKeys = submission.type === IntakeType.ADULT ? ADULT_FIELD_KEYS : PEDIATRIC_FIELD_KEYS;
   // Fixed enum answers render through the SAME intake.adult option labels the
   // form inputs use (QA 5.1); unknown values fall back to the stored raw key.
-  const answerRows = fieldKeys.map((k) => ({
-    label: tFields(k),
-    value: formatIntakeAnswer(k, answers[k], tFields),
-  }));
+  // P64 #8 — new submissions no longer carry the fixed fields; list only the
+  // answered ones so the card isn't a column of dashes.
+  const answerRows = fieldKeys
+    .map((k) => ({
+      label: tFields(k),
+      value: formatIntakeAnswer(k, answers[k], tFields),
+    }))
+    .filter((r) => r.value !== EMPTY_ANSWER_DISPLAY);
   // Custom SINGLE/MULTI_SELECT answers store the canonical option `value` —
   // resolve it to the viewer-locale option label; free-text passes through.
   const customRows = Object.entries(customAnswers).map(([qid, value]) => {

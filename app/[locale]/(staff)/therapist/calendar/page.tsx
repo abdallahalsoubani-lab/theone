@@ -2,11 +2,16 @@ import { getTranslations, setRequestLocale } from 'next-intl/server';
 
 import { deriveDayWindow } from '@/components/calendar/CalendarPageContent';
 import { TherapistScheduleBoard } from '@/components/calendar/TherapistScheduleBoard';
-import { listAppointmentsForCalendar } from '@/lib/appointments/queries';
+import {
+  calendarFetchWindow,
+  parseCalendarDateParam,
+  parseCalendarViewParam,
+} from '@/lib/appointments/calendar-window';
+import { listActiveClinicians, listAppointmentsForCalendar } from '@/lib/appointments/queries';
 import { db } from '@/lib/db';
 import { listApprovedLeavesInRange } from '@/lib/leave/queries';
 import { requirePermission } from '@/lib/rbac/guards';
-import { clinicDaySpan } from '@/lib/time/clinic';
+import { grantedOwnerIds } from '@/lib/schedule-grants/queries';
 import { getClinicTimeZone } from '@/lib/time/clinic-server';
 
 /**
@@ -18,10 +23,13 @@ import { getClinicTimeZone } from '@/lib/time/clinic-server';
  */
 export default async function TherapistCalendarPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string }>;
+  searchParams: Promise<Record<string, string>>;
 }) {
   const { locale } = await params;
+  const sp = await searchParams;
   setRequestLocale(locale);
   // requirePermission resolves the impersonation-aware effective user —
   // chain it so Act-As shows the impersonated therapist's schedule
@@ -30,27 +38,40 @@ export default async function TherapistCalendarPage({
   const therapistId = viewer.id;
   const t = await getTranslations('appointments');
 
-  // Generous window: a week back through a year out, so any reasonable future
-  // booking date the therapist navigates to has data. Boundaries are CLINIC
-  // days (Prompt 31) — the process runs on UTC, so day math must not use the
-  // local getters or the window starts at 03:00 Amman.
-  const span = clinicDaySpan(new Date(), 7, 365, await getClinicTimeZone());
-  const from = span.start;
-  // listAppointmentsForCalendar / listApprovedLeavesInRange compare with `lte`,
-  // so pass the last instant inside the span rather than its exclusive end.
-  const to = new Date(span.end.getTime() - 1);
+  // P64 #1 — the window follows the VIEWED date in the URL (any past or
+  // future week), CLINIC-day aligned (Prompt 31).
+  const dateKey = parseCalendarDateParam(sp.date);
+  const view = parseCalendarViewParam(sp.view);
+  const { from, to } = calendarFetchWindow({ dateKey, view }, await getClinicTimeZone());
 
-  const [appointments, settings, allLeaves] = await Promise.all([
-    listAppointmentsForCalendar({ from, to, therapistIds: [therapistId] }),
+  // P64 #4 — colleagues whose schedules Admin/Secretary let this therapist
+  // SEE (read-only). With none, the board is exactly the single-clinician
+  // view it always was.
+  const ownerIds = await grantedOwnerIds(therapistId);
+  const visibleIds = [therapistId, ...ownerIds];
+
+  const [appointments, settings, allLeaves, clinicians] = await Promise.all([
+    listAppointmentsForCalendar({ from, to, therapistIds: visibleIds }),
     db.clinicSettings.findUnique({
       where: { id: 'default' },
       select: { businessHours: true },
     }),
     listApprovedLeavesInRange(from, to),
+    listActiveClinicians(),
   ]);
-  // Own leaves only (Prompt 55 §1): this is a single-clinician board, so a
-  // colleague's leave must not gray these columns.
-  const leaves = allLeaves.filter((l) => l.userId === therapistId);
+  // Leaves of the clinicians ON this board only (Prompt 55 §1): own, plus a
+  // granted colleague's (their lane grays) — never anyone else's.
+  const visible = new Set(visibleIds);
+  const leaves = allLeaves.filter((l) => visible.has(l.userId));
+  // One lane per visible clinician (self first) only when grants exist.
+  const byId = new Map(clinicians.map((c) => [c.id, c]));
+  const resources =
+    ownerIds.length > 0
+      ? visibleIds.flatMap((id) => {
+          const c = byId.get(id);
+          return c ? [{ id: c.id, fullNameEn: c.fullNameEn, fullNameAr: c.fullNameAr }] : [];
+        })
+      : [];
 
   // appointmentId → primary session note (for the deep-link destination).
   const notes = await db.sessionNote.findMany({
@@ -58,11 +79,12 @@ export default async function TherapistCalendarPage({
     select: { id: true, appointmentId: true },
   });
   const noteByAppt = new Map(notes.map((n) => [n.appointmentId, n.id]));
+  // Only the therapist's OWN appointments navigate (note / patient file); a
+  // granted colleague's cards are look-only — no access to those files.
   const navById = Object.fromEntries(
-    appointments.map((a) => [
-      a.id,
-      { patientId: a.patientId ?? '', sessionNoteId: noteByAppt.get(a.id) },
-    ]),
+    appointments
+      .filter((a) => a.therapists.some((th) => th.id === therapistId))
+      .map((a) => [a.id, { patientId: a.patientId ?? '', sessionNoteId: noteByAppt.get(a.id) }]),
   );
 
   const { minHour, maxHour } = deriveDayWindow(settings?.businessHours);
@@ -72,10 +94,14 @@ export default async function TherapistCalendarPage({
       <h1 className="text-2xl font-medium text-brand-navy">{t('myScheduleTitle')}</h1>
       <TherapistScheduleBoard
         appointments={appointments}
+        initialDateKey={dateKey}
+        initialView={view}
         minHour={minHour}
         maxHour={maxHour}
         navById={navById}
         leaves={leaves}
+        resources={resources}
+        tintIds={clinicians.map((c) => c.id)}
       />
     </section>
   );

@@ -6,7 +6,10 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 
-import { HomeProgramItemForm } from '@/components/home-program/HomeProgramItemForm';
+import {
+  HomeProgramItemForm,
+  type PatientPhotoOption,
+} from '@/components/home-program/HomeProgramItemForm';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -21,6 +24,8 @@ interface Props {
   patientId: string;
   items: HomeProgramItemRow[];
   exerciseOptions: ExerciseOption[];
+  /** P64 #15 — the patient's image documents (home-program PDF photos). */
+  patientPhotos?: PatientPhotoOption[];
 }
 
 const DAY_LABELS_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -37,7 +42,12 @@ type BuilderMode = { kind: 'add' } | { kind: 'edit'; id: string } | null;
  * the patient file Home Program tab uses the same data via
  * HomeProgramItemCard but read-only.
  */
-export function HomeProgramBuilder({ patientId, items, exerciseOptions }: Props) {
+export function HomeProgramBuilder({
+  patientId,
+  items,
+  exerciseOptions,
+  patientPhotos = [],
+}: Props) {
   const t = useTranslations('clinical.homeProgram');
   const tEx = useTranslations('clinical.exercises');
   const locale = useLocale();
@@ -106,6 +116,7 @@ export function HomeProgramBuilder({ patientId, items, exerciseOptions }: Props)
                     <HomeProgramItemForm
                       patientId={patientId}
                       exerciseOptions={exerciseOptions}
+                      patientPhotos={patientPhotos}
                       initial={item}
                       onDone={() => setMode(null)}
                     />
@@ -171,6 +182,7 @@ export function HomeProgramBuilder({ patientId, items, exerciseOptions }: Props)
           <HomeProgramItemForm
             patientId={patientId}
             exerciseOptions={exerciseOptions}
+            patientPhotos={patientPhotos}
             onDone={() => setMode(null)}
           />
         </aside>

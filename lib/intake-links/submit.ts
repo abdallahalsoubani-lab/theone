@@ -1,9 +1,13 @@
 import 'server-only';
 
-import { AuditAction, IntakeStatus, IntakeType } from '@prisma/client';
+import { AuditAction, IntakeStatus, IntakeType, UserRole } from '@prisma/client';
 
 import { db } from '@/lib/db';
-import { buildAnswerRows } from '@/lib/intake/services';
+import { patientDisplayName } from '@/lib/format/patientName';
+import { assertRequiredCustomAnswers, buildAnswerRows } from '@/lib/intake/services';
+import { createNotification } from '@/lib/notifications/actions';
+import { getCareTeam } from '@/lib/patients/assignment';
+import { patientProfileHref } from '@/lib/patients/links';
 import { SYSTEM_USER_ID } from '@/lib/system/actor';
 
 import { linkSubmissionSchema, type LinkSubmissionInput } from './schemas';
@@ -48,6 +52,11 @@ export async function submitIntakeViaLink(input: unknown): Promise<{ ok: true }>
   if (link.formType !== expectedType) throw new IntakeLinkSubmitError('FORM_TYPE_MISMATCH');
 
   const patientId = link.patientId;
+  // P64 #8 — required admin questions (IntakeError with field details).
+  await assertRequiredCustomAnswers(
+    data.answers.customAnswers,
+    data.type === 'ADULT' ? 'ADULT' : 'PEDIATRIC',
+  );
   const answerRows = await buildAnswerRows(
     data.answers.customAnswers,
     data.type === 'ADULT' ? 'ADULT' : 'PEDIATRIC',
@@ -96,7 +105,7 @@ export async function submitIntakeViaLink(input: unknown): Promise<{ ok: true }>
           intakeId: intake.id,
           physicalActivityLevel: a.physicalActivityLevel,
           medicalDiagnosis: a.medicalDiagnosis || null,
-          primaryComplaint: a.primaryComplaint,
+          primaryComplaint: a.primaryComplaint || null,
           painTiming: a.painTiming,
           symptomDuration: a.symptomDuration,
           painSeverity: a.painSeverity,
@@ -151,5 +160,54 @@ export async function submitIntakeViaLink(input: unknown): Promise<{ ok: true }>
   });
 
   console.warn(`[intake-link] submission stored via token=${redactToken(data.token)}`);
+  await notifyIntakeLinkCompleted(patientId);
   return { ok: true };
+}
+
+/**
+ * P64 #9 — «النموذج ما بيوصل»: a link submission saved straight to the file
+ * in SILENCE (no review row, no notification), so the desk never knew it had
+ * arrived. Now SECRETARY + ADMIN and the patient's care team each get one
+ * notification. Best-effort: the intake is committed already; a notification
+ * failure is logged (ids only) and never fails the patient's submit.
+ */
+async function notifyIntakeLinkCompleted(patientId: string): Promise<void> {
+  try {
+    const [patient, desk, team] = await Promise.all([
+      db.user.findUnique({
+        where: { id: patientId },
+        select: { fullNameEn: true, fullNameAr: true },
+      }),
+      db.user.findMany({
+        where: { role: { in: [UserRole.SECRETARY, UserRole.ADMIN] }, deletedAt: null },
+        select: { id: true },
+      }),
+      getCareTeam(patientId),
+    ]);
+    const patientName = patientDisplayName(patient?.fullNameEn, patient?.fullNameAr);
+    const recipients = new Map<string, string>();
+    for (const u of desk) recipients.set(u.id, '/secretary/intake-submissions');
+    for (const c of team.therapists) {
+      if (!recipients.has(c.id)) recipients.set(c.id, patientProfileHref('THERAPIST', patientId));
+    }
+    for (const c of team.doctors) {
+      if (!recipients.has(c.id)) recipients.set(c.id, patientProfileHref('DOCTOR', patientId));
+    }
+    await Promise.all(
+      [...recipients].map(([recipientId, linkPath]) =>
+        createNotification({
+          recipientId,
+          type: 'INTAKE_LINK_COMPLETED',
+          params: { patientName },
+          linkPath,
+          relatedEntityType: 'User',
+          relatedEntityId: patientId,
+        }).catch((err: unknown) => {
+          console.error('[intake-link] notification failed', err);
+        }),
+      ),
+    );
+  } catch (err) {
+    console.error('[intake-link] notification fan-out failed', err);
+  }
 }

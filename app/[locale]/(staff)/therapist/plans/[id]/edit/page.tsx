@@ -5,6 +5,7 @@ import { PlanForm } from '@/components/clinical/PlanForm';
 import { listActiveClinicians } from '@/lib/appointments/queries';
 import { listExerciseOptionsIncluding } from '@/lib/clinical/plans/exercises';
 import { getPlanById } from '@/lib/clinical/plans/queries';
+import { ensureCanReadPatient } from '@/lib/patients/access';
 import { requirePermission } from '@/lib/rbac/guards';
 
 /**
@@ -26,6 +27,7 @@ export default async function ProposePlanChangePage({
 
   const plan = await getPlanById(id);
   if (!plan || plan.status !== 'ACTIVE') notFound();
+  await ensureCanReadPatient(plan.patientId); // P64 #16 care-team gate
 
   const [clinicians, exercises] = await Promise.all([
     listActiveClinicians(),

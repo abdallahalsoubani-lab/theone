@@ -6,7 +6,11 @@ import { withAudit } from '@/lib/audit/withAudit';
 import { db } from '@/lib/db';
 import { createNotification } from '@/lib/notifications/actions';
 import { normalizePhoneStrict } from '@/lib/format/phone-validate';
-import { createAdultIntake, createPediatricIntake } from '@/lib/intake/services';
+import {
+  assertRequiredCustomAnswers,
+  createAdultIntake,
+  createPediatricIntake,
+} from '@/lib/intake/services';
 import { adultIntakeSchema, pediatricIntakeSchema } from '@/lib/intake/schemas';
 import { createPatient } from '@/lib/patients/services';
 import { patientCreateSchema, type PatientCreateInput } from '@/lib/patients/schemas';
@@ -31,6 +35,8 @@ import type { PublicSubmissionInput } from './schemas';
 export async function createPublicSubmission(
   input: PublicSubmissionInput,
 ): Promise<{ submissionId: string }> {
+  // P64 #8 — required admin questions are enforced server-side too.
+  await assertRequiredCustomAnswers(input.answers.customAnswers, input.type);
   const normalized = normalizePhoneStrict(input.profile.phone);
   if (!normalized) throw new IntakeSubmissionError(SUBMISSION_ERRORS.INVALID_PHONE);
 
@@ -138,9 +144,17 @@ async function attachIntake(
   answers: Record<string, unknown>,
 ): Promise<void> {
   if (type === IntakeType.ADULT) {
-    await createAdultIntake({ patientId, data: adultIntakeSchema.parse(answers) });
+    await createAdultIntake({
+      patientId,
+      data: adultIntakeSchema.parse(answers),
+      skipRequiredCheck: true,
+    });
   } else {
-    await createPediatricIntake({ patientId, data: pediatricIntakeSchema.parse(answers) });
+    await createPediatricIntake({
+      patientId,
+      data: pediatricIntakeSchema.parse(answers),
+      skipRequiredCheck: true,
+    });
   }
 }
 

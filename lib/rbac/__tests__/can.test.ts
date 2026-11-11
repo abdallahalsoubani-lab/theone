@@ -57,6 +57,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.EXERCISES_READ]: true,
     [PERMISSIONS.LEAVES_CREATE_OWN]: 'own',
     [PERMISSIONS.LEAVES_CREATE]: true,
+    [PERMISSIONS.SCHEDULE_GRANTS_MANAGE]: true,
     [PERMISSIONS.LEAVES_READ_OWN]: 'own',
     [PERMISSIONS.LEAVES_READ]: true,
     [PERMISSIONS.LEAVES_DELETE]: true,
@@ -119,6 +120,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.SESSION_NOTES_CREATE_OWN]: 'own',
     [PERMISSIONS.SESSION_NOTES_UPDATE_OWN]: 'own',
     [PERMISSIONS.SESSION_NOTES_ADDENDUM]: true,
+    [PERMISSIONS.MONTHLY_REPORTS_WRITE]: true,
     [PERMISSIONS.PATIENT_TIMELINE_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.TIMELINE_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.HOME_PROGRAM_READ]: true,
@@ -163,6 +165,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.SESSION_NOTES_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.SESSION_NOTES_UPDATE_OWN]: 'own',
     [PERMISSIONS.SESSION_NOTES_ADDENDUM]: true,
+    [PERMISSIONS.MONTHLY_REPORTS_WRITE]: true,
     [PERMISSIONS.PATIENT_TIMELINE_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.TIMELINE_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.HOME_PROGRAM_READ]: true,
@@ -187,6 +190,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.INTAKE_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.PEDIATRIC_ASSESSMENT_READ_ASSIGNED]: 'assigned',
     [PERMISSIONS.PATIENT_DOCUMENTS_READ_ASSIGNED]: 'assigned',
+    [PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD]: true,
     [PERMISSIONS.NOTIFICATIONS_READ_OWN]: 'own',
     [PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN]: 'own',
   },
@@ -220,6 +224,7 @@ const MATRIX: Record<UserRole, Partial<Record<string, Grant>>> = {
     [PERMISSIONS.EXERCISE_MEDIA_DELETE]: true,
     [PERMISSIONS.LEAVES_CREATE_OWN]: 'own',
     [PERMISSIONS.LEAVES_CREATE]: true,
+    [PERMISSIONS.SCHEDULE_GRANTS_MANAGE]: true,
     [PERMISSIONS.LEAVES_READ_OWN]: 'own',
     [PERMISSIONS.LEAVES_READ]: true,
     [PERMISSIONS.LEAVES_UPDATE]: true,
@@ -459,10 +464,10 @@ describe('Patient documents (Prompt 22)', () => {
     expect(can(dr, PERMISSIONS.PATIENT_DOCUMENTS_DELETE)).toBe(true);
   });
 
-  it('Therapist: read assigned only — no upload/delete', () => {
+  it('Therapist: read assigned + upload (P64 #14) — no delete', () => {
     const th = u('THERAPIST', 'th-1');
     expect(can(th, PERMISSIONS.PATIENT_DOCUMENTS_READ_ASSIGNED, {})).toBe(true);
-    expect(can(th, PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD)).toBe(false);
+    expect(can(th, PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD)).toBe(true);
     expect(can(th, PERMISSIONS.PATIENT_DOCUMENTS_DELETE)).toBe(false);
   });
 

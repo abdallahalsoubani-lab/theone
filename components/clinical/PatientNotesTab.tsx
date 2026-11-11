@@ -129,6 +129,8 @@ export async function PatientNotesTab({ notes, viewerRole, actorId, locale, adda
                 </div>
               </header>
 
+              <Soap label={t('result')} value={note.result} />
+              <Soap label={t('treatmentGiven')} value={note.treatmentGiven} />
               <Soap label={t('subjective')} value={note.subjective} />
               <Soap label={t('objective')} value={note.objective} />
               <Soap label={t('assessment')} value={note.assessment} />
@@ -152,6 +154,8 @@ export async function PatientNotesTab({ notes, viewerRole, actorId, locale, adda
                           <bdi>{formatDateTime(a.createdAt, localeTag)}</bdi>
                           {a.painScore != null ? ` · ${t('painScore')} ${a.painScore}/10` : ''}
                         </p>
+                        <Soap label={t('result')} value={a.result} />
+                        <Soap label={t('treatmentGiven')} value={a.treatmentGiven} />
                         <Soap label={t('subjective')} value={a.subjective} />
                         <Soap label={t('objective')} value={a.objective} />
                         <Soap label={t('assessment')} value={a.assessment} />

@@ -135,7 +135,9 @@ export function PlanCard({ plan, viewerRole, editHref }: Props) {
               </Button>
             </>
           ) : null}
-          {plan.status === 'PROPOSED' && isAssignedTherapist ? (
+          {/* P64 #10 — the whole team (not just the proposer) sees that a
+              proposed plan is waiting on the doctor. */}
+          {plan.status === 'PROPOSED' && !isDoctor && viewerRole !== 'PATIENT' ? (
             <Badge variant="outline">{t('pendingApproval')}</Badge>
           ) : null}
           {plan.status === 'ACTIVE' && isDoctor ? (

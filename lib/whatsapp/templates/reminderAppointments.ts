@@ -105,3 +105,60 @@ export function formatReminderAppointments(
     .map((group, i) => w.entry(ordinalLabel(i, locale), segment(group)))
     .join(w.separator);
 }
+
+/**
+ * P64 #3 — the appointment DAY as words: "يوم السبت 14 نوفمبر" /
+ * "on Saturday 14 November". Computed from the APPOINTMENT's own date in
+ * clinic time — never "tomorrow": a Thursday booking for Saturday must say
+ * Saturday («غداً» was hard-coded in the v3 template bodies).
+ */
+export function reminderDayPhrase(instant: Date, locale: ReminderLocale): string {
+  // 'ar' (not ar-JO) → «نوفمبر», the month names the clinic writes.
+  const parts = new Intl.DateTimeFormat(locale === 'ar' ? 'ar' : 'en-GB', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    timeZone: CLINIC_TIME_ZONE,
+    ...LATIN_NUMBERING,
+  }).formatToParts(instant);
+  const get = (t: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === t)?.value ?? '';
+  return locale === 'ar'
+    ? `يوم ${get('weekday')} ${get('day')} ${get('month')}`
+    : `on ${get('weekday')} ${get('day')} ${get('month')}`;
+}
+
+/**
+ * P64 #3 — "when" for one patient's appointments on ONE clinic day: the day
+ * phrase + the time(s). One appointment → "يوم السبت 14 نوفمبر الساعة 10:00 ص";
+ * several → the day phrase + the P53 day summary (ranges / labelled entries).
+ */
+export function appointmentWhenText(
+  appointments: ReminderAppointment[],
+  locale: ReminderLocale,
+): string {
+  const sorted = [...appointments].sort((a, b) => a.startsAt.getTime() - b.startsAt.getTime());
+  const first = sorted[0];
+  if (!first) return '';
+  const day = reminderDayPhrase(first.startsAt, locale);
+  const times =
+    sorted.length === 1
+      ? WORDS[locale].timeOnly(reminderTime(first.startsAt, locale))
+      : formatReminderAppointments(sorted, locale);
+  return sorted.length === 1 ? `${day} ${times}` : `${day}: ${times}`;
+}
+
+/** P64 #3 — the reminder sentence carried inside the custom-message frame. */
+export function reminderCustomText(
+  appointments: ReminderAppointment[],
+  locale: ReminderLocale,
+): string {
+  const when = appointmentWhenText(appointments, locale);
+  if (locale === 'ar') {
+    return appointments.length > 1
+      ? `نذكّركم بمواعيدكم في المركز ${when}.`
+      : `نذكّركم بموعدكم في المركز ${when}.`;
+  }
+  return appointments.length > 1
+    ? `A reminder of your appointments at the center ${when}.`
+    : `A reminder of your appointment at the center ${when}.`;
+}

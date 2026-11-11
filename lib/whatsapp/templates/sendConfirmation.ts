@@ -2,7 +2,11 @@ import { db } from '@/lib/db';
 import { env } from '@/lib/env';
 import { patientDisplayName } from '@/lib/format/patientName';
 import { unusedLinkForAppointment } from '@/lib/intake-links/queries';
+import { CONFIRMATION_BUTTONS_TEMPLATE } from '@/lib/admin/whatsapp/button-templates';
+
 import { isTemplateApproved } from './approval';
+import { patientFirstName } from './firstName';
+import { appointmentWhenText } from './reminderAppointments';
 import { enqueueWhatsappOutbound } from '@/lib/queue/jobs/whatsappOutbound';
 import { RECIPIENT_PATIENT_SELECT, getMessageRecipients } from '@/lib/whatsapp/manual/recipients';
 
@@ -112,20 +116,38 @@ export async function composeAppointmentConfirmation(
   const useCombined = link
     ? await isTemplateApproved(NEW_PATIENT_TEMPLATE_NAME, p.languagePref)
     : false;
-  const templateName = useCombined ? NEW_PATIENT_TEMPLATE_NAME : TEMPLATE_NAME;
+  // P64 #2 — the confirm/decline BUTTON confirmation, once WhatsApp approves
+  // it (the combined new-patient frame keeps priority: it carries the link).
+  const useButtons =
+    !useCombined && (await isTemplateApproved(CONFIRMATION_BUTTONS_TEMPLATE, p.languagePref));
+  const templateName = useCombined
+    ? NEW_PATIENT_TEMPLATE_NAME
+    : useButtons
+      ? CONFIRMATION_BUTTONS_TEMPLATE
+      : TEMPLATE_NAME;
 
   const shape = await resolveTemplateShape(templateName, p.languagePref);
   if (!shape) {
     console.error(`[lifecycle] no variable shape for ${templateName} — skipping`);
     return null;
   }
-  const ctx = await appointmentVarContext({
+  const baseCtx = await appointmentVarContext({
     startsAt: appt.startsAt,
     patientName: patientDisplayName(p.fullNameEn, p.fullNameAr, isAr ? 'ar' : 'en'),
     therapistName,
     language: p.languagePref,
     intakeUrl: useCombined && link ? intakeLinkUrl(link.token, p.languagePref) : undefined,
   });
+  const ctx = useButtons
+    ? {
+        ...baseCtx,
+        patientName: patientFirstName(p),
+        appointmentWhen: appointmentWhenText(
+          [{ id: appt.id, startsAt: appt.startsAt, durationMinutes: appt.durationMinutes }],
+          isAr ? 'ar' : 'en',
+        ),
+      }
+    : baseCtx;
   return {
     templateName,
     language: p.languagePref,
@@ -178,7 +200,7 @@ export async function confirmationAlreadySent(appointmentId: string): Promise<bo
       appointmentId,
       direction: 'OUTBOUND',
       status: { not: 'FAILED' },
-      template: { name: TEMPLATE_NAME },
+      template: { name: { in: [TEMPLATE_NAME, CONFIRMATION_BUTTONS_TEMPLATE] } },
     },
     select: { id: true },
   });

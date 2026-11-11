@@ -16,9 +16,17 @@ import type { HomeProgramItemRow } from '@/lib/clinical/home-program/queries';
 import type { ExerciseOption } from '@/lib/clinical/plans/exercises';
 import { exerciseDisplayName } from '@/lib/exercises/display-name';
 
+export interface PatientPhotoOption {
+  id: string;
+  fileName: string;
+}
+
 interface Props {
   patientId: string;
   exerciseOptions: ExerciseOption[];
+  /** P64 #15 — the patient's uploaded image documents, attachable as
+   *  "this patient doing the exercise" photos in the home-program PDF. */
+  patientPhotos?: PatientPhotoOption[];
   /** Edit mode when set. */
   initial?: HomeProgramItemRow;
   /** Called after a successful save so the parent can refresh. */
@@ -40,7 +48,13 @@ const DAYS: ReadonlyArray<{ value: number; labelEnShort: string; labelArShort: s
  * patient's home-program edit page. The day-of-week selector is a
  * row of toggleable chips — clearer than a multi-select.
  */
-export function HomeProgramItemForm({ patientId, exerciseOptions, initial, onDone }: Props) {
+export function HomeProgramItemForm({
+  patientId,
+  exerciseOptions,
+  patientPhotos = [],
+  initial,
+  onDone,
+}: Props) {
   const t = useTranslations('clinical.homeProgram');
   const tEx = useTranslations('clinical.exercises');
   const locale = useLocale();
@@ -53,6 +67,8 @@ export function HomeProgramItemForm({ patientId, exerciseOptions, initial, onDon
   const [durationMinutes, setDurationMinutes] = useState(initial?.durationMinutes ?? 15);
   const [setsReps, setSetsReps] = useState(initial?.setsReps ?? '');
   const [therapistNote, setTherapistNote] = useState(initial?.therapistNote ?? '');
+  const [goal, setGoal] = useState(initial?.goal ?? '');
+  const [photoIds, setPhotoIds] = useState<string[]>(initial?.photoDocumentIds ?? []);
 
   function toggleDay(d: number) {
     setDaysOfWeek((prev) =>
@@ -74,6 +90,8 @@ export function HomeProgramItemForm({ patientId, exerciseOptions, initial, onDon
         durationMinutes,
         setsReps: setsReps || null,
         therapistNote: therapistNote || null,
+        goal: goal || null,
+        photoDocumentIds: photoIds,
       };
       const r = initial
         ? await updateHomeProgramItemAction({ id: initial.id, active: initial.active, ...payload })
@@ -188,6 +206,48 @@ export function HomeProgramItemForm({ patientId, exerciseOptions, initial, onDon
           className="mt-1 block w-full rounded-md border border-brand-border bg-brand-surface p-2 text-sm"
         />
       </div>
+
+      <div>
+        <Label htmlFor="goal">{t('goal')}</Label>
+        <textarea
+          id="goal"
+          value={goal}
+          onChange={(e) => setGoal(e.target.value)}
+          rows={2}
+          placeholder={t('goalPlaceholder')}
+          className="mt-1 block w-full rounded-md border border-brand-border bg-brand-surface p-2 text-sm"
+        />
+      </div>
+
+      <fieldset className="space-y-1">
+        <legend className="text-sm font-medium">{t('patientPhotos')}</legend>
+        {patientPhotos.length === 0 ? (
+          <p className="text-xs text-brand-textMuted">{t('patientPhotosEmpty')}</p>
+        ) : (
+          <ul className="grid gap-1 sm:grid-cols-2">
+            {patientPhotos.map((p) => {
+              const on = photoIds.includes(p.id);
+              return (
+                <li key={p.id}>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      disabled={!on && photoIds.length >= 6}
+                      onChange={() =>
+                        setPhotoIds((prev) =>
+                          on ? prev.filter((x) => x !== p.id) : [...prev, p.id],
+                        )
+                      }
+                    />
+                    <span className="truncate">{p.fileName}</span>
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </fieldset>
 
       <div className="flex justify-end gap-2">
         {onDone ? (

@@ -11,7 +11,7 @@ const { enqueueMock, linkMock, approvedMock } = vi.hoisted(() => ({
   enqueueMock: vi.fn(async () => 'job-1'),
   // P52 — the unused-intake-link lookup that flips the template.
   linkMock: vi.fn(async () => null as { token: string } | null),
-  approvedMock: vi.fn(async () => true),
+  approvedMock: vi.fn(async (name: string) => !name.endsWith('_v4')),
 }));
 const calls = () => enqueueMock.mock.calls as unknown as Array<[Record<string, unknown>]>;
 vi.mock('@/lib/queue/jobs/whatsappOutbound', () => ({ enqueueWhatsappOutbound: enqueueMock }));
@@ -64,7 +64,7 @@ beforeEach(() => {
   linkMock.mockClear();
   linkMock.mockResolvedValue(null);
   approvedMock.mockClear();
-  approvedMock.mockResolvedValue(true);
+  approvedMock.mockImplementation(async (name: string) => !name.endsWith('_v4'));
   __state.appt = null;
 });
 
@@ -145,5 +145,28 @@ describe('P52 deploy — new-patient confirmation approval fallback', () => {
     expect(job.templateName).toBe('appointment_confirmation_v2');
     // No intake URL leaks into the standard template params.
     expect((job.parameters as string[]).some((p) => p.includes('/intake/link/'))).toBe(false);
+  });
+});
+
+describe('P64 #2 — confirm/decline button confirmation (v4)', () => {
+  it('v4 approved → appointment_confirmation_v4 with [first name, when-phrase]', async () => {
+    __state.appt = appt();
+    approvedMock.mockImplementation(async () => true);
+    linkMock.mockResolvedValue(null);
+    await sendAppointmentConfirmation({ appointmentId: 'appt-1' });
+    const [job] = calls()[0]!;
+    expect(job.templateName).toBe('appointment_confirmation_v4');
+    const params = job.parameters as string[];
+    expect(params).toHaveLength(2);
+    expect(params[0]).toBe('سارة');
+    expect(params[1]).toMatch(/^يوم \S+ \d+ \S+ الساعة /);
+  });
+
+  it('v4 approved but the combined new-patient template applies → combined wins', async () => {
+    __state.appt = appt();
+    approvedMock.mockImplementation(async () => true);
+    linkMock.mockResolvedValue({ token: 'tok_combinedwinsxxxxxxxxxxxxx' });
+    await sendAppointmentConfirmation({ appointmentId: 'appt-1' });
+    expect(calls()[0]![0].templateName).not.toBe('appointment_confirmation_v4');
   });
 });

@@ -5,6 +5,9 @@ import { headers } from 'next/headers';
 import { fail, ok, type Result } from '@/lib/auth/result';
 import { rateLimit } from '@/lib/auth/rate-limit';
 
+import { IntakeError } from '@/lib/intake/errors';
+import { prefixIntakeDetails } from '@/lib/intake-submissions/errors';
+
 import { IntakeLinkSubmitError, submitIntakeViaLink } from './submit';
 
 /**
@@ -35,6 +38,18 @@ const NEUTRAL = {
   message_ar: 'هذا الرابط لم يعد صالحاً — يرجى مراجعة الاستقبال.',
 } as const;
 
+/**
+ * P64 #9 — a payload problem is NOT a dead link. Telling a patient with a
+ * missing answer "this link is no longer valid" made them give up — the
+ * intake "never arrived". Validation failures now say what is wrong; only
+ * genuine link failures (unknown / used / mismatched token) stay neutral.
+ */
+const CHECK_ANSWERS = {
+  code: 'VALIDATION',
+  message_en: 'Some answers are missing or invalid — please check the form and try again.',
+  message_ar: 'بعض الإجابات ناقصة أو غير صحيحة — يرجى مراجعة النموذج والمحاولة مرة أخرى.',
+} as const;
+
 const RATE_LIMITED = {
   code: 'RATE_LIMITED',
   message_en: 'Too many attempts. Please wait a moment and try again.',
@@ -56,7 +71,13 @@ export async function submitIntakeViaLinkAction(input: unknown): Promise<Result<
     const data = await submitIntakeViaLink(input);
     return ok(data);
   } catch (err) {
-    // Never leak which failure occurred — one opaque message.
+    // Missing required answers — field-level details for the form.
+    if (err instanceof IntakeError) return fail(prefixIntakeDetails(err.error));
+    // A malformed payload is the patient's form, not the link (P64 #9).
+    if (err instanceof IntakeLinkSubmitError && err.code === 'VALIDATION') {
+      return fail(CHECK_ANSWERS);
+    }
+    // Never leak which link failure occurred — one opaque message.
     if (err instanceof IntakeLinkSubmitError) return fail(NEUTRAL);
     console.error('[intake-link] submit failed', err);
     return fail(NEUTRAL);

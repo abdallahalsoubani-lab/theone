@@ -1,16 +1,8 @@
 'use client';
 
-import {
-  Comorbidity,
-  PainSeverity,
-  PainStability,
-  PainTiming,
-  PhysicalActivityLevel,
-  ReferralSource,
-  SymptomDuration,
-} from '@prisma/client';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
+import { useMemo } from 'react';
 import type { FieldValues, UseFormReturn } from 'react-hook-form';
 
 import { AppForm } from '@/components/forms/AppForm';
@@ -19,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Link } from '@/i18n/navigation';
 import type { CustomQuestionRow } from '@/lib/admin/custom-questions/queries';
+import { withCustomAnswerRules } from '@/lib/intake/buildCustomQuestionSchema';
 import { createAdultIntakeAction } from '@/lib/intake/actions';
 import { adultIntakeSchema, type AdultIntakeInput } from '@/lib/intake/schemas';
 import { formatDate } from '@/lib/format/date';
@@ -49,30 +42,17 @@ export function AdultIntakeForm({
   const locale = useLocale();
   const intlLocale: 'en' | 'ar' = locale === 'ar' ? 'ar' : 'en';
 
-  const defaultValues: AdultIntakeInput = {
-    physicalActivityLevel: PhysicalActivityLevel.MODERATE,
-    medicalDiagnosis: '',
-    primaryComplaint: '',
-    painTiming: PainTiming.DAY,
-    symptomDuration: SymptomDuration.WEEKS_2_3,
-    painSeverity: PainSeverity.FIVE,
-    painAggravatingFactors: null,
-    painRelievingFactors: null,
-    painStability: PainStability.CONSTANT,
-    currentMedicationsForProblem: null,
-    otherMedications: null,
-    conditions: [Comorbidity.NONE],
-    otherConditions: null,
-    previousFractures: null,
-    previousSurgeries: null,
-    previousPtExperience: null,
-    referralSource: ReferralSource.FRIEND_FAMILY,
-    customAnswers: {},
-  };
+  // P64 #8 — only custom answers are collected now; the retired fixed
+  // fields stay unset (NOT pre-filled — hidden defaults would be saved).
+  const defaultValues: Partial<AdultIntakeInput> = { customAnswers: {} };
+  const schema = useMemo(
+    () => withCustomAnswerRules(adultIntakeSchema, customQuestions),
+    [customQuestions],
+  );
 
   return (
     <AppForm
-      schema={adultIntakeSchema}
+      schema={schema}
       defaultValues={defaultValues as never}
       action={(values) =>
         createAdultIntakeAction({

@@ -146,6 +146,8 @@ export const createSessionNote = withAudit<
           plan: input.plan ?? '',
           painScore: input.painScore,
           measurements: measurementsJson(input.measurements),
+          result: input.result?.trim() || null,
+          treatmentGiven: input.treatmentGiven?.trim() || null,
         },
         select: { id: true },
       });
@@ -198,6 +200,8 @@ export const updateSessionNote = withAudit<
         plan: input.plan ?? '',
         painScore: input.painScore,
         measurements: measurementsJson(input.measurements),
+        result: input.result?.trim() || null,
+        treatmentGiven: input.treatmentGiven?.trim() || null,
       },
     });
     return { noteId: note.id };
@@ -244,6 +248,8 @@ export const addSessionNoteAddendum = withAudit<
         plan: input.plan ?? '',
         painScore: input.painScore,
         measurements: measurementsJson(input.measurements),
+        result: input.result?.trim() || null,
+        treatmentGiven: input.treatmentGiven?.trim() || null,
       },
       select: { id: true },
     });

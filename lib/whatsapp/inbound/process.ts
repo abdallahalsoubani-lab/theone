@@ -2,6 +2,7 @@ import { AppointmentStatus, AuditAction } from '@prisma/client';
 import type { Prisma } from '@prisma/client';
 
 import { db } from '@/lib/db';
+import { BUTTON_CARRIER_TEMPLATES } from '@/lib/whatsapp/templates/buttonCarriers';
 import { enqueueInboundMediaFetch } from '@/lib/queue/jobs/whatsappMedia';
 import { baseContentType } from '@/lib/whatsapp/media/policy';
 import { queueRedis } from '@/lib/queue/client';
@@ -134,7 +135,8 @@ async function resolveReplyTargets(args: { fromPhone: string }): Promise<ReplyTa
     where: {
       direction: 'OUTBOUND',
       appointmentId: { in: actionable.map((a) => a.id) },
-      template: { name: 'appointment_reminder_v2' },
+      // P64 — the v4 button reminder/confirmation carry the same buttons.
+      template: { name: { in: BUTTON_CARRIER_TEMPLATES } },
     },
     select: { appointmentId: true },
   });

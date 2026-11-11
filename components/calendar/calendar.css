@@ -320,6 +320,53 @@
   z-index: 15;
 }
 
+/* ── Phones (P64 #12) ─────────────────────────────────────────────── */
+/*
+ * «تصغير مربعات المواعيد على الهاتف»: on a phone the desktop chip (13px name,
+ * roomy padding, 110px lanes) left two lanes per screen and clipped names in
+ * 30-minute chips. Below the `sm` breakpoint: tighter chip padding, smaller
+ * name/note, no swatch dot (the chip tint already carries the clinician),
+ * narrower lanes + headers, smaller hour labels. Hover lift is pointless on
+ * touch, so it is dropped too.
+ */
+@media (max-width: 640px) {
+  .rbc-event {
+    padding: 0.15rem 0.3rem;
+    border-radius: 0.375rem;
+    font-size: 0.6875rem;
+    line-height: 1.15;
+  }
+  .rbc-event:hover {
+    transform: none;
+  }
+  .rbc-event .cal-chip-name {
+    font-size: 11px;
+    line-height: 1.15;
+  }
+  .rbc-event .cal-chip-note {
+    font-size: 10px;
+    padding-inline-start: 0;
+  }
+  .rbc-event .cal-chip-dot {
+    display: none;
+  }
+  .rbc-header {
+    padding: 0.45rem 0.3rem;
+    font-size: 0.75rem;
+  }
+  .rbc-time-view-resources .rbc-day-slot {
+    min-width: 84px;
+  }
+  .rbc-time-view-resources .rbc-header,
+  .rbc-time-view-resources .rbc-day-bg {
+    width: 84px;
+  }
+  .rbc-time-gutter .rbc-label {
+    padding: 0 0.25rem;
+    font-size: 0.6875rem;
+  }
+}
+
 /* ── RTL ──────────────────────────────────────────────────────────── */
 /*
  * react-big-calendar has NO real RTL support. It lays the time views out with

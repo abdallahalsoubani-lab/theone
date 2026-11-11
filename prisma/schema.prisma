@@ -130,6 +130,10 @@ enum NotificationType {
   // ADMIN; links to the reception-requests queue. One per submission: each is
   // a different person waiting, so these are never deduped.
   INTAKE_SUBMISSION_RECEIVED
+  // P64 #9 — a patient completed their PERSONAL intake link (saved straight
+  // to the file, no review). Targets SECRETARY + ADMIN + the care team.
+  INTAKE_LINK_COMPLETED
+  PLAN_INITIAL_PROPOSED
 }
 
 enum LeaveType {
@@ -364,14 +368,14 @@ enum HomeProgramStatus {
 // ═════════════════════════════════════════════════════════════════════════════
 
 model User {
-  id    String  @id @default(cuid())
-  email String?
+  id           String       @id @default(cuid())
+  email        String?
   // Optional since Prompt 50: imported real-clinic patients may have no
   // (working) phone. Uniqueness is a partial index scoped to NON-patient
   // roles (see migration 20260726*) — parents legitimately share one number
   // across children. Staff/admin keep app-level required + unique.
-  phone String?
-  role  UserRole
+  phone        String?
+  role         UserRole
   fullNameEn   String
   fullNameAr   String
   languagePref LanguagePref @default(EN)
@@ -402,55 +406,60 @@ model User {
   // Relations as actor across the domain. Names are explicit because several
   // tables reference User multiple times (e.g. Appointment has patientId, therapistId,
   // createdById) and Prisma needs disambiguation.
-  appointmentsAsPatient    Appointment[]          @relation("AppointmentPatient")
-  waConversations          WhatsAppConversation[] @relation("PatientWaConversations")
-  waMessagesSent           WhatsAppMessage[]      @relation("WaMessageSender")
-  groupAppointments        AppointmentPatient[]   @relation("AppointmentGroupPatient")
-  appointmentTherapists    AppointmentTherapist[] @relation("AppointmentTherapistTherapist")
-  appointmentsCreatedBy    Appointment[]          @relation("AppointmentCreatedBy")
-  treatmentPlansAsPatient  TreatmentPlan[]        @relation("PlanPatient")
-  treatmentPlansAsDoctor   TreatmentPlan[]        @relation("PlanDoctor")
-  treatmentPlansAsAssigned TreatmentPlan[]        @relation("PlanAssignedTherapist")
-  sessionNotesAsPatient    SessionNote[]          @relation("NotePatient")
-  sessionNotesAsTherapist  SessionNote[]          @relation("NoteTherapist")
-  homeProgramItems         HomeProgramItem[]      @relation("HomeProgramPatient")
-  homeProgramApproval      HomeProgramApproval?   @relation("HomeProgramApprovalPatient")
-  homeProgramSubmissions   HomeProgramApproval[]  @relation("HomeProgramSubmittedBy")
-  homeProgramReviews       HomeProgramApproval[]  @relation("HomeProgramReviewedBy")
-  exercisesCreated         Exercise[]             @relation("ExerciseCreatedBy")
-  leaves                   Leave[]                @relation("LeaveUser")
-  leavesApproved           Leave[]                @relation("LeaveApprovedBy")
-  careTeamMemberships      CareTeamMember[]       @relation("CareTeamClinician")
-  appointmentsCancelled    Appointment[]          @relation("AppointmentCancelledBy")
-  whatsappMessages         WhatsAppMessage[]      @relation("WhatsAppRecipient")
-  inboxItems               InboxItem[]            @relation("InboxItemPatient")
-  inboxItemsResolved       InboxItem[]            @relation("InboxItemResolvedBy")
-  auditLogs                AuditLog[]             @relation("AuditActor")
-  auditLogsAsImpersonated  AuditLog[]             @relation("AuditImpersonated")
-  intakesAsPatient         IntakeAssessment[]     @relation("IntakePatient")
-  intakesAsAssessor        IntakeAssessment[]     @relation("IntakeAssessor")
-  intakeLinksAsPatient     PatientIntakeLink[]    @relation("IntakeLinkPatient")
-  intakeLinksCreated       PatientIntakeLink[]    @relation("IntakeLinkCreatedBy")
-  intakesAsReviewer        IntakeAssessment[]     @relation("IntakeReviewer")
-  customQuestionsCreated   IntakeCustomQuestion[] @relation("CustomQuestionCreatedBy")
-  clinicSettingsUpdates    ClinicSettings[]       @relation("ClinicSettingsUpdatedBy")
-  notifications            Notification[]         @relation("UserNotifications")
-  treatmentPlansApproved   TreatmentPlan[]        @relation("PlanApprovals")
-  dayReports               DayReport[]            @relation("TherapistDayReports")
-  doctorReviewsAsDoctor    DoctorReview[]         @relation("DoctorReviews")
-  doctorReviewsAsPatient   DoctorReview[]         @relation("PatientDoctorReviews")
-  waitlistEntriesAsPatient WaitlistEntry[]        @relation("WaitlistPatient")
-  waitlistEntriesPreferred WaitlistEntry[]        @relation("WaitlistPreferredTherapist")
-  waitlistEntriesCreated   WaitlistEntry[]        @relation("WaitlistCreatedBy")
-  waitlistEntriesFulfilled WaitlistEntry[]        @relation("WaitlistFulfilledBy")
-  pedAssessmentsAsPatient  PediatricAssessment[]  @relation("PedAssessmentPatient")
-  pedAssessmentsCreated    PediatricAssessment[]  @relation("PedAssessmentCreatedBy")
-  pedAssessmentsUpdated    PediatricAssessment[]  @relation("PedAssessmentUpdatedBy")
-  pedCustomFieldsCreated   PediatricCustomField[] @relation("PedCustomFieldCreatedBy")
-  patientDocumentsAsPatient  PatientDocument[]    @relation("PatientDocumentPatient")
-  patientDocumentsUploaded   PatientDocument[]    @relation("PatientDocumentUploadedBy")
-  intakeSubmissionsReviewed  IntakeSubmission[]   @relation("IntakeSubmissionReviewedBy")
-  intakeSubmissionsLinked    IntakeSubmission[]   @relation("IntakeSubmissionLinkedPatient")
+  appointmentsAsPatient     Appointment[]          @relation("AppointmentPatient")
+  waConversations           WhatsAppConversation[] @relation("PatientWaConversations")
+  waMessagesSent            WhatsAppMessage[]      @relation("WaMessageSender")
+  groupAppointments         AppointmentPatient[]   @relation("AppointmentGroupPatient")
+  appointmentTherapists     AppointmentTherapist[] @relation("AppointmentTherapistTherapist")
+  appointmentsCreatedBy     Appointment[]          @relation("AppointmentCreatedBy")
+  treatmentPlansAsPatient   TreatmentPlan[]        @relation("PlanPatient")
+  treatmentPlansAsDoctor    TreatmentPlan[]        @relation("PlanDoctor")
+  treatmentPlansAsAssigned  TreatmentPlan[]        @relation("PlanAssignedTherapist")
+  sessionNotesAsPatient     SessionNote[]          @relation("NotePatient")
+  sessionNotesAsTherapist   SessionNote[]          @relation("NoteTherapist")
+  monthlyReportsAsPatient   MonthlyReport[]        @relation("MonthlyReportPatient")
+  monthlyReportsAuthored    MonthlyReport[]        @relation("MonthlyReportAuthor")
+  homeProgramItems          HomeProgramItem[]      @relation("HomeProgramPatient")
+  homeProgramCover          HomeProgramCover?      @relation("HomeProgramCoverPatient")
+  homeProgramApproval       HomeProgramApproval?   @relation("HomeProgramApprovalPatient")
+  homeProgramSubmissions    HomeProgramApproval[]  @relation("HomeProgramSubmittedBy")
+  homeProgramReviews        HomeProgramApproval[]  @relation("HomeProgramReviewedBy")
+  exercisesCreated          Exercise[]             @relation("ExerciseCreatedBy")
+  leaves                    Leave[]                @relation("LeaveUser")
+  leavesApproved            Leave[]                @relation("LeaveApprovedBy")
+  careTeamMemberships       CareTeamMember[]       @relation("CareTeamClinician")
+  scheduleGrantsAsViewer    ScheduleViewGrant[]    @relation("ScheduleGrantViewer")
+  scheduleGrantsAsOwner     ScheduleViewGrant[]    @relation("ScheduleGrantOwner")
+  appointmentsCancelled     Appointment[]          @relation("AppointmentCancelledBy")
+  whatsappMessages          WhatsAppMessage[]      @relation("WhatsAppRecipient")
+  inboxItems                InboxItem[]            @relation("InboxItemPatient")
+  inboxItemsResolved        InboxItem[]            @relation("InboxItemResolvedBy")
+  auditLogs                 AuditLog[]             @relation("AuditActor")
+  auditLogsAsImpersonated   AuditLog[]             @relation("AuditImpersonated")
+  intakesAsPatient          IntakeAssessment[]     @relation("IntakePatient")
+  intakesAsAssessor         IntakeAssessment[]     @relation("IntakeAssessor")
+  intakeLinksAsPatient      PatientIntakeLink[]    @relation("IntakeLinkPatient")
+  intakeLinksCreated        PatientIntakeLink[]    @relation("IntakeLinkCreatedBy")
+  intakesAsReviewer         IntakeAssessment[]     @relation("IntakeReviewer")
+  customQuestionsCreated    IntakeCustomQuestion[] @relation("CustomQuestionCreatedBy")
+  clinicSettingsUpdates     ClinicSettings[]       @relation("ClinicSettingsUpdatedBy")
+  notifications             Notification[]         @relation("UserNotifications")
+  treatmentPlansApproved    TreatmentPlan[]        @relation("PlanApprovals")
+  dayReports                DayReport[]            @relation("TherapistDayReports")
+  doctorReviewsAsDoctor     DoctorReview[]         @relation("DoctorReviews")
+  doctorReviewsAsPatient    DoctorReview[]         @relation("PatientDoctorReviews")
+  waitlistEntriesAsPatient  WaitlistEntry[]        @relation("WaitlistPatient")
+  waitlistEntriesPreferred  WaitlistEntry[]        @relation("WaitlistPreferredTherapist")
+  waitlistEntriesCreated    WaitlistEntry[]        @relation("WaitlistCreatedBy")
+  waitlistEntriesFulfilled  WaitlistEntry[]        @relation("WaitlistFulfilledBy")
+  pedAssessmentsAsPatient   PediatricAssessment[]  @relation("PedAssessmentPatient")
+  pedAssessmentsCreated     PediatricAssessment[]  @relation("PedAssessmentCreatedBy")
+  pedAssessmentsUpdated     PediatricAssessment[]  @relation("PedAssessmentUpdatedBy")
+  pedCustomFieldsCreated    PediatricCustomField[] @relation("PedCustomFieldCreatedBy")
+  patientDocumentsAsPatient PatientDocument[]      @relation("PatientDocumentPatient")
+  patientDocumentsUploaded  PatientDocument[]      @relation("PatientDocumentUploadedBy")
+  intakeSubmissionsReviewed IntakeSubmission[]     @relation("IntakeSubmissionReviewedBy")
+  intakeSubmissionsLinked   IntakeSubmission[]     @relation("IntakeSubmissionLinkedPatient")
 
   // Note: real `phone` and `email` uniqueness scoped to non-deleted rows is enforced
   // by partial unique indexes in the init migration (Prisma can't express them).
@@ -503,11 +512,9 @@ enum CareTeamRole {
  * Care-team membership (Prompt 14). One row per (patient, clinician). A
  * patient may have many therapists and many doctors simultaneously; every
  * member sees the patient exactly as a single assigned clinician did before.
- *
  * `role` is denormalized from the clinician's User.role for index-only
  * filtering ("count my patients as a therapist") — it must always match the
  * referenced user's actual role; the assignment helpers enforce that.
- *
  * This governs patient visibility / responsibility only. The treatment-plan →
  * doctor and appointment → therapist links are separate concerns and are not
  * derived from this table.
@@ -526,6 +533,23 @@ model CareTeamMember {
   @@unique([patientId, clinicianId])
   @@index([clinicianId, role])
   @@index([patientId])
+}
+
+/// P64 #4 — read-only access to a colleague's calendar. One row = the viewer
+/// therapist may SEE the owner clinician's schedule (never edit). Granted and
+/// revoked per pair by Admin / Secretary; a pair is directional.
+model ScheduleViewGrant {
+  id          String   @id @default(cuid())
+  viewerId    String
+  ownerId     String
+  createdById String
+  createdAt   DateTime @default(now())
+
+  viewer User @relation("ScheduleGrantViewer", fields: [viewerId], references: [id], onDelete: Cascade)
+  owner  User @relation("ScheduleGrantOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@unique([viewerId, ownerId])
+  @@index([ownerId])
 }
 
 model Specialty {
@@ -553,13 +577,13 @@ model UserSpecialty {
 }
 
 model Room {
-  id     String  @id @default(cuid())
-  name   String
-  active Boolean @default(true)
+  id       String  @id @default(cuid())
+  name     String
+  active   Boolean @default(true)
   // Simultaneous-STRETCHING capacity (July #8): a room with 4 beds allows 4
   // concurrent stretching appointments in the same time window. Default 1 is
   // safe; the clinic sets real bed counts per stretching room in Admin.
-  bedCount Int @default(1)
+  bedCount Int     @default(1)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -614,11 +638,11 @@ model Appointment {
   // (cancel series, reschedule series) join on this column.
   seriesId             String?
 
-  patient      User?         @relation("AppointmentPatient", fields: [patientId], references: [id], onDelete: Restrict)
+  patient      User?                  @relation("AppointmentPatient", fields: [patientId], references: [id], onDelete: Restrict)
   therapists   AppointmentTherapist[] @relation("AppointmentTherapists")
-  room         Room?         @relation(fields: [roomId], references: [id], onDelete: Restrict)
-  createdBy    User          @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  cancelledBy  User?         @relation("AppointmentCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
+  room         Room?                  @relation(fields: [roomId], references: [id], onDelete: Restrict)
+  createdBy    User                   @relation("AppointmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  cancelledBy  User?                  @relation("AppointmentCancelledBy", fields: [cancelledById], references: [id], onDelete: SetNull)
   // Primary session note + 0..N addenda (Prompt 9 §4.7.3). The partial
   // unique index on SessionNote.appointmentId enforces "at most one
   // primary note per appointment"; addenda share the appointmentId via
@@ -631,12 +655,12 @@ model Appointment {
   // mechanism a given appointment uses.
   groupPatients AppointmentPatient[] @relation("AppointmentGroupPatients")
 
-  whatsappMessages WhatsAppMessage[]
-  inboxItems       InboxItem[]
-  intakeLinks      PatientIntakeLink[]
+  whatsappMessages    WhatsAppMessage[]
+  inboxItems          InboxItem[]
+  intakeLinks         PatientIntakeLink[]
   // Prompt 19 — the booking-waitlist entry (if any) this appointment fulfilled.
   // Optional 1:1; set when a waitlisted patient was placed into a freed slot.
-  waitlistFulfillment WaitlistEntry? @relation("WaitlistFulfilledAppointment")
+  waitlistFulfillment WaitlistEntry?      @relation("WaitlistFulfilledAppointment")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -691,10 +715,10 @@ model AppointmentPatient {
 
 /**
  * Booking waitlist status (Prompt 19).
- *   WAITING   — active; eligible to be matched when a slot frees.
- *   FULFILLED — placed into a freed slot (links the created appointment).
- *   EXPIRED   — the desired date passed without placement (lazy-flipped on read).
- *   REMOVED   — manually removed by staff.
+ * WAITING   — active; eligible to be matched when a slot frees.
+ * FULFILLED — placed into a freed slot (links the created appointment).
+ * EXPIRED   — the desired date passed without placement (lazy-flipped on read).
+ * REMOVED   — manually removed by staff.
  */
 enum WaitlistStatus {
   WAITING
@@ -709,18 +733,17 @@ enum WaitlistStatus {
  * patient here; when the slot frees (cancel / no-show) the matcher notifies
  * SECRETARY + ADMIN for one-click placement. The system suggests — never
  * auto-books.
- *
  * The desired window is an explicit [windowStart, windowEnd) UTC range (a
  * freed slot matches when its start falls inside it). `desiredDate` is the
  * clinic-local day (UTC midnight) the window sits in, kept for the (date,
  * status) index + management-page grouping.
  */
 model WaitlistEntry {
-  id          String         @id @default(cuid())
-  patientId   String
-  desiredDate DateTime
-  windowStart DateTime
-  windowEnd   DateTime
+  id                   String         @id @default(cuid())
+  patientId            String
+  desiredDate          DateTime
+  windowStart          DateTime
+  windowEnd            DateTime
   // Optional therapist preference. When set, only a freed slot with this
   // therapist matches; when null, any therapist's freed slot matches.
   preferredTherapistId String?
@@ -732,10 +755,10 @@ model WaitlistEntry {
   fulfilledAt            DateTime?
   fulfilledAppointmentId String?   @unique
 
-  patient             User         @relation("WaitlistPatient", fields: [patientId], references: [id], onDelete: Restrict)
-  preferredTherapist  User?        @relation("WaitlistPreferredTherapist", fields: [preferredTherapistId], references: [id], onDelete: SetNull)
-  createdBy           User         @relation("WaitlistCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
-  fulfilledBy         User?        @relation("WaitlistFulfilledBy", fields: [fulfilledById], references: [id], onDelete: SetNull)
+  patient              User         @relation("WaitlistPatient", fields: [patientId], references: [id], onDelete: Restrict)
+  preferredTherapist   User?        @relation("WaitlistPreferredTherapist", fields: [preferredTherapistId], references: [id], onDelete: SetNull)
+  createdBy            User         @relation("WaitlistCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  fulfilledBy          User?        @relation("WaitlistFulfilledBy", fields: [fulfilledById], references: [id], onDelete: SetNull)
   fulfilledAppointment Appointment? @relation("WaitlistFulfilledAppointment", fields: [fulfilledAppointmentId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
@@ -812,7 +835,7 @@ model PlanExercise {
 }
 
 model Exercise {
-  id                   String  @id @default(cuid())
+  id                   String   @id @default(cuid())
   nameEn               String
   nameAr               String
   descriptionEn        String
@@ -830,7 +853,13 @@ model Exercise {
   imageUrl             String?
   imageMimeType        String?
   imageSizeBytes       Int?
-  version              Int     @default(1)
+  // P64 #15 — home-program PDF: more library images beyond `imageUrl`, and
+  // the default goal shown under each exercise (overridable per patient on
+  // HomeProgramItem.goal).
+  extraImageUrls       String[] @default([])
+  goalEn               String?
+  goalAr               String?
+  version              Int      @default(1)
   createdById          String
 
   // Version chain (Prompt 10 §4.3.4). Editing creates a new row; the old
@@ -857,23 +886,27 @@ model Exercise {
 }
 
 model SessionNote {
-  id            String  @id @default(cuid())
+  id             String  @id @default(cuid())
   // appointmentId is unique for *primary* notes only — addenda share the
   // appointment with their parent. Enforced by a partial unique index in
   // the Prompt 9 migration: UNIQUE (appointmentId) WHERE parentNoteId IS NULL.
-  appointmentId String
-  patientId     String
-  therapistId   String
-  subjective    String
-  objective     String
-  assessment    String
-  plan          String
-  painScore     Int?
-  measurements  Json?
+  appointmentId  String
+  patientId      String
+  therapistId    String
+  subjective     String
+  objective      String
+  assessment     String
+  plan           String
+  painScore      Int?
+  measurements   Json?
+  // P64 #11 — the per-session RESULT. New notes carry these instead of SOAP
+  // (SOAP moved to the monthly report); old notes keep their SOAP text.
+  result         String?
+  treatmentGiven String?
   // Addendum chain (Prompt 9 §4.7.3). When non-null, this row is an
   // amendment that points at its parent primary note. The 24-hour
   // immutability rule applies to the row itself, not the chain.
-  parentNoteId  String?
+  parentNoteId   String?
 
   appointment Appointment   @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
   patient     User          @relation("NotePatient", fields: [patientId], references: [id], onDelete: Restrict)
@@ -890,28 +923,54 @@ model SessionNote {
   @@index([parentNoteId])
 }
 
+/// P64 #11 — the monthly SOAP report: one per patient per clinic month,
+/// written by the patient's therapist or a doctor. `month` = 'YYYY-MM'.
+model MonthlyReport {
+  id         String   @id @default(cuid())
+  patientId  String
+  authorId   String
+  month      String
+  subjective String   @default("")
+  objective  String   @default("")
+  assessment String   @default("")
+  plan       String   @default("")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  patient User @relation("MonthlyReportPatient", fields: [patientId], references: [id], onDelete: Restrict)
+  author  User @relation("MonthlyReportAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@unique([patientId, month])
+  @@index([authorId])
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 //  Home program
 // ═════════════════════════════════════════════════════════════════════════════
 
 model HomeProgramItem {
-  id              String  @id @default(cuid())
-  patientId       String
-  exerciseId      String
+  id               String   @id @default(cuid())
+  patientId        String
+  exerciseId       String
   // Days the exercise is scheduled. 0 = Sunday, 6 = Saturday. The
   // home_program_items_days_of_week_check constraint in the Prompt 10
   // migration enforces length 1-7, values 0-6, and uniqueness.
-  daysOfWeek      Int[]
+  daysOfWeek       Int[]
   // Time-of-day as "HH:MM" — see file header note. Recurring local-time concept.
-  scheduledTime   String
-  durationMinutes Int
-  setsReps        String?
-  therapistNote   String?
-  active          Boolean @default(true)
+  scheduledTime    String
+  durationMinutes  Int
+  setsReps         String?
+  therapistNote    String?
+  // P64 #15 — per-patient overrides for the home-program PDF: the goal (else
+  // the exercise default) and photos of THIS patient doing the exercise
+  // (PatientDocument ids — images the team uploaded to the patient's file).
+  goal             String?
+  photoDocumentIds String[] @default([])
+  active           Boolean  @default(true)
   // BullMQ repeat-job key returned by Queue.add(). Stored here so the
   // update / delete paths can call removeRepeatableByKey() without
   // re-deriving the cron pattern.
-  reminderJobKey  String?
+  reminderJobKey   String?
 
   patient     User                    @relation("HomeProgramPatient", fields: [patientId], references: [id], onDelete: Restrict)
   exercise    Exercise                @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
@@ -922,6 +981,19 @@ model HomeProgramItem {
 
   @@index([patientId, active])
   @@index([exerciseId])
+}
+
+/// P64 #15 — the home-program PDF cover, written by the therapist per
+/// patient: what the program helps with (one goal per line) + a note for
+/// the parents / patient.
+model HomeProgramCover {
+  patientId   String   @id
+  goals       String   @default("")
+  parentNotes String   @default("")
+  updatedById String
+  updatedAt   DateTime @updatedAt
+
+  patient User @relation("HomeProgramCoverPatient", fields: [patientId], references: [id], onDelete: Cascade)
 }
 
 model HomeProgramCompletion {
@@ -945,7 +1017,6 @@ model HomeProgramCompletion {
  * program. The live HomeProgramItem rows are the working draft the clinicians
  * edit; `approvedSnapshot` is the frozen approved content the patient keeps
  * seeing while a therapist's revision is PENDING_APPROVAL.
- *
  * `remindersEnabled` is a delivery preference (not clinical content) — toggling
  * it is audited but does NOT change the approval status. Reminders fire only
  * when status = APPROVED AND remindersEnabled = true.
@@ -955,10 +1026,10 @@ model HomeProgramApproval {
   status           HomeProgramStatus @default(DRAFT)
   remindersEnabled Boolean           @default(true)
 
-  submittedById String?
-  submittedAt   DateTime?
-  reviewedById  String?
-  reviewedAt    DateTime?
+  submittedById  String?
+  submittedAt    DateTime?
+  reviewedById   String?
+  reviewedAt     DateTime?
   changesComment String?
 
   // Denormalized HomeProgramItemRow[] of the last approved content.
@@ -1033,8 +1104,8 @@ model WhatsAppTemplate {
 
   // Twilio Content API metadata. ContentSids look like `HXxxxx…` and are
   // opaque; we record them here and use them at send-time.
-  twilioContentSid String?
-  twilioApproved   Boolean @default(false)
+  twilioContentSid        String?
+  twilioApproved          Boolean   @default(false)
   // P52/P53 deploy — when the live WhatsApp approval status was last synced
   // for this row (the daily approval-sync job / the apply scripts). Surfaced
   // in the Admin templates page so staff can see approved-vs-pending without
@@ -1056,19 +1127,31 @@ model WhatsAppTemplate {
 // 1h auto-reply suppression stamp.
 model WhatsAppConversation {
   id        String  @id @default(cuid())
-  /** Normalized phone (+962…) — the thread key. */
+  /**
+   * Normalized phone (+962…) — the thread key.
+   */
   phone     String  @unique
-  /** Linked patient; null = the "Unknown numbers" section. */
+  /**
+   * Linked patient; null = the "Unknown numbers" section.
+   */
   patientId String?
   patient   User?   @relation("PatientWaConversations", fields: [patientId], references: [id], onDelete: SetNull)
 
-  /** SHARED read marker: any secretary/admin opening the thread sets it. */
+  /**
+   * SHARED read marker: any secretary/admin opening the thread sets it.
+   */
   lastReadAt       DateTime?
-  /** Last INBOUND message — the Meta 24h session-window anchor + unread calc. */
+  /**
+   * Last INBOUND message — the Meta 24h session-window anchor + unread calc.
+   */
   lastInboundAt    DateTime?
-  /** Last message either direction — list ordering. */
+  /**
+   * Last message either direction — list ordering.
+   */
   lastMessageAt    DateTime
-  /** Last MANUAL (human) outbound — suppresses intent acks for 1h. */
+  /**
+   * Last MANUAL (human) outbound — suppresses intent acks for 1h.
+   */
   lastHumanReplyAt DateTime?
 
   createdAt DateTime @default(now())
@@ -1080,15 +1163,19 @@ model WhatsAppConversation {
 model WhatsAppMessage {
   id                String             @id @default(cuid())
   templateId        String?
-  /** Prompt 49 — the staff member who manually sent this outbound from the
-   *  Inbox (null for system/queue sends). */
+  /**
+   * Prompt 49 — the staff member who manually sent this outbound from the
+   * Inbox (null for system/queue sends).
+   */
   sentById          String?
   sentBy            User?              @relation("WaMessageSender", fields: [sentById], references: [id], onDelete: SetNull)
   recipientId       String?
   recipientPhone    String
   parameters        Json               @default("{}")
   direction         WaMessageDirection
-  /** P60 — origin of an outbound row (QUEUE for every automatic path). */
+  /**
+   * P60 — origin of an outbound row (QUEUE for every automatic path).
+   */
   source            WaMessageSource    @default(QUEUE)
   status            WaMessageStatus    @default(QUEUED)
   // Provider-side message identifier (Twilio SID `SM…` / `MM…` or Meta
@@ -1117,8 +1204,8 @@ model WhatsAppMessage {
   recipient   User?             @relation("WhatsAppRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
   appointment Appointment?      @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
-  inboxItems  InboxItem[]          @relation("InboxItemMessage")
-  attachments WhatsAppAttachment[]
+  inboxItems          InboxItem[]          @relation("InboxItemMessage")
+  attachments         WhatsAppAttachment[]
   // P57 — broadcast recipients whose send produced this message row. The
   // campaign semantics live entirely on BroadcastRecipient; this is only
   // the back side of its delivery-status link.
@@ -1211,30 +1298,30 @@ model WhatsAppAttachment {
 // send, can be superseded or excluded, and must never pollute those
 // surfaces. The two link up at send time via appointmentId + template.
 model WhatsAppDispatch {
-  id             String            @id @default(cuid())
-  type           WaDispatchType
-  status         WaDispatchStatus  @default(PENDING)
+  id                String            @id @default(cuid())
+  type              WaDispatchType
+  status            WaDispatchStatus  @default(PENDING)
   // Why it (was) sent — null while PENDING in MANUAL mode.
-  dispatchReason WaDispatchReason?
+  dispatchReason    WaDispatchReason?
   // Nullable since P51: HOME_PROGRAM holds are patient-bound, not
   // appointment-bound. Every other class still sets it.
-  appointmentId String?
-  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  appointmentId     String?
+  appointment       Appointment?      @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
   // P51 — HOME_PROGRAM holds only: the item to re-validate + send. Loose id
   // (no relation): a deleted item simply fails the re-read at send time.
   homeProgramItemId String?
-  patientId      String?
-  patient        User?             @relation("WaDispatchPatient", fields: [patientId], references: [id], onDelete: SetNull)
+  patientId         String?
+  patient           User?             @relation("WaDispatchPatient", fields: [patientId], references: [id], onDelete: SetNull)
   // Last-state-wins: the newer entry that replaced this one (null for the
   // silent booking+cancel close-out — nothing replaced it, nothing sent).
-  supersededById String?
-  sentAt         DateTime?
+  supersededById    String?
+  sentAt            DateTime?
   // Admin who pressed Send (manual batches only).
-  sentById       String?
-  sentBy         User?             @relation("WaDispatchSender", fields: [sentById], references: [id], onDelete: SetNull)
-  failureReason  String?
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+  sentById          String?
+  sentBy            User?             @relation("WaDispatchSender", fields: [sentById], references: [id], onDelete: SetNull)
+  failureReason     String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
   @@index([type, status])
   @@index([appointmentId, status])
@@ -1431,15 +1518,20 @@ model AdultIntakeData {
   intakeId String           @id
   intake   IntakeAssessment @relation(fields: [intakeId], references: [id], onDelete: Cascade)
 
-  physicalActivityLevel        PhysicalActivityLevel
+  // P64 #8 — the fixed Google-Form fields are no longer asked on new intakes
+  // (the clinic manages its questions as admin custom questions, which had
+  // duplicated them). Nullable so new rows omit them; historical rows keep
+  // their values and still render.
+
+  physicalActivityLevel        PhysicalActivityLevel?
   medicalDiagnosis             String?
-  primaryComplaint             String
-  painTiming                   PainTiming
-  symptomDuration              SymptomDuration
-  painSeverity                 PainSeverity
+  primaryComplaint             String?
+  painTiming                   PainTiming?
+  symptomDuration              SymptomDuration?
+  painSeverity                 PainSeverity?
   painAggravatingFactors       String?
   painRelievingFactors         String?
-  painStability                PainStability
+  painStability                PainStability?
   currentMedicationsForProblem String?
   otherMedications             String?
   conditions                   Comorbidity[]
@@ -1447,7 +1539,7 @@ model AdultIntakeData {
   previousFractures            String?
   previousSurgeries            String?
   previousPtExperience         String?
-  referralSource               ReferralSource
+  referralSource               ReferralSource?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1457,8 +1549,9 @@ model PediatricIntakeData {
   intakeId String           @id
   intake   IntakeAssessment @relation(fields: [intakeId], references: [id], onDelete: Cascade)
 
-  numberOfSiblings Int
-  birthOrder       Int
+  // P64 #8 — no longer asked on new intakes (see AdultIntakeData).
+  numberOfSiblings Int?
+  birthOrder       Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1470,14 +1563,14 @@ model PediatricIntakeData {
 /// moment usedAt is set. A patient may hold several over time — only unused
 /// ones are valid.
 model PatientIntakeLink {
-  id            String    @id @default(cuid())
+  id            String     @id @default(cuid())
   patientId     String
-  token         String    @unique
+  token         String     @unique
   formType      IntakeType
   createdById   String
   appointmentId String?
   usedAt        DateTime?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime   @default(now())
 
   patient     User         @relation("IntakeLinkPatient", fields: [patientId], references: [id], onDelete: Cascade)
   createdBy   User         @relation("IntakeLinkCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
@@ -1533,7 +1626,6 @@ model IntakeCustomAnswer {
  * A patient-filled public intake submission awaiting secretary review
  * (Prompt 23). The public form is unauthenticated and WRITE-only: it can only
  * create a PENDING row here — never read patient data or create a patient.
- *
  * `answers` holds the validated intake input (the same shape the secretary
  * form produces — adult/pediatric fixed fields + customAnswers). `profile`
  * holds the identifying fields needed to create the patient on approval
@@ -1587,12 +1679,12 @@ enum PediatricCustomFieldType {
  * THERAPIST reads. Every create/edit is audited.
  */
 model PediatricAssessment {
-  id          String   @id @default(cuid())
+  id          String  @id @default(cuid())
   patientId   String
   createdById String
   updatedById String?
   coreData    Json
-  customData  Json     @default("{}")
+  customData  Json    @default("{}")
 
   patient   User  @relation("PedAssessmentPatient", fields: [patientId], references: [id], onDelete: Restrict)
   createdBy User  @relation("PedAssessmentCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
@@ -1620,7 +1712,7 @@ model PediatricCustomField {
   options     Json?
   section     String?
   order       Int                      @default(0)
-  active       Boolean                 @default(true)
+  active      Boolean                  @default(true)
   createdById String
 
   createdBy User @relation("PedCustomFieldCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
@@ -1668,11 +1760,11 @@ model PatientDocument {
   storageKey   String           @unique
   mimeType     String
   sizeBytes    Int
-  category     DocumentCategory  @default(OTHER)
-  status       DocumentStatus    @default(PENDING)
+  category     DocumentCategory @default(OTHER)
+  status       DocumentStatus   @default(PENDING)
   note         String?
   uploadedById String
-  active       Boolean           @default(true)
+  active       Boolean          @default(true)
 
   patient    User @relation("PatientDocumentPatient", fields: [patientId], references: [id], onDelete: Restrict)
   uploadedBy User @relation("PatientDocumentUploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict)
@@ -1699,7 +1791,7 @@ model ClinicSettings {
   addressAr String
   timezone  String @default("Asia/Amman")
 
-  defaultAppointmentDuration   Int @default(30)
+  defaultAppointmentDuration   Int    @default(30)
   // Reminder timing (Prompt 17): one message `offset` minutes before the
   // appointment (default 24h = 1440), clamped to the [windowStart, windowEnd]
   // clinic-local window (HH:MM) so reminders never fire outside working hours.

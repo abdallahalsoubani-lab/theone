@@ -8,6 +8,8 @@ import type { LocalizedError } from '@/lib/db';
 import { isClinicianAssignedTo } from '@/lib/patients/assignment';
 import { requirePermission } from '@/lib/rbac/guards';
 
+import { homeProgramCoverSchema, saveHomeProgramCover } from './cover';
+
 import {
   approveHomeProgram,
   homeProgramApprovalToLocalized,
@@ -49,6 +51,32 @@ function revalidateProgramPages(): void {
   revalidatePath('/[locale]/(admin)/admin/patients/[id]', 'page');
   revalidatePath('/[locale]/(staff)/doctor/approvals', 'page');
   revalidatePath('/[locale]/(patient)/patient/home-program', 'page');
+}
+
+/** P64 #15 — save the home-program PDF cover (goals + note for parents). */
+export async function saveHomeProgramCoverAction(
+  raw: unknown,
+): Promise<Result<{ patientId: string }, LocalizedError>> {
+  await requirePermission('home_program.create');
+  const parsed = homeProgramCoverSchema.safeParse(raw);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      error: {
+        code: 'VALIDATION',
+        message_en: parsed.error.issues[0]?.message ?? 'Invalid input.',
+        message_ar: 'بيانات غير صالحة.',
+      },
+    };
+  }
+  try {
+    const actorId = await currentClinicianId();
+    const data = await saveHomeProgramCover(parsed.data, { actorId });
+    revalidateProgramPages();
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: homeProgramToLocalized(err) };
+  }
 }
 
 export async function addHomeProgramItemAction(

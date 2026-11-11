@@ -79,6 +79,8 @@ export const PERMISSIONS = {
   SESSION_NOTES_READ_ASSIGNED: 'session_notes.read.assigned', // doctor / therapist
   SESSION_NOTES_UPDATE_OWN: 'session_notes.update.own', // author, within 24h (therapist + doctor)
   SESSION_NOTES_ADDENDUM: 'session_notes.addendum', // therapist + doctor + admin
+  // P64 #11 — the monthly SOAP report (therapist + doctor).
+  MONTHLY_REPORTS_WRITE: 'monthly_reports.write',
 
   // ── Patient timeline ─────────────────────────────────────────────────
   PATIENT_TIMELINE_READ: 'patient_timeline.read', // secretary + admin (full)
@@ -135,6 +137,11 @@ export const PERMISSIONS = {
   LEAVES_READ: 'leaves.read',
   LEAVES_UPDATE: 'leaves.update',
   LEAVES_DELETE: 'leaves.delete',
+
+  // ── Schedule view grants (P64 #4) ─────────────────────────────────────
+  // Admin + Secretary decide which therapist may SEE which colleague's
+  // calendar (read-only, per pair).
+  SCHEDULE_GRANTS_MANAGE: 'schedule_grants.manage',
 
   // ── Reports (end-of-day + end-of-week, Prompt 9) ─────────────────────
   REPORTS_READ: 'reports.read',
@@ -304,6 +311,7 @@ const SECRETARY_PERMS = new Set<PermissionCode>([
   PERMISSIONS.EXERCISES_READ,
   PERMISSIONS.LEAVES_CREATE_OWN,
   PERMISSIONS.LEAVES_CREATE,
+  PERMISSIONS.SCHEDULE_GRANTS_MANAGE,
   PERMISSIONS.LEAVES_READ_OWN,
   PERMISSIONS.LEAVES_READ,
   PERMISSIONS.LEAVES_DELETE,
@@ -373,6 +381,7 @@ const DOCTOR_PERMS = new Set<PermissionCode>([
   PERMISSIONS.SESSION_NOTES_CREATE_OWN,
   PERMISSIONS.SESSION_NOTES_UPDATE_OWN,
   PERMISSIONS.SESSION_NOTES_ADDENDUM,
+  PERMISSIONS.MONTHLY_REPORTS_WRITE,
   PERMISSIONS.PATIENT_TIMELINE_READ_ASSIGNED,
   PERMISSIONS.TIMELINE_READ_ASSIGNED,
   PERMISSIONS.HOME_PROGRAM_READ,
@@ -420,6 +429,7 @@ const THERAPIST_PERMS = new Set<PermissionCode>([
   PERMISSIONS.SESSION_NOTES_READ_ASSIGNED,
   PERMISSIONS.SESSION_NOTES_UPDATE_OWN,
   PERMISSIONS.SESSION_NOTES_ADDENDUM,
+  PERMISSIONS.MONTHLY_REPORTS_WRITE,
   PERMISSIONS.PATIENT_TIMELINE_READ_ASSIGNED,
   PERMISSIONS.TIMELINE_READ_ASSIGNED,
   PERMISSIONS.HOME_PROGRAM_READ,
@@ -445,8 +455,10 @@ const THERAPIST_PERMS = new Set<PermissionCode>([
   // Therapist reads pediatric assessments (assigned patients) — no write,
   // no field management (Prompt 21 §6).
   PERMISSIONS.PEDIATRIC_ASSESSMENT_READ_ASSIGNED,
-  // Patient documents: read/download assigned patients only — no upload/delete.
+  // Patient documents: read/download assigned patients; P64 #14 — upload too
+  // (care-team gated in access.ts), still NO delete.
   PERMISSIONS.PATIENT_DOCUMENTS_READ_ASSIGNED,
+  PERMISSIONS.PATIENT_DOCUMENTS_UPLOAD,
   PERMISSIONS.NOTIFICATIONS_READ_OWN,
   PERMISSIONS.NOTIFICATIONS_MARK_READ_OWN,
 ]);
@@ -481,6 +493,7 @@ const ADMIN_PERMS = new Set<PermissionCode>([
   PERMISSIONS.EXERCISE_MEDIA_DELETE,
   PERMISSIONS.LEAVES_CREATE_OWN,
   PERMISSIONS.LEAVES_CREATE,
+  PERMISSIONS.SCHEDULE_GRANTS_MANAGE,
   PERMISSIONS.LEAVES_READ_OWN,
   PERMISSIONS.LEAVES_READ,
   PERMISSIONS.LEAVES_UPDATE,
