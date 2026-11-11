@@ -1,5 +1,12 @@
 # P64 batch — owner's 17 items (one deploy)
 
+> **Status: ✅ DEPLOYED 2026-11-11 ~13:35 UTC** — `2ace481` on the prod VM,
+> all 5 migrations applied, `pnpm db:generate` run, pm2 `theone` +
+> `theone-workers` restarted, `/ar` `/en` `/…/login` = 200, protected new
+> routes (`schedule-access`, `therapist/plans/new`) = 307 → login.
+> DB backup taken first: `~/backup-pre-p64-2026-11-11.sql` (9.1 MB, VM home).
+> v4 button templates created + submitted the same day (see below).
+
 Everything ships together (owner decision: «كلهم بدفعة واحدة»).
 
 ## Migrations (5, all additive — validated: migrations ≡ schema, empty diff)
@@ -36,6 +43,31 @@ pnpm tsx scripts/create-button-templates.ts --apply     # creates + submits (UTI
 only with the owner's go-ahead. Nothing switches at that moment: the hourly
 approval sync flips `twilioApproved`, and the send paths prefer the v4 buttons
 from then on (reminder: v4 → custom frame → legacy; confirmation: v4 → v2).
+
+### Applied 2026-11-11 (owner approved)
+
+| Template / language              | Content SID                          |
+| -------------------------------- | ------------------------------------ |
+| `appointment_reminder_v4` AR     | `HXab4e63fc53dccef37ac6553c4cd83a5c` |
+| `appointment_reminder_v4` EN     | `HX0ce889c673655b6eb81b6651039e1f4b` |
+| `appointment_confirmation_v4` AR | `HX80412183319fa6623d705c2c63602d86` |
+| `appointment_confirmation_v4` EN | `HX0437db24f8506f8abb670215dc17bec1` |
+
+All submitted as UTILITY; DB rows registered with `twilioApproved=false`.
+The hourly approval sync flips them on WhatsApp approval — no deploy. If
+WhatsApp rejects one, the fallback chain keeps sending (nothing breaks);
+fix the body in `lib/admin/whatsapp/button-templates.ts` under a new
+friendly name and re-run the script.
+
+## Deploy incident — `next/font` flake
+
+The first VM `pnpm build` failed in `next/font/google`
+(`TypeError: Cannot read properties of null (reading '1')`,
+`loader.js:122` — a Google Fonts file URL came back without an extension).
+A failed `next build` has already wiped `.next`; the running pm2 process
+kept serving from memory, so the site stayed up. A plain rebuild passed.
+**Rule:** on a failed build, rebuild immediately — never `pm2 restart` until
+`BUILD_EXIT=0`.
 
 ## Not code (#5 — arrival alert)
 

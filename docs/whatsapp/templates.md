@@ -32,6 +32,29 @@ Parameter order is locked in code (`lib/whatsapp/templates/sendCredentials.ts`,
 **requires** a coordinated update on the code side; reordering `{{1}}` and
 `{{2}}` silently produces a wrong-looking message.
 
+## Confirm / decline button templates (P64)
+
+`appointment_reminder_v4` + `appointment_confirmation_v4` (AR + EN) — body
+`{{1}}` first name + `{{2}}` a when-phrase that names the real day
+(«يوم السبت 14 نوفمبر الساعة 10:00 ص» — never «غداً»), plus quick-reply
+buttons `confirm` / `decline` (same ids as v2, so the inbound parser is
+unchanged). Specs: `lib/admin/whatsapp/button-templates.ts`; created by
+`scripts/create-button-templates.ts` (submitted 2026-11-11, SIDs in
+`docs/deploy/p64-batch.md`).
+
+Send priority (each step only if approved for the patient's language):
+
+- **Reminder** (`reminderBuilder.ts`): v4 buttons → `clinic_custom_message`
+  frame with the day name (no buttons) → legacy v3 / v2.
+- **Booking confirmation** (`sendConfirmation.ts`): `new_patient_confirmation`
+  (unused intake link) → v4 buttons → `appointment_confirmation_v2`.
+
+Every button-carrying template name lives in
+`lib/whatsapp/templates/buttonCarriers.ts → BUTTON_CARRIER_TEMPLATES`; the
+inbound reply targeting (`inbound/process.ts`), `confirmationAlreadySent`
+and the secretary's reply list all key on it — add new button templates
+there.
+
 ## Shared family numbers — inbound routing + patient-name audit (Prompt 57)
 
 One phone may belong to several active patients. Inbound messages (and the
